@@ -1409,7 +1409,7 @@
       try {
         const log = { user: currentUser.name, guruKey: currentUser.key, role: currentUser.role, action, detail, waktu: new Date().toISOString(), tanggal: tglLokal(), tahunAjaran: currentTahunAjaran };
         const ref = db.ref('logs').push();
-        ref.set(log, err => { if (err) console.error('Gagal simpan log:', err); });
+        ref.set(JSON.parse(JSON.stringify(log)), err => { if (err) console.error('Gagal simpan log:', err); });
       } catch (e) {
         console.error('[SI MAMBA] addLog gagal (tidak fatal, aksi utama tetap lanjut):', e);
       }
