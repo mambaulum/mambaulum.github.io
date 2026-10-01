@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buku Tamu Digital</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#ecfdf5;color:#111827;line-height:1.45}
+  main{max-width:520px;margin:0 auto;padding:18px 14px 40px}
+  header{text-align:center;margin-bottom:14px}
+  header small{color:#047857;font-weight:600;letter-spacing:.04em}
+  h1{font-size:20px;margin:4px 0}
+  header p{margin:0;color:#4b5563;font-size:13.5px}
+  .card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+  label{display:block;font-size:13.5px;font-weight:600;margin:12px 0 4px}
+  input,select,textarea{width:100%;font:inherit;padding:10px 11px;border:1px solid #d1d5db;border-radius:9px;background:#fff}
+  input:focus,select:focus,textarea:focus{outline:2px solid #10b981;border-color:#10b981}
+  .hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+  button{width:100%;margin-top:16px;padding:12px;font:inherit;font-weight:700;color:#fff;background:#059669;border:0;border-radius:10px;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  .hint{font-size:12px;color:#6b7280;margin-top:3px}
+  .stars{display:flex;flex-direction:row-reverse;justify-content:flex-end;gap:2px}
+  .stars input{position:absolute;opacity:0;width:1px;height:1px}
+  .stars label{display:inline-block;margin:0;font-size:34px;line-height:1;font-weight:400;color:#d1d5db;cursor:pointer;padding:0 2px}
+  .stars input:checked ~ label,.stars label:hover,.stars label:hover ~ label{color:#f59e0b}
+  .stars input:focus-visible + label{outline:2px solid #10b981;border-radius:4px}
+  body.kiosk main{max-width:640px}
+  body.kiosk input,body.kiosk select,body.kiosk textarea{font-size:18px;padding:14px}
+  body.kiosk label{font-size:16px}
+  body.kiosk button:not(.lnk){padding:16px;font-size:18px}
+  body.kiosk .stars label{font-size:44px}
+  body.kiosk footer{display:none}
+  button.lnk{width:auto;margin:2px 0 0;padding:2px 0;background:none;color:#6b7280;font-size:12px;font-weight:500;text-decoration:underline}
+  .err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;padding:9px 11px;margin-top:12px;font-size:13.5px}
+  .ok{text-align:center;padding:26px 8px}.ok .t{font-size:44px}
+  .ok button.alt{background:#fff;color:#047857;border:1px solid #10b981}
+  footer{text-align:center;font-size:12px;color:#6b7280;margin-top:14px}
+  .offline{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:10px;padding:9px 12px;margin-bottom:12px;font-size:13.5px;text-align:center}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <small>BUKU TAMU DIGITAL</small>
+    <h1 id="nm">MI Mambaul Ulum</h1>
+    <p>Silakan isi data kunjungan Anda. Waktu kunjungan tercatat otomatis.</p>
+  </header>
+
+  <div id="offline" class="offline" role="status" aria-live="polite" hidden>📴 Anda sedang offline. Formulir baru bisa dikirim setelah koneksi internet tersambung kembali.</div>
+
+  <div class="card">
+    <form id="f" novalidate autocomplete="off">
+      <label for="nama">Nama Lengkap *</label>
+      <input id="nama" maxlength="80" required placeholder="Nama Anda">
+
+      <label for="wa">Nomor WhatsApp <span style="font-weight:400;color:#6b7280">(opsional)</span></label>
+      <input id="wa" type="tel" inputmode="tel" maxlength="20" placeholder="08xxxxxxxxxx">
+
+      <label for="instansi">Asal Instansi</label>
+      <input id="instansi" maxlength="100" placeholder="Mis. Wali murid kelas 3 / Kemenag / Dinas Pendidikan">
+
+      <label for="alamat">Alamat <span style="font-weight:400;color:#6b7280">(opsional)</span></label>
+      <input id="alamat" maxlength="150" placeholder="Desa / kecamatan atau alamat lengkap">
+
+      <label for="kategori">Kategori Kunjungan *</label>
+      <select id="kategori" required>
+        <option value="">-- Pilih kategori --</option>
+        <option>Orang Tua / Wali Murid</option>
+        <option>Dinas / Instansi Pemerintah</option>
+        <option>Pengawas Madrasah</option>
+        <option>Alumni / Masyarakat Umum</option>
+        <option>Mitra / Vendor</option>
+        <option>Peneliti / Mahasiswa PPL</option>
+        <option>Lainnya</option>
+      </select>
+
+      <label for="dituju">Ingin Bertemu Dengan</label>
+      <input id="dituju" maxlength="80" placeholder="Kepala madrasah / nama guru / tata usaha">
+
+      <label for="keperluan">Keperluan *</label>
+      <textarea id="keperluan" rows="3" maxlength="300" required placeholder="Tuliskan keperluan Anda secara singkat"></textarea>
+
+      <label>Penilaian Pelayanan Kami <span style="font-weight:400;color:#6b7280">(opsional)</span></label>
+      <div class="stars" role="radiogroup" aria-label="Penilaian pelayanan 1 sampai 5 bintang">
+        <input type="radio" name="rating" id="r5" value="5"><label for="r5" title="Sangat baik">★</label>
+        <input type="radio" name="rating" id="r4" value="4"><label for="r4" title="Baik">★</label>
+        <input type="radio" name="rating" id="r3" value="3"><label for="r3" title="Cukup">★</label>
+        <input type="radio" name="rating" id="r2" value="2"><label for="r2" title="Kurang">★</label>
+        <input type="radio" name="rating" id="r1" value="1"><label for="r1" title="Sangat kurang">★</label>
+      </div>
+      <button type="button" class="lnk" id="clr">Hapus penilaian</button>
+
+      <label for="saran">Kesan / Saran untuk Madrasah <span style="font-weight:400;color:#6b7280">(opsional)</span></label>
+      <textarea id="saran" rows="3" maxlength="300" placeholder="Tuliskan kesan atau masukan untuk pelayanan kami"></textarea>
+      <div class="hint">Data hanya dipakai untuk administrasi kunjungan dan peningkatan layanan madrasah.</div>
+      <div class="hint" id="kioskHint" hidden></div>
+
+      <!-- kolom jebakan bot: harus tetap kosong -->
+      <div class="hp" aria-hidden="true"><label>Website <input id="website" tabindex="-1" autocomplete="off"></label></div>
+
+      <div id="err" class="err" hidden></div>
+      <button type="submit" id="btn">Catat Kunjungan</button>
+    </form>
+
+    <div id="ok" class="ok" hidden>
+      <div class="t">✅</div>
+      <h2 style="margin:6px 0">Terima kasih!</h2>
+      <p>Kunjungan Anda sudah tercatat. Petugas madrasah akan menyambut Anda.</p>
+      <p class="hint" id="cd" hidden></p>
+      <button type="button" class="alt" id="lagi">Isi untuk tamu lain</button>
+    </div>
+  </div>
+  <footer id="ft"></footer>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
+(function () {
+  'use strict';
+  // Ubah nama madrasah di sini jika perlu.
+  var NAMA_MADRASAH = 'MADRASAH IBTIDAIYAH MAMBAUL ULUM';
+  // Mode tablet meja depan: buka buku-tamu.html?mode=tablet
+  var KIOSK = /[?&]mode=tablet(&|$)/.test(location.search);
+  var COOLDOWN_MS = KIOSK ? 5000 : 30000; // jeda minimal antar kiriman dari perangkat yang sama
+  var IDLE_MS = 150000;   // mode tablet: kosongkan formulir bila tak ada aktivitas (150 detik)
+  var THANKS_MS = 8000;   // mode tablet: lama layar "Terima kasih" sebelum formulir kosong lagi
+  // Konfigurasi Firebase web (sama dengan aplikasi utama; kunci ini memang publik).
+  var cfg = {
+    apiKey: "AIzaSyDavQuImJuJmskAbcqeFL3rkxFaKVFS4HI",
+    authDomain: "administrasi-madrasah-46c72.firebaseapp.com",
+    databaseURL: "https://administrasi-madrasah-46c72-default-rtdb.firebaseio.com",
+    projectId: "administrasi-madrasah-46c72",
+    appId: "1:515893476502:web:7141669c4158a4678c16b7"
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  $('nm').textContent = NAMA_MADRASAH; document.title = 'Buku Tamu - ' + NAMA_MADRASAH;
+  $('ft').textContent = '\u00a9 ' + new Date().getFullYear() + ' ' + NAMA_MADRASAH;
+
+  var db = null, authReady = null, authErr = null;
+  function pesanAuth(err) {
+    var c = (err && err.code) || '';
+    if (c === 'auth/operation-not-allowed' || c === 'auth/admin-restricted-operation')
+      return 'Login anonim belum diaktifkan di Firebase (Authentication > Sign-in method > Anonymous). Hubungi admin.';
+    if (c === 'auth/network-request-failed')
+      return 'Tidak bisa terhubung ke server login. Periksa koneksi internet lalu coba lagi.';
+    if (c === 'auth/too-many-requests')
+      return 'Terlalu banyak percobaan dari perangkat ini. Tunggu beberapa menit lalu coba lagi.';
+    if (c === 'auth/unauthorized-domain')
+      return 'Domain halaman ini belum diizinkan di Firebase (Authentication > Settings > Authorized domains). Hubungi admin.';
+    if (c === 'auth/api-key-not-valid' || c === 'auth/invalid-api-key')
+      return 'Konfigurasi Firebase tidak valid (API key). Hubungi admin.';
+    if (c === 'auth/app-not-authorized')
+      return 'Aplikasi ini belum diizinkan memakai kunci Firebase tersebut. Hubungi admin.';
+    return 'Gagal masuk ke layanan buku tamu' + (c ? ' (' + c + ')' : '') + '. Muat ulang halaman atau hubungi admin.';
+  }
+  function masukAnonim() {
+    authErr = null;
+    authReady = firebase.auth().signInAnonymously().catch(function (e) {
+      authErr = e; console.error('[buku-tamu] signInAnonymously gagal:', e); throw e;
+    });
+    authReady.catch(function () {}); // cegah "unhandled rejection"; error ditampilkan lewat authErr
+    return authReady;
+  }
+  try {
+    firebase.initializeApp(cfg); db = firebase.database();
+    masukAnonim();
+  } catch (e) { console.error(e); }
+  if (authReady) authReady.catch(function () { tampilErr(pesanAuth(authErr)); });
+
+  function tampilErr(msg) { var el = $('err'); el.textContent = msg; el.hidden = !msg; }
+
+  // Indikator offline
+  function updateOnline() {
+    $('offline').hidden = navigator.onLine;
+    if (navigator.onLine && authErr && authErr.code === 'auth/network-request-failed' && db) {
+      tampilErr(''); masukAnonim().catch(function () { tampilErr(pesanAuth(authErr)); });
+    }
+  }
+  window.addEventListener('offline', updateOnline);
+  window.addEventListener('online', updateOnline);
+  updateOnline();
+  function lastSent() { try { return parseInt(localStorage.getItem('bt_last') || '0', 10) || 0; } catch (e) { return 0; } }
+  var thanksTimer = null, idleTimer = null;
+  function resetForm() {
+    clearInterval(thanksTimer);
+    $('f').reset(); $('ok').hidden = true; $('f').hidden = false; tampilErr(''); window.scrollTo(0, 0);
+  }
+  function showOk() {
+    $('f').hidden = true; $('ok').hidden = false;
+    if (!KIOSK) return;
+    var s = Math.round(THANKS_MS / 1000), cd = $('cd'); cd.hidden = false;
+    cd.textContent = 'Formulir kembali kosong dalam ' + s + ' detik…';
+    clearInterval(thanksTimer);
+    thanksTimer = setInterval(function () {
+      s--;
+      if (s <= 0) resetForm(); else cd.textContent = 'Formulir kembali kosong dalam ' + s + ' detik…';
+    }, 1000);
+  }
+  function terisi() {
+    var ids = ['nama', 'wa', 'instansi', 'alamat', 'dituju', 'keperluan', 'saran', 'kategori'];
+    for (var i = 0; i < ids.length; i++) if ($(ids[i]).value) return true;
+    return !!document.querySelector('input[name="rating"]:checked');
+  }
+  function armIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () { if (!$('f').hidden && terisi()) resetForm(); }, IDLE_MS);
+  }
+  if (KIOSK) {
+    document.body.classList.add('kiosk');
+    $('kioskHint').textContent = 'Formulir dikosongkan otomatis bila tidak ada aktivitas selama ' + Math.round(IDLE_MS / 1000) + ' detik, dan setelah data terkirim.';
+    $('kioskHint').hidden = false;
+    Array.prototype.forEach.call(document.querySelectorAll('#f input[type="text"],#f input:not([type]),#f input[type="tel"]'), function (el) { el.setAttribute('autocomplete', 'off'); });
+    ['input', 'change', 'click', 'touchstart', 'keydown'].forEach(function (ev) { document.addEventListener(ev, armIdle, true); });
+  }
+  function markSent() { try { localStorage.setItem('bt_last', String(Date.now())); } catch (e) {} }
+
+  $('f').addEventListener('submit', function (ev) {
+    ev.preventDefault(); tampilErr('');
+    if ($('website').value) { showOk(); return; } // bot: pura-pura sukses
+    var rd = document.querySelector('input[name="rating"]:checked');
+    var o = {
+      nama: $('nama').value.trim(), wa: $('wa').value.trim(), instansi: $('instansi').value.trim(), alamat: $('alamat').value.trim(),
+      kategori: $('kategori').value, dituju: $('dituju').value.trim(), keperluan: $('keperluan').value.trim(),
+      saran: $('saran').value.trim(), rating: rd ? parseInt(rd.value, 10) : 0
+    };
+    if (o.nama.length < 2) return tampilErr('Nama lengkap wajib diisi.');
+    if (!o.kategori) return tampilErr('Pilih kategori kunjungan.');
+    if (!o.keperluan) return tampilErr('Keperluan wajib diisi.');
+    o.wa = o.wa.replace(/[\s\-().]/g, ''); // buang spasi, tanda hubung, kurung, titik dulu
+    if (o.wa && !/^\+?\d{9,15}$/.test(o.wa)) return tampilErr('Nomor WhatsApp hanya boleh berisi angka (9-15 digit), boleh diawali +.');
+    var sisa = COOLDOWN_MS - (Date.now() - lastSent());
+    if (sisa > 0) return tampilErr('Mohon tunggu ' + Math.ceil(sisa / 1000) + ' detik sebelum mengirim lagi.');
+    if (!navigator.onLine) { updateOnline(); return tampilErr('Anda sedang offline. Sambungkan internet lalu kirim lagi.'); }
+    if (!db) return tampilErr('Layanan belum siap. Muat ulang halaman ini.');
+    if (authErr) masukAnonim(); // percobaan ulang bila login anonim sebelumnya gagal
+    var btn = $('btn'); btn.disabled = true; btn.textContent = 'Mengirim…';
+    authReady.then(function () {
+      var p = {
+        nama: o.nama, wa: o.wa, instansi: o.instansi, alamat: o.alamat, kategori: o.kategori, dituju: o.dituju, keperluan: o.keperluan,
+        saran: o.saran, status: 'baru', sumber: 'online', ts: firebase.database.ServerValue.TIMESTAMP
+      };
+      if (o.rating >= 1 && o.rating <= 5) p.rating = o.rating;
+      return db.ref('buku_tamu').push(p);
+    }).then(function () {
+      markSent(); showOk();
+    }).catch(function (err) {
+      console.error(err);
+      if (authErr) tampilErr(pesanAuth(authErr));
+      else if (err && (err.code === 'PERMISSION_DENIED' || /permission_denied/i.test(err.message || '')))
+        tampilErr('Data ditolak server (izin database). Hubungi admin.');
+      else tampilErr('Gagal mengirim. Periksa koneksi internet lalu coba lagi, atau lapor ke petugas.');
+    }).then(function () { btn.disabled = false; btn.textContent = 'Catat Kunjungan'; });
+  });
+
+  $('clr').addEventListener('click', function () {
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="rating"]'), function (r) { r.checked = false; });
+  });
+  $('lagi').addEventListener('click', function () {
+    resetForm();
+  });
+})();
+</script>
+</body>
+</html>

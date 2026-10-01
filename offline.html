@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline - SI MAMBA</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: linear-gradient(180deg,#004f3b 0%,#006b4f 55%,#07553f 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      color: #fff;
+    }
+    .box {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 40px 28px;
+      max-width: 380px;
+    }
+    .icon { font-size: 56px; margin-bottom: 12px; }
+    h1 { font-size: 20px; margin-bottom: 10px; }
+    p { font-size: 14px; color: #d1fae5; line-height: 1.6; margin-bottom: 22px; }
+    button {
+      background: #fff;
+      color: #07553f;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:active { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="icon">📡</div>
+    <h1>Sedang Tidak Ada Koneksi</h1>
+    <p>Halaman ini belum pernah dibuka sebelumnya sehingga belum tersimpan untuk mode offline. Sambungkan kembali ke internet lalu coba lagi. Halaman yang sudah pernah dibuka tetap bisa diakses tanpa internet.</p>
+    <button onclick="window.location.reload()">🔄 Coba Lagi</button>
+  </div>
+</body>
+</html>
