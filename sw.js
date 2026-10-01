@@ -36,7 +36,7 @@
    js/menu-hub.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js).
 ============================================================ */
 
-const APP_VERSION = 'v5.6';
+const APP_VERSION = 'v5.7';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -67,7 +67,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=3',
   './js/administrasi-ujian.js?v=1',
-  './js/app.js?v=18',
+  './js/app.js?v=19',
   './js/menu-hub.js?v=3',
   './js/modul-ajar.js?v=2',
   './js/buku-tamu.js?v=1',

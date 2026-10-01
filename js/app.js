@@ -199,7 +199,7 @@
     // Anda sendiri (BUKAN ke Claude/chat ini), buka console browser di halaman app, jalankan
     // CryptoJS.SHA256("PIN_BARU_ANDA").toString() lalu tempel hasilnya menggantikan nilai di bawah.
     const ADMIN_PIN_HASH = 'a9a634b2a16124e4cfc3d9b1ad4f772e865cbfed2eaf2025752cd0e3df15e37b';
-    const KEPSEK_PIN_HASH = 'a9a634b2a16124e4cfc3d9b1ad4f772e865cbfed2eaf2025752cd0e3df15e37b';
+    const KEPSEK_PIN_HASH = '4d9749d1e2616cbce46c84ac26cdc6cf8180e6e1678e4160008a8cd2fffd6d7a';
     // FIX: kedua hash di atas saat ini IDENTIK -- kemungkinan masih nilai default yang belum
     // diganti sejak deploy, yang berarti Admin & Kepsek login pakai PIN yang sama persis.
     // Peringatan ini cuma pengingat di Console (tidak mengubah perilaku apa pun); kalau memang
