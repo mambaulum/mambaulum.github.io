@@ -36,7 +36,7 @@
    js/menu-hub.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js).
 ============================================================ */
 
-const APP_VERSION = 'v5.7';
+const APP_VERSION = 'v5.8';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -65,12 +65,12 @@ const PRECACHE_URLS = [
   './css/styles.css?v=17',              // samakan dengan ?v= di index.html
   './js/logo-fallback.js',
   './js/offline-db.js',
-  './js/kas.js?v=3',
+  './js/kas.js?v=4',
   './js/administrasi-ujian.js?v=1',
-  './js/app.js?v=19',
+  './js/app.js?v=20',
   './js/menu-hub.js?v=3',
-  './js/modul-ajar.js?v=2',
-  './js/buku-tamu.js?v=1',
+  './js/modul-ajar.js?v=3',
+  './js/buku-tamu.js?v=2',
   './js/fitur-pelengkap.js?v=1',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',

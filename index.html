@@ -79,7 +79,7 @@
 
   <!-- Menu Kas Madrasah (Kas Umum, Kas Infaq, Setoran Infaq) -- dimuat SEBELUM app.js supaya
        fungsinya (setupKasUmumPage, kasCanOpenMenu) sudah ada saat app.js berjalan. -->
-  <script defer src="js/kas.js?v=3"></script>
+  <script defer src="js/kas.js?v=4"></script>
 
   <!-- Menu Administrasi Ujian (Daftar Hadir, Tata Tertib, Denah, Berita Acara) -- juga dimuat SEBELUM app.js
        supaya setupAdministrasiUjianPage() & aujCanOpenMenu() sudah ada saat app.js berjalan. -->
@@ -90,10 +90,10 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=19"></script>
+  <script defer src="js/app.js?v=20"></script>
   <script defer src="js/menu-hub.js?v=3"></script>
-  <script defer src="js/modul-ajar.js?v=2"></script>
-  <script defer src="js/buku-tamu.js?v=1"></script>
+  <script defer src="js/modul-ajar.js?v=3"></script>
+  <script defer src="js/buku-tamu.js?v=2"></script>
 
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
