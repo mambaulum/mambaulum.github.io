@@ -48,6 +48,7 @@
   var tab = 'daftar', editingKey = null, komp = 'materiIsi';
   var filt = { q: '', mapel: '', kelas: '', semester: '', pers: '' };
   var root = null;
+  var gen = 0; // naik tiap resetState(); callback load yang datang terlambat (milik sesi lama) diabaikan
 
   /* ---------- util ---------- */
   function esc(s) { return escapeHtml(String(s == null ? '' : s)); }
@@ -315,14 +316,17 @@
       if (cb) cb(); return;
     }
     loading = true; loadErr = '';
+    var g = gen;
     render();
     db.ref('modul_ajar').once('value', function (snap) {
+      if (g !== gen) return;
       var arr = [];
       snap.forEach(function (c) { var v = c.val() || {}; v.key = c.key; arr.push(v); });
       data = arr.filter(function (m) { return isAdmin() || isKepsek() || isOwner(m); });
       sortData();
       loaded = true; loading = false; render(); if (cb) cb();
     }, function (err) {
+      if (g !== gen) return;
       loading = false; loadErr = 'Gagal memuat modul: ' + (err && err.message || err);
       render(); if (cb) cb();
     });
@@ -358,7 +362,9 @@
     if (refLoaded && !force) { if (cb) cb(); return; }
     if (typeof db === 'undefined' || !navigator.onLine) { if (cb) cb(); return; }
     refLoading = true; refErr = '';
+    var g = gen;
     db.ref('kurikulum_ref').once('value', function (snap) {
+      if (g !== gen) return;
       var arr = []; snap.forEach(function (c) { var v = c.val() || {}; v.key = c.key; arr.push(v); });
       refs = arr.sort(function (a, b) { return (a.mapel + a.fase).localeCompare(b.mapel + b.fase); });
       refLoaded = true; refLoading = false;
@@ -366,6 +372,7 @@
       else if (tab === 'buat') { if (!editingKey) applyRef(true); refreshRefInfo(); }
       if (cb) cb();
     }, function (err) {
+      if (g !== gen) return;
       refLoading = false; refErr = 'Gagal memuat referensi kurikulum: ' + (err && err.message || err);
       if (tab === 'referensi') renderBody(); if (cb) cb();
     });
@@ -1208,15 +1215,27 @@
   }
 
   /* ---------- pasang ke navigasi ---------- */
+  // Dipanggil app.js saat logout / ganti pengguna: kosongkan semua state modul (data, referensi, draf form, filter,
+  // tab) supaya pengguna berikutnya tidak melihat data milik sesi sebelumnya. Aman dipanggil berulang kali.
+  function resetState() {
+    gen++; // batalkan load yang masih berjalan
+    clearTimeout(qTimer); qTimer = null;
+    data = []; loaded = false; loading = false; loadErr = '';
+    refs = []; refLoaded = false; refLoading = false; refErr = '';
+    refMode = 'list'; refEditKey = null; refParsed = null; refPaste = '';
+    formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; pertSaran = PERT_DEFAULT;
+    tab = 'daftar'; editingKey = null; komp = 'materiIsi';
+    filt = { q: '', mapel: '', kelas: '', semester: '', pers: '' };
+    if (root) root.innerHTML = '';
+  }
+  window.modulAjarResetState = resetState;
+
   var initTries = 0, hooked = false, logoutBound = false;
   function bindLogout() {
     if (logoutBound) return; logoutBound = true;
     // Data milik sesi sebelumnya dibuang saat ganti pengguna (state modul ini di luar kasResetState/logout app.js).
     document.addEventListener('click', function (e) {
-      if (e.target.closest && e.target.closest('.logout-btn')) {
-        clearTimeout(qTimer); qTimer = null;
-        data = []; loaded = false; refs = []; refLoaded = false; formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; refMode = 'list'; editingKey = null; tab = 'daftar'; filt = { pers: '', q: '', mapel: '', kelas: '', semester: '' };
-      }
+      if (e.target.closest && e.target.closest('.logout-btn')) resetState();
     }, true);
   }
   function init() {

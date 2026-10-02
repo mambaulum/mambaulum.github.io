@@ -495,6 +495,9 @@ function kasResetState() {
   // isinya tetap tertahan di memori sampai buku itu dihitung ulang -- kosongkan di tempat (const, tak bisa diganti).
   Object.keys(_kasSusunCache).forEach(k => { delete _kasSusunCache[k]; });
   allSetoranInfaq = []; setoranTahunDimuat = null; setoranGen++;
+  // Indeks iuran per kelas (setoranIndeksIuran) dibangun dari data iuran sesi sebelumnya; walau perbandingan
+  // referensi array membuatnya tidak dipakai lagi, isinya tetap tertahan di memori -- kosongkan di tempat.
+  _setoranIdx.ref = null; _setoranIdx.map = null;
   kasTerakhirSegar = 0; setoranTerakhirSegar = 0;
   kasEditingKey = null; setoranEditingKey = null; setoranNominalManual = false;
   kasBukuAktif = 'umum'; kasTabAktif = 'umum';

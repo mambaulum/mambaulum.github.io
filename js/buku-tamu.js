@@ -467,6 +467,18 @@
     }
   }
 
+  /* ---------- reset state (dipanggil app.js saat logout) ---------- */
+  // Lepas listener realtime & kosongkan semua state modul supaya pengguna berikutnya tidak melihat data
+  // (atau filter/tab) milik sesi sebelumnya. Aman dipanggil berulang kali, kapan saja.
+  function resetState() {
+    stopLive();
+    if (root) root.innerHTML = '';
+    data = []; loaded = false; loading = false; loadErr = '';
+    tab = 'daftar'; filt = { q: '', rentang: 'hari', kategori: '', status: '' }; arsip = { sem: '', list: null, diunduh: false };
+    try { updateBadge(); } catch (e) { /* menu belum ada */ }
+  }
+  window.bukuTamuResetState = resetState;
+
   /* ---------- pasang ke navigasi ---------- */
   function init() {
     injectCss(); ensurePage();
@@ -489,7 +501,7 @@
     };
     // Data sesi sebelumnya dibuang saat logout (state modul ini di luar reset logout app.js).
     document.addEventListener('click', function (e) {
-      if (e.target.closest && e.target.closest('.logout-btn')) { stopLive(); if (root) root.innerHTML = ''; data = []; loaded = false; loading = false; loadErr = ''; updateBadge(); tab = 'daftar'; filt = { q: '', rentang: 'hari', kategori: '', status: '' }; arsip = { sem: '', list: null, diunduh: false }; }
+      if (e.target.closest && e.target.closest('.logout-btn')) resetState();
     }, true);
   }
   init();
