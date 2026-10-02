@@ -2008,3 +2008,9 @@ body.dark-mode .mp-rel { background: #0f172a; color: #cbd5e1; }
 body.dark-mode .mp-snip { color: #cbd5e1; }
 body.dark-mode .mp-meta { background: rgba(52,211,153,.15); color: #6ee7b7; }
 body.dark-mode .mp-sticky { background: #1e293b; border-top-color: #334155; }
+/* Toast hanya notifikasi: jangan pernah menangkap sentuhan,
+   supaya tidak menutupi bottom nav saat tak terlihat */
+.toast,
+.toast.show {
+  pointer-events: none;
+}
