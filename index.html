@@ -12,12 +12,12 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SI MAMBA" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180x180.png" />
-  <link rel="apple-touch-icon" sizes="152x152" href="icons/apple-touch-icon-180x180.png" />
-  <link rel="apple-touch-icon" sizes="167x167" href="icons/apple-touch-icon-180x180.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180x180.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512x512.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-v2-180x180.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/apple-touch-icon-v2-180x180.png" />
+  <link rel="apple-touch-icon" sizes="167x167" href="icons/apple-touch-icon-v2-180x180.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-v2-180x180.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-v2-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-v2-512x512.png" />
 
   <!-- CSS ditaruh PALING AWAL di antara resource eksternal supaya browser mulai mengunduhnya
        sesegera mungkin (mengurangi flash-of-unstyled-content), lebih dulu dari semua script. -->
@@ -79,25 +79,25 @@
 
   <!-- Menu Kas Madrasah (Kas Umum, Kas Infaq, Setoran Infaq) -- dimuat SEBELUM app.js supaya
        fungsinya (setupKasUmumPage, kasCanOpenMenu) sudah ada saat app.js berjalan. -->
-  <script defer src="js/kas.js?v=4"></script>
+  <script defer src="js/kas.js?v=5"></script>
 
   <!-- Menu Administrasi Ujian (Daftar Hadir, Tata Tertib, Denah, Berita Acara) -- juga dimuat SEBELUM app.js
        supaya setupAdministrasiUjianPage() & aujCanOpenMenu() sudah ada saat app.js berjalan. -->
-  <script defer src="js/administrasi-ujian.js?v=1"></script>
+  <script defer src="js/administrasi-ujian.js?v=2"></script>
 
   <!-- Logic utama aplikasi -- defer juga (bukan lagi ditaruh di akhir <body>) supaya urutan
        eksekusinya konsisten dengan script defer lain di atas (semua defer dijamin browser
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=21"></script>
+  <script defer src="js/app.js?v=23"></script>
   <script defer src="js/menu-hub.js?v=3"></script>
-  <script defer src="js/modul-ajar.js?v=3"></script>
-  <script defer src="js/buku-tamu.js?v=2"></script>
+  <script defer src="js/modul-ajar.js?v=5"></script>
+  <script defer src="js/buku-tamu.js?v=4"></script>
 
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
-  <script defer src="js/fitur-pelengkap.js?v=2"></script>
+  <script defer src="js/fitur-pelengkap.js?v=3"></script>
 </head>
 <body>
 
@@ -347,7 +347,7 @@
           <button class="dark-toggle" onclick="toggleDarkMode()" title="Mode Gelap" aria-label="Ganti mode gelap">🌙</button>
           <button class="btn btn-soft" style="padding:6px 16px;font-size:13px;" onclick="refreshAllData()">🔄 Refresh</button>
           <button class="btn btn-soft" style="padding:6px 16px;font-size:13px;" onclick="showDebug()">🐛 Debug</button>
-          <button class="btn btn-success" style="padding:6px 16px;font-size:13px;" onclick="manualBackup()">💾 Backup</button>
+          <button id="headerBackupBtn" class="btn btn-success" style="padding:6px 16px;font-size:13px;display:none;" onclick="manualBackup()">💾 Backup</button>
         </div>
       </div>
 
@@ -1484,8 +1484,8 @@
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Lihat status kehadiran seluruh guru hari ini. <span style="color:#059669;font-weight:600;">✅ Hijau = Sudah Hadir</span> · <span style="color:#dc2626;font-weight:600;">❌ Merah = Belum Absen</span></p>
           <div id="adminTeacherAttendanceList" style="max-height:300px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;"><p style="color:#6b7280;font-size:13px;">Memuat data kehadiran guru...</p></div>
           <div id="adminTeacherAttendanceSummary" style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;"></div>
-          <h4 style="font-weight:700;margin-bottom:8px;">💾 Backup & Reset</h4>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;"><button class="btn btn-soft" onclick="manualBackup()">💾 Backup Manual</button><button class="btn btn-soft" onclick="exportData()">📤 Ekspor</button><label class="btn btn-soft" style="cursor:pointer;" for="importFile">📥 Impor</label><input id="importFile" type="file" accept=".json" class="hidden" onchange="importData(event)"><button class="btn btn-danger" onclick="resetSemua()">🗑️ Reset</button></div>
+          <h4 style="font-weight:700;margin-bottom:8px;">💾 Backup</h4>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;"><button class="btn btn-soft" onclick="manualBackup()">💾 Backup Manual</button></div>
           <p id="dataCount" style="font-size:13px;color:#6b7280;margin-top:12px;">Total data: 0 item</p>
         </div>
       </div>
