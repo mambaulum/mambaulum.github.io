@@ -159,7 +159,7 @@ function setupAdministrasiUjianPage() {
   aujPastikanAktif();
   aujRenderSemua();
   // Data bisa berubah dari perangkat lain -> segarkan di latar belakang, tapi tidak tiap kali halaman dibuka.
-  if (navigator.onLine && (aujTahunDimuat !== currentTahunAjaran || Date.now() - aujTerakhirSegar > 60 * 1000)) {
+  if (isReallyOnline() && (aujTahunDimuat !== currentTahunAjaran || Date.now() - aujTerakhirSegar > 60 * 1000)) {
     aujTerakhirSegar = Date.now();
     aujMuat(() => {
       aujPastikanAktif();
@@ -228,7 +228,7 @@ function aujTulis(patch, pesanOk, aksiLog) {
   if (!aujCanEdit()) return toast('Hanya Admin yang bisa mengubah administrasi ASAS/ASAT!', true);
   const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
   if (isBusy('aujTulis')) return toast('Sedang menyimpan...', false, 1500);
-  if (!navigator.onLine) return toast('📡 Sedang offline. Penyimpanan administrasi ASAS/ASAT butuh koneksi internet — coba lagi setelah online.', true);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Penyimpanan administrasi ASAS/ASAT butuh koneksi internet — coba lagi setelah online.', true);
   setBusy('aujTulis');
   const data = Object.assign({}, patch, { updatedBy: currentUser.name, updatedAt: new Date().toISOString() });
   db.ref(AUJ_NODE + '/' + rec.key).update(data, err => {
@@ -299,7 +299,7 @@ function aujSimpanSesi() {
   };
   if (aujBaru) {
     if (isBusy('aujSimpanSesi')) return toast('Sedang menyimpan...', false, 1500);
-    if (!navigator.onLine) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+    if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
     // Sesi baru mewarisi denah lokasi & tata tertib buatan sesi terbaru, supaya tidak mengetik ulang.
     const acuan = aujUrutSesi()[0] || {};
     const data = Object.assign({}, isi, {
@@ -332,7 +332,7 @@ function aujHapusSesi() {
   if (!aujCanEdit()) return;
   const rec = aujRec(); if (!rec) return;
   if (isBusy('aujHapus')) return;
-  if (!navigator.onLine) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
   if (!doubleConfirm(`Hapus sesi ASAS/ASAT ini beserta daftar hadir, denah, dan berita acaranya?\n\n${rec.nama || '-'} • ${rec.kelas || '-'} • ${rec.ruang || '-'}\n${aujTglIndo(rec.tanggal, true)}`)) return;
   setBusy('aujHapus');
   db.ref(AUJ_NODE + '/' + rec.key).remove(err => {

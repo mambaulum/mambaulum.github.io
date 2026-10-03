@@ -89,7 +89,7 @@
   // (mencegah dua orang bertindak bersamaan / data basi di layar). patch = field yang ikut ditulis.
   function transisi(key, dari, ke, patch, okMsg, logAksi, btn) {
     var m = byKey(key); if (!m) return;
-    if (!navigator.onLine) return toast('Perlu koneksi internet.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet.', true);
     if (isBusy('persModul')) return toast('Sedang memproses…', false, 1500);
     setBusy('persModul', btn);
     db.ref('modul_ajar/' + key).transaction(function (cur) {
@@ -311,7 +311,7 @@
   function load(force, cb) {
     if (loading) return;
     if (loaded && !force) { if (cb) cb(); return; }
-    if (typeof db === 'undefined' || !navigator.onLine) {
+    if (typeof db === 'undefined' || !isReallyOnline()) {
       loadErr = loaded ? '' : 'Perlu koneksi internet untuk memuat modul.';
       if (cb) cb(); return;
     }
@@ -334,7 +334,7 @@
   function sortData() { data.sort(function (a, b) { return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); }); }
   function byKey(key) { return data.filter(function (m) { return m.key === key; })[0]; }
   function write(key, payload, okMsg, cb) {
-    if (!navigator.onLine) return toast('Perlu koneksi internet untuk menyimpan.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet untuk menyimpan.', true);
     db.ref('modul_ajar/' + key).update(payload, function (err) {
       if (err) return toast('Gagal: ' + err.message, true);
       var m = byKey(key); if (m) Object.keys(payload).forEach(function (k) { m[k] = payload[k]; });
@@ -360,7 +360,7 @@
   function loadRef(force, cb) {
     if (refLoading) return;
     if (refLoaded && !force) { if (cb) cb(); return; }
-    if (typeof db === 'undefined' || !navigator.onLine) { if (cb) cb(); return; }
+    if (typeof db === 'undefined' || !isReallyOnline()) { if (cb) cb(); return; }
     refLoading = true; refErr = '';
     var g = gen;
     db.ref('kurikulum_ref').once('value', function (snap) {
@@ -476,7 +476,7 @@
   }
   function refSimpan(btn) {
     if (!isAdmin()) return toast('Hanya Admin!', true);
-    if (!navigator.onLine) return toast('Perlu koneksi internet untuk menyimpan.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet untuk menyimpan.', true);
     if (isBusy('simpanRef')) return;
     var mapel = val('mpr-mapel'), fase = val('mpr-fase'), versi = val('mpr-versi'), cp = val('mpr-cp'), tp = val('mpr-tp');
     if (!mapel || !fase || !versi || (!cp && !tp)) return toast('Mata pelajaran, fase, sumber/versi, dan minimal CP atau TP wajib diisi!', true);
@@ -499,7 +499,7 @@
   }
   function refImporSimpan(btn) {
     if (!isAdmin() || !refParsed || !refParsed.ok.length) return;
-    if (!navigator.onLine) return toast('Perlu koneksi internet untuk menyimpan.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet untuk menyimpan.', true);
     if (isBusy('imporRef')) return;
     var now = new Date().toISOString(), upd = {};
     refParsed.ok.forEach(function (r) {
@@ -1021,7 +1021,7 @@
   function simpan() {
     if (!canCreate()) return toast('Tidak diizinkan!', true);
     if (isBusy('simpanModul')) return toast('Sedang menyimpan…', false, 1500);
-    if (!navigator.onLine) return toast('Perlu koneksi internet untuk menyimpan.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet untuk menyimpan.', true);
     var o = collect(), lama = editingKey ? byKey(editingKey) : null;
     if (lama && !canEdit(lama)) return toast('Anda tidak bisa mengubah modul milik guru lain.', true);
     if (lama && pers(lama) === 'diajukan') return toast('Modul sedang menunggu persetujuan dan dikunci. Tunggu hasil tinjauan.', true);
@@ -1042,7 +1042,7 @@
     });
     delete full.key;
     setBusy('simpanModul', btn);
-    ref.set(full, function (err) {
+    var selesaiSimpan = function (err) {
       clearBusy('simpanModul', btn);
       if (err) return toast('Gagal: ' + err.message, true);
       full.key = ref.key;
@@ -1050,11 +1050,31 @@
       sortData();
       toast(kembaliDraf ? '✅ Modul disimpan. Status kembali ke Draf, ajukan ulang untuk persetujuan.' : '✅ Modul disimpan!', false, kembaliDraf ? 5000 : undefined); addLog(lama ? 'ubah_modul_ajar' : 'buat_modul_ajar', judulModul(full));
       editingKey = null; tab = 'daftar'; render();
-    });
+    };
+    if (!lama) { ref.set(full, selesaiSimpan); return; }
+    // Edit: ref.set() menimpa SELURUH node memakai salinan lokal yang bisa basi. Contoh: modul sudah diajukan/disetujui
+    // dari perangkat lain, lalu perangkat ini (cache lama: masih "draf") menyimpan -> status persetujuan ikut kembali ke
+    // "draf" tanpa sepengetahuan Kepala Madrasah. Transaction membatalkan simpan kalau status di server sudah berbeda.
+    var statusLokal = pers(lama);
+    ref.transaction(function (cur) {
+      if (cur === null) return full;   // belum ada cache lokal: server akan mengulang dengan data aslinya
+      var st = PERS[cur.persetujuan] ? cur.persetujuan : 'draf';
+      if (st !== statusLokal) return;  // status sudah berubah di server: batalkan
+      return full;
+    }, function (err, committed) {
+      if (!err && !committed) {
+        clearBusy('simpanModul', btn);
+        toast('⚠️ Status modul sudah berubah di server (mis. sudah diajukan/dinilai), perubahan Anda belum disimpan. Memuat ulang…', true, 6000);
+        return load(true, function () { editingKey = null; tab = 'daftar'; render(); });
+      }
+      selesaiSimpan(err);
+    }, false);
   }
   function duplikat(key) {
     var m = byKey(key); if (!m || !canCreate()) return;
-    if (!navigator.onLine) return toast('Perlu koneksi internet.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet.', true);
+    if (isBusy('dupModul')) return toast('Sedang menduplikat…', false, 1500);
+    setBusy('dupModul');
     var now = new Date().toISOString(), ref = db.ref('modul_ajar').push();
     var salin = Object.assign({}, m, { materi: (m.materi || '') + ' (Salinan)', status: 'aktif', favorit: false,
       persetujuan: 'draf', persetujuanOleh: null, persetujuanRole: null, persetujuanAt: null, diajukanAt: null, catatanKepsek: null,
@@ -1062,6 +1082,7 @@
       ownerName: currentUser.name, ownerKey: currentUser.key || '', createdAt: now, updatedAt: now });
     delete salin.key;
     ref.set(salin, function (err) {
+      clearBusy('dupModul');
       if (err) return toast('Gagal: ' + err.message, true);
       salin.key = ref.key; data.unshift(salin);
       toast('📄 Modul diduplikat. Silakan sesuaikan isinya.'); addLog('duplikat_modul_ajar', judulModul(m));
@@ -1178,8 +1199,13 @@
       case 'arsip': if (m && canEdit(m)) write(key, { status: 'arsip', updatedAt: new Date().toISOString() }, '🗄️ Modul diarsipkan', function () { editingKey = null; if (tab === 'buat') tab = 'daftar'; render(); }); break;
       case 'pulih': if (m && canEdit(m)) write(key, { status: 'aktif', updatedAt: new Date().toISOString() }, '♻️ Modul dipulihkan', renderList); break;
       case 'hapus':
-        if (m && canEdit(m) && doubleConfirm('Hapus modul ini secara permanen?')) {
+        if (m && canEdit(m)) {
+          if (!isReallyOnline()) { toast('Perlu koneksi internet untuk menghapus.', true); break; }
+          if (isBusy('hapusModul')) break;
+          if (!doubleConfirm('Hapus modul ini secara permanen?')) break;
+          setBusy('hapusModul');
           db.ref('modul_ajar/' + key).remove(function (err) {
+            clearBusy('hapusModul');
             if (err) return toast('Gagal: ' + err.message, true);
             data = data.filter(function (x) { return x.key !== key; }); addLog('hapus_modul_ajar', judulModul(m)); toast('Modul dihapus'); renderList();
           });
@@ -1203,8 +1229,13 @@
       case 'refimporcek': refPaste = ($('mpr-paste') || {}).value || ''; refParsed = parseImpor(refPaste); renderBody(); break;
       case 'refimporsimpan': refImporSimpan(b); break;
       case 'refhapus':
-        if (isAdmin() && refByKey(key) && doubleConfirm('Hapus referensi kurikulum ini?')) {
+        if (isAdmin() && refByKey(key)) {
+          if (!isReallyOnline()) { toast('Perlu koneksi internet untuk menghapus.', true); break; }
+          if (isBusy('hapusRefKur')) break;
+          if (!doubleConfirm('Hapus referensi kurikulum ini?')) break;
+          setBusy('hapusRefKur');
           db.ref('kurikulum_ref/' + key).remove(function (err) {
+            clearBusy('hapusRefKur');
             if (err) return toast('Gagal: ' + err.message, true);
             refs = refs.filter(function (x) { return x.key !== key; }); addLog('hapus_referensi_kurikulum', key); toast('Referensi dihapus'); renderBody();
           });

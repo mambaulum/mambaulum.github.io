@@ -2674,6 +2674,7 @@
       updateLogoByMode();
       
       document.getElementById('pengumumanAdmin').style.display = isAdmin() ? 'block' : 'none';
+      const headerBackupBtn = document.getElementById('headerBackupBtn'); if (headerBackupBtn) headerBackupBtn.style.display = isAdmin() ? '' : 'none';
 
       const canEditTeacher = isTeacher() || isWaliKelas();
       document.getElementById('btnTambahSiswa').disabled = !isAdmin();
@@ -3445,6 +3446,7 @@
     function flushOnePendingWrite(item) {
       if (item.type === 'journal') return promiseDeadline(flushPendingJournal(item), FLUSH_ITEM_DEADLINE_MS);
       if (item.type === 'attendance') return promiseDeadline(flushPendingAttendance(item), FLUSH_ITEM_DEADLINE_MS);
+      if (item.type === 'teacher_attendance') return promiseDeadline(flushPendingTeacherAttendance(item), FLUSH_ITEM_DEADLINE_MS);
       // Tipe tak dikenal (mis. dari versi lama) -> buang saja supaya antrian tidak macet permanen.
       return SIMambaOfflineDB.deletePendingWrite(item.id);
     }
@@ -3464,6 +3466,7 @@
       });
     }
 
+    const _flushAttKeyByItem = {};
     function flushPendingAttendance(item) {
       return new Promise((resolve, reject) => {
         const p = Object.assign({}, item.payload); const fbKey = p._fbKey; delete p._fbKey;
@@ -3477,11 +3480,34 @@
         };
         // [PATCH] Kalau key sudah diketahui saat antre, langsung tulis ke node itu (idempoten).
         if (fbKey) return kirim(db.ref('attendance/' + fbKey));
+        // Item lama tanpa _fbKey: ingat key yang dipilih untuk item ini selama sesi, supaya percobaan ulang
+        // (mis. kena batas waktu padahal tulisan pertama masih berjalan) menulis ke node yang SAMA, bukan push() baru.
+        if (_flushAttKeyByItem[item.id]) return kirim(db.ref('attendance/' + _flushAttKeyByItem[item.id]));
         db.ref('attendance').orderByChild('tanggal').equalTo(p.tanggal).once('value', snap => {
           let existingKey = null;
           snap.forEach(child => { if (child.val().kelas === p.kelas) existingKey = child.key; });
-          kirim(existingKey ? db.ref('attendance/' + existingKey) : db.ref('attendance').push());
+          const ref = existingKey ? db.ref('attendance/' + existingKey) : db.ref('attendance').push();
+          _flushAttKeyByItem[item.id] = ref.key;
+          kirim(ref);
         }, reject);
+      });
+    }
+
+    // Kirim absen QR guru yang tersimpan offline. Key tetap (tanggal_guru_tipe) + transaction: kalau sudah ada
+    // catatan (mis. absen dari perangkat lain / sudah terkirim sebelumnya), TIDAK ditimpa dan item dianggap selesai.
+    function flushPendingTeacherAttendance(item) {
+      return new Promise((resolve, reject) => {
+        const p = Object.assign({}, item.payload); const fbKey = p._fbKey; delete p._fbKey;
+        if (!fbKey) { SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve); return; } // item rusak, buang
+        db.ref('teacher_attendance/' + fbKey).transaction(existing => {
+          if (existing !== null) return; // sudah ada -- batalkan, jangan timpa
+          return p;
+        }, (err) => {
+          if (err) return reject(err);
+          const idx = allTeacherAttendance.findIndex(a => a._pendingId === item.id);
+          if (idx > -1) { allTeacherAttendance[idx] = Object.assign({ key: fbKey }, p); bumpTaRev(); }
+          SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve);
+        }, false);
       });
     }
 
@@ -3489,7 +3515,15 @@
     function handleBrowserOnline() {
       setOfflineBannerVisible(false);
       toast('🌐 Koneksi internet kembali tersambung.', false, 2500);
-      if (currentUser) { flushPendingWrites(); loadAllData(); }
+      if (currentUser) {
+        // Kalau masih ada antrean offline, JANGAN loadAllData() sekarang: loader mengganti seluruh array
+        // (allJournals/allAttendance/allTeacherAttendance) dengan data server yang belum memuat data antrean,
+        // sehingga entri yang baru dibuat offline "hilang" sesaat & bisa tersimpan dobel. flushPendingWrites()
+        // sendiri memanggil loadAllData() setelah antrean selesai.
+        if (window.SIMambaOfflineDB) {
+          SIMambaOfflineDB.countPendingWrites().then(n => { if (n > 0) flushPendingWrites(); else loadAllData(); }).catch(() => loadAllData());
+        } else { loadAllData(); }
+      }
       else { loadGuruListForLogin(); } // belum login -- aman di-refresh di background siapa pun tampilannya (chooser/form PIN/Portal Ortu)
     }
     function handleBrowserOffline() {
@@ -3578,7 +3612,7 @@
       corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('guru_terajin').once('value', snap => { allGuruTerajin = snap.val() || {}; resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (guru_terajin):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'guru_terajin'));
       corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('pengumuman').once('value', snap => { allPengumuman = []; snap.forEach(child => { const p = child.val(); p.key = child.key; allPengumuman.push(p); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (pengumuman):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'pengumuman'));
       corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('jadwal').once('value', snap => { allJadwal = []; snap.forEach(child => { const j = child.val(); j.key = child.key; allJadwal.push(j); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (jadwal):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'jadwal'));
-      corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('absen_qr_settings').once('value', snap => { if (typeof V4 !== 'undefined') V4.absenQr = snap.val() || null; resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (absen_qr_settings):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'absen_qr_settings'));
+      corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('absen_qr_settings').once('value', snap => { if (typeof V4 !== 'undefined') { V4.absenQr = snap.val() || null; v4CacheAbsenQr(V4.absenQr); } resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (absen_qr_settings):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'absen_qr_settings'));
       if (isAdmin()) {
         corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('logs').orderByChild('waktu').limitToLast(30).once('value', snap => { allLogs = []; snap.forEach(child => { const log = child.val(); log.key = child.key; allLogs.push(log); }); allLogs.reverse(); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (logs):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'logs'));
       } else { allLogs = []; }
@@ -4222,7 +4256,7 @@
       selectedAttendanceClass = filterKelas;
       if (!filterKelas) { document.getElementById('attendanceList').innerHTML = '<p class="text-muted" style="text-align:center;padding:12px;">Silakan pilih kelas terlebih dahulu.</p>'; return; }
       const existing = allAttendance.filter(a => a.tanggal === date && a.kelas === filterKelas);
-      attendanceDraft = existing.length > 0 ? existing[0].data || {} : {};
+      attendanceDraft = existing.length > 0 ? JSON.parse(JSON.stringify(existing[0].data || {})) : {}; // salinan: klik status tidak boleh mengubah allAttendance (& cache offline) sebelum disimpan
       renderAttendance([filterKelas]);
     }
     function renderAttendance(kelasList) {
@@ -4317,7 +4351,7 @@
     // ============================================================
     function sudahAbsenDatangHariIni() {
       const today = tglLokal();
-      return allTeacherAttendance.some(a => a.tanggal === today && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
+      return allTeacherAttendance.some(a => a.tanggal === today && a.type === 'Datang' && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
     }
     function bolehIsiAbsensiSiswa() {
       if (isAdmin() || isKepsek()) return true;
@@ -4553,6 +4587,7 @@
     }
     function bukaAbsensiMewakili(kelas, tanggal) {
       if (!kelas || !tanggal) return;
+      if (!isReallyOnline()) return toast('📡 Absensi untuk kelas yang diwakili butuh koneksi internet (data siswa kelas itu diambil langsung dari server). Coba lagi saat online.', true);
       mewakiliAttendanceKelas = kelas; mewakiliAttendanceTanggal = tanggal; mewakiliAttendanceSiswa = []; mewakiliAttendanceDraft = {};
       document.getElementById('mewakiliAbsensiTitle').textContent = `Absensi ${kelas} -- ${tanggal}`;
       document.getElementById('mewakiliAbsensiList').innerHTML = '<p class="text-muted" style="text-align:center;padding:12px;">⏳ Memuat data siswa...</p>';
@@ -4599,6 +4634,7 @@
       const kelas = mewakiliAttendanceKelas, tanggal = mewakiliAttendanceTanggal;
       if (!kelas || !tanggal) return;
       if (mewakiliAttendanceSiswa.length === 0) return toast('Tidak ada siswa untuk disimpan.', true);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Absensi guru pengganti butuh koneksi internet, coba lagi saat online.', true);
       const belumDiisi = mewakiliAttendanceSiswa.filter(s => !mewakiliAttendanceDraft[s.key]);
       if (belumDiisi.length > 0) { const namaBelum = belumDiisi.map(s => s.name).join(', '); if (!confirm(`⚠️ ${belumDiisi.length} siswa belum diisi: ${namaBelum}. Lanjutkan menyimpan?`)) return; }
       const btn = document.getElementById('btnSimpanMewakiliAbsensi');
@@ -5292,7 +5328,7 @@
       // biasa, tanpa query tambahan. Non-Reguler (mewakili) butuh data absensi guru LAIN yang
       // tidak ada di allTeacherAttendance milik non-Admin (lihat catatan panjang di atas) -> query
       // on-demand dulu ke Firebase, khusus tanggal jurnal ini, baru lanjutkan validasi & simpan.
-      if (type === 'Non-Reguler' && mewakili && navigator.onLine) {
+      if (type === 'Non-Reguler' && mewakili && isReallyOnline()) {
         // FIX: setBusy/clearBusy di blok ini sebelumnya dipanggil TANPA argumen tombol (btnSaveJournal
         // baru dideklarasikan di dalam lanjutkanSaveJournal, tidak terjangkau di scope ini) --
         // _busyLocks['saveJournal'] memang sudah terkunci (klik ganda tetap tertolak lewat
@@ -5305,12 +5341,22 @@
         const btnSaveJournalQuery = document.getElementById('btnSaveJournal');
         setBusy('saveJournal', btnSaveJournalQuery);
         if (btnSaveJournalQuery) btnSaveJournalQuery.textContent = '⏳ Memeriksa data...';
+        // Batas waktu: kalau server tak menjawab (sinyal lemah), jangan biarkan tombol terkunci selamanya.
+        let queryMewakiliSelesai = false;
+        const timerQueryMewakili = setTimeout(() => {
+          if (queryMewakiliSelesai) return; queryMewakiliSelesai = true;
+          clearBusy('saveJournal', btnSaveJournalQuery);
+          toast('⚠️ Sinyal lemah, data absensi guru lain tidak sempat diperiksa. Memakai data lokal sebagai cadangan.', false, 4000);
+          lanjutkanSaveJournal(allTeacherAttendance);
+        }, SAVE_DEADLINE_MS);
         db.ref('teacher_attendance').orderByChild('tanggal').equalTo(tanggal).once('value', snap => {
+          if (queryMewakiliSelesai) return; queryMewakiliSelesai = true; clearTimeout(timerQueryMewakili);
           const teacherAttendanceHariItu = [];
           snap.forEach(child => { const v = child.val(); v.key = child.key; teacherAttendanceHariItu.push(v); });
           clearBusy('saveJournal', btnSaveJournalQuery);
           lanjutkanSaveJournal(teacherAttendanceHariItu);
         }, err => {
+          if (queryMewakiliSelesai) return; queryMewakiliSelesai = true; clearTimeout(timerQueryMewakili);
           clearBusy('saveJournal', btnSaveJournalQuery);
           console.warn('[SI MAMBA] Gagal query on-demand teacher_attendance utk validasi mewakili:', err && err.message ? err.message : err);
           // Fallback: kalau query on-demand gagal (mis. jaringan putus di tengah jalan), tetap
@@ -5330,8 +5376,17 @@
       if (!pendingSusulanData) return toast('Data tidak lengkap, silakan isi ulang form jurnal.', true);
       if (isBusy('saveJournal')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 2000);
       const btnSusulan = document.getElementById('btnAjukanSusulan');
-      setBusy('saveJournal', btnSusulan);
       const data = pendingSusulanData;
+      // Offline: tanpa ini tombol terkunci tanpa umpan balik & pengajuan hilang kalau tab ditutup.
+      if (!isReallyOnline()) {
+        const nowIso = new Date().toISOString();
+        queueOfflineJournal(Object.assign({}, data, { status: 'pending', requestedAt: nowIso, dibuat: nowIso }),
+          '📥 Offline: pengajuan jurnal susulan disimpan di perangkat ini, dikirim otomatis saat online.');
+        document.getElementById('journalLateWarning').style.display = 'none';
+        pendingSusulanData = null;
+        return;
+      }
+      setBusy('saveJournal', btnSusulan);
       const susulanRef = db.ref('journal').push();
       susulanRef.set({ ...data, status: 'pending', requestedAt: new Date().toISOString(), dibuat: new Date().toISOString() }, err => {
         clearBusy('saveJournal', btnSusulan);
@@ -5388,6 +5443,24 @@
     let qrScanRAF = null;
     let qrScanDetectedType = null; // 'Datang' | 'Pulang', diisi setelah QR & lokasi tervalidasi, siap dikonfirmasi
     let qrScanKeteranganTelat = null; // mis. "Telat 12 menit", diisi kalau Absen Datang lewat dari jam window
+    let qrScanDetectedAt = null; // epoch ms saat QR + lokasi tervalidasi; dipakai sebagai jam absen kalau disimpan OFFLINE
+    // Cache token & lokasi QR Absensi di perangkat supaya scan tetap bisa dimulai saat aplikasi dibuka
+    // dalam keadaan offline (V4.absenQr normalnya hanya dimuat dari Firebase saat login).
+    const ABSEN_QR_CACHE_KEY = 'simamba_absen_qr_cache';
+    function v4CacheAbsenQr(data) {
+      try { if (data && data.token) localStorage.setItem(ABSEN_QR_CACHE_KEY, JSON.stringify(data)); } catch (e) {}
+    }
+    function v4PulihkanAbsenQrDariCache() {
+      if (V4.absenQr && V4.absenQr.token) return true;
+      if (isReallyOnline()) return false; // online: percaya data Firebase (null = memang belum diatur Admin)
+      try {
+        const raw = localStorage.getItem(ABSEN_QR_CACHE_KEY);
+        if (!raw) return false;
+        const d = JSON.parse(raw);
+        if (d && d.token) { V4.absenQr = d; return true; }
+      } catch (e) {}
+      return false;
+    }
     function v4SetFaceStatus(html, bg, color, border) {
       const el = document.getElementById('faceStatus');
       if (!el) return;
@@ -5424,7 +5497,8 @@
       if (typeof jsQR !== 'function') return toast('⚠️ Modul scan QR gagal dimuat. Cek koneksi internet lalu refresh halaman.', true);
       const izinSakitHariIni = allTeacherAttendance.find(a => a.tanggal === tglLokal() && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && (a.type === 'Izin' || a.type === 'Sakit'));
       if (izinSakitHariIni) return toast(`⚠️ Anda sudah melaporkan ${izinSakitHariIni.type} hari ini.`, true);
-      if (!V4.absenQr || !V4.absenQr.token) return toast('⚠️ QR Absensi belum diatur Admin. Hubungi Admin.', true);
+      v4PulihkanAbsenQrDariCache();
+      if (!V4.absenQr || !V4.absenQr.token) return toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin. Hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true);
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('⚠️ Browser tidak support kamera!', true);
       navigateTo('teacher-attendance');
       startCamera();
@@ -5434,7 +5508,8 @@
       if (typeof jsQR !== 'function') { toast('⚠️ Modul scan QR gagal dimuat. Cek koneksi internet lalu refresh halaman.', true); return; }
       const izinSakitHariIni = allTeacherAttendance.find(a => a.tanggal === tglLokal() && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && (a.type === 'Izin' || a.type === 'Sakit'));
       if (izinSakitHariIni) { toast(`⚠️ Anda sudah melaporkan ${izinSakitHariIni.type} hari ini.`, true); return; }
-      if (!V4.absenQr || !V4.absenQr.token) { toast('⚠️ QR Absensi belum diatur Admin. Hubungi Admin.', true); return; }
+      v4PulihkanAbsenQrDariCache();
+      if (!V4.absenQr || !V4.absenQr.token) { toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin. Hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); return; }
       const video = document.getElementById('video'), container = document.getElementById('videoContainer');
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast('⚠️ Browser tidak support kamera!', true);
@@ -5530,6 +5605,7 @@
         }
         qrScanDetectedType = type;
         qrScanKeteranganTelat = keteranganTelat;
+        qrScanDetectedAt = now.getTime();
         const telatMsg = keteranganTelat ? ` <span style="color:#dc2626;font-weight:700;">(⚠️ ${keteranganTelat})</span>` : '';
         v4SetFaceStatus(`✅ Lokasi terverifikasi (±${Math.round(jarak)}m dari madrasah). Siap absen <b>${type}</b> pukul ${now.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}${telatMsg}. Klik "Konfirmasi Absen".`, '#dcfce7', '#065f46', '#059669');
         document.getElementById('btnVerifyFace').textContent = `✅ Konfirmasi Absen ${type}`;
@@ -5562,6 +5638,7 @@
       if (container) container.style.display = 'none';
       qrScanDetectedType = null;
       qrScanKeteranganTelat = null;
+      qrScanDetectedAt = null;
       const btnStart = document.getElementById('btnStartQrScan'), btnVerify = document.getElementById('btnVerifyFace');
       if (btnStart) btnStart.style.display = 'block';
       if (btnVerify) btnVerify.style.display = 'none';
@@ -6268,13 +6345,50 @@
       // di database, bukan cuma di memori satu sesi browser -- siapapun yang menulis LEBIH DULU
       // menang, yang belakangan otomatis ditolak walau lolos pengecekan awal di kliennya masing-masing.
       const guruKeyAman = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g,'_');
-      const dbRef = db.ref(`teacher_attendance/${today}_${guruKeyAman}_${type}`);
+      const fbKeyAbsen = `${today}_${guruKeyAman}_${type}`;
+      const dbRef = db.ref(`teacher_attendance/${fbKeyAbsen}`);
+      const waktuScan = qrScanDetectedAt || Date.now();
+      // ---- Simpan OFFLINE: masuk antrean perangkat, dikirim otomatis saat online (key tetap = idempoten) ----
+      function simpanAbsenOffline() {
+        isVerifying = false; clearBusy('verifyAndAbsen', btnVerify);
+        if (!window.SIMambaOfflineDB) {
+          v4SetFaceStatus('❌ Offline & penyimpanan offline tidak tersedia di perangkat ini. Sambungkan internet lalu coba lagi.', '#fee2e2', '#991b1b', '#dc2626');
+          toast('❌ Offline: absen tidak bisa disimpan. Sambungkan internet lalu coba lagi.', true);
+          return;
+        }
+        const ketOffline = (keteranganTelat ? keteranganTelat + ' · ' : '') + 'Absen offline, dikirim saat online';
+        const payload = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key, kelas: currentUser.kelas, waktu: waktuScan, type: type, tahunAjaran: currentTahunAjaran, metode: 'qr_lokasi', verified: true, keterangan: ketOffline, _fbKey: fbKeyAbsen };
+        const localRecord = Object.assign({ key: 'pending-teacher-attendance-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), pendingSync: true }, payload);
+        delete localRecord._fbKey;
+        allTeacherAttendance.push(localRecord); bumpTaRev();
+        qrScanDetectedType = null; qrScanKeteranganTelat = null; qrScanDetectedAt = null;
+        SIMambaOfflineDB.addPendingWrite('teacher_attendance', payload).then(id => {
+          localRecord._pendingId = id;
+          updatePendingBadge(); registerBackgroundSyncTag();
+        }).catch(err => {
+          console.error('[Offline] Gagal antre absen guru:', err);
+          const i = allTeacherAttendance.indexOf(localRecord); if (i > -1) allTeacherAttendance.splice(i, 1); bumpTaRev();
+          renderTeacherAttendance();
+          toast('❌ Gagal menyimpan absen offline. Coba lagi.', true);
+        });
+        v4SetFaceStatus(`📥 Absen ${type} tersimpan di perangkat${keteranganTelat ? ' (' + keteranganTelat + ')' : ''} — akan otomatis terkirim saat online.`, '#fef3c7', '#92400e', '#d97706');
+        toast(`📥 Offline: absen ${type} disimpan di perangkat ini, dikirim otomatis saat online.`, false, 4500);
+        renderTeacherAttendance(); renderJikaAktif('dashboard', updateDashboard); stopCamera();
+      }
+      if (!isReallyOnline()) { simpanAbsenOffline(); return; }
+      // Sinyal bisa putus SETELAH pengecekan di atas -- transaction() Firebase lalu menggantung tanpa error.
+      // Kalau 15 detik tak ada jawaban, alihkan ke antrean offline. Aman dari dobel: key sama + pengiriman
+      // ulang memakai transaction yang menolak kalau data sudah ada.
+      let transaksiSelesai = false, dialihkanOffline = false;
+      const timerFallback = setTimeout(() => { if (transaksiSelesai) return; dialihkanOffline = true; simpanAbsenOffline(); }, 15000);
       dbRef.transaction(existing => {
         if (existing !== null) return; // sudah ada -- batalkan transaksi, jangan ditimpa
         return { tanggal: today, guru: currentUser.name, guruKey: currentUser.key, kelas: currentUser.kelas, waktu: firebase.database.ServerValue.TIMESTAMP, type: type, tahunAjaran: currentTahunAjaran, metode: 'qr_lokasi', verified: true, keterangan: keteranganTelat || null };
       }, (err, committed, snapshot) => {
+        if (dialihkanOffline) return; // sudah masuk antrean offline; pengiriman ulang akan merapikan sisanya
+        transaksiSelesai = true; clearTimeout(timerFallback);
         isVerifying = false; clearBusy('verifyAndAbsen', btnVerify);
-        qrScanDetectedType = null; qrScanKeteranganTelat = null;
+        qrScanDetectedType = null; qrScanKeteranganTelat = null; qrScanDetectedAt = null;
         if (err) { toast('Gagal: '+err.message, true); v4SetFaceStatus('❌ Gagal: ' + err.message, '#fee2e2', '#991b1b', '#dc2626'); console.error(err); return; }
         if (!committed) {
           // Kalah transaksi -- artinya sudah ada catatan tersimpan lebih dulu (dari perangkat/tab
@@ -6333,7 +6447,7 @@
       todayAbsen.forEach((a) => {
         const isDatang = a.type === 'Datang', bgColor = isDatang ? '#f0fdf4' : '#fef3c7', borderColor = isDatang ? '#059669' : '#d97706', typeLabel = isDatang ? '🌅 Datang' : '🌇 Pulang', metode = a.metode === 'qr_lokasi' ? '📍 QR+Lokasi' : (a.metode === 'kamera_validasi' ? '📸 Kamera' : '📌 Manual');
         const fotoThumb = a.foto ? `<img src="${a.foto}" alt="Foto absen" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;" onclick="lihatFotoBesar(this.src)">` : '';
-        const telatBadge = a.keterangan ? `<span class="metode-badge" style="background:#fee2e2;color:#991b1b;">⚠️ ${escapeHtml(a.keterangan)}</span>` : '';
+        const telatBadge = (a.keterangan ? `<span class="metode-badge" style="background:#fee2e2;color:#991b1b;">⚠️ ${escapeHtml(a.keterangan)}</span>` : '') + (a.pendingSync ? '<span class="metode-badge" style="background:#fef3c7;color:#92400e;">🕓 Belum tersinkron</span>' : '');
         html += `<div class="teacher-attendance-item ${isDatang ? 'reguler' : 'non-reguler'}"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">${fotoThumb}<div><div style="font-weight:600;font-size:14px;">${typeLabel}</div><div class="text-muted" style="font-size:12px;">${a.waktu ? new Date(a.waktu).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'}) : '-'}</div></div></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${telatBadge}<span class="metode-badge">${metode}</span></div></div>`;
       });
       container.innerHTML = html;
@@ -10026,7 +10140,7 @@
     // false, sehingga 3 fungsi ini TIDAK akan berfungsi lagi lewat app. Reset/Export/Import
     // data sekarang HARUS dilakukan manual oleh pemegang akun Google project lewat Firebase
     // Console (Realtime Database → Data → titik tiga di kanan atas → Import/Export JSON).
-    // Backup rutin (manualBackup/autoBackup) TETAP jalan seperti biasa -- itu cuma BACA root,
+    // manualBackup TETAP jalan (autoBackup 6 jam sudah dinonaktifkan, tidak lagi dijadwalkan) -- itu cuma BACA root,
     // bukan tulis, dan root ".read" sengaja tetap dibiarkan terbuka untuk kenyamanan backup.
     function resetSemua() { toast('Fitur ini sudah dipindah ke Firebase Console demi keamanan data. Hubungi pengelola akun project.', true); }
     function exportData() { toast('Fitur ini sudah dipindah ke Firebase Console demi keamanan data. Hubungi pengelola akun project.', true); }
@@ -10913,7 +11027,7 @@
           connStatus.textContent = '✅ Terhubung ke Firebase'; connStatus.style.background = '#dcfce7'; connStatus.style.color = '#065f46';
           if (!document.getElementById('loginGuru').innerHTML.includes('Admin')) loadGuruListForLogin();
           if (currentUser && !dataLoaded) { loadAllData(() => { hideLoading(); toast('Data dimuat ulang'); }); }
-          if (!backupInterval) { backupInterval = setInterval(() => { if (currentUser && isAdmin()) autoBackup(); }, 6 * 60 * 60 * 1000); }
+          // Auto backup 6 jam DINONAKTIFKAN (hemat bandwidth Firebase). Backup dilakukan manual 1x/minggu lewat Firebase Console.
         } else {
           statusEl.className = 'status-badge disconnected'; statusEl.textContent = '❌ Putus';
           connStatus.textContent = '❌ Tidak terhubung ke Firebase'; connStatus.style.background = '#fee2e2'; connStatus.style.color = '#991b1b';
@@ -12108,7 +12222,7 @@
       return 'SIMAMBA-ABSEN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,10).toUpperCase();
     }
     function v4LoadAbsenQrSettings(){
-      return db.ref('absen_qr_settings').once('value').then(s => { V4.absenQr = s.val() || null; });
+      return db.ref('absen_qr_settings').once('value').then(s => { V4.absenQr = s.val() || null; v4CacheAbsenQr(V4.absenQr); });
     }
     function v4RenderAbsenQrSettingsForm(){
       if(!isAdmin()) return;
@@ -12149,7 +12263,7 @@
       const data = { lat, lng, radius, token, updatedBy: currentUser.name, updatedAt: new Date().toISOString() };
       db.ref('absen_qr_settings').set(data, err => {
         if (err) return toast('Gagal: ' + err.message, true);
-        V4.absenQr = data;
+        V4.absenQr = data; v4CacheAbsenQr(data);
         v4RenderAbsenQrSettingsForm();
         v4Audit('UPDATE_ABSEN_QR_SETTINGS','ABSEN_QR','global',null,data);
         toast('✅ Lokasi & QR Absensi disimpan!');

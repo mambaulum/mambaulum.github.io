@@ -254,7 +254,7 @@ function simpanSiswaExcel() {
   if (!isAdmin()) return toast('🔒 Hanya Admin!', true);
   if (!plgSiswaExcelBaris) return toast('Pilih file Excel dulu.', true);
   if (isBusy('simpanSiswaExcel')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
-  if (!navigator.onLine) return toast('⚠️ Sedang offline. Import siswa butuh koneksi internet.', true);
+  if (!isReallyOnline()) return toast('⚠️ Sedang offline. Import siswa butuh koneksi internet.', true);
   // Validasi ulang terhadap data siswa TERBARU. Kalau hasilnya beda dari pratinjau, jangan simpan diam-diam.
   const items = plgValidasiSiswaExcel(plgSiswaExcelBaris);
   const diterima = items.filter(i => i.ok);

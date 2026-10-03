@@ -92,6 +92,8 @@
   // navigasi pertama, sehingga badge menu dan notifikasi tamu baru bekerja di halaman mana pun.
   function startLive() {
     if (live || !canView() || typeof db === 'undefined') return;
+    // Sengaja navigator.onLine (bukan isReallyOnline): event 'online' browser terpicu SEBELUM Firebase tersambung lagi.
+    // Listener .on('value') aman dipasang saat itu -- ia otomatis aktif begitu Firebase tersambung.
     if (!navigator.onLine) { if (!loaded) { loadErr = 'Perlu koneksi internet untuk memuat buku tamu.'; renderData(); } return; }
     loading = !loaded; loadErr = '';
     if (loading) renderData();
@@ -133,7 +135,7 @@
   }
   function simpanTamu(o, sumber, btn, cb) {
     if (!canManage()) return toast('Tidak diizinkan!', true);
-    if (!navigator.onLine) return toast('Perlu koneksi internet untuk menyimpan.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet untuk menyimpan.', true);
     if (isBusy('simpanTamu')) return;
     setBusy('simpanTamu', btn);
     var p = {
@@ -150,7 +152,7 @@
   }
   function ubah(key, field, v, msg) {
     var x = byKey(key); if (!x || !canManage()) return;
-    if (!navigator.onLine) return toast('Perlu koneksi internet.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet.', true);
     db.ref('buku_tamu/' + key + '/' + field).set(v, function (err) {
       if (err) return toast('Gagal: ' + err.message, true);
       x[field] = v; toast(msg); updateBadge(); refreshView();
@@ -283,7 +285,7 @@
 
   /* ---------- ekspor & cetak ---------- */
   function csvCell(v) { var s = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; }
-  function unduhCsv() { csvDari(filtered(), 'buku-tamu-' + new Date().toISOString().slice(0, 10)); }
+  function unduhCsv() { csvDari(filtered(), 'buku-tamu-' + tglLokal()); }
   function csvDari(list, nama) {
     if (!list.length) return toast('Tidak ada data untuk diekspor.', true);
     var head = ['Waktu', 'Nama', 'WhatsApp', 'Instansi', 'Alamat', 'Kategori', 'Bertemu dengan', 'Keperluan', 'Penilaian (1-5)', 'Saran', 'Status', 'Catatan'];
@@ -391,7 +393,7 @@
   }
   function arsipMuat(btn) {
     if (!canManage()) return toast('Tidak diizinkan!', true);
-    if (!navigator.onLine) return toast('Perlu koneksi internet.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet.', true);
     var r = semRange(arsip.sem); if (!r) return toast('Pilih semester dulu.', true);
     if (isBusy('arsipMuat')) return; setBusy('arsipMuat', btn);
     db.ref('buku_tamu').orderByChild('ts').startAt(r.start).endAt(r.end - 1).once('value').then(function (snap) {
@@ -410,7 +412,7 @@
     if (!r || !L || !L.length) return toast('Muat data semester dulu.', true);
     if (r.end > Date.now()) return toast('Semester ini belum berakhir, belum boleh dihapus.', true);
     if (!arsip.diunduh) return toast('Unduh CSV semester ini dulu sebelum menghapus.', true);
-    if (!navigator.onLine) return toast('Perlu koneksi internet.', true);
+    if (!isReallyOnline()) return toast('Perlu koneksi internet.', true);
     var c = prompt('Menghapus PERMANEN ' + L.length + ' data tamu ' + r.label + '.\nPastikan file CSV sudah tersimpan.\nKetik HAPUS untuk melanjutkan:');
     if (c === null || c.trim() !== 'HAPUS') return toast('Penghapusan dibatalkan.');
     if (isBusy('arsipHapus')) return; setBusy('arsipHapus', btn);

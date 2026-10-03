@@ -240,11 +240,11 @@ function setupKasUmumPage() {
   // sudah lewat KAS_SEGAR_MS: data infaq bisa ~1 MB di akhir tahun ajaran, jadi jangan
   // diunduh ulang setiap kali halaman dibuka/ditutup berulang. Waktu dicatat di AWAL supaya
   // buka-tutup cepat tidak memicu unduhan ganda saat unduhan pertama belum selesai.
-  if (navigator.onLine && Date.now() - kasTerakhirSegar > KAS_SEGAR_MS) {
+  if (isReallyOnline() && Date.now() - kasTerakhirSegar > KAS_SEGAR_MS) {
     kasTerakhirSegar = Date.now();
     reloadDataset(kasCanView() ? ['kasUmum', 'infaqSiswa'] : ['infaqSiswa'], () => { kasTerakhirSegar = Date.now(); kasRenderTabAktif(); if (kasTabAktif === 'setoran') setoranOnRentangChange(); });
   }
-  if (navigator.onLine && setoranCanView() && (setoranTahunDimuat !== currentTahunAjaran || Date.now() - setoranTerakhirSegar > KAS_SEGAR_MS)) {
+  if (isReallyOnline() && setoranCanView() && (setoranTahunDimuat !== currentTahunAjaran || Date.now() - setoranTerakhirSegar > KAS_SEGAR_MS)) {
     setoranTerakhirSegar = Date.now();
     setoranMuat(() => { if (kasTabAktif === 'setoran') { setoranRender(); if (!setoranEditingKey) setoranSetRentangDefault(); } });
   }
@@ -312,7 +312,7 @@ function kasEdit(key) {
 function kasSimpan() {
   if (!kasCanEdit()) return toast('Hanya Admin yang bisa mencatat kas!', true);
   if (isBusy('kasSimpan')) return toast('Sedang menyimpan...', false, 1500);
-  if (!navigator.onLine) return toast('📡 Sedang offline. Pencatatan kas butuh koneksi internet supaya saldo tidak keliru — coba lagi setelah online.', true);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Pencatatan kas butuh koneksi internet supaya saldo tidak keliru — coba lagi setelah online.', true);
   const buku = document.getElementById('kasBukuForm').value === 'infaq' ? 'infaq' : 'umum';
   const jenis = document.getElementById('kasJenis').value === 'masuk' ? 'masuk' : 'keluar';
   const tanggal = document.getElementById('kasTanggal').value;
@@ -366,7 +366,7 @@ function kasHapus(key) {
   if (isBusy('kasHapus')) return;
   const k = allKasUmum.find(x => x.key === key);
   if (!k) return toast('Catatan tidak ditemukan — muat ulang halaman.', true);
-  if (!navigator.onLine) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
   if (!doubleConfirm(`Hapus catatan ${KAS_NAMA_BUKU[kasBukuDari(k)]} ini?\n\n${kasTglIndo(k.tanggal)} • ${k.kategori}\n${k.uraian}\n${k.jenis === 'keluar' ? 'Pengeluaran' : 'Pemasukan'}: ${kasRp(k.nominal)}\n\nSaldo akan dihitung ulang.`)) return;
   setBusy('kasHapus');
   db.ref('kas_umum/' + key).remove(err => {
@@ -795,7 +795,7 @@ function setoranSimpan() {
   const kelas = (kasEl('setoranKelas') || {}).value;
   if (!setoranBolehCatat(kelas)) return toast('Anda hanya bisa mencatat setoran untuk kelas yang ditugaskan Admin ke Anda!', true);
   if (isBusy('setoranSimpan')) return toast('Sedang menyimpan...', false, 1500);
-  if (!navigator.onLine) return toast('📡 Sedang offline. Pencatatan setoran butuh koneksi internet supaya angkanya tidak keliru — coba lagi setelah online.', true);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Pencatatan setoran butuh koneksi internet supaya angkanya tidak keliru — coba lagi setelah online.', true);
   const sem = setoranSemesterDipilih(), r = kasRentangSemester(sem), hari = tglLokal();
   const dari = kasEl('setoranDari').value, sampai = kasEl('setoranSampai').value, tanggalSetor = kasEl('setoranTanggal').value;
   const nominal = Number(kasEl('setoranNominal').value);
@@ -843,7 +843,7 @@ function setoranHapus(key) {
   if (!s) return toast('Setoran tidak ditemukan — muat ulang halaman.', true);
   if (!setoranBolehUbah(s)) return toast('🔒 Setoran ini tidak bisa dihapus (bukan kelas Anda, atau sudah lewat 24 jam — hubungi Admin).', true);
   if (isBusy('setoranHapus')) return;
-  if (!navigator.onLine) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
   if (!doubleConfirm(`Hapus setoran infaq ini?\n\n${s.kelas} • ${kasTglIndo(s.dari)} – ${kasTglIndo(s.sampai)}\nDisetor ${kasTglIndo(s.tanggalSetor)}: ${kasRp(s.nominalSetor)}`)) return;
   setBusy('setoranHapus');
   db.ref('setoran_infaq/' + key).remove(err => {
