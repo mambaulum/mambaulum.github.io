@@ -21,7 +21,7 @@
 
   <!-- CSS ditaruh PALING AWAL di antara resource eksternal supaya browser mulai mengunduhnya
        sesegera mungkin (mengurangi flash-of-unstyled-content), lebih dulu dari semua script. -->
-  <link rel="stylesheet" href="css/styles.css?v=17">
+  <link rel="stylesheet" href="css/styles.css?v=20">
   <!-- [PATCH JARINGAN LEMAH] Google Fonts dimuat NON-blocking (media="print" lalu diganti "all" saat selesai).
        Sebelumnya <link rel="stylesheet"> ini RENDER-BLOCKING: di sinyal lemah, layar tetap kosong sampai CSS font
        dari server Google selesai/gagal. Sekarang halaman tampil dulu dengan font sistem, Inter menyusul. -->
@@ -90,16 +90,49 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=20"></script>
+  <script defer src="js/app.js?v=21"></script>
   <script defer src="js/menu-hub.js?v=3"></script>
   <script defer src="js/modul-ajar.js?v=3"></script>
   <script defer src="js/buku-tamu.js?v=2"></script>
 
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
-  <script defer src="js/fitur-pelengkap.js?v=1"></script>
+  <script defer src="js/fitur-pelengkap.js?v=2"></script>
 </head>
 <body>
+
+  <!-- ============================================================
+       LAYAR PEMBUKA (boot splash) -- logo + nama madrasah + bar memuat, tampil sesaat saat aplikasi
+       pertama dibuka, lalu memudar. Mandiri (tidak bergantung app.js): script kecil di bawah
+       menyembunyikannya setelah halaman selesai dimuat (minimal ~0,9 dtk supaya animasinya terlihat,
+       paling lama 6 dtk sebagai pengaman). Terpisah dari #loadingOverlay yang dipakai di dalam aplikasi.
+  ============================================================ -->
+  <div id="bootSplash" class="boot-splash" role="status" aria-live="polite" aria-label="Memuat aplikasi">
+    <div class="boot-logo-wrap">
+      <img class="boot-logo" src="logo/logo-lembaga.png" alt="Logo MI Mambaul Ulum"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+      <span class="boot-logo-fallback" style="display:none;" aria-hidden="true">M</span>
+    </div>
+    <h1 class="boot-name">MI Mambaul Ulum</h1>
+    <p class="boot-sub">SI MAMBA</p>
+    <div class="boot-bar" aria-hidden="true"><span></span></div>
+    <p class="boot-msg">Memuat aplikasi...</p>
+  </div>
+  <script>
+    (function () {
+      var s = document.getElementById('bootSplash');
+      if (!s) return;
+      var t0 = Date.now(), done = false;
+      function hide() {
+        if (done) return; done = true;
+        s.classList.add('boot-hide');
+        setTimeout(function () { s.style.display = 'none'; }, 600);
+      }
+      function ready() { setTimeout(hide, Math.max(0, 900 - (Date.now() - t0))); }
+      if (document.readyState === 'complete') ready(); else window.addEventListener('load', ready);
+      setTimeout(hide, 6000);
+    })();
+  </script>
 
   <!-- Progress bar tipis di paling atas layar, muncul sesaat tiap pindah halaman -->
   <div id="routeProgressBar"></div>
@@ -1948,8 +1981,16 @@
 
     <div class="auth-card auth-choice">
       <p class="auth-choice-title">Masuk sebagai:</p>
-      <button class="btn btn-primary" onclick="pilihLoginGuru()">👨‍🏫 Guru / Staff Madrasah</button>
-      <button class="btn btn-soft" onclick="pilihLoginOrtu()">👨‍👩‍👧 Orang Tua / Wali Murid</button>
+      <button class="btn btn-primary" onclick="pilihLoginGuru()">
+        <span class="choice-ico" aria-hidden="true">👨‍🏫</span>
+        <span class="choice-txt"><span class="choice-main">Guru / Staff Madrasah</span><span class="choice-sub">Masuk dengan PIN</span></span>
+        <span class="choice-arrow" aria-hidden="true">›</span>
+      </button>
+      <button class="btn btn-soft" onclick="pilihLoginOrtu()">
+        <span class="choice-ico" aria-hidden="true">👨‍👩‍👧</span>
+        <span class="choice-txt"><span class="choice-main">Orang Tua / Wali Murid</span><span class="choice-sub">Pantau kehadiran &amp; nilai anak</span></span>
+        <span class="choice-arrow" aria-hidden="true">›</span>
+      </button>
     </div>
 
     <!-- Kata inspiratif: selalu tampil, berganti otomatis (app.js: cxStartQuotes) -->

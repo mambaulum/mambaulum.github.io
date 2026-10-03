@@ -267,7 +267,13 @@ function simpanSiswaExcel() {
   diterima.forEach(i => {
     const key = db.ref('siswa').push().key;
     const rec = { name: i.nama, kelas: i.kelas, guru: 'Admin', guruKey: currentUser.key || null, dibuat: sekarang };
-    if (i.wa) rec.noWaOrtu = i.wa;
+    if (i.wa) {
+      rec.noWaOrtu = i.wa;
+      // noWaKey = nomor WA ternormalisasi (62...), dipakai Portal Orang Tua untuk mencari anak lewat query
+      // terindeks. ortuWaKey() ada di app.js; kalau nomor tak valid, field ini dilewati.
+      const waKey = (typeof ortuWaKey === 'function') ? ortuWaKey(i.wa) : null;
+      if (waKey) rec.noWaKey = waKey;
+    }
     updates[key] = rec;
   });
   // Satu update() = semua siswa tersimpan bersamaan atau tidak sama sekali (tidak ada impor separuh jalan).

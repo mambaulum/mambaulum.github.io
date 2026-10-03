@@ -1085,6 +1085,28 @@
       }
     });
 
+    // Hemat koneksi (Spark: maks. 100 koneksi serentak). Tab yang tersembunyi >10 menit (HP dikunci, tab lupa
+    // ditutup di komputer sekolah) memutus koneksi Firebase-nya; begitu tab terlihat lagi, tersambung kembali
+    // dan antrian tulis tertunda dikirim otomatis lewat listener .info/connected di atas. Tidak ada
+    // onDisconnect/presence di app ini, jadi memutus koneksi tidak mengubah data apa pun di server.
+    (function hematKoneksiFirebase() {
+      const IDLE_MS = 10 * 60 * 1000;
+      let timer = null, terputus = false;
+      function sambungLagi() {
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (terputus) { terputus = false; try { db.goOnline(); } catch (e) { console.warn('[SI MAMBA] goOnline gagal:', e); } }
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { sambungLagi(); return; }
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = null;
+          if (document.hidden && !terputus) { terputus = true; try { db.goOffline(); } catch (e) { terputus = false; } }
+        }, IDLE_MS);
+      });
+      window.addEventListener('online', sambungLagi);
+    })();
+
     let fbCompletedCount = 0; // dinaikkan tiap query fbTimeout sukses: dipakai mendeteksi "data dari jaringan sudah mulai masuk"
     const SIMAMBA_PERF = (() => { try { return localStorage.getItem('simambaPerf') === '1'; } catch (e) { return false; } })();
     function perfLog() { if (SIMAMBA_PERF) console.log.apply(console, ['[SI MAMBA perf]'].concat([].slice.call(arguments))); }
@@ -1221,6 +1243,11 @@
       const kelasWali = currentUser && currentUser.waliKelasOf ? [currentUser.waliKelasOf] : [];
       return [...new Set([...kelasAjar, ...kelasWali])];
     }
+    // Scope kelas khusus PEMUATAN data siswa & iuran_siswa: scope biasa UNION kelas tugas Petugas Infaq. Admin boleh
+    // menunjuk guru mana pun sebagai petugas ('tidak harus wali kelas'), jadi tanpa ini petugas yang tidak mengajar/
+    // mewali kelas tugasnya tidak mendapat siswa & iuran kelas itu (rekap infaq/setoran 0). SENGAJA tidak mengubah
+    // loaderScopeKelas(): fungsi itu juga dipakai cek izin tulis (jurnal, sikap, tugas, materi) yang tidak boleh melebar.
+    function scopeKelasData() { return [...new Set([...loaderScopeKelas(), ...infaqMyKelasList()])]; }
     function hashPin(pin) { return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex); }
     // -------- Salt PIN per-guru (2026-09) --------
     // hashPin() di atas (TANPA salt) dipertahankan hanya untuk: (a) PIN Admin/Kepsek yang hash-nya
@@ -2793,8 +2820,6 @@
         if (typeof v4ActOpenTypeKey !== 'undefined') { v4ActOpenTypeKey = null; v4ActAttendanceDraft = {}; v4ActDateSel = {}; v4ActKelasSel = {}; v4PanelSiswaCache = {}; v4PanelSiswaGagal = {}; v4TfKelasSel = ''; }
       } catch (e) { console.error('[SI MAMBA] Gagal reset state v4 saat logout:', e); }
       try { if (typeof kasResetState === 'function') kasResetState(); } catch (e) { console.error('[SI MAMBA] Gagal reset state Kas saat logout:', e); }
-      try { if (typeof bukuTamuResetState === 'function') bukuTamuResetState(); } catch (e) { console.error('[SI MAMBA] Gagal reset state Buku Tamu saat logout:', e); }
-      try { if (typeof modulAjarResetState === 'function') modulAjarResetState(); } catch (e) { console.error('[SI MAMBA] Gagal reset state Modul Ajar saat logout:', e); }
     }
 
     function toggleSidebar() {
@@ -3543,10 +3568,12 @@
       // ============================================================
       const corePromises = [];
       const secondaryPromises = [];
+      // infaq_petugas_v4 dimuat paling awal & paralel: filter siswa/iuran_siswa butuh daftar petugas (scopeKelasData).
+      const infaqPetugasP = new Promise((resolve) => { db.ref('infaq_petugas_v4').once('value', snap => { allInfaqPetugas = snap.val() || {}; resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (infaq_petugas_v4):', err && err.message ? err.message : err); resolve(); }); });
       const _tStart = performance.now();
 
       // ---- FASE 1: dibutuhkan dashboard & layar login ----
-      corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('siswa').once('value', snap => { allSiswa = []; snap.forEach(child => { const s = child.val(); s.key = child.key; if (loaderScopeKelas().includes(s.kelas)) allSiswa.push(s); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (siswa):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'siswa'));
+      corePromises.push(fbTimeout(new Promise((resolve) => { infaqPetugasP.then(() => bacaSiswaSesuaiScope()).then(list => { allSiswa = list; resolve(); }).catch(err => { console.warn('[SI MAMBA] Query ditolak/gagal (siswa):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'siswa'));
       corePromises.push(fbTimeout(new Promise((resolve) => { const todayStr = tglLokal(); db.ref('teacher_attendance').orderByChild('tanggal').equalTo(todayStr).once('value', snap => { allTeacherAttendanceToday = []; snap.forEach(child => { const ta = child.val(); ta.key = child.key; if (ta.tahunAjaran === currentTahunAjaran) allTeacherAttendanceToday.push(ta); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (teacher_attendance):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'teacher_attendance'));
       corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('guru_terajin').once('value', snap => { allGuruTerajin = snap.val() || {}; resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (guru_terajin):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'guru_terajin'));
       corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('pengumuman').once('value', snap => { allPengumuman = []; snap.forEach(child => { const p = child.val(); p.key = child.key; allPengumuman.push(p); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (pengumuman):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'pengumuman'));
@@ -3569,16 +3596,13 @@
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('event_attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allEventAttendance = []; snap.forEach(child => { const ea = child.val(); ea.key = child.key; delete ea.foto; allEventAttendance.push(ea); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (event_attendance):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'event_attendance'));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('ekskul_pic_honor_v4').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allEkskulPicHonor = []; snap.forEach(child => { const eh = child.val(); eh.key = child.key; allEkskulPicHonor.push(eh); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (ekskul_pic_honor_v4):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'ekskul_pic_honor_v4'));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('religi_attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allReligiAttendance = []; snap.forEach(child => { const item = child.val(); item.key = child.key; allReligiAttendance.push(item); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (religi_attendance):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'religi_attendance'));
-      secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('iuran_siswa').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allInfaqSiswa = []; snap.forEach(child => { const it = child.val(); it.key = child.key; if (loaderScopeKelas().includes(it.kelas)) allInfaqSiswa.push(it); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (iuran_siswa):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'iuran_siswa'));
-      secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('infaq_petugas_v4').once('value', snap => { allInfaqPetugas = snap.val() || {}; resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (infaq_petugas_v4):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'infaq_petugas_v4'));
+      secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('iuran_siswa').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', async snap => { await infaqPetugasP; if (_basi()) { resolve(); return; } allInfaqSiswa = []; const _sc = new Set(scopeKelasData()); snap.forEach(child => { const it = child.val(); it.key = child.key; if (_sc.has(it.kelas)) allInfaqSiswa.push(it); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (iuran_siswa):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'iuran_siswa'));
+      secondaryPromises.push(fbTimeout(infaqPetugasP, undefined, 'infaq_petugas_v4')); // fetch-nya sudah jalan di atas
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('kedisiplinan_siswa').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allKedisiplinan = []; snap.forEach(child => { const d = child.val(); d.key = child.key; if (loaderScopeKelas().includes(d.kelas)) allKedisiplinan.push(d); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (kedisiplinan_siswa):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'kedisiplinan_siswa'));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('buku_penghubung').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allBukuPenghubung = []; snap.forEach(child => { const b = child.val(); b.key = child.key; if (loaderScopeKelas().includes(b.kelas)) allBukuPenghubung.push(b); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (buku_penghubung):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'buku_penghubung'));
       if (isAdmin() || isKepsek()) {
         secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('saran_kritik').once('value', snap => { allSaranKritik = []; snap.forEach(child => { const s = child.val(); s.key = child.key; allSaranKritik.push(s); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (saran_kritik):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'saran_kritik'));
       }
-
-      // Daftar guru segar (lihat DATASET_LOADERS.guru) -- dipakai dropdown guru di halaman & modul mandiri.
-      secondaryPromises.push(DATASET_LOADERS.guru());
 
       let settled = false;
       // Kalau koneksi ada tapi macet/lambat (sinyal lemah, captive portal, dsb), jangan biarkan
@@ -3700,9 +3724,9 @@
     // hanya currentUser.kelas, jadi wali kelas yang kelas walinya tidak ada di daftar kelas ajarnya kehilangan
     // data kelas wali setiap reloadDataset(), dan Admin ikut menerima kelas di luar KELAS_LIST.
     // Predikat dibuat per-fetch & scope dihitung SEKALI (lazy, saat baris pertama difilter), bukan per baris.
-    function _scopeKelasFn() {
+    function _scopeKelasFn(denganInfaq) { // denganInfaq=true utk siswa & iuran_siswa (lihat scopeKelasData)
       let set = null;
-      return (x) => { if (!set) set = new Set(loaderScopeKelas()); return set.has(x.kelas); };
+      return (x) => { if (!set) set = new Set(denganInfaq ? scopeKelasData() : loaderScopeKelas()); return set.has(x.kelas); };
     }
     const _scopeGuru  = (r) => isAdmin() || isKepsek() || (r.guruKey ? r.guruKey === currentUser.key : r.guru === currentUser.name);
     const _byTahun    = (path) => db.ref(path).orderByChild('tahunAjaran').equalTo(currentTahunAjaran);
@@ -3722,8 +3746,34 @@
       }));
     }
 
+    // Muat data siswa sesuai scope kelas pengguna (scopeKelasData: kelas ajar + wali + tugas Petugas Infaq).
+    // Dulu: SEMUA siswa diunduh lalu disaring di browser -- guru kelas 3 pun mengunduh siswa kelas 1-6, tiap
+    // login. Sekarang guru dengan <= 3 kelas memakai satu query terindeks per kelas (siswa/kelas, butuh
+    // ".indexOn": ["kelas"] pada Rules path siswa -- sudah dipakai juga oleh alur absensi). Admin/Kepsek
+    // (butuh semua kelas) dan scope besar tetap membaca node penuh: lebih murah daripada banyak query.
+    const SISWA_MAKS_QUERY_PER_KELAS = 3;
+    function bacaSiswaSesuaiScope() {
+      const kls = scopeKelasData();
+      const keluarkan = (snaps, saringKelas) => {
+        const sc = new Set(kls), seen = new Set(), out = [];
+        snaps.forEach(snap => {
+          snap.forEach(child => {
+            if (seen.has(child.key)) return;
+            const x = child.val();
+            if (!x || (saringKelas && !sc.has(x.kelas))) return;
+            seen.add(child.key); x.key = child.key; out.push(x);
+          });
+        });
+        return out;
+      };
+      if (isAdmin() || isKepsek() || kls.length > SISWA_MAKS_QUERY_PER_KELAS) {
+        return db.ref('siswa').once('value').then(snap => keluarkan([snap], true));
+      }
+      return Promise.all(kls.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value'))).then(snaps => keluarkan(snaps, false));
+    }
+
     const DATASET_LOADERS = {
-      siswa:            () => _fetchList(db.ref('siswa'), _scopeKelasFn()).then(a => { if (a) allSiswa = a; }),
+      siswa:            () => fbTimeout(bacaSiswaSesuaiScope()).then(a => { if (a) allSiswa = a; }),
       attendance:       () => _fetchList(_byTahun('attendance'), _scopeKelasFn()).then(a => { if (a) allAttendance = a; }),
       grades:           () => _fetchList(_byTahun('grades'), _scopeKelasFn()).then(a => { if (a) allGrades = a; }),
       journal:          () => _fetchList(_byTahun('journal'), _scopeKelasFn()).then(a => { if (a) { allJournals = a; scheduleStatusBarRefresh(); } }),
@@ -3740,17 +3790,8 @@
       ekskulPicHonor:   () => _fetchList(_byTahun('ekskul_pic_honor_v4')).then(a => { if (a) allEkskulPicHonor = a; }),
       ekskulRates:      () => fbTimeout(db.ref('ekskul_rates').once('value').then(s => { ekskulRates = s.val() || {}; })),
       guruTerajin:      () => fbTimeout(db.ref('guru_terajin').once('value').then(s => { allGuruTerajin = s.val() || {}; })),
-      // allGuru dulu HANYA diisi oleh loadGuruListForLogin() (layar login), jadi guru yang ditambah/diubah
-      // setelah itu tidak muncul di dropdown halaman/modul mana pun sampai logout+login. Sekarang ikut dimuat
-      // oleh loadAllData() (Fase 2) dan bisa di-refresh lewat reloadDataset('guru'). Timeout/error -> data lama dipertahankan.
-      guru:             () => _fetchList(db.ref('guru')).then(a => {
-        if (!a || !a.length) return; // jangan kosongkan daftar karena timeout / node kosong
-        a.sort((x, y) => COLLATOR_ID.compare(x.name || '', y.name || ''));
-        allGuru = a;
-        if (window.SIMambaOfflineDB) SIMambaOfflineDB.setCache('allGuru', a).catch(() => {});
-      }),
       logs:             () => isAdmin() ? _fetchList(db.ref('logs').orderByChild('waktu').limitToLast(30)).then(a => { if (a) allLogs = a.reverse(); }) : Promise.resolve(),
-      infaqSiswa:       () => _fetchList(_byTahun('iuran_siswa'), _scopeKelasFn()).then(a => { if (a) allInfaqSiswa = a; }),
+      infaqSiswa:       () => _fetchList(_byTahun('iuran_siswa'), _scopeKelasFn(true)).then(a => { if (a) allInfaqSiswa = a; }),
       // ---- Dataset LAZY: dimuat saat halaman terkait dibuka (lihat ensureLazyDatasets) ----
       tugas:            () => _fetchList(_byTahun('tugas'), _scopeKelasFn()).then(a => { if (a) allTugas = a; return !!a; }),
       tugasSubmission:  () => _fetchList(_byTahun('tugas_submission'), _scopeKelasFn(), ['foto']).then(a => { if (a) allTugasSubmission = a; return !!a; }),
@@ -4097,7 +4138,10 @@
         nominalIuranKhusus = parseInt(nominalKhususRaw, 10);
       }
       const noWaOrtu = document.getElementById('editSiswaNoWa').value.trim() || null;
-      db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu }, err => {
+      // noWaKey = nomor WA yang sudah dinormalisasi (62xxxxxxxxxx) -- dipakai Portal Orang Tua untuk
+      // mencari anak lewat query terindeks, bukan mengunduh seluruh node siswa. null kalau tak valid.
+      const noWaKey = noWaOrtu ? (ortuWaKey(noWaOrtu) || null) : null;
+      db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey }, err => {
         if (err) toast('Gagal update: '+err.message, true);
         else { toast('✅ Data siswa berhasil diupdate!'); addLog('edit_siswa', name + ' - ' + kelas); closeEditSiswaModal(); reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
       });
@@ -8446,12 +8490,48 @@
       kembaliKeChooser();
     }
     // Semua siswa yang nomor WA-nya sama (kakak-adik bisa berbagi satu nomor orang tua).
-    function ortuCariAnak(waKey) {
-      return db.ref('siswa').once('value').then(snap => {
-        const hasil = [];
-        snap.forEach(c => { const x = c.val(); if (x && x.noWaOrtu && formatNomorWa(x.noWaOrtu) === waKey) hasil.push({ key: c.key, ...x }); });
-        return hasil.sort((a, b) => COLLATOR_ID.compare((a.name || ''), b.name || ''));
+    // Cari anak berdasarkan nomor WA wali. Dulu: unduh SELURUH node siswa lalu cocokkan di browser (boros
+    // kuota unduhan Spark, apalagi tiap wali murid login). Sekarang: query terindeks siswa/noWaKey
+    // (butuh ".indexOn": ["noWaKey"] pada Rules path siswa, dan data diisi lewat migrasiNoWaKeyV1()).
+    // Pengaman: kalau query terindeks tidak menemukan apa pun (mis. data belum dimigrasi), jatuh ke
+    // pemindaian penuh lama -- tapi hanya SEKALI per sesi halaman, supaya salah ketik nomor berulang
+    // tidak terus mengunduh semua siswa.
+    let _ortuFallbackDipakai = false;
+    function ortuBentukHasilAnak(snap, waKey, cocokkanManual) {
+      const hasil = [];
+      snap.forEach(c => {
+        const x = c.val();
+        if (!x) return;
+        if (cocokkanManual ? (x.noWaOrtu && formatNomorWa(x.noWaOrtu) === waKey) : true) hasil.push({ key: c.key, ...x });
       });
+      return hasil.sort((a, b) => COLLATOR_ID.compare((a.name || ''), b.name || ''));
+    }
+    function ortuCariAnak(waKey) {
+      return db.ref('siswa').orderByChild('noWaKey').equalTo(waKey).once('value').then(snap => {
+        const hasil = ortuBentukHasilAnak(snap, waKey, false);
+        if (hasil.length || _ortuFallbackDipakai) return hasil;
+        _ortuFallbackDipakai = true;
+        return db.ref('siswa').once('value').then(semua => ortuBentukHasilAnak(semua, waKey, true));
+      });
+    }
+    // Admin, sekali jalan: isi siswa/{key}/noWaKey untuk semua siswa yang sudah punya noWaOrtu valid.
+    // Aman diulang (hanya menulis yang berbeda). Panggil dari Console: await migrasiNoWaKeyV1()
+    async function migrasiNoWaKeyV1() {
+      if (!isAdmin()) { toast('Hanya Admin!', true); return null; }
+      if (!navigator.onLine) { toast('📡 Butuh koneksi internet untuk migrasi.', true); return null; }
+      const snap = await db.ref('siswa').once('value');
+      const updates = {}; let perlu = 0, total = 0;
+      snap.forEach(c => {
+        total++;
+        const x = c.val() || {};
+        const baru = x.noWaOrtu ? (ortuWaKey(x.noWaOrtu) || null) : null;
+        if ((x.noWaKey || null) !== baru) { updates['siswa/' + c.key + '/noWaKey'] = baru; perlu++; }
+      });
+      if (perlu) await db.ref().update(updates);
+      const ringkas = { totalSiswa: total, diperbarui: perlu };
+      console.log('[SI MAMBA] migrasiNoWaKeyV1 selesai:', ringkas);
+      toast(perlu ? ('✅ ' + perlu + ' data siswa diberi noWaKey.') : '✅ Semua data siswa sudah punya noWaKey.');
+      return ringkas;
     }
     // Catat 1x salah PIN di server (bukan cuma di browser) -> terkunci 10 menit setelah 5x salah.
     function ortuCatatGagal(waKey) {
@@ -8778,11 +8858,13 @@
         db.ref('kedisiplinan_siswa').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
         db.ref('iuran_siswa').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
         db.ref('buku_penghubung').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
-        db.ref('attendance').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
+        // Hanya absensi BULAN INI (dulu seluruh riwayat kelas, semua tahun). Filter kelas dilakukan di bawah.
+        db.ref('attendance').orderByChild('tanggal').startAt(monthStr + '-01').endAt(monthStr + '-31').once('value'),
         db.ref('materi_belajar').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
         db.ref('tugas').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
         db.ref('tugas_submission').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
-        db.ref('journal').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
+        // Hanya jurnal HARI INI (dulu seluruh riwayat jurnal kelas). Filter kelas dilakukan di bawah.
+        db.ref('journal').orderByChild('tanggal').equalTo(tglLokal()).once('value'),
         db.ref('kalender_akademik').once('value'),
         db.ref('events').once('value'),
         db.ref('ujian').once('value')
@@ -8811,7 +8893,7 @@
         // tampil hanya yang sudah dikonfirmasi benar-benar terjadi sesuai jamnya).
         const todayStrJurnal = tglLokal();
         const journalHariIni = [];
-        journalSnap.forEach(c => { const j = c.val(); if (j.tanggal === todayStrJurnal && j.status === 'approved' && sesuaiTahunAjaran(j)) journalHariIni.push(j); });
+        journalSnap.forEach(c => { const j = c.val(); if (j.kelas === siswa.kelas && j.tanggal === todayStrJurnal && j.status === 'approved' && sesuaiTahunAjaran(j)) journalHariIni.push(j); });
         journalHariIni.sort((a,b) => (a.jam_ke||0) - (b.jam_ke||0));
         const journalRows = journalHariIni.map(j => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
           <div class="text-muted" style="font-size:11px;">Jam ke-${j.jam_ke} — ${escapeHtml(j.subject||'-')}</div>
@@ -8834,7 +8916,7 @@
         let hadir=0, sakit=0, izin=0, alfa=0;
         absenSnap.forEach(c => {
           const rec = c.val();
-          if (rec.tanggal && rec.tanggal.startsWith(monthStr) && rec.data && rec.data[siswa.key] && sesuaiTahunAjaran(rec)) {
+          if (rec.kelas === siswa.kelas && rec.tanggal && rec.tanggal.startsWith(monthStr) && rec.data && rec.data[siswa.key] && sesuaiTahunAjaran(rec)) {
             const st = rec.data[siswa.key];
             if (st === 'H') hadir++; else if (st === 'S') sakit++; else if (st === 'I') izin++; else if (st === 'A') alfa++;
           }
@@ -10690,7 +10772,7 @@
           document.getElementById('userWaliKelasOfContainer').style.display = 'none';
           document.getElementById('userRole').value = 'guru';
           reloadDataset('logs');
-          // CATATAN (riwayat): dulu allGuru TIDAK dimuat oleh loadAllData() -- itu cuma diisi oleh
+          // PENTING: allGuru TIDAK dimuat oleh loadAllData() sama sekali -- itu cuma diisi oleh
           // loadGuruListForLogin() (dipanggil sekali di layar login). Sebelumnya di sini cuma
           // setTimeout(renderUserList,500) tanpa refresh allGuru -- user baru yang baru ditambah
           // TIDAK PERNAH muncul di daftar sampai Admin logout+login ulang (bukan soal timing,
@@ -11142,10 +11224,6 @@
           if(isPrivilegedSession(currentUser)) toast('ℹ️ Admin/Kepsek selalu diminta PIN saat membuka aplikasi ("Ingat Saya" tidak berlaku).', false, 3500);
           else saveSession(currentUser);
         }
-        // Reset penghitung retry Alpha: sisa retry dari sesi/akun sebelumnya tidak boleh terbawa ke login baru
-        alphaRetryCount = 0; if (alphaRetryTimer) { clearTimeout(alphaRetryTimer); alphaRetryTimer = null; }
-        // Invalidate load V4 milik akun sebelumnya (mis. ganti akun tanpa logout) agar tidak menimpa V4.* akun baru
-        if (typeof v4InvalidateLoads === 'function') v4InvalidateLoads();
         v4BootShowChooser = true;
         showApp();
         addLog('login',currentUser.name+' login');
