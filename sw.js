@@ -36,7 +36,7 @@
    js/menu-hub.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.0';
+const APP_VERSION = 'v6.1';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -84,6 +84,8 @@ const PRECACHE_URLS = [
   './icons/icon-192x192.png',
   './icons/icon-152x152.png',
   './icons/icon-512x512.png',
+  './icons/icon-maskable-512x512.png',
+  './icons/apple-touch-icon-180x180.png',
   './logo/logo-lembaga.png',
   './logo/logo-lembaga-white.png',
 ];
