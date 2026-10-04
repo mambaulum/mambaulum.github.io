@@ -67,7 +67,7 @@
     var html = '<div style="margin-bottom:12px;"><label class="label">Kode Guru</label>' +
       '<input id="loginKode" class="field" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" ' +
       'placeholder="' + PREFIX + 'XXXXX" maxlength="16">' +
-      '<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Kode dari Admin. Admin/Kepsek: ketik admin atau kepsek.</div></div>';
+      '<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Masukkan kode yang diberikan Admin. Admin/Kepsek: ketik admin atau kepsek.</div></div>';
     (blok || sel).insertAdjacentHTML('beforebegin', html);
     var inp = $('loginKode');
     try { var last = localStorage.getItem(LAST_KEY); if (last) inp.value = last; } catch (e) {}

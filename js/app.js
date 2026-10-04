@@ -1336,6 +1336,13 @@
     function isPrivilegedSession(u) {
       return !!u && [u.role, u.baseRole].some(r => r === ROLES.ADMIN || r === ROLES.HEADMASTER);
     }
+    // Sesi "Ingat Saya" berlaku sampai Minggu 00:00 (waktu HP) berikutnya setelah login.
+    // Login Senin-Sabtu -> habis Minggu dini hari; login hari Minggu -> habis Minggu depan.
+    function sesiBerakhirPada(ts) {
+      const d = new Date(ts); d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + (7 - d.getDay()));   // getDay(): Minggu = 0
+      return d.getTime();
+    }
     function saveSession(user) {
       try {
         if (isPrivilegedSession(user)) { localStorage.removeItem('sim_session'); return; }
@@ -1346,7 +1353,7 @@
       try {
         const d = localStorage.getItem('sim_session'); if (!d) return null;
         const p = JSON.parse(d);
-        if (Date.now() - p.timestamp > 24*60*60*1000) { localStorage.removeItem('sim_session'); return null; }
+        if (Date.now() >= sesiBerakhirPada(p.timestamp)) { localStorage.removeItem('sim_session'); return null; }   // sesi berakhir tiap Minggu 00:00
         if (p.sig !== v4SignSession(p.user, p.timestamp)) { console.warn('[SI MAMBA] sim_session tidak valid (diubah manual?), sesi dihapus.'); localStorage.removeItem('sim_session'); return null; }
         if (isPrivilegedSession(p.user)) { console.warn('[SI MAMBA] sesi Admin/Kepsek tidak boleh dipulihkan dari localStorage, sesi dihapus (login ulang dengan PIN).'); localStorage.removeItem('sim_session'); return null; }
         return p.user;
@@ -3317,6 +3324,7 @@
       // (renderCharts kini juga aman dari error Chart.js belum termuat: try/catch ada di renderChartsNow()).
       if (typeof updateSaranKritikNotifDot === 'function') { try { updateSaranKritikNotifDot(); } catch (e) {} }
       if (typeof updateInfaqNotifDot === 'function') { try { updateInfaqNotifDot(); } catch (e) {} }
+      if (typeof tunggakanNotifRender === 'function') { try { tunggakanNotifRender(); } catch (e) { console.warn('[SI MAMBA] tunggakanNotifRender gagal:', e); } }
       if (typeof updateInfoOrtuNotifDot === 'function') { try { updateInfoOrtuNotifDot(); } catch (e) {} }
       checkPengumumanNotif();
       lastCoreRenderTs = Date.now();
