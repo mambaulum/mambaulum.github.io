@@ -90,7 +90,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=28"></script>
+  <script defer src="js/app.js?v=29"></script>
   <script defer src="js/menu-hub.js?v=3"></script>
   <script defer src="js/modul-ajar.js?v=5"></script>
   <script defer src="js/buku-tamu.js?v=4"></script>
@@ -102,17 +102,17 @@
   <!-- Tunggakan Infaq per siswa + pengingat WA + unduh PDF/Excel (kartu di halaman Infaq Mingguan) dan
        logout otomatis saat tidak aktif. Dimuat SESUDAH app.js karena memakai fungsi/variabel milik app.js
        (infaqCanAccess, allSiswa, kirimWA, logout, dst.) dan dipicu dari renderIuranRekap(). -->
-  <script defer src="js/tunggakan-infaq.js?v=2"></script>
-  <script defer src="js/auto-logout.js?v=1"></script>
+  <script defer src="js/tunggakan-infaq.js?v=5"></script>
+  <script defer src="js/auto-logout.js?v=2"></script>
 
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
-  <script defer src="js/login-kode.js?v=3"></script>
+  <script defer src="js/login-kode.js?v=10"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
-  <script defer src="js/tahfidz-grafik.js?v=2"></script>
+  <script defer src="js/tahfidz-grafik.js?v=4"></script>
 
   <!-- Kartu "Petugas per Kelas" di Dashboard (Admin & Kepsek). Dimuat SESUDAH app.js; dipicu dari renderChartsNow() dan v4RenderTahfidz(). -->
-  <script defer src="js/monitor-petugas.js?v=2"></script>
+  <script defer src="js/monitor-petugas.js?v=4"></script>
 </head>
 <body>
 
@@ -1569,6 +1569,7 @@
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">👥 Manajemen Pengguna</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:16px;">Kelola hak akses dan role pengguna. <span style="color:#dc2626;font-weight:600;">* Hanya Admin yang bisa mengakses.</span></p>
+          <div id="umAdminActions" style="margin-bottom:14px;"></div>
 
           <div style="background:#f8fafc;padding:16px;border-radius:12px;margin-bottom:16px;">
             <h4 style="font-weight:700;margin-bottom:12px;">➕ Tambah Pengguna</h4>
@@ -2038,7 +2039,7 @@
         <label class="label">Pilih User</label>
         <div style="position:relative;"><select id="loginGuru" class="field"><option value="">-- Memuat data guru... --</option></select><div id="loginLoading" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);"><span class="loading-spinner"></span></div></div>
       </div>
-      <div style="margin-bottom:12px;"><label class="label">PIN</label><input id="loginPIN" class="field" type="password" placeholder="Masukkan PIN 6 digit" maxlength="6" onkeydown="if(event.key==='Enter') login()"></div>
+      <div style="margin-bottom:12px;"><label class="label">PIN</label><input id="loginPIN" class="field" type="password" placeholder="Masukkan PIN 6 digit" maxlength="6"></div>
       <div class="login-remember" style="display:flex;align-items:center;gap:8px;font-size:13px;color:#4b5563;margin-top:8px;"><input type="checkbox" id="rememberMe"><label for="rememberMe">Ingat Saya <span style="color:#9ca3af;">(hanya di HP pribadi)</span></label></div>
       <button class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="login()">🚀 Masuk</button>
       <div style="text-align:center;margin-top:16px;font-size:11px;color:#9ca3af;"><p>Hubungi Admin jika lupa PIN</p></div>

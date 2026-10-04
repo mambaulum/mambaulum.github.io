@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - sw.js (Service Worker)  -- versi patch v5.5
+   SI MAMBA - sw.js (Service Worker)  -- versi patch v6.12
    PWA offline caching untuk aplikasi SI MAMBA.
 
    STRATEGI CACHE:
@@ -34,10 +34,10 @@
    DAN angka ?v= file terkait di index.html serta PRECACHE_URLS di bawah
    (css/styles.css, js/app.js, js/kas.js, js/administrasi-ujian.js,
    js/menu-hub.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js,
-   js/tunggakan-infaq.js, js/auto-logout.js, js/tahfidz-grafik.js, js/monitor-petugas.js).
+   js/tunggakan-infaq.js, js/auto-logout.js, js/login-kode.js, js/tahfidz-grafik.js, js/monitor-petugas.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.11';
+const APP_VERSION = 'v6.12';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -68,16 +68,16 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=5',
   './js/administrasi-ujian.js?v=2',
-  './js/app.js?v=28',
+  './js/app.js?v=29',
   './js/menu-hub.js?v=3',
   './js/modul-ajar.js?v=5',
   './js/buku-tamu.js?v=4',
   './js/fitur-pelengkap.js?v=3',
-  './js/tunggakan-infaq.js?v=2',
-  './js/auto-logout.js?v=1',
-  './js/login-kode.js?v=3',
-  './js/tahfidz-grafik.js?v=2',
-  './js/monitor-petugas.js?v=2',
+  './js/tunggakan-infaq.js?v=5',
+  './js/auto-logout.js?v=2',
+  './js/login-kode.js?v=10',               // juga dipakai login OFFLINE (membungkus login())
+  './js/tahfidz-grafik.js?v=4',
+  './js/monitor-petugas.js?v=4',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',
