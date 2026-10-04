@@ -33,10 +33,11 @@
    Setiap kali file app shell diubah dan di-deploy ulang, naikkan APP_VERSION
    DAN angka ?v= file terkait di index.html serta PRECACHE_URLS di bawah
    (css/styles.css, js/app.js, js/kas.js, js/administrasi-ujian.js,
-   js/menu-hub.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js).
+   js/menu-hub.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js,
+   js/tunggakan-infaq.js, js/auto-logout.js, js/tahfidz-grafik.js, js/monitor-petugas.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.4';
+const APP_VERSION = 'v6.9';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -67,11 +68,15 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=5',
   './js/administrasi-ujian.js?v=2',
-  './js/app.js?v=23',
+  './js/app.js?v=28',
   './js/menu-hub.js?v=3',
   './js/modul-ajar.js?v=5',
   './js/buku-tamu.js?v=4',
   './js/fitur-pelengkap.js?v=3',
+  './js/tunggakan-infaq.js?v=3',
+  './js/auto-logout.js?v=2',
+  './js/tahfidz-grafik.js?v=3',
+  './js/monitor-petugas.js?v=3',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',

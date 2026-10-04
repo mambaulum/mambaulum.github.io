@@ -90,7 +90,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=23"></script>
+  <script defer src="js/app.js?v=28"></script>
   <script defer src="js/menu-hub.js?v=3"></script>
   <script defer src="js/modul-ajar.js?v=5"></script>
   <script defer src="js/buku-tamu.js?v=4"></script>
@@ -98,6 +98,18 @@
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
   <script defer src="js/fitur-pelengkap.js?v=3"></script>
+
+  <!-- Tunggakan Infaq per siswa + pengingat WA + unduh PDF/Excel (kartu di halaman Infaq Mingguan) dan
+       logout otomatis saat tidak aktif. Dimuat SESUDAH app.js karena memakai fungsi/variabel milik app.js
+       (infaqCanAccess, allSiswa, kirimWA, logout, dst.) dan dipicu dari renderIuranRekap(). -->
+  <script defer src="js/tunggakan-infaq.js?v=3"></script>
+  <script defer src="js/auto-logout.js?v=2"></script>
+
+  <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
+  <script defer src="js/tahfidz-grafik.js?v=3"></script>
+
+  <!-- Kartu "Petugas per Kelas" di Dashboard (Admin & Kepsek). Dimuat SESUDAH app.js; dipicu dari renderChartsNow() dan v4RenderTahfidz(). -->
+  <script defer src="js/monitor-petugas.js?v=3"></script>
 </head>
 <body>
 
@@ -1213,6 +1225,7 @@
           </div>
           <div id="infaqInputArea"></div>
           <div id="infaqBelumSetorArea" style="margin-top:14px;"></div>
+          <div id="infaqTunggakanArea" style="margin-top:14px;"></div>
         </div>
 
         <div class="card">
@@ -1684,6 +1697,7 @@
             <div><label class="label">Kelas</label><select id="v4TahfidzKelas" class="field" onchange="v4SetTahfidzKelas(this.value)"><option value="">-- Pilih Kelas --</option></select></div>
           </div>
           <div id="v4TahfidzKelasPanel" style="margin-top:14px;"></div>
+          <div id="tahfidzGrafikArea" style="margin-top:14px;"></div>
           <hr style="margin:16px 0;">
           <h4 style="font-size:13px;margin-bottom:8px;">🕘 Riwayat Tahfidz Terbaru</h4>
           <div id="v4TahfidzList"></div>
@@ -1805,6 +1819,7 @@
         <div style="margin-bottom:6px;"><label style="background:#dbeafe;padding:4px 12px;border-radius:6px;font-weight:600;display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" id="editAllClassCheck" onchange="toggleEditAllClass()"> ✅ Semua Kelas</label></div>
         <div id="editClassCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
       </div>
+      <div style="margin-bottom:12px;"><label class="label">📱 Nomor WhatsApp (opsional)</label><input id="editGuruNoWa" class="field" type="tel" inputmode="tel" placeholder="mis. 08123456789"><p style="font-size:11px;color:#6b7280;margin-top:4px;">Dipakai untuk tombol "Ingatkan" di Dashboard (pengingat ke petugas infaq/PJ tahfidz).</p></div>
       <div class="grid-2" style="margin-bottom:16px;">
         <div><label class="label">💰 Tunjangan Masa Kerja (Rp/bulan)</label><input id="editGuruTunjanganMasaKerja" class="field" type="number" min="0" step="1000" placeholder="0"></div>
         <div><label class="label">🛵 Bantuan Transportasi (Rp/bulan)</label><input id="editGuruBantuanTransportasi" class="field" type="number" min="0" step="1000" placeholder="0"></div>
