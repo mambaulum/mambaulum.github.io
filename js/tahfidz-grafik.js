@@ -127,7 +127,7 @@ function thfIndeksSurah() {
 function thfSurahCari(teks) {
   const mentah = String(teks == null ? '' : teks).trim();
   if (!mentah) return null;
-  const angka = /^(?:surat|surah|qs|q\.s\.?|ke|no\.?|nomor|\s)*(\d{1,3})$/i.exec(thfAngkaLatin(mentah));
+  const angka = /^(?:surat|surah|qs|q\.s|ke|no|nomor|[\s.\-])*(\d{1,3})$/i.exec(thfAngkaLatin(mentah));
   if (angka) { const n = +angka[1]; return (n >= 1 && n <= 114) ? { nama: THF_SURAH[n - 1][0], ayat: THF_SURAH[n - 1][1] } : null; }
   const idx = thfIndeksSurah().peta, kunci = thfKunciNama(thfAngkaLatin(mentah));
   for (const k of kunci) { if (k && idx.has(k)) { const x = THF_SURAH[idx.get(k)]; return { nama: x[0], ayat: x[1] }; } }

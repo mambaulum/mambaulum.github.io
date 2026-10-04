@@ -16,8 +16,9 @@
    PENANDA
    - "Belum ditunjuk"   : belum ada petugas/PJ/pembina.
    - "Lama tidak input" : petugas ada, tapi catatan terakhir lebih dari batas hari (MONITOR_BATAS_*) atau
-                          belum pernah ada catatan. Hitungan hari biasa, TIDAK mengenal kalender libur:
-                          saat libur sekolah, tanda ini wajar muncul.
+                          belum pernah ada catatan. Hari yang tercakup libur di Kalender Akademik (jenis
+                          'libur') DIKURANGI dari hitungan, jadi libur panjang tidak memicu tanda palsu.
+                          Label tetap menampilkan hari kalender + "(termasuk N hari libur)".
    - Kalau datanya belum termuat sama sekali, kolom "terakhir" menampilkan "-" tanpa penanda
      (supaya tidak ada peringatan palsu saat data masih diambil).
 
@@ -44,6 +45,32 @@ function monitorHariLalu(tglIsoAtauYmd) {
   const b = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return Math.max(0, Math.round((a - b) / 86400000));
 }
+// ---- Hari libur (Kalender Akademik, jenis 'libur') tidak dihitung sebagai "hari tidak input" ----
+let _monKalenderDicoba = false;
+function monitorTglDari(t) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+function monitorYmd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function monitorLiburSet() {
+  const set = new Set();
+  ((typeof allKalenderAkademik !== 'undefined' && allKalenderAkademik) || []).forEach(k => {
+    if (String(k.jenis || '').toLowerCase() !== 'libur') return;
+    const d = monitorTglDari(k.tanggalMulai), akhir = monitorTglDari(k.tanggalSelesai || k.tanggalMulai);
+    if (!d || !akhir) return;
+    for (let n = 0; d <= akhir && n < 400; n++) { set.add(monitorYmd(d)); d.setDate(d.getDate() + 1); }
+  });
+  return set;
+}
+// -> { hari: hari kalender, libur: hari libur di antaranya, efektif: hari - libur }
+function monitorHariInfo(tglIsoAtauYmd, liburSet) {
+  const hari = monitorHariLalu(tglIsoAtauYmd);
+  if (hari === null) return { hari: null, libur: 0, efektif: null };
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(tglIsoAtauYmd));
+  const d0 = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(tglIsoAtauYmd);
+  const awal = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate()), kini = new Date();
+  const akhir = new Date(kini.getFullYear(), kini.getMonth(), kini.getDate());
+  let libur = 0;
+  if (liburSet && liburSet.size) for (const d = new Date(awal.getFullYear(), awal.getMonth(), awal.getDate() + 1); d <= akhir; d.setDate(d.getDate() + 1)) if (liburSet.has(monitorYmd(d))) libur++;
+  return { hari, libur, efektif: Math.max(0, hari - libur) };
+}
 function monitorLabelHari(n) { return n === 0 ? 'hari ini' : n === 1 ? 'kemarin' : n + ' hari lalu'; }
 function monitorTingkatEkskul(kelas) {
   if (typeof v4EkskulTierForKelas === 'function') return v4EkskulTierForKelas(kelas);
@@ -54,8 +81,9 @@ function monitorTerbaru(daftar, ambilWaktu, ambilOleh) {      // -> { w, oleh } 
   daftar.forEach(x => { const w = ambilWaktu(x); if (w && (!hasil || w > hasil.w)) hasil = { w, oleh: ambilOleh(x) || '' }; });
   return hasil;
 }
-function monitorBlok(pic, dataAda, terbaru) {
-  return { nama: pic ? (pic.name || pic.picName || '') || null : null, dataAda, oleh: terbaru ? terbaru.oleh : '', hari: terbaru ? monitorHariLalu(terbaru.w) : null };
+function monitorBlok(pic, dataAda, terbaru, liburSet) {
+  const h = terbaru ? monitorHariInfo(terbaru.w, liburSet) : { hari: null, libur: 0, efektif: null };
+  return { nama: pic ? (pic.name || pic.picName || '') || null : null, dataAda, oleh: terbaru ? terbaru.oleh : '', hari: h.hari, libur: h.libur, efektif: h.efektif };
 }
 
 // Data murni (tanpa DOM). -> { kelas: [{kelas, infaq, tahfidz, pramuka}], lain: [{jenis, kunci, judul, blok}] }
@@ -66,24 +94,25 @@ function monitorHitung() {
   const kegiatanAda = !!(V4 && Array.isArray(V4.activityAttendance) && V4.activityAttendance.length > 0);
   const ekskulAda = !!(V4 && Array.isArray(V4.ekskulAttendance) && V4.ekskulAttendance.length > 0);
   const valid = t => { const n = new Date(t).getTime(); return !isNaN(n); };
+  const liburSet = monitorLiburSet();
   const kelas = KELAS_LIST.map(k => {
     const pi = allInfaqPetugas && allInfaqPetugas[k], pt = V4 && V4.tahfidzPic && V4.tahfidzPic[k], pp = V4 && V4.pramukaPic && V4.pramukaPic[k];
     const li = infaqAda ? monitorTerbaru((allInfaqSiswa || []).filter(it => it && it.kelas === k && it.inputAt && valid(it.inputAt)), it => it.inputAt, it => it.inputBy) : null;
     const lt = tahfidzAda ? monitorTerbaru(V4.tahfidz.filter(x => x && x.kelas === k && x.tanggal), x => x.tanggal, x => x.guru) : null;
     const lp = pramukaAda ? monitorTerbaru(V4.pramukaSku.filter(x => x && x.kelas === k && x.updatedAt && valid(x.updatedAt)), x => x.updatedAt, x => x.updatedBy) : null;
-    return { kelas: k, infaq: monitorBlok(pi, infaqAda, li), tahfidz: monitorBlok(pt, tahfidzAda, lt), pramuka: monitorBlok(pp, pramukaAda, lp) };
+    return { kelas: k, infaq: monitorBlok(pi, infaqAda, li, liburSet), tahfidz: monitorBlok(pt, tahfidzAda, lt, liburSet), pramuka: monitorBlok(pp, pramukaAda, lp, liburSet) };
   });
   const lain = [];
   ((V4 && V4.activityTypes) || []).forEach(t => {
     const l = kegiatanAda ? monitorTerbaru(V4.activityAttendance.filter(r => r && r.activityTypeId === t.key && r.tanggal), r => r.tanggal, r => r.recordedBy) : null;
-    lain.push({ jenis: 'kegiatan', kunci: t.key, judul: t.name || '(tanpa nama)', blok: monitorBlok(t.picName ? { name: t.picName } : null, kegiatanAda, l) });
+    lain.push({ jenis: 'kegiatan', kunci: t.key, judul: t.name || '(tanpa nama)', blok: monitorBlok(t.picName ? { name: t.picName } : null, kegiatanAda, l, liburSet) });
   });
   ((V4 && V4.ekskuls) || []).forEach(ex => {
     ['rendah', 'tinggi'].forEach(tk => {
       const tier = ex.tiers && ex.tiers[tk];
       if (!tier || !tier.picName) return;                                   // tingkat yang tidak dipakai ekskul ini tidak ditampilkan
       const l = ekskulAda ? monitorTerbaru(V4.ekskulAttendance.filter(r => r && r.ekskulId === ex.key && r.tanggal && monitorTingkatEkskul(r.kelas) === tk), r => r.tanggal, r => r.recordedBy) : null;
-      lain.push({ jenis: 'ekskul', kunci: ex.key + '|' + tk, judul: `${ex.name || '(tanpa nama)'} (${tier.label || (tk === 'rendah' ? 'Kelas 1-3' : 'Kelas 4-6')})`, blok: monitorBlok({ name: tier.picName }, ekskulAda, l) });
+      lain.push({ jenis: 'ekskul', kunci: ex.key + '|' + tk, judul: `${ex.name || '(tanpa nama)'} (${tier.label || (tk === 'rendah' ? 'Kelas 1-3' : 'Kelas 4-6')})`, blok: monitorBlok({ name: tier.picName }, ekskulAda, l, liburSet) });
     });
   });
   return { kelas, lain };
@@ -97,8 +126,8 @@ function monitorSel(blok, jenis, kunci, bolehKirim) {
   let terakhir, masalah = '';
   if (!blok.dataAda) terakhir = `<span style="color:${abu};">-</span>`;
   else if (blok.hari === null) { terakhir = `<span style="color:${kuning};font-weight:600;">Belum pernah input</span>`; masalah = 'lama'; }
-  else if (blok.hari > batas) { terakhir = `<span style="color:${kuning};font-weight:600;">⏳ ${monitorLabelHari(blok.hari)} — lama tidak input</span>`; masalah = 'lama'; }
-  else terakhir = `<span>${monitorLabelHari(blok.hari)}</span>`;
+  else if (blok.efektif > batas) { terakhir = `<span style="color:${kuning};font-weight:600;">⏳ ${monitorLabelHari(blok.hari)} — lama tidak input</span>${blok.libur ? `<span style="font-size:10px;color:${abu};"> (${blok.libur} hari libur tidak dihitung)</span>` : ''}`; masalah = 'lama'; }
+  else terakhir = `<span>${monitorLabelHari(blok.hari)}</span>${blok.libur ? `<span style="font-size:10px;color:${abu};"> (termasuk ${blok.libur} hari libur)</span>` : ''}`;
   if (blok.oleh && blok.hari !== null && blok.oleh !== blok.nama) terakhir += `<div style="font-size:10px;color:${abu};">oleh ${escapeHtml(blok.oleh)}</div>`;
   if (masalah === 'lama' && bolehKirim) terakhir += `<div style="margin-top:3px;"><button class="btn" style="padding:2px 8px;font-size:10px;background:#25D366;color:white;" onclick="monitorIngatkan('${jenis}','${escapeJs(kunci)}')">📲 Ingatkan</button></div>`;
   return { petugas: `<strong>${escapeHtml(blok.nama)}</strong>`, terakhir, masalah };
@@ -157,6 +186,10 @@ function petugasMonitorRender() {
   const boleh = (typeof isAdmin === 'function' && isAdmin()) || (typeof isKepsek === 'function' && isKepsek());
   if (!boleh) { el.innerHTML = ''; el.style.display = 'none'; return; }
   el.style.display = '';
+  if (!_monKalenderDicoba && (!allKalenderAkademik || allKalenderAkademik.length === 0) && typeof reloadDataset === 'function') {
+    _monKalenderDicoba = true;                  // Kalender Akademik dimuat malas; muat sekali supaya hari libur ikut dikecualikan
+    reloadDataset('kalenderAkademik', () => petugasMonitorRender());
+  }
   const data = monitorHitung();
   const hit = { belum: { infaq: 0, tahfidz: 0, pramuka: 0, kegiatan: 0, ekskul: 0 }, lama: { infaq: 0, tahfidz: 0, pramuka: 0, kegiatan: 0, ekskul: 0 } };
   const hitung = (s, jenis) => { if (s.masalah === 'belum') hit.belum[jenis]++; else if (s.masalah === 'lama') hit.lama[jenis]++; return s; };
@@ -187,6 +220,6 @@ function petugasMonitorRender() {
       <div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Petugas Infaq</th><th>Input Infaq Terakhir</th><th>PJ Tahfidz</th><th>Catatan Tahfidz Terakhir</th><th>Pembina Pramuka</th><th>Penilaian SKU Terakhir</th></tr></thead><tbody>${baris}</tbody></table></div>
       ${barisLain ? `<h4 style="font-size:13px;margin:14px 0 6px;">Kegiatan &amp; Ekstrakurikuler</h4>
       <div style="overflow-x:auto;"><table><thead><tr><th>Jenis</th><th>Nama</th><th>PJ / Pembina</th><th>Catatan Terakhir</th></tr></thead><tbody>${barisLain}</tbody></table></div>` : ''}
-      <p style="font-size:10px;color:#6b7280;margin-top:8px;">Penunjukan dilakukan Admin di halaman masing-masing. Tanda "lama tidak input" memakai batas ${MONITOR_BATAS_INFAQ_HARI} hari (infaq), ${MONITOR_BATAS_TAHFIDZ_HARI} hari (tahfidz), ${MONITOR_BATAS_PRAMUKA_HARI} hari (SKU Pramuka), ${MONITOR_BATAS_KEGIATAN_HARI} hari (kegiatan), ${MONITOR_BATAS_EKSKUL_HARI} hari (ekskul) dan tidak mengenal hari libur.</p>
+      <p style="font-size:10px;color:#6b7280;margin-top:8px;">Penunjukan dilakukan Admin di halaman masing-masing. Tanda "lama tidak input" memakai batas ${MONITOR_BATAS_INFAQ_HARI} hari (infaq), ${MONITOR_BATAS_TAHFIDZ_HARI} hari (tahfidz), ${MONITOR_BATAS_PRAMUKA_HARI} hari (SKU Pramuka), ${MONITOR_BATAS_KEGIATAN_HARI} hari (kegiatan), ${MONITOR_BATAS_EKSKUL_HARI} hari (ekskul); hari libur di Kalender Akademik tidak dihitung.${(allKalenderAkademik && allKalenderAkademik.length) ? '' : ' <span style="color:#b45309;">⚠️ Kalender Akademik masih kosong, jadi hari libur belum bisa dikecualikan.</span>'}</p>
     </div>`;
 }

@@ -45,7 +45,7 @@ let _tgAntrean = null;                      // { items:[siswaKey], i, kirim, lew
 function tgResetBilaGantiUser() {
   const uid = (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name) : null;
   if (uid === _tgUser) return;
-  _tgUser = uid; _tgKelas = 'ALL'; _tgMulai = ''; _tgKalenderDicoba = false; _tgBarisByKey = {}; _tgUrutan = []; _tgTerkirim = {}; _tgAntrean = null; riwReset();
+  _tgUser = uid; _tgKelas = 'ALL'; _tgMulai = ''; _tgKalenderDicoba = false; _tgBarisByKey = {}; _tgUrutan = []; _tgTerkirim = {}; _tgAntrean = null; riwReset(); _tgNotifTutup = false; _tgTrenJumlah = 12;
 }
 function tgTglDari(s) {                      // 'YYYY-MM-DD' -> Date lokal (tanpa geser zona waktu)
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
@@ -184,7 +184,10 @@ function tgNominalMingguSiswa(s, mingguKey) {                      // null = bel
 function riwMuat(sesudah) {
   if (_riw.memuat || _riw.dicoba) return;
   _riw.dicoba = true; _riw.memuat = true;
-  const selesai = (data, gagal) => { _riw.memuat = false; _riw.data = data || null; _riw.gagal = !!gagal; if (sesudah) sesudah(); };
+  let sudah = false;
+  const selesai = (data, gagal) => { if (sudah) return; sudah = true; _riw.memuat = false; _riw.data = data || null; _riw.gagal = !!gagal; if (sesudah) sesudah(); };
+  // Saat offline, once('value') bisa menggantung tanpa balasan: jangan biarkan kartu tunggakan macet di "Menghitung...".
+  setTimeout(() => { if (!sudah) { console.warn('[SI MAMBA] Riwayat nominal infaq tidak terjawab dalam 6 detik; memakai nominal sekarang.'); selesai(null, true); } }, 6000);
   try {
     db.ref('iuran_nominal_riwayat').once('value').then(snap => selesai(snap.val(), false))
       .catch(err => { console.warn('[SI MAMBA] Gagal memuat riwayat nominal infaq:', err && err.message ? err.message : err); selesai(null, true); });
@@ -211,11 +214,11 @@ function infaqRiwayatCatat(nominalBaru, nominalLama) {
       const ada = snap.val() || {}, upd = {}, kunci = Object.keys(ada);
       if (!kunci.length) {
         if (nominalLama === null || nominalLama === undefined || Number(nominalLama) === Number(nominalBaru)) return null;   // tidak ada perubahan yang perlu dicatat
-        upd['iuran_nominal_riwayat/' + RIWAYAT_BASELINE] = { berlakuMinggu: RIWAYAT_BASELINE, nominal: Number(nominalLama), updatedBy: 'sistem', updatedAt: new Date().toISOString() };
+        upd[RIWAYAT_BASELINE] = { berlakuMinggu: RIWAYAT_BASELINE, nominal: Number(nominalLama), updatedBy: 'sistem', updatedAt: new Date().toISOString() };
       }
-      kunci.forEach(k => { const b = (ada[k] && ada[k].berlakuMinggu) || k; if (b > berlaku) upd['iuran_nominal_riwayat/' + k] = null; });   // entri yang lebih baru tergantikan
-      upd['iuran_nominal_riwayat/' + berlaku] = { berlakuMinggu: berlaku, nominal: Number(nominalBaru), updatedBy: currentUser.name, updatedAt: new Date().toISOString() };
-      return db.ref().update(upd);
+      kunci.forEach(k => { const b = (ada[k] && ada[k].berlakuMinggu) || k; if (b > berlaku) upd[k] = null; });   // entri yang lebih baru tergantikan
+      upd[berlaku] = { berlakuMinggu: berlaku, nominal: Number(nominalBaru), updatedBy: currentUser.name, updatedAt: new Date().toISOString() };
+      return db.ref('iuran_nominal_riwayat').update(upd);   // update dari node itu sendiri: cukup butuh izin tulis di iuran_nominal_riwayat
     }).then(() => { riwReset(); try { tunggakanRender(); } catch (e) { /* kartu tunggakan belum ada */ } })
       .catch(err => { console.warn('[SI MAMBA] Gagal mencatat riwayat nominal infaq:', err && err.message ? err.message : err); toast('⚠️ Nominal tersimpan, tapi riwayat per minggu gagal dicatat (perkiraan tunggakan memakai nominal terbaru).', true, 6000); });
   } catch (e) { console.warn('[SI MAMBA] infaqRiwayatCatat gagal:', e); }
@@ -226,6 +229,157 @@ function tgCatatanNominal() {
     ? 'Perkiraan dihitung per minggu dari riwayat nominal standar; siswa bernominal khusus memakai nominal khusus sekarang.'
     : 'Perkiraan = nominal berlaku sekarang x jumlah minggu (riwayat perubahan nominal belum ada).';
 }
+
+// ============================================================
+// NOTIFIKASI TUNGGAKAN UNTUK PETUGAS INFAQ (banner di Dashboard)
+// - Hanya untuk petugas infaq (bukan Admin/Kepsek, yang sudah punya kartu pemantauan).
+// - Dihitung di perangkat petugas saat data dimuat (tanpa menulis ke Firebase, tanpa Admin perlu mengingatkan).
+// - Muncul bila ada siswa di kelasnya yang menunggak >= TUNGGAKAN_NOTIF_MIN_MINGGU minggu. Tombol "Tutup"
+//   menyembunyikannya sampai aplikasi dimuat ulang.
+// ============================================================
+const TUNGGAKAN_NOTIF_MIN_MINGGU = 2;
+let _tgNotifTutup = false;
+
+function tgEnsureNotifWadah() {
+  let el = document.getElementById('dashboardTunggakanNotif');
+  if (el) return el;
+  const page = document.getElementById('page-dashboard');
+  if (!page) return null;
+  el = document.createElement('div'); el.id = 'dashboardTunggakanNotif'; el.style.display = 'none';
+  page.insertBefore(el, page.firstChild);
+  return el;
+}
+// -> [{ kelas, siswa, minggu, maks }] untuk kelas petugas; [] kalau tidak ada.
+function tunggakanNotifHitung() {
+  const semuaMinggu = tgDaftarMinggu();
+  if (!semuaMinggu.length) return [];
+  const kelasList = infaqMyKelasList();
+  if (!kelasList.length) return [];
+  const mulai = tgMulaiDefault(kelasList, semuaMinggu);
+  const peta = {};
+  tgHitung(kelasList, mulai, semuaMinggu).filter(b => b.jumlah >= TUNGGAKAN_NOTIF_MIN_MINGGU).forEach(b => {
+    const k = b.siswa.kelas;
+    if (!peta[k]) peta[k] = { kelas: k, siswa: 0, minggu: 0, maks: 0 };
+    peta[k].siswa += 1; peta[k].minggu += b.jumlah; peta[k].maks = Math.max(peta[k].maks, b.jumlah);
+  });
+  return kelasList.filter(k => peta[k]).map(k => peta[k]);
+}
+function tunggakanNotifRender() {
+  tgResetBilaGantiUser();
+  const el = tgEnsureNotifWadah(); if (!el) return;
+  const petugas = typeof currentUser !== 'undefined' && currentUser && typeof infaqCanAccess === 'function' && infaqCanAccess() && !isAdmin() && !isKepsek();
+  if (!petugas || _tgNotifTutup) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  if (!_tgKalenderDicoba && (!allKalenderAkademik || allKalenderAkademik.length === 0) && typeof reloadDataset === 'function') {
+    _tgKalenderDicoba = true;                                  // minggu libur harus dikenali dulu supaya tidak ada tunggakan palsu
+    reloadDataset('kalenderAkademik', () => tunggakanNotifRender());
+    return;
+  }
+  const data = tunggakanNotifHitung();
+  if (!data.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  const baris = data.map(x => `<div style="font-size:12px;"><strong>${escapeHtml(x.kelas)}</strong> — ${x.siswa} siswa menunggak ${TUNGGAKAN_NOTIF_MIN_MINGGU} minggu atau lebih (terlama ${x.maks} minggu)</div>`).join('');
+  el.style.display = '';
+  el.innerHTML = `<div role="status" style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:4px;">📋 Pengingat: ada tunggakan infaq di kelas Anda</div>
+    ${baris}
+    <div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-success" style="padding:5px 12px;font-size:12px;" onclick="tunggakanNotifBuka()">Lihat Tunggakan</button><button class="btn btn-soft" style="padding:5px 12px;font-size:12px;" onclick="tunggakanNotifTutup()">Tutup</button></div></div>`;
+}
+function tunggakanNotifTutup() { _tgNotifTutup = true; tunggakanNotifRender(); }
+function tunggakanNotifBuka() {
+  if (typeof navigateTo === 'function') navigateTo('infaq-madrasah');
+  setTimeout(() => { const a = document.getElementById('infaqTunggakanArea'); if (a && a.scrollIntoView) a.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 400);
+}
+
+// ============================================================
+// TREN KELUNASAN INFAQ PER KELAS (grafik garis, halaman Infaq Mingguan; Admin, Kepsek, petugas = kelasnya)
+// - Tiap titik = persentase siswa wajib infaq di kelas itu yang SUDAH lunas untuk minggu tersebut
+//   (termasuk yang dibayar belakangan, jadi angka minggu lama bisa naik seiring waktu).
+// - Hanya minggu yang sudah jatuh tempo (minggu berjalan tidak ikut); minggu libur penuh dilewati.
+// - Siswa wajib = siswa kelas itu saat ini yang sudah terdaftar sebelum minggu tsb dan nominalnya bukan Rp 0.
+// - Kelas lebih dari satu -> ada garis "Semua kelas" (gabungan, tertimbang jumlah siswa).
+// ============================================================
+let _tgTrenJumlah = 12;                    // 8 | 12 | 0 (semua minggu semester ini)
+const TG_WARNA_KELAS = ['#0072B2', '#D55E00', '#009E73', '#CC79A7', '#E69F00', '#56B4E9'];
+
+function tgSeninDariKey(key) {              // 'YYYY-Www' -> Date (Senin minggu ISO itu)
+  const m = /^(\d{4})-W(\d{2})$/.exec(key || ''); if (!m) return null;
+  const jan4 = new Date(+m[1], 0, 4), senin1 = new Date(+m[1], 0, 4 - ((jan4.getDay() + 6) % 7));
+  return new Date(senin1.getFullYear(), senin1.getMonth(), senin1.getDate() + (+m[2] - 1) * 7);
+}
+function tgKelunasanHitung(kelasList, semuaMinggu, jumlah) {
+  const minggu = jumlah > 0 ? semuaMinggu.slice(-jumlah) : semuaMinggu.slice();
+  const lunas = new Set(); (allInfaqSiswa || []).forEach(it => lunas.add(it.siswaKey + '|' + it.minggu));
+  const kelasSet = new Set(kelasList), rosterPer = {};
+  kelasList.forEach(k => { rosterPer[k] = []; });
+  (allSiswa || []).forEach(s => { if (kelasSet.has(s.kelas)) rosterPer[s.kelas].push(s); });
+  const awal = s => { if (!s.dibuat) return ''; const dt = new Date(s.dibuat); return isNaN(dt.getTime()) ? '' : isoMingguKey(dt); };
+  const tot = minggu.map(() => ({ wajib: 0, lunas: 0 }));
+  const seri = kelasList.map(k => {
+    const nilai = minggu.map((mk, i) => {
+      const wajib = rosterPer[k].filter(s => awal(s) < mk && tgNominalMingguSiswa(s, mk) !== 0);
+      const sudah = wajib.filter(s => lunas.has(s.key + '|' + mk)).length;
+      tot[i].wajib += wajib.length; tot[i].lunas += sudah;
+      return wajib.length ? Math.round(sudah / wajib.length * 1000) / 10 : null;
+    });
+    return { nama: k, nilai };
+  });
+  if (kelasList.length > 1) seri.push({ nama: 'Semua kelas', gabungan: true, nilai: tot.map(t => t.wajib ? Math.round(t.lunas / t.wajib * 1000) / 10 : null) });
+  return { minggu, seri };
+}
+function tgKelunasanSvg(d) {
+  const W = 640, H = 270, ml = 40, mr = 16, mt = 14, mb = 36, pw = W - ml - mr, ph = H - mt - mb, n = d.minggu.length;
+  const X = i => ml + (n <= 1 ? pw / 2 : pw * i / (n - 1)), Y = v => mt + ph * (1 - v / 100);
+  const bln = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  let g = '';
+  [0, 25, 50, 75, 100].forEach(v => { g += `<line x1="${ml}" y1="${Y(v).toFixed(1)}" x2="${W - mr}" y2="${Y(v).toFixed(1)}" stroke="rgba(128,128,128,.28)"/><text x="${ml - 6}" y="${(Y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="currentColor">${v}%</text>`; });
+  const langkah = Math.max(1, Math.ceil(n / 7));
+  d.minggu.forEach((mk, i) => {
+    if (i % langkah !== 0 && i !== n - 1) return;
+    const senin = tgSeninDariKey(mk);
+    if (senin) g += `<text x="${X(i).toFixed(1)}" y="${H - 14}" text-anchor="middle" font-size="10" fill="currentColor">${senin.getDate()} ${bln[senin.getMonth()]}</text>`;
+  });
+  d.seri.forEach((sr, si) => {
+    const warna = sr.gabungan ? '#6b7280' : TG_WARNA_KELAS[si % TG_WARNA_KELAS.length];
+    let ruas = [], semua = [];
+    sr.nilai.forEach((v, i) => { if (v === null) { if (ruas.length) semua.push(ruas); ruas = []; } else ruas.push(`${X(i).toFixed(1)},${Y(v).toFixed(1)}`); });
+    if (ruas.length) semua.push(ruas);
+    semua.forEach(r => { g += r.length > 1 ? `<polyline points="${r.join(' ')}" fill="none" stroke="${warna}" stroke-width="${sr.gabungan ? 3 : 2}" ${sr.gabungan ? 'stroke-dasharray="6 4"' : ''} stroke-linejoin="round"/>` : ''; r.forEach(p => { const [x, y] = p.split(','); g += `<circle cx="${x}" cy="${y}" r="${sr.gabungan ? 3 : 2.5}" fill="${warna}"/>`; }); });
+  });
+  const ringkas = 'Tren persentase siswa yang lunas infaq per minggu, per kelas.';
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${ringkas}" style="max-width:720px;display:block;"><title>${ringkas}</title>${g}</svg>`;
+}
+function tgEnsureKelunasanArea() {
+  let el = document.getElementById('infaqKelunasanArea');
+  if (el) return el;
+  const anchor = document.getElementById('infaqTunggakanArea');
+  if (!anchor) return null;
+  el = document.createElement('div'); el.id = 'infaqKelunasanArea'; el.style.marginTop = '14px';
+  anchor.insertAdjacentElement('afterend', el);
+  return el;
+}
+function kelunasanRender() {
+  const area = tgEnsureKelunasanArea(); if (!area) return;
+  if (!tunggakanCanView()) { area.innerHTML = ''; return; }
+  const semuaMinggu = tgDaftarMinggu();
+  if (!semuaMinggu.length) { area.innerHTML = ''; return; }
+  const kelasList = tgKelasDilihat();
+  const d = tgKelunasanHitung(kelasList, semuaMinggu, _tgTrenJumlah);
+  if (!d.minggu.length || !(allSiswa || []).length) { area.innerHTML = ''; return; }
+  const pilihan = [[8, '8 minggu terakhir'], [12, '12 minggu terakhir'], [0, 'Semua minggu semester ini']]
+    .map(([v, t]) => `<option value="${v}"${v === _tgTrenJumlah ? ' selected' : ''}>${t}</option>`).join('');
+  const legenda = d.seri.map((sr, si) => {
+    const warna = sr.gabungan ? '#6b7280' : TG_WARNA_KELAS[si % TG_WARNA_KELAS.length];
+    let akhir = null; for (let i = sr.nilai.length - 1; i >= 0; i--) if (sr.nilai[i] !== null) { akhir = sr.nilai[i]; break; }
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;"><span style="display:inline-block;width:14px;height:${sr.gabungan ? 0 : 3}px;${sr.gabungan ? `border-top:3px dashed ${warna}` : `background:${warna}`};"></span>${escapeHtml(sr.nama)}${akhir === null ? '' : ` <strong>${akhir}%</strong>`}</span>`;
+  }).join('');
+  area.innerHTML = `<div style="border:1px solid rgba(128,128,128,.3);border-radius:12px;padding:12px 14px;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">📊 Tren Kelunasan Infaq per Kelas</div>
+    <div style="margin-bottom:8px;"><select class="field" style="font-size:12px;padding:5px;max-width:230px;" onchange="kelunasanGanti(this.value)">${pilihan}</select></div>
+    ${tgKelunasanSvg(d)}
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 4px;">${legenda}</div>
+    <div style="font-size:10px;color:#6b7280;">Persentase siswa wajib infaq yang sudah lunas untuk tiap minggu (termasuk yang dibayar belakangan). Angka di legenda = minggu terakhir. Minggu libur penuh tidak ditampilkan.</div>
+  </div>`;
+}
+function kelunasanGanti(v) { _tgTrenJumlah = parseInt(v, 10) || 0; kelunasanRender(); }
 
 function tunggakanRender() {
   tgResetBilaGantiUser();
@@ -282,6 +436,7 @@ function tunggakanRender() {
          ${adaTanpaNominal ? '<div style="font-size:10px;color:#b45309;margin-top:4px;">⚠️ Nominal iuran standar belum diatur, jadi Rp tidak dihitung.</div>' : `<div style="font-size:10px;color:#6b7280;margin-top:4px;">${tgCatatanNominal()}${baris.some(b => b.bervariasi) ? ' Tanda ≈ = nominal berubah di antara minggu-minggu itu.' : ''}</div>`}`}
     ${kosongKal}
   </div>`;
+  try { kelunasanRender(); } catch (e) { console.error('[SI MAMBA] kelunasanRender gagal:', e); }
 }
 function tunggakanGanti() {
   const k = document.getElementById('tunggakanKelas'), m = document.getElementById('tunggakanMulai');
