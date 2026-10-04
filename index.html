@@ -102,14 +102,17 @@
   <!-- Tunggakan Infaq per siswa + pengingat WA + unduh PDF/Excel (kartu di halaman Infaq Mingguan) dan
        logout otomatis saat tidak aktif. Dimuat SESUDAH app.js karena memakai fungsi/variabel milik app.js
        (infaqCanAccess, allSiswa, kirimWA, logout, dst.) dan dipicu dari renderIuranRekap(). -->
-  <script defer src="js/tunggakan-infaq.js?v=3"></script>
-  <script defer src="js/auto-logout.js?v=2"></script>
+  <script defer src="js/tunggakan-infaq.js?v=2"></script>
+  <script defer src="js/auto-logout.js?v=1"></script>
+
+  <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
+  <script defer src="js/login-kode.js?v=3"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
-  <script defer src="js/tahfidz-grafik.js?v=3"></script>
+  <script defer src="js/tahfidz-grafik.js?v=2"></script>
 
   <!-- Kartu "Petugas per Kelas" di Dashboard (Admin & Kepsek). Dimuat SESUDAH app.js; dipicu dari renderChartsNow() dan v4RenderTahfidz(). -->
-  <script defer src="js/monitor-petugas.js?v=3"></script>
+  <script defer src="js/monitor-petugas.js?v=2"></script>
 </head>
 <body>
 
