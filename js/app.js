@@ -2330,6 +2330,7 @@
       _renderChartsTimer = null;
       try { updateDashboardSchoolLevelPanelsVisibility(); renderSiswaChart(); renderGuruChart(); renderDashboardKepsekExtra(); }
       catch (e) { console.warn('[SI MAMBA] renderCharts gagal:', e); }
+      try { if (typeof petugasMonitorRender === 'function') petugasMonitorRender(); } catch (e) { console.warn('[SI MAMBA] petugasMonitorRender gagal:', e); }
     }
     // Debounce: listener realtime Firebase & pergantian filter bisa memanggil ini berkali-kali dalam
     // hitungan milidetik -- gabungkan jadi satu render supaya Chart.js tidak menghitung ulang terus.
@@ -7314,8 +7315,9 @@
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;">
           <span style="font-size:13px;font-weight:600;color:#065f46;">💵 Nominal Infaq Mingguan (standar semua siswa):</span>
           <input id="infaqTargetInput" type="number" class="field" style="width:140px;" min="0" step="500" value="${sudahDiatur ? nominal : ''}" placeholder="Belum diatur">
+          ${typeof infaqRiwayatBerlakuSelectHtml === 'function' ? infaqRiwayatBerlakuSelectHtml() : ''}
           <button class="btn btn-success" style="padding:7px 14px;font-size:12px;" onclick="simpanIuranNominal()">💾 Simpan</button>
-          <span class="text-muted" style="font-size:11px;">Berlaku untuk semua siswa & minggu berikutnya. Pembayaran yang sudah tercatat lunas tidak ikut berubah. Untuk siswa dengan nominal beda (mis. keringanan siswa bersaudara), atur lewat tombol ✏️ Edit di halaman Data Siswa — ditandai ✨ di daftar bawah.</span>
+          <span class="text-muted" style="font-size:11px;">Berlaku untuk semua siswa mulai minggu yang dipilih (minggu sebelumnya tetap memakai nominal lama di perkiraan tunggakan). Pembayaran yang sudah tercatat lunas tidak ikut berubah. Untuk siswa dengan nominal beda (mis. keringanan siswa bersaudara), atur lewat tombol ✏️ Edit di halaman Data Siswa — ditandai ✨ di daftar bawah.</span>
         </div>`;
       } else {
         box.innerHTML = sudahDiatur
@@ -7329,11 +7331,13 @@
       const nominal = parseInt(rawNominal, 10);
       // Kosong ditolak (bukan diam-diam jadi 0) supaya "belum diatur" dan "0" tidak tercampur.
       if (rawNominal === '' || isNaN(nominal) || nominal < 0) return toast('Isi nominal yang valid (0 atau lebih)!', true);
+      const nominalLamaRiwayat = MADRASAH.iuranMingguanNominal;
       db.ref('school_settings').update({ iuranMingguanNominal: nominal, iuranNominalUpdatedBy: currentUser.name, iuranNominalUpdatedAt: new Date().toISOString() }, err => {
         if (err) return toast('Gagal: ' + err.message, true);
         toast('✅ Nominal infaq mingguan disimpan!');
         addLog('simpan_nominal_iuran', 'Rp' + nominal);
         MADRASAH.iuranMingguanNominal = nominal;
+        try { if (typeof infaqRiwayatCatat === 'function') infaqRiwayatCatat(nominal, nominalLamaRiwayat); } catch (e) { console.warn('[SI MAMBA] infaqRiwayatCatat gagal:', e); }
         renderIuranNominalArea();
       });
     }
@@ -7351,7 +7355,9 @@
       renderInfaqPetugasAdmin();
       if (!infaqCanAccess()) {
         const wrap = document.getElementById('infaqInputArea');
-        if (wrap) wrap.innerHTML = '<p style="color:#dc2626;">🔒 Anda belum ditunjuk sebagai petugas pencatat infaq kelas manapun — hubungi Admin.</p>';
+        if (wrap) wrap.innerHTML = isKepsek()
+          ? '<p class="text-muted" style="font-size:13px;">👁️ Mode lihat saja untuk Kepala Madrasah. Pencatatan infaq dilakukan oleh petugas/Admin; rekap tunggakan dan unduhannya ada di bawah.</p>'
+          : '<p style="color:#dc2626;">🔒 Anda belum ditunjuk sebagai petugas pencatat infaq kelas manapun — hubungi Admin.</p>';
         const belumSetorArea = document.getElementById('infaqBelumSetorArea'); if (belumSetorArea) belumSetorArea.innerHTML = '';
         const targetArea = document.getElementById('infaqTargetArea'); if (targetArea) targetArea.innerHTML = '';
         document.getElementById('infaqKelas').innerHTML = '<option value="">-</option>';
@@ -7508,6 +7514,7 @@
       </div>`;
     }
     function renderIuranRekap() {
+      try { if (typeof tunggakanRender === 'function') tunggakanRender(); } catch (e) { console.error('[SI MAMBA] tunggakanRender gagal:', e); }
       const area = document.getElementById('infaqRekapArea');
       const areaBulananLama = document.getElementById('infaqRekapBulananArea'); // elemen lama (kalau masih ada di index.html) ikut diisi supaya tidak kosong menggantung
       const setHtml = (html) => { if (area) area.innerHTML = html; if (areaBulananLama) areaBulananLama.innerHTML = html; };
@@ -9910,6 +9917,7 @@
       document.getElementById('editWaliKelasOf').value = guru.waliKelasOf || '';
       document.getElementById('editWaliKelasOfContainer').style.display = (guru.role === 'wali_kelas') ? 'block' : 'none';
       document.getElementById('editGuruTunjanganMasaKerja').value = guru.tunjanganMasaKerja || '';
+      document.getElementById('editGuruNoWa').value = guru.noWa || '';
       document.getElementById('editGuruBantuanTransportasi').value = guru.bantuanTransportasi || '';
       document.querySelectorAll('.edit-class-check').forEach(cb => { cb.checked = false; cb.disabled = false; });
       document.getElementById('editAllClassCheck').checked = false;
@@ -9949,6 +9957,9 @@
       updateData.kelas = checkedClasses; updateData.semuaKelas = allClass;
       updateData.tunjanganMasaKerja = parseInt(document.getElementById('editGuruTunjanganMasaKerja').value) || 0;
       updateData.bantuanTransportasi = parseInt(document.getElementById('editGuruBantuanTransportasi').value) || 0;
+      const noWaGuru = (document.getElementById('editGuruNoWa').value || '').trim();
+      if (noWaGuru && formatNomorWa(noWaGuru).length < 10) return toast('Nomor WhatsApp guru tidak valid!', true);
+      updateData.noWa = noWaGuru || null;
       db.ref('guru/' + editingGuruKey).update(updateData, err => {
         if (err) toast('Gagal update: '+err.message, true);
         else { toast('✅ Data guru diupdate!'); addLog('edit_guru', name); closeEditGuruModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList()); }
@@ -11207,7 +11218,7 @@
         'profile-v4':true,'dashboard':true,'teacher-attendance':v4IsTeacher(),'journal':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'grades':v4IsTeacher(),'attendance':v4IsTeacher()||v4IsAdmin(),'jadwal':v4CanClass(),'students':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'activities-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'tahfidz-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ekskul-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'pramuka-v4':v4IsAdmin()||v4IsHead()||v4PramukaMyKelas().length>0,
         'events':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ujian':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'administrasi-ujian':(typeof aujCanOpenMenu === 'function' ? aujCanOpenMenu() : false),
-        'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':infaqCanAccess(),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
+        'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':(infaqCanAccess()||isKepsek()),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'laporan':v4CanHead(),'surat':v4IsAdmin()||isWaliKelasAssigned(),'notifications-v4':true,'tasks-v4':true,'user-management':v4IsAdmin(),'kelola-absen-guru':v4IsAdmin()||v4IsHead(),'admin':v4IsAdmin(),'profil-sekolah':v4IsAdmin(),'rekap-nilai':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'promotion':v4IsAdmin(),'setting-jam':v4IsAdmin(),'rekap':v4CanHead(),'religi':v4IsTeacher()
       };
@@ -11817,6 +11828,8 @@
         const hist = (V4.tahfidz||[]).filter(x => !v4TfKelasSel || x.kelas===v4TfKelasSel).slice().reverse().slice(0,30);
         list.innerHTML = hist.map(x=>`<div class="v4-task"><div class="v4-task-main"><div class="v4-task-title">📖 ${v4Safe(x.studentName)} · ${v4Safe(x.surah)} ${v4Safe(x.ayat)}</div><div class="v4-task-meta">${v4Safe(x.type)} · ${v4Safe(x.tanggal)} · ${v4Safe(x.note||'-')}</div></div><span class="v4-chip blue">${v4Safe(x.kelas||'')}</span></div>`).join('')||'<p class="v4-muted">Belum ada catatan tahfidz.</p>';
       }
+      try { if (typeof thfGrafikRender === 'function') thfGrafikRender(); } catch (e) { console.error('[SI MAMBA] thfGrafikRender gagal:', e); }
+      try { if (typeof petugasMonitorRender === 'function') petugasMonitorRender(); } catch (e) { console.warn('[SI MAMBA] petugasMonitorRender gagal:', e); }
     }
     function v4SetTahfidzKelas(kelas){
       v4TfKelasSel = kelas;
@@ -12407,7 +12420,7 @@
       // Field skor per baris juga sebelumnya baca g.nilai/g.score (tidak ada) -- diganti calculateRapor(g.data)
       // seperti yang dipakai di Rekap Nilai. Kolom Status dihapus krn record grades tidak punya field
       // status per mapel (status Draft/Final cuma ada di level laporan lewat report_cards_v4, bukan per nilai).
-      const grades=(allGrades||[]).filter(x=>x.siswaKey===st.key&&(!x.semester||x.semester===currentSemesterAktif)&&sesuaiTahunAjaranTermasukDataLama(x));const att=(allAttendance||[]).filter(x=>x.kelas===st.kelas&&sesuaiTahunAjaranTermasukDataLama(x));const t=(V4.tahfidz||[]).filter(x=>x.studentId===st.key);const sholat=v4HitungSholatSiswa(st.key);const pramuka=v4HitungPramukaSiswa(st.key,st.kelas);const ekskulList=v4HitungEkskulSiswa(st.key);const ekskulHtml=ekskulList.length?ekskulList.map(x=>`<p class="v4-muted">${v4Safe(x.nama)}: ${x.hadir}/${x.total} hadir${x.total?` (${Math.round(x.hadir/x.total*100)}%)`:''}</p>`).join(''):'<p class="v4-muted">Belum ada catatan kehadiran ekskul.</p>';el.innerHTML=`${typeof generateKopSuratHTML==='function'?generateKopSuratHTML():''}<div class="header">RAPORT PESERTA DIDIK</div><div class="sub-header">${v4Safe(st.name)} · ${v4Safe(st.kelas)}</div><h4 style="margin:10px 0 6px;">Nilai</h4><div class="v4-table-wrap"><table><thead><tr><th>Mapel</th><th>Nilai</th></tr></thead><tbody>${grades.slice(0,30).map(g=>`<tr><td>${v4Safe(g.subject||'-')}</td><td>${v4Safe(g.data?calculateRapor(g.data):'-')}</td></tr>`).join('')||'<tr><td colspan="2">Belum ada nilai.</td></tr>'}</tbody></table></div><h4 style="margin:12px 0 6px;">Kehadiran</h4><p class="v4-muted">Data kehadiran kelas: ${att.length} catatan.</p><h4 style="margin:12px 0 6px;">Tahfidz</h4><p class="v4-muted">${t.length} catatan setoran/murojaah.</p><h4 style="margin:12px 0 6px;">☀️🕌 Sholat Dhuha &amp; Dzuhur</h4><p class="v4-muted">Dhuha: ${sholat.dluhaHadir}/${sholat.dluhaTotal} hadir${sholat.dluhaTotal?` (${Math.round(sholat.dluhaHadir/sholat.dluhaTotal*100)}%)`:''} · Dzuhur: ${sholat.dzuhurHadir}/${sholat.dzuhurTotal} hadir${sholat.dzuhurTotal?` (${Math.round(sholat.dzuhurHadir/sholat.dzuhurTotal*100)}%)`:''}</p><h4 style="margin:12px 0 6px;">🏕️ Pramuka (${v4Safe(pramuka.tingkatLabel)})</h4><p class="v4-muted">SKU tercapai: ${pramuka.done}/${pramuka.totalItems} poin (${pramuka.pct}%)</p><h4 style="margin:12px 0 6px;">🎯 Ekstrakurikuler Lain</h4>${ekskulHtml}${v4RaporSikapHtml(st.key)}<div style=\"margin-top:24px;text-align:right;padding-right:20px;\"><p>Mengetahui,<br>Kepala ${v4Safe(MADRASAH.nama)}</p>${MADRASAH.ttdKepalaBase64?`<img src=\"${MADRASAH.ttdKepalaBase64}\" alt=\"Tanda tangan\" style=\"max-height:45px;display:block;margin:6px 0 6px auto;\">`:'<br><br><br>'}<p style=\"text-decoration:underline;\">${v4Safe(MADRASAH.kepala_sekolah)}</p><p>NIP. ${v4Safe(MADRASAH.nip_kepala_sekolah)}</p></div>`;}
+      const grades=(allGrades||[]).filter(x=>x.siswaKey===st.key&&(!x.semester||x.semester===currentSemesterAktif)&&sesuaiTahunAjaranTermasukDataLama(x));const att=(allAttendance||[]).filter(x=>x.kelas===st.kelas&&sesuaiTahunAjaranTermasukDataLama(x));const t=(V4.tahfidz||[]).filter(x=>x.studentId===st.key);const sholat=v4HitungSholatSiswa(st.key);const pramuka=v4HitungPramukaSiswa(st.key,st.kelas);const ekskulList=v4HitungEkskulSiswa(st.key);const ekskulHtml=ekskulList.length?ekskulList.map(x=>`<p class="v4-muted">${v4Safe(x.nama)}: ${x.hadir}/${x.total} hadir${x.total?` (${Math.round(x.hadir/x.total*100)}%)`:''}</p>`).join(''):'<p class="v4-muted">Belum ada catatan kehadiran ekskul.</p>';el.innerHTML=`${typeof generateKopSuratHTML==='function'?generateKopSuratHTML():''}<div class="header">RAPORT PESERTA DIDIK</div><div class="sub-header">${v4Safe(st.name)} · ${v4Safe(st.kelas)}</div><h4 style="margin:10px 0 6px;">Nilai</h4><div class="v4-table-wrap"><table><thead><tr><th>Mapel</th><th>Nilai</th></tr></thead><tbody>${grades.slice(0,30).map(g=>`<tr><td>${v4Safe(g.subject||'-')}</td><td>${v4Safe(g.data?calculateRapor(g.data):'-')}</td></tr>`).join('')||'<tr><td colspan="2">Belum ada nilai.</td></tr>'}</tbody></table></div><h4 style="margin:12px 0 6px;">Kehadiran</h4><p class="v4-muted">Data kehadiran kelas: ${att.length} catatan.</p><h4 style="margin:12px 0 6px;">Tahfidz</h4>${typeof thfRaporHtml==='function'?thfRaporHtml(st,t):'<p class="v4-muted">'+t.length+' catatan setoran/murojaah.</p>'}<h4 style="margin:12px 0 6px;">☀️🕌 Sholat Dhuha &amp; Dzuhur</h4><p class="v4-muted">Dhuha: ${sholat.dluhaHadir}/${sholat.dluhaTotal} hadir${sholat.dluhaTotal?` (${Math.round(sholat.dluhaHadir/sholat.dluhaTotal*100)}%)`:''} · Dzuhur: ${sholat.dzuhurHadir}/${sholat.dzuhurTotal} hadir${sholat.dzuhurTotal?` (${Math.round(sholat.dzuhurHadir/sholat.dzuhurTotal*100)}%)`:''}</p><h4 style="margin:12px 0 6px;">🏕️ Pramuka (${v4Safe(pramuka.tingkatLabel)})</h4><p class="v4-muted">SKU tercapai: ${pramuka.done}/${pramuka.totalItems} poin (${pramuka.pct}%)</p><h4 style="margin:12px 0 6px;">🎯 Ekstrakurikuler Lain</h4>${ekskulHtml}${v4RaporSikapHtml(st.key)}<div style=\"margin-top:24px;text-align:right;padding-right:20px;\"><p>Mengetahui,<br>Kepala ${v4Safe(MADRASAH.nama)}</p>${MADRASAH.ttdKepalaBase64?`<img src=\"${MADRASAH.ttdKepalaBase64}\" alt=\"Tanda tangan\" style=\"max-height:45px;display:block;margin:6px 0 6px auto;\">`:'<br><br><br>'}<p style=\"text-decoration:underline;\">${v4Safe(MADRASAH.kepala_sekolah)}</p><p>NIP. ${v4Safe(MADRASAH.nip_kepala_sekolah)}</p></div>`;}
     // Bagian "Sikap & Kedisiplinan" di Raport -- ringkasan poin + predikat otomatis, dipanggil
     // dari v4RenderReportPreview(). Predikat sekadar panduan cepat wali kelas, bukan nilai baku.
     function v4RaporSikapHtml(siswaKey) {
