@@ -6566,7 +6566,8 @@
       const jenis = v4CariJenisKegiatanSholat(namaSholat);
       if (jenis.length === 0) return null;
       const keys = jenis.map(j => j.key);
-      return (V4.activityAttendance || []).some(r => keys.includes(r.activityTypeId) && r.tanggal === tanggal);
+      // Defensif: abaikan record tanpa status (kalau ada) supaya tidak dihitung sebagai "sudah diisi".
+      return (V4.activityAttendance || []).some(r => r.status && keys.includes(r.activityTypeId) && r.tanggal === tanggal);
     }
     function saveReligi() {
       if (!isTeacher() && !isWaliKelas() && !isAdmin() && !isKepsek()) return toast('Hanya Guru, Wali Kelas, Admin & Kepsek!', true);
@@ -11742,10 +11743,10 @@
           bodyHtml = '<div class="v4-card"><div class="v4-muted">Belum ada data absensi sholat untuk kelas & bulan ini.</div></div>';
         } else {
           const rows = tanggalSet.map(tgl => {
-            const totalDluha = recsBulanIni.filter(r => dluhaTypes.includes(r.activityTypeId) && r.tanggal===tgl).length;
-            const hadirDluha = recsBulanIni.filter(r => dluhaTypes.includes(r.activityTypeId) && r.tanggal===tgl && r.status==='Hadir').length;
-            const totalDzuhur = recsBulanIni.filter(r => dzuhurTypes.includes(r.activityTypeId) && r.tanggal===tgl).length;
-            const hadirDzuhur = recsBulanIni.filter(r => dzuhurTypes.includes(r.activityTypeId) && r.tanggal===tgl && r.status==='Hadir').length;
+            const totalDluha = recsBulanIni.filter(r => r.status && dluhaTypes.includes(r.activityTypeId) && r.tanggal===tgl).length;
+            const hadirDluha = recsBulanIni.filter(r => dluhaTypes.includes(r.activityTypeId) && r.tanggal===tgl && v4StatusHadir(r)).length;
+            const totalDzuhur = recsBulanIni.filter(r => r.status && dzuhurTypes.includes(r.activityTypeId) && r.tanggal===tgl).length;
+            const hadirDzuhur = recsBulanIni.filter(r => dzuhurTypes.includes(r.activityTypeId) && r.tanggal===tgl && v4StatusHadir(r)).length;
             const selDluha = totalDluha ? `${hadirDluha}/${totalDluha} (${Math.round(hadirDluha/totalDluha*100)}%)` : '-';
             const selDzuhur = totalDzuhur ? `${hadirDzuhur}/${totalDzuhur} (${Math.round(hadirDzuhur/totalDzuhur*100)}%)` : '-';
             return `<tr><td>${v4Safe(tgl)}</td><td>${selDluha}</td><td>${selDzuhur}</td></tr>`;
@@ -11758,10 +11759,10 @@
         } else {
           const rows = siswaKelas.slice().sort((a,b)=>COLLATOR_ID.compare(a.name, b.name)).map(s => {
             const recSiswa = recsBulanIni.filter(r => r.studentId === s.key);
-            const dluhaTotal = recSiswa.filter(r => dluhaTypes.includes(r.activityTypeId)).length;
-            const dluhaHadir = recSiswa.filter(r => dluhaTypes.includes(r.activityTypeId) && r.status==='Hadir').length;
-            const dzuhurTotal = recSiswa.filter(r => dzuhurTypes.includes(r.activityTypeId)).length;
-            const dzuhurHadir = recSiswa.filter(r => dzuhurTypes.includes(r.activityTypeId) && r.status==='Hadir').length;
+            const dluhaTotal = recSiswa.filter(r => r.status && dluhaTypes.includes(r.activityTypeId)).length;
+            const dluhaHadir = recSiswa.filter(r => dluhaTypes.includes(r.activityTypeId) && v4StatusHadir(r)).length;
+            const dzuhurTotal = recSiswa.filter(r => r.status && dzuhurTypes.includes(r.activityTypeId)).length;
+            const dzuhurHadir = recSiswa.filter(r => dzuhurTypes.includes(r.activityTypeId) && v4StatusHadir(r)).length;
             const selDluha = dluhaTotal ? `${dluhaHadir}/${dluhaTotal}` : '-';
             const selDzuhur = dzuhurTotal ? `${dzuhurHadir}/${dzuhurTotal}` : '-';
             return `<tr><td>${v4Safe(s.name)}</td><td>${selDluha}</td><td>${selDzuhur}</td></tr>`;
@@ -11858,7 +11859,10 @@
       const records = {};
       try {
         touched.forEach(st => {
-          records[`${typeKey}_${dateVal}_${st.key}`] = { activityTypeId: typeKey, studentId: st.key, studentName: st.name, kelas: st.kelas, tanggal: dateVal, status: snap[st.key], recordedBy: currentUser.name, guruKey: currentUser.key || null, recordedAt: nowIso, tahunAjaran: currentTahunAjaran };
+          // FIX: status null (pilihan dibatalkan) TIDAK boleh ditulis sebagai record -- Rules mewajibkan child 'status'
+          // (hasChildren), jadi satu record tanpa status menggagalkan SELURUH update atomik (PERMISSION_DENIED).
+          // Dikirim sebagai null = hapus record tsb (hapus selalu lolos validasi).
+          records[`${typeKey}_${dateVal}_${st.key}`] = snap[st.key] ? { activityTypeId: typeKey, studentId: st.key, studentName: st.name, kelas: st.kelas, tanggal: dateVal, status: snap[st.key], recordedBy: currentUser.name, guruKey: currentUser.key || null, recordedAt: nowIso, tahunAjaran: currentTahunAjaran } : null;
         });
       } catch (e) {
         clearBusy('v4SaveAct_'+typeKey, getBtn());
@@ -11874,6 +11878,11 @@
         // Perbarui salinan lokal SEKARANG supaya tampilan langsung benar, tidak menunggu v4LoadCore().
         if (!Array.isArray(V4.activityAttendance)) V4.activityAttendance = [];
         Object.keys(records).forEach(id => {
+          if (records[id] === null) {  // pilihan dibatalkan -> record dihapus di server, hapus juga di salinan lokal
+            const sid = id.slice((typeKey + '_' + dateVal + '_').length);
+            V4.activityAttendance = V4.activityAttendance.filter(r => !(r.activityTypeId===typeKey && r.studentId===sid && r.tanggal===dateVal));
+            return;
+          }
           const rec = Object.assign({ key: id }, records[id]);
           const i = V4.activityAttendance.findIndex(r => r.activityTypeId===typeKey && r.studentId===rec.studentId && r.tanggal===dateVal);
           if (i >= 0) V4.activityAttendance[i] = rec; else V4.activityAttendance.push(rec);
@@ -12480,15 +12489,20 @@
     function v4PopulateReport(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent');if(!c||!s)return;const scope=siswaScopeKelas();const classes=[...new Set((allSiswa||[]).map(x=>x.kelas).filter(k=>k&&scope.includes(k)))];c.innerHTML=classes.map(x=>`<option>${v4Safe(x)}</option>`).join('');const cls=c.value;s.innerHTML=(allSiswa||[]).filter(x=>x.kelas===cls).map(x=>`<option value="${v4Safe(x.key)}">${v4Safe(x.name)}</option>`).join('');v4RenderReportPreview();}
     // Ringkasan absensi Sholat Dhuha/Dzuhur seorang siswa untuk tahun ajaran berjalan --
     // dipakai di preview raport & disimpan ke snapshot saat raport difinalisasi.
+    // Status absensi kegiatan: 'H' (format input saat ini); 'Hadir' diterima untuk data lama.
+    function v4StatusHadir(r) { return r && (r.status === 'H' || r.status === 'Hadir'); }
     function v4HitungSholatSiswa(studentKey) {
       const dluhaTypes = v4CariJenisKegiatanSholat('Dluha').map(t => t.key);
       const dzuhurTypes = v4CariJenisKegiatanSholat('Dzuhur').map(t => t.key);
       const recs = (V4.activityAttendance || []).filter(r => r.studentId === studentKey && r.tahunAjaran === currentTahunAjaran);
-      const dluhaRecs = recs.filter(r => dluhaTypes.includes(r.activityTypeId));
-      const dzuhurRecs = recs.filter(r => dzuhurTypes.includes(r.activityTypeId));
+      // FIX: status absensi kegiatan disimpan sebagai kode 'H'/'S'/'I'/'A' (lihat v4SaveActivityAttendance),
+      // bukan 'Hadir' -- perbandingan lama membuat jumlah hadir selalu 0. Record berstatus null
+      // (pilihan dibatalkan guru) tidak dihitung sebagai tercatat.
+      const dluhaRecs = recs.filter(r => r.status && dluhaTypes.includes(r.activityTypeId));
+      const dzuhurRecs = recs.filter(r => r.status && dzuhurTypes.includes(r.activityTypeId));
       return {
-        dluhaHadir: dluhaRecs.filter(r => r.status === 'Hadir').length, dluhaTotal: dluhaRecs.length,
-        dzuhurHadir: dzuhurRecs.filter(r => r.status === 'Hadir').length, dzuhurTotal: dzuhurRecs.length,
+        dluhaHadir: dluhaRecs.filter(v4StatusHadir).length, dluhaTotal: dluhaRecs.length,
+        dzuhurHadir: dzuhurRecs.filter(v4StatusHadir).length, dzuhurTotal: dzuhurRecs.length,
         records: recs
       };
     }
