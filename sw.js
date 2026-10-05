@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - sw.js (Service Worker)  -- versi patch v6.12
+   SI MAMBA - sw.js (Service Worker)  -- versi patch v6.14
    PWA offline caching untuk aplikasi SI MAMBA.
 
    STRATEGI CACHE:
@@ -34,10 +34,11 @@
    DAN angka ?v= file terkait di index.html serta PRECACHE_URLS di bawah
    (css/styles.css, js/app.js, js/kas.js, js/administrasi-ujian.js,
    js/menu-hub.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js,
-   js/tunggakan-infaq.js, js/auto-logout.js, js/login-kode.js, js/tahfidz-grafik.js, js/monitor-petugas.js).
+   js/tunggakan-infaq.js, js/auto-logout.js, js/login-kode.js, js/tahfidz-grafik.js, js/monitor-petugas.js,
+   js/kredensial.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.13';
+const APP_VERSION = 'v6.14';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -68,7 +69,8 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=5',
   './js/administrasi-ujian.js?v=2',
-  './js/app.js?v=30',
+  './js/app.js?v=31',
+  './js/kredensial.js?v=1',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/menu-hub.js?v=3',
   './js/modul-ajar.js?v=5',
   './js/buku-tamu.js?v=4',
