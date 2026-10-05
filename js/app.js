@@ -6565,7 +6565,7 @@
     }
     // Sholat Dhuha & Dzuhur adalah kegiatan rutin -- dibuat OTOMATIS (sekali) kalau belum ada, jadi Admin tidak
     // perlu membuatnya manual. ID tetap + transaction = aman dari duplikat walau beberapa akun memicunya bersamaan.
-    // PJ sengaja "Belum ditentukan" (Admin menunjuk PJ lewat dropdown di kartu kegiatan; sementara itu Admin/Kepala
+    // PJ sengaja kosong (picName '' -> monitor-petugas menandainya "Belum ditunjuk"; picKey '-' dipakai karena Rules mewajibkan picKey; Admin menunjuk PJ lewat dropdown di kartu kegiatan; sementara itu Admin/Kepala
     // bisa mengisi, dan guru mana pun bisa mencalonkan diri jadi pengganti hari itu). Tanpa honor kegiatan:
     // honor sholat guru dihitung dari absen sholat guru (tarif Dluha/Dzuhur), bukan dari jenis kegiatan ini.
     let v4SholatSeedDone = false;
@@ -6578,7 +6578,7 @@
         const perluDibuat = seeds.filter(sd => !v4KataKunciSholat(sd.nama).some(k => names.some(n => n.includes(k))));
         if (!perluDibuat.length) return;
         return Promise.all(perluDibuat.map(sd => db.ref('activity_types_v4/' + sd.id).transaction(cur => (cur === null || cur === undefined)
-          ? { name: sd.name, category: 'Amalan', honorEnabled: false, picKey: '-', picName: 'Belum ditentukan', rutin: true, createdAt: new Date().toISOString(), createdBy: 'sistem' }
+          ? { name: sd.name, category: 'Amalan', honorEnabled: false, picKey: '-', picName: '', rutin: true, createdAt: new Date().toISOString(), createdBy: 'sistem' }
           : undefined))).then(res => { if (res.some(r => r && r.committed)) v4LoadCore(); });
       }).catch(err => { v4SholatSeedDone = false; console.warn('[SI MAMBA] Gagal menyiapkan kegiatan sholat rutin:', err); });
     }
