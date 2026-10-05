@@ -1336,13 +1336,6 @@
     function isPrivilegedSession(u) {
       return !!u && [u.role, u.baseRole].some(r => r === ROLES.ADMIN || r === ROLES.HEADMASTER);
     }
-    // Sesi "Ingat Saya" berlaku sampai Minggu 00:00 (waktu HP) berikutnya setelah login.
-    // Login Senin-Sabtu -> habis Minggu dini hari; login hari Minggu -> habis Minggu depan.
-    function sesiBerakhirPada(ts) {
-      const d = new Date(ts); d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() + (7 - d.getDay()));   // getDay(): Minggu = 0
-      return d.getTime();
-    }
     function saveSession(user) {
       try {
         if (isPrivilegedSession(user)) { localStorage.removeItem('sim_session'); return; }
@@ -1353,7 +1346,7 @@
       try {
         const d = localStorage.getItem('sim_session'); if (!d) return null;
         const p = JSON.parse(d);
-        if (Date.now() >= sesiBerakhirPada(p.timestamp)) { localStorage.removeItem('sim_session'); return null; }   // sesi berakhir tiap Minggu 00:00
+        if (Date.now() - p.timestamp > 24*60*60*1000) { localStorage.removeItem('sim_session'); return null; }
         if (p.sig !== v4SignSession(p.user, p.timestamp)) { console.warn('[SI MAMBA] sim_session tidak valid (diubah manual?), sesi dihapus.'); localStorage.removeItem('sim_session'); return null; }
         if (isPrivilegedSession(p.user)) { console.warn('[SI MAMBA] sesi Admin/Kepsek tidak boleh dipulihkan dari localStorage, sesi dihapus (login ulang dengan PIN).'); localStorage.removeItem('sim_session'); return null; }
         return p.user;
@@ -1764,11 +1757,14 @@
       if (pinBaru !== pinKonfirmasi) return toast('PIN baru tidak cocok!', true);
       const guru = allGuru.find(g => g.key === currentUser.key);
       if (!guru) return toast('Guru tidak ditemukan!', true);
-      if (!verifyGuruPin(guru, pinLama)) return toast('PIN lama salah!', true);
-      db.ref('guru/' + currentUser.key).update({ pin: hashPinSalted(pinBaru, currentUser.key) }, err => {
-        if (err) toast('Gagal: '+err.message, true);
-        else { toast('✅ PIN berhasil diganti!'); addLog('ganti_pin', 'PIN diganti'); closeGantiPinModal(); reloadDataset('logs'); loadGuruListForLogin(); }
-      });
+      if (typeof kredVerifikasi !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
+      // [KREDENSIAL v1] PIN lama diperiksa lewat indeks kredensial; hash tidak lagi ditulis ke data guru.
+      kredVerifikasi(guru, pinLama).then(h => {
+        if (!h.ok) return toast('PIN lama salah!', true);
+        return kredGantiPinSendiri(guru, pinLama, pinBaru, h).then(() => {
+          toast('✅ PIN berhasil diganti!'); addLog('ganti_pin', 'PIN diganti'); closeGantiPinModal(); reloadDataset('logs'); loadGuruListForLogin();
+        });
+      }).catch(err => toast('Gagal: ' + (err && err.message ? err.message : err), true));
     }
 
     function resetPinGuru(key) {
@@ -1790,10 +1786,10 @@
       const pinBaru = document.getElementById('resetPinNew').value.trim(), pinKonfirmasi = document.getElementById('resetPinConfirm').value.trim();
       if (!/^\d{6}$/.test(pinBaru)) return toast('PIN harus 6 digit!', true);
       if (pinBaru !== pinKonfirmasi) return toast('Konfirmasi PIN baru tidak cocok!', true);
-      db.ref('guru/' + key).update({ pin: hashPinSalted(pinBaru, key) }, err => {
-        if (err) toast('Gagal: '+err.message, true);
-        else { toast('✅ PIN berhasil direset!'); addLog('reset_pin', `Reset PIN ${guru.name}`); closeResetPinModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList()); }
-      });
+      if (typeof kredAdminSetPin !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
+      kredAdminSetPin(key, pinBaru).then(() => {
+        toast('✅ PIN berhasil direset!'); addLog('reset_pin', `Reset PIN ${guru.name}`); closeResetPinModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList());
+      }).catch(err => toast('Gagal: ' + (err && err.message ? err.message : err), true));
     }
 
     // ============================================================
@@ -2612,15 +2608,9 @@
       db.ref('guru').once('value', snap => {
         if (settled) return; settled = true; clearTimeout(timeoutTimer);
         allGuru = [];
-        let needMigration = false;
-        snap.forEach(child => { const g = child.val(); g.key = child.key; allGuru.push(g); if (g.pin && /^\d{6}$/.test(g.pin)) needMigration = true; });
-        if (needMigration) {
-          const updates = {};
-          allGuru.forEach(g => { if (g.pin && /^\d{6}$/.test(g.pin)) updates[g.key] = { ...g, pin: hashPinSalted(g.pin, g.key) }; });
-          db.ref('guru').update(updates).then(() => { console.log('✅ Migrasi PIN selesai'); loadGuruListForLogin(callback); }).catch(err => { console.error(err); toast('Gagal migrasi', true); loading.style.display = 'none'; });
-          return;
-        }
-        if (allGuru.length === 0) { seedDefaultGuru(); setTimeout(() => loadGuruListForLogin(callback), 1500); return; }
+        // [KREDENSIAL v1] Migrasi PIN polos & auto-seed guru bawaan DIHAPUS dari alur pra-login: keduanya menulis
+        // PIN dari sisi anonim. Migrasi kini dilakukan Admin lewat js/kredensial.js (tombol Keamanan Login).
+        snap.forEach(child => { const g = child.val(); g.key = child.key; allGuru.push(g); });
         select.innerHTML = '<option value="">-- Pilih --</option>';
         allGuru.sort((a,b) => COLLATOR_ID.compare(a.name, b.name));
         allGuru.forEach(g => { select.innerHTML += `<option value="${g.key}">${escapeHtml(g.name)}</option>`; });
@@ -2630,18 +2620,9 @@
         if (callback) callback();
       }).catch(err => { if (settled) return; settled = true; clearTimeout(timeoutTimer); console.error(err); loadGuruListForLoginFromCache(select, loading, callback); });
     }
-    const DEFAULT_GURU = [
-      { name: 'Achmad Syauqi', pin: '111111', kelas: ['Kelas 1','Kelas 2'], role: 'guru' },
-      { name: 'Ach Khomaidi', pin: '222222', kelas: ['Kelas 3'], role: 'guru' },
-      { name: 'Ahmad Farhan Maulidi', pin: '333333', kelas: ['Kelas 4'], role: 'guru' },
-      { name: 'Dia Gina Rahmani, S.Pd.', pin: '444444', kelas: ['Kelas 5'], role: 'wali_kelas' },
-      { name: 'Jamilatul Jannah', pin: '555555', kelas: ['Kelas 6'], role: 'wali_kelas' },
-      { name: 'Layyuda', pin: '666666', kelas: ['Kelas 1'], role: 'guru' },
-      { name: 'Muhammad Imron, S.Pd.', pin: '777777', kelas: ['Kelas 2'], role: 'guru' },
-      { name: 'Naufilah Halimi, S.Pd.', pin: '888888', kelas: ['Kelas 3'], role: 'guru' },
-      { name: 'Noval Maulana', pin: '999999', kelas: ['Kelas 4'], role: 'guru' }
-    ];
-    function seedDefaultGuru() { DEFAULT_GURU.forEach(guru => { const ref = db.ref('guru').push(); ref.set({ name: guru.name, pin: hashPinSalted(guru.pin, ref.key), kelas: guru.kelas, role: guru.role, dibuat: new Date().toISOString() }); }); }
+    // [KREDENSIAL v1] Daftar guru bawaan (dengan PIN 111111 dst.) dan auto-seed dihapus: PIN bawaan di source berbahaya
+    // dan penulisan kredensial kini hanya boleh dari Admin (js/kredensial.js). Admin menambah guru lewat Manajemen Pengguna.
+    function seedDefaultGuru() { console.warn('[SI MAMBA] seedDefaultGuru dinonaktifkan.'); }
 
     // ============================================================
     // TOGGLE ALL CLASS
@@ -3324,7 +3305,6 @@
       // (renderCharts kini juga aman dari error Chart.js belum termuat: try/catch ada di renderChartsNow()).
       if (typeof updateSaranKritikNotifDot === 'function') { try { updateSaranKritikNotifDot(); } catch (e) {} }
       if (typeof updateInfaqNotifDot === 'function') { try { updateInfaqNotifDot(); } catch (e) {} }
-      if (typeof tunggakanNotifRender === 'function') { try { tunggakanNotifRender(); } catch (e) { console.warn('[SI MAMBA] tunggakanNotifRender gagal:', e); } }
       if (typeof updateInfoOrtuNotifDot === 'function') { try { updateInfoOrtuNotifDot(); } catch (e) {} }
       checkPengumumanNotif();
       lastCoreRenderTs = Date.now();
@@ -9947,7 +9927,8 @@
       const name = document.getElementById('editGuruName').value.trim(), pin = document.getElementById('editGuruPin').value.trim();
       if (!name) return toast('Nama wajib!', true);
       let updateData = { name };
-      if (pin) { if (!/^\d{6}$/.test(pin)) return toast('PIN 6 digit!', true); updateData.pin = hashPinSalted(pin, editingGuruKey); }
+      let pinBaruEdit = '';
+      if (pin) { if (!/^\d{6}$/.test(pin)) return toast('PIN 6 digit!', true); pinBaruEdit = pin; }   // [KREDENSIAL v1] PIN tidak lagi ditulis ke data guru
       const role = document.getElementById('editTeacherRole').value;
       updateData.role = role;
       let waliKelasOf = '';
@@ -9968,10 +9949,15 @@
       const noWaGuru = (document.getElementById('editGuruNoWa').value || '').trim();
       if (noWaGuru && formatNomorWa(noWaGuru).length < 10) return toast('Nomor WhatsApp guru tidak valid!', true);
       updateData.noWa = noWaGuru || null;
-      db.ref('guru/' + editingGuruKey).update(updateData, err => {
+      const guruKeyEdit = editingGuruKey;
+      const simpanDataGuru = () => db.ref('guru/' + guruKeyEdit).update(updateData, err => {
         if (err) toast('Gagal update: '+err.message, true);
         else { toast('✅ Data guru diupdate!'); addLog('edit_guru', name); closeEditGuruModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList()); }
       });
+      if (pinBaruEdit) {
+        if (typeof kredAdminSetPin !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
+        kredAdminSetPin(guruKeyEdit, pinBaruEdit).then(simpanDataGuru).catch(err => toast('Gagal mengganti PIN: ' + (err && err.message ? err.message : err), true));
+      } else simpanDataGuru();
     }
     // ============================================================
     // NAIK KELAS & LULUS
@@ -10880,18 +10866,18 @@
       if (waliKelasOf && !checkedClasses.includes(waliKelasOf)) checkedClasses.push(waliKelasOf);
       if (checkedClasses.length === 0) return toast('Pilih minimal 1 kelas!', true);
 
+      if (typeof kredAdminTambahGuru !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
       const btnTambahUser = document.getElementById('btnTambahUser');
       setBusy('tambahUser', btnTambahUser);
-      const ref = db.ref('guru').push();
-      ref.set({
+      // [KREDENSIAL v1] guru baru + kredensial PIN-nya ditulis atomik oleh js/kredensial.js (hash tidak masuk ke data guru).
+      kredAdminTambahGuru(db.ref('guru').push().key, {
         name,
-        pin: hashPinSalted(pin, ref.key),
         kelas: checkedClasses,
         semuaKelas: allClass,
         role: role,
         waliKelasOf: waliKelasOf || null,
         dibuat: new Date().toISOString()
-      }, err => {
+      }, pin, err => {
         clearBusy('tambahUser', btnTambahUser);
         if (err) toast('Gagal: ' + err.message, true);
         else {
@@ -11340,6 +11326,26 @@
             return toast(`🔒 Terlalu banyak percobaan PIN salah. Coba lagi dalam ${sisaMenit} menit.`, true);
           }
         }
+        // Bagian akhir login (sama untuk Admin/Kepsek/guru): ingat saya -> showApp -> log.
+        const selesaiLogin = () => {
+          try {
+            if(remember){
+              if(isPrivilegedSession(currentUser)) toast('ℹ️ Admin/Kepsek selalu diminta PIN saat membuka aplikasi ("Ingat Saya" tidak berlaku).', false, 3500);
+              else saveSession(currentUser);
+            }
+            v4BootShowChooser = true;
+            showApp();
+            addLog('login',currentUser.name+' login');
+          } catch (e) {
+            v4BootShowChooser = false;
+            console.error('[SI MAMBA] login() (override V4) gagal dengan error tak terduga:', e);
+            toast('⚠️ Login gagal karena error teknis. Coba muat ulang halaman (refresh) lalu coba lagi.', true, 6000);
+          }
+        };
+        const bangunUserGuru = (guru) => {
+          let kelasList=guru.semuaKelas?[...KELAS_LIST]:(Array.isArray(guru.kelas)?guru.kelas:(guru.kelas?String(guru.kelas).split(',').map(x=>x.trim()):[])); if(!kelasList.length) kelasList=[KELAS_LIST[0]];
+          currentUser={name:guru.name,role:ROLES.TEACHER,baseRole:ROLES.TEACHER,kelas:kelasList,key:guru.key,semuaKelas:!!guru.semuaKelas,waliKelasOf:guru.waliKelasOf||null};
+        };
         if(key==='admin'){
           if(hashPin(pin)!==ADMIN_PIN_HASH) { adminLoginCatatGagal(); return toast('PIN Admin salah!',true); }
           adminLoginResetGagal();
@@ -11349,17 +11355,28 @@
           adminLoginResetGagal();
           currentUser={name:'Kepala Madrasah',role:ROLES.HEADMASTER,baseRole:ROLES.HEADMASTER,kelas:[...KELAS_LIST]};
         } else {
-          const guru=(allGuru||[]).find(g=>g.key===key); if(!guru) return toast('Guru tidak ditemukan!',true); if(!verifyGuruPin(guru, pin)) return toast('PIN salah!',true);
-          let kelasList=guru.semuaKelas?[...KELAS_LIST]:(Array.isArray(guru.kelas)?guru.kelas:(guru.kelas?String(guru.kelas).split(',').map(x=>x.trim()):[])); if(!kelasList.length) kelasList=[KELAS_LIST[0]];
-          currentUser={name:guru.name,role:ROLES.TEACHER,baseRole:ROLES.TEACHER,kelas:kelasList,key:guru.key,semuaKelas:!!guru.semuaKelas,waliKelasOf:guru.waliKelasOf||null};
+          const guru=(allGuru||[]).find(g=>g.key===key); if(!guru) return toast('Guru tidak ditemukan!',true);
+          // [KREDENSIAL v1] PIN guru diperiksa lewat js/kredensial.js (indeks login_kredensial), bukan hash di data guru.
+          if (typeof kredVerifikasi !== 'function') {
+            if(!verifyGuruPin(guru, pin)) return toast('PIN salah!',true);    // cadangan bila modul gagal termuat
+            bangunUserGuru(guru); selesaiLogin(); return;
+          }
+          if (window._loginGuruSedangDiperiksa) return;
+          window._loginGuruSedangDiperiksa = true;
+          const tPesanPeriksa = setTimeout(() => { try { toast('⏳ Memeriksa PIN...', false, 2500); } catch (e) {} }, 1200);   // koneksi lambat: beri tanda
+          return kredVerifikasi(guru, pin).then(hasil => {
+            clearTimeout(tPesanPeriksa);
+            if (!hasil || !hasil.ok) { toast((hasil && hasil.pesan) || 'PIN salah!', true); return; }
+            bangunUserGuru(guru);
+            selesaiLogin();
+            try { kredSetelahLogin(guru, pin, hasil); } catch (e) { console.warn('[SI MAMBA] kredSetelahLogin:', e); }
+          }).catch(e => {
+            clearTimeout(tPesanPeriksa);
+            console.error('[SI MAMBA] pemeriksaan PIN gagal:', e);
+            toast('⚠️ Login gagal karena error teknis. Coba muat ulang halaman (refresh) lalu coba lagi.', true, 6000);
+          }).then(() => { window._loginGuruSedangDiperiksa = false; });
         }
-        if(remember){
-          if(isPrivilegedSession(currentUser)) toast('ℹ️ Admin/Kepsek selalu diminta PIN saat membuka aplikasi ("Ingat Saya" tidak berlaku).', false, 3500);
-          else saveSession(currentUser);
-        }
-        v4BootShowChooser = true;
-        showApp();
-        addLog('login',currentUser.name+' login');
+        selesaiLogin();
       } catch (e) {
         v4BootShowChooser = false; // login gagal di tengah jalan -> jangan biarkan flag ini "bocor" ke boot berikutnya
         console.error('[SI MAMBA] login() (override V4) gagal dengan error tak terduga:', e);
