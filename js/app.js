@@ -1336,14 +1336,39 @@
     function isPrivilegedSession(u) {
       return !!u && [u.role, u.baseRole].some(r => r === ROLES.ADMIN || r === ROLES.HEADMASTER);
     }
+    // Sesi Admin/Kepsek (diubah 2026-10): TIDAK lagi ditolak total. Disimpan di sessionStorage (hanya hidup
+    // di tab/jendela ini, hilang saat tab ditutup), kedaluwarsa ADMIN_SESI_MS sejak aktivitas/ditinggalkannya
+    // tab terakhir. Tujuannya: pindah tab/aplikasi lalu kembali dalam 15 menit tidak diminta PIN lagi, termasuk
+    // saat browser HP membuang tab dari memori lalu memuatnya ulang. Tidak pernah masuk localStorage.
+    const ADMIN_SESI_KEY = 'sim_session_adm';
+    const ADMIN_SESI_MS = 15 * 60 * 1000;
     function saveSession(user) {
       try {
-        if (isPrivilegedSession(user)) { localStorage.removeItem('sim_session'); return; }
-        const timestamp = Date.now(); localStorage.setItem('sim_session', JSON.stringify({ user, timestamp, sig: v4SignSession(user, timestamp) }));
+        const timestamp = Date.now();
+        if (isPrivilegedSession(user)) {
+          localStorage.removeItem('sim_session');
+          sessionStorage.setItem(ADMIN_SESI_KEY, JSON.stringify({ user, timestamp, sig: v4SignSession(user, timestamp) }));
+          return;
+        }
+        localStorage.setItem('sim_session', JSON.stringify({ user, timestamp, sig: v4SignSession(user, timestamp) }));
       } catch(e) {}
     }
+    // Dipanggil auto-logout.js (aktivitas / tab ditinggalkan) untuk menggeser waktu kedaluwarsa sesi Admin/Kepsek.
+    window.perpanjangSesiPrivileged = function() {
+      try { if (typeof currentUser !== 'undefined' && currentUser && isPrivilegedSession(currentUser)) saveSession(currentUser); } catch (e) {}
+    };
     function loadSession() {
       try {
+        // 1) Sesi Admin/Kepsek (sessionStorage, 15 menit).
+        const da = sessionStorage.getItem(ADMIN_SESI_KEY);
+        if (da) {
+          const pa = JSON.parse(da);
+          if (!pa || Date.now() - pa.timestamp > ADMIN_SESI_MS) { sessionStorage.removeItem(ADMIN_SESI_KEY); }
+          else if (pa.sig !== v4SignSession(pa.user, pa.timestamp)) { console.warn('[SI MAMBA] sesi Admin tidak valid, dihapus.'); sessionStorage.removeItem(ADMIN_SESI_KEY); }
+          else if (isPrivilegedSession(pa.user)) return pa.user;
+          else sessionStorage.removeItem(ADMIN_SESI_KEY);
+        }
+        // 2) Sesi guru (localStorage, 24 jam).
         const d = localStorage.getItem('sim_session'); if (!d) return null;
         const p = JSON.parse(d);
         if (Date.now() - p.timestamp > 24*60*60*1000) { localStorage.removeItem('sim_session'); return null; }
@@ -1352,7 +1377,7 @@
         return p.user;
       } catch(e) { return null; }
     }
-    function clearSession() { localStorage.removeItem('sim_session'); }
+    function clearSession() { try { localStorage.removeItem('sim_session'); } catch (e) {} try { sessionStorage.removeItem(ADMIN_SESI_KEY); } catch (e) {} }
     // Checkbox "Ingat Saya" dinonaktifkan (dan dimatikan) saat akun Admin/Kepsek dipilih di form login;
     // pilihan sebelumnya dipulihkan begitu pindah ke akun guru.
     function sinkronRememberMe() {
@@ -9188,11 +9213,12 @@
       const { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList } = data;
       const monthName = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][parseInt(month)-1];
       const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: [215, 330] }); const pageWidth = doc.internal.pageSize.getWidth(), pageHeight = doc.internal.pageSize.getHeight(); // F4 landscape
-      doc.setFontSize(16); doc.text('REKAP HONOR GURU', pageWidth/2, 20, { align: 'center' });
-      doc.setFontSize(12); doc.text(`MI Mambaul Ulum - ${monthName} ${year}`, pageWidth/2, 28, { align: 'center' });
       const rates = v4GetHonorRates();
-      doc.setFontSize(9); doc.text(`Reguler: Rp ${rates.reguler} | Non-Reguler: Rp ${rates.nonReguler} | Dluha: Rp ${rates.dluha} | Dzuhur: Rp ${rates.dzuhur}`, pageWidth/2, 34, { align: 'center' });
-      doc.text(`Ekstra: sesuai rate per kegiatan | Lembur/Rapat, Ujian, Tunjangan & Transport: sesuai pengaturan masing-masing`, pageWidth/2, 40, { align: 'center' }); doc.line(20, 44, pageWidth - 20, 44);
+      const logoHonor = await v4LoadLogoForPdf();
+      v4TambahLogoKeKopPdf(doc, logoHonor, -2);   // logo di kiri atas (22x22 mm)
+      doc.setFontSize(15); doc.setFont(undefined, 'bold'); doc.text('REKAP HONOR GURU', pageWidth/2, 15, { align: 'center' });
+      doc.setFontSize(11); doc.setFont(undefined, 'normal'); doc.text(`${MADRASAH.nama} - ${monthName} ${year}`, pageWidth/2, 22, { align: 'center' });
+      doc.setLineWidth(0.6); doc.line(15, 29, pageWidth - 15, 29); doc.setLineWidth(0.2);
       // Sama seperti renderHonor(): Kepala Madrasah & Ketua Yayasan (2 item pertama bonusList)
       // ditaruh di baris PALING ATAS tabel, Guru Terajin (kalau ada, item sisanya) tetap di
       // bawah. Deteksi baris "bonus" untuk pewarnaan kuning di bawah tidak lagi dari teks label
@@ -9203,32 +9229,40 @@
       const allTeacherKeysPdf = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic||{}), ...allGuru.filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0)).map(g => g.key || g.name)]);
       for (const guruKey of allTeacherKeysPdf) { const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }, r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 }, ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 }, uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 }, ekpic = (groupedEkskulPic||{})[guruKey] || { jumlah: 0, honor: 0 }; const guruObj = allGuru.find(g => g.key === guruKey) || allGuru.find(g => g.name === guruKey); const guru = j.nama || r.nama || ev.nama || uj.nama || ekpic.nama || (guruObj && guruObj.name) || guruKey; const tunjangan = (guruObj && guruObj.tunjanganMasaKerja) || 0, transport = (guruObj && guruObj.bantuanTransportasi) || 0; const honor = v4HitungHonor({ reguler: j.reguler, nonReguler: j.nonReguler, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventHonor: ev.honor, ujianHonor: uj.honor, tunjangan, transport }, rates); rows.push([no++, guru, j.reguler, j.nonReguler, `${j.ekstra}x`, r.dluha, r.dzuhur, `${ev.jumlah}x`, `${uj.jumlah}x`, `${(tunjangan+transport).toLocaleString()}`, `Rp ${honor.toLocaleString()}`, '']); }
       bonusLainnyaPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });
-      doc.autoTable({ startY: 48, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dluha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, '']], theme: 'striped', styles: { fontSize: 9, valign: 'middle' }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 10: { halign: 'right' }, 11: { cellWidth: 50 } }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 9, fontStyle: 'bold' }, footStyles: { fillColor: [209,213,219], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = 13; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [254,243,199]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(10); doc.text(`Dicetak: ${new Date().toLocaleString()}`, pageWidth - 20, finalY, { align: 'right' });
-      doc.setFontSize(12); doc.text(`Total Honor Keseluruhan: Rp ${totalHonor.toLocaleString()}`, pageWidth/2, finalY + 10, { align: 'center' });
-      // Tanda tangan Bendahara (kiri) dan Kepala (kanan), berdampingan, font kecil.
+      // Tinggi baris menyesuaikan jumlah guru supaya tabel + tanda tangan muat 1 halaman.
+      const ruangTabel = pageHeight - 111;   // tinggi halaman - (awal tabel 33 + judul kolom 8 + baris TOTAL 10 + jarak 10 + blok TTD 40 + margin bawah 10)
+      const tinggiBaris = Math.max(8, Math.min(12, ruangTabel / Math.max(rows.length, 1)));
+      const ukuranFont = tinggiBaris >= 9 ? 9 : 8;
+      doc.autoTable({ startY: 33, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dluha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, '']], theme: 'grid', styles: { fontSize: ukuranFont, valign: 'middle', cellPadding: 1.5, lineWidth: 0.2, lineColor: [100,100,100], textColor: [0,0,0] }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 10: { halign: 'right' }, 11: { cellWidth: 50 } }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: ukuranFont, fontStyle: 'bold' }, footStyles: { fillColor: [209,213,219], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = tinggiBaris; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [254,243,199]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
+      const finalY = doc.lastAutoTable.finalY;
       const ttdKepalaDataHonor = await v4LoadTtdKepalaForPdf();
-      let ySignHonor = finalY + 22;
-      if (ySignHonor > pageHeight - 52) { doc.addPage(); ySignHonor = 20; }
-      const xBendahara = pageWidth - 160, xKepala = pageWidth - 60;
-      doc.setFontSize(9);
+      let ySignHonor = finalY + 10;
+      if (ySignHonor > pageHeight - 45) { doc.addPage(); ySignHonor = 20; }   // tanda tangan hanya di halaman terakhir; pindah halaman kalau sisa ruang kurang
+      // Kepala di KIRI, Bendahara di KANAN, berjauhan.
+      const xKepala = 15 + 55, xBendahara = pageWidth - 15 - 55;
+      doc.setFontSize(10); doc.setFont(undefined, 'normal');
       doc.text('Mengetahui,', xKepala, ySignHonor, { align: 'center' });
-      doc.text('Kepala ' + MADRASAH.nama, xKepala, ySignHonor + 5, { align: 'center' });
-      doc.text('Bendahara ' + MADRASAH.nama, xBendahara, ySignHonor + 5, { align: 'center' });
-      const ySignNama = ySignHonor + 24;
+      doc.text('Kepala Madrasah', xKepala, ySignHonor + 5, { align: 'center' });
+      doc.text('Bendahara', xBendahara, ySignHonor + 5, { align: 'center' });
+      const yNama = ySignHonor + 27;
       if (ttdKepalaDataHonor) {
         try {
-          const ttdW = 28;
+          const ttdW = 30;
           const propsTtd = doc.getImageProperties(ttdKepalaDataHonor);
-          const ttdH = Math.min(14, ttdW * (propsTtd.height / propsTtd.width));
+          const ttdH = Math.min(15, ttdW * (propsTtd.height / propsTtd.width));
           doc.addImage(ttdKepalaDataHonor, 'PNG', xKepala - ttdW/2, ySignHonor + 8, ttdW, ttdH);
         } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Honor:', e); }
       }
-      doc.text(MADRASAH.kepala_sekolah, xKepala, ySignNama, { align: 'center' });
-      doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, xKepala, ySignNama + 5, { align: 'center' });
-      doc.text(MADRASAH.bendahara || '(.............................)', xBendahara, ySignNama, { align: 'center' });
-      if (MADRASAH.nip_bendahara) doc.text('NIP/NUPTK. ' + MADRASAH.nip_bendahara, xBendahara, ySignNama + 5, { align: 'center' });
+      doc.setFont(undefined, 'bold');
+      doc.text(MADRASAH.kepala_sekolah || '', xKepala, yNama, { align: 'center' });
+      doc.text(MADRASAH.bendahara || '(.............................)', xBendahara, yNama, { align: 'center' });
+      doc.setFont(undefined, 'normal');
+      const nipOk = v => v && String(v).trim() !== '' && String(v).trim() !== '-';
+      if (nipOk(MADRASAH.nip_kepala_sekolah)) doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, xKepala, yNama + 5, { align: 'center' });
+      if (nipOk(MADRASAH.nip_bendahara)) doc.text('NIP/NUPTK. ' + MADRASAH.nip_bendahara, xBendahara, yNama + 5, { align: 'center' });
+      doc.setFontSize(7); doc.setTextColor(120);
+      doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 15, pageHeight - 6);
+      doc.setTextColor(0);
       doc.save(`Honor_Guru_${monthName}_${year}.pdf`); toast('📥 PDF Honor berhasil diunduh!');
     }
 
@@ -11331,10 +11365,8 @@
         // Bagian akhir login (sama untuk Admin/Kepsek/guru): ingat saya -> showApp -> log.
         const selesaiLogin = () => {
           try {
-            if(remember){
-              if(isPrivilegedSession(currentUser)) toast('ℹ️ Admin/Kepsek selalu diminta PIN saat membuka aplikasi ("Ingat Saya" tidak berlaku).', false, 3500);
-              else saveSession(currentUser);
-            }
+            if(isPrivilegedSession(currentUser)) saveSession(currentUser);   // Admin/Kepsek: sesi 15 menit di tab ini (sessionStorage)
+            else if(remember) saveSession(currentUser);
             v4BootShowChooser = true;
             showApp();
             addLog('login',currentUser.name+' login');

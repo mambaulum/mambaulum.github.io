@@ -29,9 +29,15 @@ function autoLogoutBatasMs() {
 let _alTerakhir = Date.now();
 let _alPeringatan = false;
 
-function autoLogoutAktivitas() {
+let _alSimpanSesi = 0;
+function autoLogoutAktivitas(paksa) {
   _alTerakhir = Date.now();
   _alPeringatan = false;
+  // Admin/Kepsek: geser waktu kedaluwarsa sesi yang tersimpan (dibatasi tiap 20 dtk agar ringan; paksa = saat tab ditinggalkan).
+  if (paksa === true || Date.now() - _alSimpanSesi > 20000) {
+    _alSimpanSesi = Date.now();
+    if (typeof perpanjangSesiPrivileged === 'function') perpanjangSesiPrivileged();
+  }
 }
 
 function autoLogoutCek() {
@@ -54,9 +60,10 @@ function autoLogoutCek() {
 }
 
 ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach(ev =>
-  document.addEventListener(ev, autoLogoutAktivitas, { passive: true, capture: true }));
+  document.addEventListener(ev, () => autoLogoutAktivitas(), { passive: true, capture: true }));
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) autoLogoutAktivitas();   // hitungan batas diam dimulai saat tab ditinggalkan
+  if (document.hidden) autoLogoutAktivitas(true);   // hitungan batas diam dimulai saat tab ditinggalkan
   else autoLogoutCek();
 });
 setInterval(autoLogoutCek, AUTO_LOGOUT_CEK_MS);
+window.addEventListener('pagehide', () => autoLogoutAktivitas(true));
