@@ -38,7 +38,7 @@
    js/kredensial.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.21';
+const APP_VERSION = 'v6.22';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -69,7 +69,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=5',
   './js/administrasi-ujian.js?v=2',
-  './js/app.js?v=38',
+  './js/app.js?v=39',
   './js/kredensial.js?v=1',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/menu-hub.js?v=3',
   './js/modul-ajar.js?v=5',
