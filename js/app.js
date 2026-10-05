@@ -9187,7 +9187,7 @@
       const data = window._honorData; if (!data) return toast('Hitung honor terlebih dahulu!', true);
       const { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList } = data;
       const monthName = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][parseInt(month)-1];
-      const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth();
+      const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: [215, 330] }); const pageWidth = doc.internal.pageSize.getWidth(), pageHeight = doc.internal.pageSize.getHeight(); // F4 landscape
       doc.setFontSize(16); doc.text('REKAP HONOR GURU', pageWidth/2, 20, { align: 'center' });
       doc.setFontSize(12); doc.text(`MI Mambaul Ulum - ${monthName} ${year}`, pageWidth/2, 28, { align: 'center' });
       const rates = v4GetHonorRates();
@@ -9199,34 +9199,36 @@
       // (karena teks "(Bonus)" sudah dihapus) melainkan dari nomor baris (bonusRowIndices).
       const pimpinanListPdf = bonusList.slice(0, 2), bonusLainnyaPdf = bonusList.slice(2);
       const rows = []; let no = 1; const bonusRowIndices = new Set();
-      pimpinanListPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`]); });
+      pimpinanListPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });
       const allTeacherKeysPdf = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic||{}), ...allGuru.filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0)).map(g => g.key || g.name)]);
-      for (const guruKey of allTeacherKeysPdf) { const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }, r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 }, ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 }, uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 }, ekpic = (groupedEkskulPic||{})[guruKey] || { jumlah: 0, honor: 0 }; const guruObj = allGuru.find(g => g.key === guruKey) || allGuru.find(g => g.name === guruKey); const guru = j.nama || r.nama || ev.nama || uj.nama || ekpic.nama || (guruObj && guruObj.name) || guruKey; const tunjangan = (guruObj && guruObj.tunjanganMasaKerja) || 0, transport = (guruObj && guruObj.bantuanTransportasi) || 0; const honor = v4HitungHonor({ reguler: j.reguler, nonReguler: j.nonReguler, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventHonor: ev.honor, ujianHonor: uj.honor, tunjangan, transport }, rates); rows.push([no++, guru, j.reguler, j.nonReguler, `${j.ekstra}x`, r.dluha, r.dzuhur, `${ev.jumlah}x`, `${uj.jumlah}x`, `${(tunjangan+transport).toLocaleString()}`, `Rp ${honor.toLocaleString()}`]); }
-      bonusLainnyaPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`]); });
-      doc.autoTable({ startY: 48, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dluha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`]], theme: 'striped', styles: { fontSize: 8 }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 9, fontStyle: 'bold' }, footStyles: { fillColor: [209,213,219], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [254,243,199]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 } });
+      for (const guruKey of allTeacherKeysPdf) { const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }, r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 }, ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 }, uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 }, ekpic = (groupedEkskulPic||{})[guruKey] || { jumlah: 0, honor: 0 }; const guruObj = allGuru.find(g => g.key === guruKey) || allGuru.find(g => g.name === guruKey); const guru = j.nama || r.nama || ev.nama || uj.nama || ekpic.nama || (guruObj && guruObj.name) || guruKey; const tunjangan = (guruObj && guruObj.tunjanganMasaKerja) || 0, transport = (guruObj && guruObj.bantuanTransportasi) || 0; const honor = v4HitungHonor({ reguler: j.reguler, nonReguler: j.nonReguler, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventHonor: ev.honor, ujianHonor: uj.honor, tunjangan, transport }, rates); rows.push([no++, guru, j.reguler, j.nonReguler, `${j.ekstra}x`, r.dluha, r.dzuhur, `${ev.jumlah}x`, `${uj.jumlah}x`, `${(tunjangan+transport).toLocaleString()}`, `Rp ${honor.toLocaleString()}`, '']); }
+      bonusLainnyaPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });
+      doc.autoTable({ startY: 48, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dluha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, '']], theme: 'striped', styles: { fontSize: 9, valign: 'middle' }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 10: { halign: 'right' }, 11: { cellWidth: 50 } }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 9, fontStyle: 'bold' }, footStyles: { fillColor: [209,213,219], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = 13; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [254,243,199]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
       const finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(10); doc.text(`Dicetak: ${new Date().toLocaleString()}`, pageWidth - 20, finalY, { align: 'right' });
       doc.setFontSize(12); doc.text(`Total Honor Keseluruhan: Rp ${totalHonor.toLocaleString()}`, pageWidth/2, finalY + 10, { align: 'center' });
-      // Tanda tangan Kepala (sebelumnya slip honor tidak punya blok tanda tangan sama sekali)
+      // Tanda tangan Bendahara (kiri) dan Kepala (kanan), berdampingan, font kecil.
       const ttdKepalaDataHonor = await v4LoadTtdKepalaForPdf();
-      let ySignHonor = finalY + 24;
-      if (ySignHonor > 255) { doc.addPage(); ySignHonor = 20; }
-      doc.setFontSize(11);
-      doc.text('Mengetahui,', pageWidth - 60, ySignHonor, { align: 'center' });
-      doc.text('Kepala ' + MADRASAH.nama, pageWidth - 60, ySignHonor + 6, { align: 'center' });
+      let ySignHonor = finalY + 22;
+      if (ySignHonor > pageHeight - 52) { doc.addPage(); ySignHonor = 20; }
+      const xBendahara = pageWidth - 160, xKepala = pageWidth - 60;
+      doc.setFontSize(9);
+      doc.text('Mengetahui,', xKepala, ySignHonor, { align: 'center' });
+      doc.text('Kepala ' + MADRASAH.nama, xKepala, ySignHonor + 5, { align: 'center' });
+      doc.text('Bendahara ' + MADRASAH.nama, xBendahara, ySignHonor + 5, { align: 'center' });
+      const ySignNama = ySignHonor + 24;
       if (ttdKepalaDataHonor) {
         try {
-          const ttdW = 32;
+          const ttdW = 28;
           const propsTtd = doc.getImageProperties(ttdKepalaDataHonor);
-          const ttdH = Math.min(16, ttdW * (propsTtd.height / propsTtd.width));
-          doc.addImage(ttdKepalaDataHonor, 'PNG', pageWidth - 60 - ttdW/2, ySignHonor + 9, ttdW, ttdH);
+          const ttdH = Math.min(14, ttdW * (propsTtd.height / propsTtd.width));
+          doc.addImage(ttdKepalaDataHonor, 'PNG', xKepala - ttdW/2, ySignHonor + 8, ttdW, ttdH);
         } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Honor:', e); }
-        ySignHonor += 20;
-      } else {
-        ySignHonor += 18;
       }
-      doc.text(MADRASAH.kepala_sekolah, pageWidth - 60, ySignHonor + 6, { align: 'center' });
-      doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, pageWidth - 60, ySignHonor + 12, { align: 'center' });
+      doc.text(MADRASAH.kepala_sekolah, xKepala, ySignNama, { align: 'center' });
+      doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, xKepala, ySignNama + 5, { align: 'center' });
+      doc.text(MADRASAH.bendahara || '(.............................)', xBendahara, ySignNama, { align: 'center' });
+      if (MADRASAH.nip_bendahara) doc.text('NIP/NUPTK. ' + MADRASAH.nip_bendahara, xBendahara, ySignNama + 5, { align: 'center' });
       doc.save(`Honor_Guru_${monthName}_${year}.pdf`); toast('📥 PDF Honor berhasil diunduh!');
     }
 

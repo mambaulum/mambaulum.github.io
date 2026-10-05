@@ -55,5 +55,8 @@ function autoLogoutCek() {
 
 ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach(ev =>
   document.addEventListener(ev, autoLogoutAktivitas, { passive: true, capture: true }));
-document.addEventListener('visibilitychange', () => { if (!document.hidden) autoLogoutCek(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) autoLogoutAktivitas();   // hitungan batas diam dimulai saat tab ditinggalkan
+  else autoLogoutCek();
+});
 setInterval(autoLogoutCek, AUTO_LOGOUT_CEK_MS);
