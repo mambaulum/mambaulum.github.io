@@ -90,16 +90,16 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=44"></script>
+  <script defer src="js/app.js?v=45"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=5"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=1"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
-  <script defer src="js/kredensial.js?v=1"></script>
+  <script defer src="js/kredensial.js?v=2"></script>
   <script defer src="js/menu-hub.js?v=4"></script>
   <!-- Menu Rapat (daftar hadir guru, pimpinan pengganti, notulen, cetak). Halaman dibuat sendiri oleh JS; WAJIB sesudah app.js & menu-hub.js. -->
-  <script defer src="js/rapat.js?v=4"></script>
+  <script defer src="js/rapat.js?v=5"></script>
   <script defer src="js/modul-ajar.js?v=5"></script>
   <script defer src="js/buku-tamu.js?v=4"></script>
 
