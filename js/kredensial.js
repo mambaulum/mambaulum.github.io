@@ -157,6 +157,15 @@
     return siapAuth().then(function (u) { return db.ref('sesi_admin/' + u).set(k); }).then(function () { return true; }, function (e) { throw galat(e); });
   }
 
+  // Dipakai modul lain (tarif honor, rapat, dinas luar Kepala) SEBELUM menulis ke node yang di Rules dikunci "hanya sesi Admin".
+  // Pertama kali di tiap perangkat Admin diminta Kunci Admin (disimpan di perangkat ini); sesudah itu sesi_admin/{uid} cukup
+  // diperbarui diam-diam. Hasil sukses diingat 5 menit supaya beruntun tidak menulis sesi berulang.
+  var adminSiapTerakhir = 0;
+  window.kredAdminSiap = function (paksa) {
+    if (!paksa && Date.now() - adminSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
+    return adminSiap(!!paksa).then(function (ok) { adminSiapTerakhir = Date.now(); return ok; }, function (e) { adminSiapTerakhir = 0; throw e; });
+  };
+
   // Admin: tambah guru baru + kredensialnya (atomik).
   window.kredAdminTambahGuru = function (key, data, pin, cb) {
     adminSiap().then(function () {

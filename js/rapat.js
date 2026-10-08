@@ -54,6 +54,8 @@
   function hk(id) { return aman(id); }   // kunci aman utk path rapat_hadir (ID dengan . # $ [ ] / tidak lagi membuat Firebase melempar error)
   function say(m, err) { if (typeof toast === 'function') toast(m, err); else console[err ? 'error' : 'log']('[rapat]', m); }
   function log(a, b) { try { if (typeof addLog === 'function') addLog(a, b); } catch (e) { /* gagal mencatat log tidak boleh membuat operasi yang sudah sukses tampak gagal */ } }
+  // Node `rapat` & catatan Dinas Luar Kepala dikunci "hanya sesi Admin" di Rules: pastikan sesi_admin/{uid} terisi sebelum menulis.
+  function adm() { return (typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : Promise.resolve(true); }
   function online() { return typeof isReallyOnline === 'function' ? isReallyOnline() : navigator.onLine; }
   var busyMap = {};
   var bz = {   // memakai isBusy/setBusy/clearBusy milik app.js bila ada; bila tidak ada, pakai cadangan lokal
@@ -193,7 +195,7 @@
   function ubahRapat(field, v, msg) {
     var r = rapatById(cur); if (!r || !canManage()) return;
     if (!online()) return say('Perlu koneksi internet.', true);
-    db.ref('rapat/' + cur + '/' + field).set(v).then(function () { r[field] = v; if (msg) say(msg); render(); })
+    adm().then(function () { return db.ref('rapat/' + cur + '/' + field).set(v); }).then(function () { r[field] = v; if (msg) say(msg); render(); })
       .catch(function (e) { say('Gagal: ' + (e && e.message || e), true); });
   }
   function setStatus(gid, st, ket, oleh) {
@@ -340,7 +342,7 @@
     var ta = (typeof tahunAjaranDariTanggal === 'function' && tahunAjaranDariTanggal(tg)) || (typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : '');
     var rec = { eventKey: key, eventNama: nama, jenis: 'Dinas Luar', sumber: 'dinas-luar-kepala', guru: 'Kepala Madrasah', guruKey: 'kepsek',
       tanggal: tg, waktu: new Date().toISOString(), honor: hn, tahunAjaran: ta, dibuatOleh: currentUser.name || '' };
-    db.ref('event_attendance/' + key).set(rec).then(function () {
+    adm().then(function () { return db.ref('event_attendance/' + key).set(rec); }).then(function () {
       log('dinas_luar_kepala_tambah', nama + ' ' + hn); say('Dinas luar dicatat, masuk rekap Honor Kepala');
       dlPrefill = null; lastView = ''; reloadHonorData(); loadDl();
     }).catch(function (e) { say('Gagal menyimpan: ' + (e && e.message || e), true); })
@@ -354,7 +356,7 @@
     if (/[.,]\d{1,2}$/.test(vs)) return say('Masukkan nominal bulat tanpa desimal.', true);
     var n = angka(vs.replace(/[\s.,]/g, ''));
     if (isNaN(n) || n < 1 || n > HONOR_MAKS) return say('Honor harus lebih dari 0 (maks. ' + rupiah(HONOR_MAKS) + ').', true);
-    db.ref('event_attendance/' + id + '/honor').set(n).then(function () {
+    adm().then(function () { return db.ref('event_attendance/' + id + '/honor').set(n); }).then(function () {
       d.honor = n; log('dinas_luar_kepala_ubah', d.nama + ' ' + n); say('Honor diperbarui'); reloadHonorData(); render();
     }).catch(function (e) { say('Gagal: ' + (e && e.message || e), true); });
   }
@@ -362,7 +364,7 @@
     var d = (dlList || []).filter(function (x) { return x.id === id; })[0]; if (!d || !canManage()) return;
     if (!online()) return say('Perlu koneksi internet.', true);
     if (!confirm('Hapus catatan dinas luar "' + d.nama + '" (' + rupiah(d.honor) + ')? Honor ini ikut hilang dari rekap Honor.')) return;
-    db.ref('event_attendance/' + id).remove().then(function () {
+    adm().then(function () { return db.ref('event_attendance/' + id).remove(); }).then(function () {
       dlList = dlList.filter(function (x) { return x.id !== id; }); log('dinas_luar_kepala_hapus', d.nama); say('Dihapus'); reloadHonorData(); render();
     }).catch(function (e) { say('Gagal: ' + (e && e.message || e), true); });
   }
@@ -469,7 +471,7 @@
     if (kind === 'pim') {
       var g = guruById(t.value), r = rapatById(cur); if (!g || !r) return;
       if (!online()) return say('Perlu koneksi internet.', true);
-      db.ref('rapat/' + cur).update({ pimpinanId: g.id, pimpinan: g.nama }).then(function () {
+      adm().then(function () { return db.ref('rapat/' + cur).update({ pimpinanId: g.id, pimpinan: g.nama }); }).then(function () {
         r.pimpinanId = g.id; r.pimpinan = g.nama; say('Pimpinan rapat diperbarui'); render();
       }).catch(function (er) { say('Gagal: ' + (er && er.message || er), true); });
     } else if (kind === 'status') {
@@ -528,10 +530,10 @@
     if (!g) return say('Pilih pimpinan rapat!', true);
     if (isNaN(hn) || hn < 0 || hn > HONOR_MAKS) return say('Honor harus angka bulat 0 atau lebih (maks. ' + rupiah(HONOR_MAKS) + ').', true);
     if (bz.is('simpanRapat')) return; bz.set('simpanRapat', btn);
-    db.ref('rapat').push({
+    adm().then(function () { return db.ref('rapat').push({
       judul: judul, tanggal: tg, jam: val('rpf-jam'), tempat: val('rpf-tempat'), pimpinanId: g ? g.id : '', pimpinan: g ? g.nama : '',
       status: 'terjadwal', honor: hn, dibuat: String(currentUser.name || currentUser.nama || ''), ts: firebase.database.ServerValue.TIMESTAMP
-    }).then(function () {
+    }); }).then(function () {
       say('✅ Rapat dibuat'); log('rapat_buat', judul); view = 'list'; render(); loadRapat();
     }).catch(function (e) { say('Gagal: ' + (e && e.message || e), true); })
       .then(function () { bz.clear('simpanRapat', btn); });
@@ -549,7 +551,7 @@
     // Hanya rapat yang belum ditutup: honor baru dihitung saat tutup, jadi mengubah tanggal / nominal di sini aman.
     db.ref('rapat/' + id + '/status').once('value').then(function (sn) {
       if (sn.val() === 'selesai') { r.status = 'selesai'; throw new Error('Rapat sudah ditutup. Buka kembali dulu untuk mengubah.'); }
-      return db.ref('rapat/' + id).update(upd);
+      return adm().then(function () { return db.ref('rapat/' + id).update(upd); });
     }).then(function () {
       Object.keys(upd).forEach(function (f) { r[f] = upd[f]; });
       log('rapat_ubah', judul); say('Data rapat diperbarui');
@@ -580,7 +582,7 @@
       return honorSusun(r, hasilAkhir).then(function (honorUpd) {
         Object.keys(honorUpd).forEach(function (pth) { upd[pth] = honorUpd[pth]; });
         upd['rapat/' + id + '/status'] = 'selesai';
-        return db.ref().update(upd);
+        return adm().then(function () { return db.ref().update(upd); });
       });
     }).then(function () {
       r.status = 'selesai'; log('rapat_tutup', r.judul); say(r.honor > 0 ? 'Rapat ditutup, honor masuk rekap Honor' : 'Rapat ditutup'); reloadHonorData(); if (cur === id) buka(id);
@@ -597,7 +599,7 @@
       var upd = res[0], h = res[1].val() || {};
       Object.keys(h).forEach(function (k) { var x = h[k]; if (x && x.oleh === 'sistem' && x.status === 'alpha') upd['rapat_hadir/' + id + '/' + k] = null; });
       upd['rapat/' + id + '/status'] = 'terjadwal';
-      return db.ref().update(upd);
+      return adm().then(function () { return db.ref().update(upd); });
     }).then(function () { r.status = 'terjadwal'; say('Rapat dibuka kembali'); reloadHonorData(); if (cur === id) buka(id); })
       .catch(function (e) { say('Gagal: ' + (e && e.message || e), true); })
       .then(function () { bz.clear('bukaLagi', btn); });
@@ -611,7 +613,7 @@
     var id = cur; bz.set('hapusRapat', btn);
     honorSusun(r, null).then(function (upd) {   // honor rapat ini ikut ditarik; semuanya satu operasi atomik
       upd['rapat_hadir/' + id] = null; upd['rapat/' + id] = null;
-      return db.ref().update(upd);
+      return adm().then(function () { return db.ref().update(upd); });
     }).then(function () {
       log('rapat_hapus', r.judul); say('🗑️ Rapat dihapus'); reloadHonorData(); view = 'list'; cur = null; notulenDraft = null; render(); loadRapat();
     }).catch(function (e) { say('Gagal menghapus: ' + (e && e.message || e), true); })

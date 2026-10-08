@@ -7065,6 +7065,9 @@
     // Perbaikan sekali per sesi (hanya Admin): tulis balik tarif yang efektif dipakai ke database, supaya isi
     // database = perilaku hitung honor & form Pengaturan Tarif. Tidak mengubah nominal yang valid.
     let v4TarifDiperbaikiSesiIni = false;
+    // Node yang dikunci "hanya sesi Admin" di Rules (honor_rates_v4, rapat, Dinas Luar Kepala): pastikan sesi_admin/{uid} terisi
+    // sebelum menulis. Memakai kredAdminSiap() dari js/kredensial.js; bila modul itu tak ada, lanjut (Rules lama tidak mengunci).
+    function adminSesi() { return (typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : Promise.resolve(true); }
     function v4PerbaikiTarifRusak(rusak, ratesValid, rawLama) {
       if (v4TarifDiperbaikiSesiIni || !isAdmin() || !rusak.length) return;
       v4TarifDiperbaikiSesiIni = true;
@@ -12142,7 +12145,7 @@
         rates[k]=n;
       }
       rates.updatedBy=currentUser.name;rates.updatedAt=new Date().toISOString();
-      db.ref('honor_rates_v4').set(rates).then(()=>{V4.rates=rates;v4Audit('UPDATE_HONOR_RATES','HONOR_RATE','global',null,rates);toast('✅ Tarif honor diperbarui');}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
+      adminSesi().then(()=>db.ref('honor_rates_v4').set(rates)).then(()=>{V4.rates=rates;v4Audit('UPDATE_HONOR_RATES','HONOR_RATE','global',null,rates);toast('✅ Tarif honor diperbarui');}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
     }
 
     // ============================================================
