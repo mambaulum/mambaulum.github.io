@@ -53,10 +53,31 @@
     if (!t || t.length > 500) return false;
     try { return new URL(t).protocol === 'https:'; } catch (e) { return false; }
   }
-  function hitung(rec) {
+  // Kunci data per dokumen yang dibuat di aplikasi (format id sama dengan modul masing-masing).
+  function genKeys(node, bersemester) {
+    const pre = taSlug() + '_' + (bersemester ? S.sem + '_' : '') + (isAdm() ? '' : slug(myId()) + '_');
+    return db.ref(node).orderByKey().startAt(pre).endAt(pre + '\uf8ff').once('value')
+      .then(sn => { const o = {}; sn.forEach(c => { o[c.key] = 1; }); return o; })
+      .catch(() => ({}));
+  }
+  // id baris = ta_sem_guru_mapel_kelas. TP tidak bersemester, jadi kuncinya ta_guru_mapel_kelas.
+  function genAda(jk, id) {
+    const g = S.gen || {}, p = String(id || '').split('_');
+    if (p.length !== 5) return false;
+    if (jk === 'atp' || jk === 'tp') return !!(g.tp && g.tp[[p[0], p[2], p[3], p[4]].join('_')]);
+    if (jk === 'kisi') return !!(g.kisi && g.kisi[id]);
+    if (jk === 'kartu' || jk === 'kunci') return !!(g.soal && g.soal[id]);
+    if (jk === 'prota' || jk === 'promes') return !!(g.materi && g.materi[id]);
+    return false;
+  }
+  function hitung(rec, id) {
     const d = (rec && rec.docs) || {};
     let fin = 0, draf = 0, rev = 0;
-    JENIS.forEach(j => { const x = d[j.k]; if (x && x.url) { if (x.status === 'final') fin++; else draf++; if (x.revisi) rev++; } });
+    JENIS.forEach(j => {
+      const x = d[j.k];
+      if (x && x.url) { if (x.status === 'final') fin++; else draf++; if (x.revisi) rev++; }
+      else if (genAda(j.k, id)) draf++;
+    });
     return { final: fin, draf: draf, revisi: rev, total: JENIS.length };
   }
   function csvCell(v) {
@@ -131,6 +152,18 @@
     ]).then(r => {
       if (epoch !== S.epoch) return; // sesi/semester sudah berganti
       S.rows = r[0].val() || {}; S.kaldik = r[1].val() || null; S.jadwal = r[2];
+      // Dokumen yang sudah dibuat di aplikasi (kisi, soal, materi, TP): cukup tahu datanya ada.
+      // Gagal baca tidak menggagalkan halaman.
+      return Promise.all([
+        genKeys('perangkat_kisi_v4', true), genKeys('perangkat_soal_v4', true),
+        genKeys('perangkat_materi_v4', true), genKeys('perangkat_tp_v4', false)
+      ]).then(g => {
+        if (epoch !== S.epoch) return;
+        S.gen = { kisi: g[0], soal: g[1], materi: g[2], tp: g[3] };
+        render();
+      });
+    }).then(() => {
+      if (epoch !== S.epoch) return;
       // Nilai awal JP per pekan dari jadwal (hanya di memori; tidak menimpa angka yang sudah tersimpan guru).
       Object.keys(S.rows).forEach(id => { const x = S.rows[id], jp = jpJadwal(x); if (x && jp && !x.jpPerPekan) x.jpPerPekan = jp; });
       S.siap = true; render();
@@ -277,14 +310,14 @@
   function rekapHtml() {
     const ids = lihatIds(), gl = guruList();
     let tot = 0, fin = 0;
-    ids.forEach(id => { const c = hitung(S.rows[id]); tot += c.total; fin += c.final; });
+    ids.forEach(id => { const c = hitung(S.rows[id], id); tot += c.total; fin += c.final; });
     const pct = tot ? Math.round(fin * 100 / tot) : 0;
     const opt = `<option value="">Semua guru</option>` + Object.keys(gl).sort((a, b) => gl[a].localeCompare(gl[b], 'id')).map(k => `<option value="${esc(k)}" ${S.filterGuru === k ? 'selected' : ''}>${esc(gl[k])}</option>`).join('');
     const th = JENIS.map(j => `<th style="padding:6px 4px;font-size:11px;text-align:center;">${esc(j.n)}</th>`).join('');
     let body = ids.map(id => {
-      const r = S.rows[id], c = hitung(r), d = r.docs || {};
+      const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
       const tds = JENIS.map(j => {
-        const x = d[j.k], g = x && x.url ? (x.status === 'final' ? '✅' : '✏️') : '—';
+        const x = d[j.k], gen = !(x && x.url) && genAda(j.k, id), g = x && x.url ? (x.status === 'final' ? '✅' : '✏️') : gen ? '🛠' : '—';
         return `<td style="text-align:center;padding:4px;"><button type="button" data-act="edit" data-id="${esc(id)}" data-j="${j.k}" style="border:0;background:${S.edit && S.edit.id === id && S.edit.j === j.k ? '#dbeafe' : 'transparent'};cursor:pointer;font-size:15px;min-height:32px;min-width:32px;">${x && x.revisi ? '⚠️' : g}</button></td>`;
       }).join('');
       const panel = (S.edit && S.edit.id === id) ? `<tr><td colspan="${JENIS.length + 4}">${editorHtml(id, r, S.edit.j)}</td></tr>` : '';
@@ -296,7 +329,7 @@
       <select class="field" style="max-width:200px;" data-act="filter-guru">${opt}</select>
       <span style="font-size:13px;">Kelengkapan final: <b>${pct}%</b> (${fin}/${tot})</span>
       <button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="csv">⬇️ Unduh CSV</button></div>
-      <div style="${muted}margin:6px 0;">✅ final · ✏️ draf · — belum · ⚠️ ada catatan revisi. Ketuk sel untuk membuka tautan/memberi catatan.</div>
+      <div style="${muted}margin:6px 0;">✅ final · ✏️ draf · 🛠 dibuat di aplikasi (data sudah tersimpan) · — belum · ⚠️ ada catatan revisi. Ketuk sel untuk membuka tautan/memberi catatan.</div>
       <div style="overflow-x:auto;"><table><thead><tr><th style="text-align:left;padding:6px;">Guru</th><th style="text-align:left;padding:6px;">Mapel</th><th style="text-align:left;padding:6px;">Kelas</th>${th}<th style="padding:6px 4px;font-size:11px;">Final</th></tr></thead><tbody>${body}</tbody></table></div>
       ${bl.length ? `<div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">Belum ada data dari: ${bl.map(esc).join(', ')}</div>` : ''}`;
   }
@@ -306,9 +339,9 @@
     const head = ['Tahun Ajaran', 'Semester', 'Guru', 'Mapel', 'Kelas'].concat(JENIS.map(j => j.full), ['Jumlah Final', 'Jumlah Draf']);
     const lines = [head.map(csvCell).join(',')];
     ids.forEach(id => {
-      const r = S.rows[id], c = hitung(r), d = r.docs || {};
+      const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
       const cells = [r.tahunAjaran, SEM_LABEL[r.semester] || r.semester, r.guruName, r.mapel, r.kelas]
-        .concat(JENIS.map(j => { const x = d[j.k]; return x && x.url ? (x.status === 'final' ? 'Final' : 'Draf') + (x.revisi ? ' (revisi)' : '') : 'Belum'; }), [c.final, c.draf]);
+        .concat(JENIS.map(j => { const x = d[j.k]; return x && x.url ? (x.status === 'final' ? 'Final' : 'Draf') + (x.revisi ? ' (revisi)' : '') : (genAda(j.k, id) ? 'Dibuat di aplikasi' : 'Belum'); }), [c.final, c.draf]);
       lines.push(cells.map(csvCell).join(','));
     });
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -320,12 +353,13 @@
   }
 
   // ---------- Simpan ----------
+  const siap = () => (window.rpeUtil && window.rpeUtil.siap) ? window.rpeUtil.siap() : Promise.resolve(true);
   function tulis(path, upd, sukses, aksi, idAudit) {
     if (typeof db === 'undefined' || !db) return;
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     if (S.busy) return say('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
     S.busy = true;
-    db.ref(path).update(upd).then(() => {
+    siap().then(() => db.ref(path).update(upd)).then(() => {
       S.busy = false; sukses(); audit(aksi, idAudit); render();
     }).catch(e => { S.busy = false; console.error('[SI MAMBA] perangkat:', e); say('❌ Gagal menyimpan: ' + ((e && e.message) || e), true); });
   }
@@ -380,7 +414,7 @@
     if (S.busy) return;
     S.busy = true;
     const upd = {}; recs.forEach(r => { upd[idBaris(r.mapel, r.kelas)] = r; });
-    db.ref('perangkat_v4').update(upd).then(() => {
+    siap().then(() => db.ref('perangkat_v4').update(upd)).then(() => {
       S.busy = false; Object.keys(upd).forEach(id => { S.rows[id] = upd[id]; audit('ADD_PERANGKAT_ROW', id); });
       S.tambah = false; say(recs.length > 1 ? '✅ ' + recs.length + ' mapel ditambahkan' : '✅ Mapel ditambahkan'); render();
     }).catch(e => { S.busy = false; say('❌ Gagal menambah: ' + ((e && e.message) || e), true); });
@@ -389,7 +423,7 @@
     const rec = S.rows[id]; if (!rec || rec.guruKey !== myId()) return;
     if (!confirm('Hapus ' + rec.mapel + ' kelas ' + rec.kelas + ' beserta semua tautannya?')) return;
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
-    db.ref('perangkat_v4/' + id).remove().then(() => { delete S.rows[id]; S.edit = null; audit('DELETE_PERANGKAT_ROW', id); say('Dihapus'); render(); })
+    siap().then(() => db.ref('perangkat_v4/' + id).remove()).then(() => { delete S.rows[id]; S.edit = null; audit('DELETE_PERANGKAT_ROW', id); say('Dihapus'); render(); })
       .catch(e => say('❌ Gagal menghapus: ' + ((e && e.message) || e), true));
   }
   function simpanKaldik() {
