@@ -328,11 +328,11 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     if (hilang && !confirm(hilang + ' soal tersimpan tidak punya slot lagi di kisi-kisi dan akan DIHAPUS.\nLanjut menyimpan?')) return;
     S.busy = true;
     const cut = (s, n) => String(s || '').slice(0, n), now = new Date().toISOString();
-    const tulis = SEM.filter(s => S.slots[s].length).map(s => () => db.ref('perangkat_soal_v4/' + idSem(s)).set({
+    const tulis = SEM.filter(s => S.slots[s].length).map(s => db.ref('perangkat_soal_v4/' + idSem(s)).set({
       guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: S.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
       skor: { pg: angka(S.skor.pg), is: angka(S.skor.is), ur: angka(S.skor.ur) },
       soal: S.slots[s].map(x => ({ key: cut(x.key, 80), q: cut(x.q, 600), o: x.b === 'pg' ? x.o.map(o => cut(o, 160)) : [], kp: x.kp, st: x.st || '', ks: cut(x.ks, 7), kt: cut(x.kt, 600), src: x.src, ok: !!x.ok })), at: now, by: myName() }));
-    R().siap().then(() => Promise.all(tulis.map(f => f()))).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); say('✅ Soal tersimpan'); if (S.rec) gambar(); })
+    Promise.all(tulis).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); say('✅ Soal tersimpan'); if (S.rec) gambar(); })
       .catch(err => { S.busy = false; console.error('[SI MAMBA] soal:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {

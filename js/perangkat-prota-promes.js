@@ -201,13 +201,13 @@ ${isi}
       if (isi[s].length > MAX_ITEMS) return say('Maksimal ' + MAX_ITEMS + ' materi per semester.', true);
     }
     P.busy = true;
-    const tulis = SEM.map(s => () => {
+    const tulis = SEM.map(s => {
       const ref = db.ref('perangkat_materi_v4/' + idMateri(s));
       if (!isi[s].length) return P.ada[s] ? ref.remove() : Promise.resolve();
       return ref.set({ guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: P.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
         materi: isi[s], jpPerPekan: jp, at: now, by: myName() });
     });
-    R().siap().then(() => Promise.all(tulis.map(f => f()))).then(() => {
+    Promise.all(tulis).then(() => {
       P.busy = false; P.dirty = false; SEM.forEach(s => { P.data[s] = isi[s]; P.ada[s] = isi[s].length > 0; });
       audit('SAVE_PERANGKAT_MATERI', idMateri(P.sem)); say('✅ Materi tersimpan'); if (P.rec) gambar();
     }).catch(err => { P.busy = false; console.error('[SI MAMBA] prota/promes:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });

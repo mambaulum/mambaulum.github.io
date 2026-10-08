@@ -233,13 +233,13 @@ ${tabelKisi(s)}
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     if (K.busy) return; K.busy = true;
     const cut = (s, n) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, n), now = new Date().toISOString();
-    const tulis = SEM.filter(s => K.rows[s].length).map(s => () => db.ref('perangkat_kisi_v4/' + idKisi(s)).set({
+    const tulis = SEM.filter(s => K.rows[s].length).map(s => db.ref('perangkat_kisi_v4/' + idKisi(s)).set({
       guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: K.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
       judul: cut(K.set[s].judul, 80) || 'Asesmen Sumatif Akhir Semester', waktu: menit(K.set[s].waktu),
       tot: { pg: angka(K.set[s].pg), is: angka(K.set[s].is), ur: angka(K.set[s].ur) },
       items: K.rows[s].map(r => ({ k: String(r.k || '').slice(0, 40), e: cut(r.e, 60), t: cut(r.t, 300), m: cut(r.m, 120), jp: Math.max(0, parseInt(r.jp, 10) || 0),
         i: cut(r.i, 300), lv: ['L1', 'L2', 'L3'].includes(r.lv) ? r.lv : 'L2', pg: angka(r.pg), is: angka(r.is), ur: angka(r.ur) })), at: now, by: myName() }));
-    R().siap().then(() => Promise.all(tulis.map(f => f()))).then(() => { K.busy = false; K.dirty = false; audit('SAVE_PERANGKAT_KISI', idKisi(K.sem)); say('✅ Kisi-kisi tersimpan'); if (K.rec) gambar(); })
+    Promise.all(tulis).then(() => { K.busy = false; K.dirty = false; audit('SAVE_PERANGKAT_KISI', idKisi(K.sem)); say('✅ Kisi-kisi tersimpan'); if (K.rec) gambar(); })
       .catch(err => { K.busy = false; console.error('[SI MAMBA] kisi:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {

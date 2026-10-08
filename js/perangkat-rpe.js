@@ -312,7 +312,7 @@ ${tabelHtml(h)}
     if (typeof db === 'undefined' || !db) return;
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     if (M.busy) return; M.busy = true;
-    siap().then(() => db.ref(path()).set(obj)).then(() => {
+    db.ref(path()).set(obj).then(() => {
       M.busy = false; M.raw = obj; M.cfg = bacaCfg(obj); audit('SAVE_RPE_KALDIK', slug(M.ta) + '_' + M.sem); say('✅ Kalender efektif tersimpan');
       if (M.rec) { M.mode = 'cetak'; M.edit = null; gambar(); } else tutup();
     }).catch(err => { M.busy = false; console.error('[SI MAMBA] rpe:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
@@ -325,7 +325,7 @@ ${tabelHtml(h)}
     nipSimpan(nip);
     // Simpan JP per pekan pada baris mapel (hanya pemilik). Gagal simpan tidak menghalangi cetak.
     if (jp && M.rec.guruKey === myId() && M.rec.jpPerPekan !== jp && typeof db !== 'undefined' && db && navigator.onLine) {
-      siap().then(() => db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp)).then(() => { M.rec.jpPerPekan = jp; }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
+      db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp).then(() => { M.rec.jpPerPekan = jp; }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
     }
     const html = dokumen(M.cfg, h, { guru: M.rec.guruName || myName(), nip: nip, mapel: M.rec.mapel, kelas: M.rec.kelas, ta: M.ta, sem: SEM_LABEL[M.sem] });
     keluarkan(html, 'RPE_' + M.rec.mapel + '_' + M.rec.kelas + '_' + SEM_LABEL[M.sem], mode);
@@ -434,7 +434,7 @@ ${tabelHtml(h)}
     try { localStorage.setItem(nipKunci(), v); } catch (e) {}
     if (typeof db === 'undefined' || !db || !navigator.onLine || !myId() || v === nipServer) return Promise.resolve();
     const ref = db.ref('perangkat_setting_v4/nip/' + slug(myId()));
-    return siap().then(() => (v ? ref.set(v) : ref.remove())).then(() => { nipServer = v; }).catch(e => console.warn('[SI MAMBA] nip:', e));
+    return (v ? ref.set(v) : ref.remove()).then(() => { nipServer = v; }).catch(e => console.warn('[SI MAMBA] nip:', e));
   }
   // Isi kolom NIP dari server bila pengguna belum mengetik apa pun sejak panel dibuka.
   function nipIsi(state, selektor) {
@@ -458,15 +458,7 @@ ${tabelHtml(h)}
     M.mode = 'atur'; M.id = null; M.rec = null; M.sem = sem === 'genap' ? 'genap' : 'ganjil'; M.ta = String(ta || '');
     muatCfg(function () { siapEdit(); muatHariJadwal(); });
   };
-  // Sesi tulis untuk Rules: Admin -> sesi_admin (kredAdminSiap, Kunci Admin tersimpan di perangkat); Guru -> sesi_guru (kredGuruSiap).
-  function siap() {
-    try {
-      if (typeof v4IsAdmin === 'function' && v4IsAdmin()) return typeof window.kredAdminSiap === 'function' ? Promise.resolve(window.kredAdminSiap()) : Promise.resolve(true);
-      if (typeof window.kredGuruSiap === 'function') return Promise.resolve(window.kredGuruSiap());
-    } catch (e) { return Promise.reject(e); }
-    return Promise.resolve(true);
-  }
-  window.rpeUtil = { siap: siap, parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
+  window.rpeUtil = { parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
     esc: esc, slug: slug, fmtTgl: fmtTgl, fmtRentang: fmtRentang, daftar: daftar, BULAN: BULAN,
     keluarkan: keluarkan, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
 })();

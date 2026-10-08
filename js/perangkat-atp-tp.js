@@ -294,7 +294,7 @@ tr{page-break-inside:avoid}
     const obj = { guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: A.ta, mapel: rec.mapel, kelas: rec.kelas, fase: A.fase,
       manual: !!A.manual, items: bersihItems().map(x => ({ k: x.k, e: x.e, t: x.t, m: x.m, sem: x.sem, jp: x.jp === '' ? 0 : x.jp })), jpPerPekan: jpNum() || null,
       at: new Date().toISOString(), by: myName() };
-    return R().siap().then(() => db.ref('perangkat_tp_v4/' + idTp()).set(obj)).then(() => {
+    return db.ref('perangkat_tp_v4/' + idTp()).set(obj).then(() => {
       A.busy = false; A.dirty = false; audit('SAVE_PERANGKAT_TP', idTp()); if (!diam) say('✅ Tersimpan'); if (A.rec) gambar();
     }).catch(err => { A.busy = false; console.error('[SI MAMBA] atp:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
@@ -310,9 +310,9 @@ tr{page-break-inside:avoid}
     if (!confirm('Isi daftar materi Prota/Promes dengan ' + per.ganjil.length + ' materi Ganjil dan ' + per.genap.length + ' materi Genap?' + (tanpaJp ? '\n' + tanpaJp + ' TP tanpa JP dilewati.' : '') + '\nIsi lama pada semester yang terisi akan diganti.')) return;
     if (A.busy) return; A.busy = true;
     const now = new Date().toISOString();
-    const tulis = SEM.filter(s => per[s].length).map(s => () => db.ref('perangkat_materi_v4/' + idMateri(s)).set({ guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: A.ta, semester: s,
+    const tulis = SEM.filter(s => per[s].length).map(s => db.ref('perangkat_materi_v4/' + idMateri(s)).set({ guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: A.ta, semester: s,
       mapel: rec.mapel, kelas: rec.kelas, materi: per[s], jpPerPekan: jpNum() || null, at: now, by: myName() }));
-    R().siap().then(() => Promise.all(tulis.map(f => f()))).then(() => { A.busy = false; return simpan(true); }).then(() => { A.busy = false; audit('APPLY_PERANGKAT_TP', idTp()); say('✅ Materi Prota/Promes terisi. Buka 🗂 Prota/Promes untuk melihatnya.'); })
+    Promise.all(tulis).then(() => { A.busy = false; return simpan(true); }).then(() => { A.busy = false; audit('APPLY_PERANGKAT_TP', idTp()); say('✅ Materi Prota/Promes terisi. Buka 🗂 Prota/Promes untuk melihatnya.'); })
       .catch(err => { A.busy = false; console.error('[SI MAMBA] atp terapkan:', err); say('❌ Gagal menerapkan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {

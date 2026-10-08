@@ -320,13 +320,12 @@
   }
 
   // ---------- Simpan ----------
-  const siap = () => (window.rpeUtil && window.rpeUtil.siap) ? window.rpeUtil.siap() : Promise.resolve(true);
   function tulis(path, upd, sukses, aksi, idAudit) {
     if (typeof db === 'undefined' || !db) return;
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     if (S.busy) return say('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
     S.busy = true;
-    siap().then(() => db.ref(path).update(upd)).then(() => {
+    db.ref(path).update(upd).then(() => {
       S.busy = false; sukses(); audit(aksi, idAudit); render();
     }).catch(e => { S.busy = false; console.error('[SI MAMBA] perangkat:', e); say('❌ Gagal menyimpan: ' + ((e && e.message) || e), true); });
   }
@@ -381,7 +380,7 @@
     if (S.busy) return;
     S.busy = true;
     const upd = {}; recs.forEach(r => { upd[idBaris(r.mapel, r.kelas)] = r; });
-    siap().then(() => db.ref('perangkat_v4').update(upd)).then(() => {
+    db.ref('perangkat_v4').update(upd).then(() => {
       S.busy = false; Object.keys(upd).forEach(id => { S.rows[id] = upd[id]; audit('ADD_PERANGKAT_ROW', id); });
       S.tambah = false; say(recs.length > 1 ? '✅ ' + recs.length + ' mapel ditambahkan' : '✅ Mapel ditambahkan'); render();
     }).catch(e => { S.busy = false; say('❌ Gagal menambah: ' + ((e && e.message) || e), true); });
@@ -390,7 +389,7 @@
     const rec = S.rows[id]; if (!rec || rec.guruKey !== myId()) return;
     if (!confirm('Hapus ' + rec.mapel + ' kelas ' + rec.kelas + ' beserta semua tautannya?')) return;
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
-    siap().then(() => db.ref('perangkat_v4/' + id).remove()).then(() => { delete S.rows[id]; S.edit = null; audit('DELETE_PERANGKAT_ROW', id); say('Dihapus'); render(); })
+    db.ref('perangkat_v4/' + id).remove().then(() => { delete S.rows[id]; S.edit = null; audit('DELETE_PERANGKAT_ROW', id); say('Dihapus'); render(); })
       .catch(e => say('❌ Gagal menghapus: ' + ((e && e.message) || e), true));
   }
   function simpanKaldik() {
