@@ -258,6 +258,15 @@
     // dan clearBusy('kunciUnik', tombolElement) di callback/then/selesai (baik sukses maupun gagal).
     // ============================================================
     const _busyLocks = {};
+    // Admin wajib membawa sesi_admin (kredAdminSiap) sebelum menulis ke siswa/guru (Rules v2).
+    function tulisAdmin(key, btn, fn, onFail) {
+      const siap = (typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : Promise.resolve(true);
+      return siap.then(() => { fn(); }, (e) => {
+        if (key) clearBusy(key, btn);
+        if (onFail) onFail();
+        toast('🔒 ' + ((e && e.message) || 'Sesi admin gagal'), true);
+      });
+    }
     function isBusy(key) { return !!_busyLocks[key]; }
     function setBusy(key, btn) {
       _busyLocks[key] = true;
@@ -1264,7 +1273,7 @@
       const saltedHash = hashPinSalted(pinInput, guru.key);
       if (guru.pin === saltedHash) return true;
       if (guru.pin === hashPin(pinInput)) {
-        db.ref('guru/' + guru.key).update({ pin: saltedHash }).catch(() => {});
+        // Penulisan PIN ke data guru dihapus (Rules v2 menolak field pin). PIN dimigrasi lewat kredMigrasi.
         guru.pin = saltedHash;
         return true;
       }
@@ -4192,10 +4201,10 @@
       // noWaKey = nomor WA yang sudah dinormalisasi (62xxxxxxxxxx) -- dipakai Portal Orang Tua untuk
       // mencari anak lewat query terindeks, bukan mengunduh seluruh node siswa. null kalau tak valid.
       const noWaKey = noWaOrtu ? (ortuWaKey(noWaOrtu) || null) : null;
-      db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey }, err => {
+      tulisAdmin(null, null, () => { db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey }, err => {
         if (err) toast('Gagal update: '+err.message, true);
         else { toast('✅ Data siswa berhasil diupdate!'); addLog('edit_siswa', name + ' - ' + kelas); closeEditSiswaModal(); reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
-      });
+      }); });
     }
     // ============================================================
     // NOTIFIKASI WHATSAPP KE WALI MURID
@@ -4229,11 +4238,11 @@
       if (allSiswa.filter(s => s.kelas === kelas).length >= 30) return toast(`⚠️ Kelas ${kelas} sudah penuh (maks 30 siswa)!`, true);
       const btn = document.getElementById('btnTambahSiswa');
       setBusy('tambahSiswa', btn);
-      db.ref('siswa').push().set({ name, kelas, guru: 'Admin', guruKey: currentUser.key || null, dibuat: new Date().toISOString() }, err => {
+      tulisAdmin('tambahSiswa', btn, () => {       db.ref('siswa').push().set({ name, kelas, guru: 'Admin', guruKey: currentUser.key || null, dibuat: new Date().toISOString() }, err => {
         clearBusy('tambahSiswa', btn);
         if (err) toast('Gagal: '+err.message, true);
         else { toast('✅ Siswa ditambahkan!'); addLog('tambah_siswa', name + ' - ' + kelas); document.getElementById('studentName').value = ''; document.getElementById('filterKelasSiswa').value = ''; reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
-      });
+      }); });
     }
     function bulkImportSiswa() {
       if (!isAdmin()) return toast('🔒 Hanya Admin!', true);
@@ -4249,7 +4258,7 @@
       // setiap baris DITERIMA (bukan baru setelah semua selesai/reload).
       const jumlahPerKelas = {};
       allSiswa.forEach(s => { jumlahPerKelas[s.kelas] = (jumlahPerKelas[s.kelas] || 0) + 1; });
-      lines.forEach(line => {
+      tulisAdmin(null, null, () => {       lines.forEach(line => {
         const parts = line.split(',').map(s => s.trim());
         if (parts.length < 2) { error++; return; }
         const name = parts[0], kelas = parts[1];
@@ -4260,7 +4269,7 @@
           if (err) error++; else success++;
           if (success + error === lines.length) { toast(`✅ ${success} siswa berhasil diimport, ${error} gagal.`); addLog('import_siswa', success + ' siswa diimport'); document.getElementById('filterKelasSiswa').value = ''; reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); document.getElementById('bulkStudentInput').value = ''; }
         });
-      });
+      }); });
     }
 
     // ============================================================
@@ -4774,7 +4783,11 @@
           }
           savedCount++;
         });
-        const tulis = savedCount > 0 ? db.ref().update(updates) : Promise.resolve();
+        // Sesi tulis untuk Rules v2: Admin -> sesi_admin, Guru -> sesi_guru (sama seperti perangkat-rpe.js).
+        const siapTulis = (typeof isAdmin === 'function' && isAdmin())
+          ? ((typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : Promise.resolve(true))
+          : ((typeof window.kredGuruSiap === 'function') ? window.kredGuruSiap() : Promise.resolve(true));
+        const tulis = savedCount > 0 ? siapTulis.then(() => db.ref().update(updates)) : Promise.resolve();
         return tulis.then(() => ({ savedCount, conflictNames }));
       }).then(({ savedCount, conflictNames }) => {
         clearBusy('saveGrades', btnSave);
@@ -10228,10 +10241,10 @@
       if (noWaGuru && formatNomorWa(noWaGuru).length < 10) return toast('Nomor WhatsApp guru tidak valid!', true);
       updateData.noWa = noWaGuru || null;
       const guruKeyEdit = editingGuruKey;
-      const simpanDataGuru = () => db.ref('guru/' + guruKeyEdit).update(updateData, err => {
+      const simpanDataGuru = () => tulisAdmin(null, null, () => { db.ref('guru/' + guruKeyEdit).update(updateData, err => {
         if (err) toast('Gagal update: '+err.message, true);
         else { toast('✅ Data guru diupdate!'); addLog('edit_guru', name); closeEditGuruModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList()); }
-      });
+      }); });
       if (pinBaruEdit) {
         if (typeof kredAdminSetPin !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
         kredAdminSetPin(guruKeyEdit, pinBaruEdit).then(simpanDataGuru).catch(err => toast('Gagal mengganti PIN: ' + (err && err.message ? err.message : err), true));
@@ -10254,7 +10267,7 @@
       if (!doubleConfirm(`Naikkan ${siswaDiKelas.length} siswa dari ${kelasAsal} ke ${kelasTujuan}?`)) return;
       showLoading();
       let processed = 0; const total = siswaDiKelas.length;
-      siswaDiKelas.forEach(s => { db.ref('siswa/'+s.key).update({ kelas: kelasTujuan, updatedAt: new Date().toISOString() }, err => { processed++; if (err) console.error('Gagal update:', s.name, err); if (processed === total) { hideLoading(); toast(`✅ ${total} siswa berhasil naik ke ${kelasTujuan}!`); addLog('promosi_kelas', kelasAsal + ' → ' + kelasTujuan + ' (' + total + ' siswa)'); reloadDataset('siswa', () => { populateClassFilterDropdowns(); renderSiswa(); }); } }); });
+      tulisAdmin(null, null, () => {       siswaDiKelas.forEach(s => { db.ref('siswa/'+s.key).update({ kelas: kelasTujuan, updatedAt: new Date().toISOString() }, err => { processed++; if (err) console.error('Gagal update:', s.name, err); if (processed === total) { hideLoading(); toast(`✅ ${total} siswa berhasil naik ke ${kelasTujuan}!`); addLog('promosi_kelas', kelasAsal + ' → ' + kelasTujuan + ' (' + total + ' siswa)'); reloadDataset('siswa', () => { populateClassFilterDropdowns(); renderSiswa(); }); } }); }); }, () => hideLoading());
     }
     function graduateClass() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
@@ -11628,6 +11641,7 @@
           if(hashPin(pin)!==ADMIN_PIN_HASH) { adminLoginCatatGagal(); return toast('PIN Admin salah!',true); }
           adminLoginResetGagal();
           currentUser={name:'Admin',role:ROLES.ADMIN,baseRole:ROLES.ADMIN,kelas:[...KELAS_LIST]};
+          if (typeof window.kredAdminSiap === 'function') window.kredAdminSiap().catch(function () {});   // siapkan sesi_admin untuk Rules v2/v3
         } else if(key==='kepsek'){
           if(hashPin(pin)!==KEPSEK_PIN_HASH) { adminLoginCatatGagal(); return toast('PIN Kepsek salah!',true); }
           adminLoginResetGagal();

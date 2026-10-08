@@ -1,42 +1,43 @@
 /* ============================================================
-   SI MAMBA - js/offline-db.js
-   Lapisan IndexedDB untuk mendukung mode offline "sungguhan":
+   SI MAMBA - js/offline-db.js (revisi)
+   Lapisan IndexedDB untuk mode offline.
 
-   1) OBJECT STORE "dataCache"
-      Menyimpan salinan terakhir setiap dataset Firebase (siswa, absensi,
-      nilai, jurnal, dst) di disk (bukan cuma memori tab), supaya kalau
-      app dibuka tanpa internet, data terakhir yang berhasil disinkron
-      tetap bisa ditampilkan (read-only) alih-alih halaman kosong/error.
+   Perubahan dari versi sebelumnya:
+   - Promise di-resolve di tx.oncomplete (data benar-benar ter-commit
+     ke disk), bukan di req.onsuccess.
+   - dbPromise di-reset jika open gagal, sehingga bisa dicoba lagi.
+   - onversionchange menutup koneksi lama; onblocked memberi peringatan.
+   - Antrean punya batas MAX_ATTEMPTS. Item yang melewati batas
+     dipindahkan ke store "deadLetter" dan tidak diproses ulang.
 
-   2) OBJECT STORE "pendingWrites"
-      Antrian tulis (absensi siswa & jurnal mengajar) yang dibuat SAAT
-      OFFLINE. Tersimpan permanen di disk sampai berhasil dikirim ke
-      Firebase, jadi tidak hilang meskipun tab/app ditutup sebelum
-      sempat online lagi.
+   Object store:
+   - "dataCache"     (keyPath: 'name')  salinan dataset Firebase terakhir
+   - "pendingWrites" (keyPath: 'id', autoIncrement) antrean tulis offline
+   - "deadLetter"    (keyPath: 'id', autoIncrement) antrean gagal permanen
 
-   File ini dipakai di DUA konteks berbeda dengan cara yang sama
-   (indexedDB tersedia baik di halaman maupun di Service Worker):
-     - Halaman (index.html): <script src="js/offline-db.js"></script>
-     - Service Worker (sw.js): importScripts('./js/offline-db.js')
-
-   Diekspos sebagai objek global `SIMambaOfflineDB` dengan method
-   berbasis Promise supaya gampang dipakai dari app.js maupun sw.js
-   tanpa perlu library IndexedDB eksternal (idb, dll).
+   Dipakai di halaman (index.html) dan Service Worker (importScripts).
+   Diekspos sebagai global `SIMambaOfflineDB` dengan API berbasis Promise.
 ============================================================ */
 
 (function (root) {
   const DB_NAME = 'si-mamba-offline';
-  const DB_VERSION = 1;
-  const STORE_CACHE = 'dataCache';       // keyPath: 'name'
-  const STORE_QUEUE = 'pendingWrites';   // keyPath: 'id', autoIncrement
+  const DB_VERSION = 2;
+  const STORE_CACHE = 'dataCache';
+  const STORE_QUEUE = 'pendingWrites';
+  const STORE_DEAD = 'deadLetter';
+  const MAX_ATTEMPTS = 5;
 
   let dbPromise = null;
 
   function openDB() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
+      if (typeof indexedDB === 'undefined') {
+        return reject(new Error('IndexedDB tidak tersedia'));
+      }
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = () => {
+
+      req.onupgradeneeded = (event) => {
         const db = req.result;
         if (!db.objectStoreNames.contains(STORE_CACHE)) {
           db.createObjectStore(STORE_CACHE, { keyPath: 'name' });
@@ -44,123 +45,173 @@
         if (!db.objectStoreNames.contains(STORE_QUEUE)) {
           db.createObjectStore(STORE_QUEUE, { keyPath: 'id', autoIncrement: true });
         }
+        if (!db.objectStoreNames.contains(STORE_DEAD)) {
+          db.createObjectStore(STORE_DEAD, { keyPath: 'id', autoIncrement: true });
+        }
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+
+      req.onsuccess = () => {
+        const db = req.result;
+        // Tab lain ingin upgrade versi: lepaskan koneksi ini supaya tidak memblokir.
+        db.onversionchange = () => db.close();
+        resolve(db);
+      };
+
+      req.onblocked = () => {
+        console.warn('[SIMambaOfflineDB] Upgrade database diblokir oleh tab lain. Tutup tab lain lalu muat ulang.');
+      };
+
+      req.onerror = () => {
+        // Reset supaya pemanggilan berikutnya bisa mencoba open lagi.
+        dbPromise = null;
+        reject(req.error);
+      };
     });
     return dbPromise;
   }
 
-  function tx(storeName, mode) {
-    return openDB().then(db => db.transaction(storeName, mode).objectStore(storeName));
+  /*
+    runTx: satu transaksi, satu fungsi. Promise resolve hanya setelah
+    tx.oncomplete (commit ke disk). fn(store, setResult) menjalankan
+    request-request di dalam transaksi dan boleh memanggil setResult(v).
+  */
+  function runTx(storeNames, mode, fn) {
+    return openDB().then(db => new Promise((resolve, reject) => {
+      let t;
+      try {
+        t = db.transaction(storeNames, mode);
+      } catch (err) {
+        return reject(err);
+      }
+      let result;
+      const setResult = (v) => { result = v; };
+      try {
+        const stores = Array.isArray(storeNames)
+          ? storeNames.map(n => t.objectStore(n))
+          : t.objectStore(storeNames);
+        fn(stores, setResult, t);
+      } catch (err) {
+        try { t.abort(); } catch (_) {}
+        return reject(err);
+      }
+      t.oncomplete = () => resolve(result);
+      t.onerror = () => reject(t.error);
+      t.onabort = () => reject(t.error || new Error('Transaksi dibatalkan'));
+    }));
+  }
+
+  function reqToPromise(req) {
+    return req; // dipakai di dalam runTx, hasil diambil lewat setResult
   }
 
   // ---------- dataCache: snapshot dataset Firebase ----------
 
-  // Simpan satu dataset (mis. name='allJournals', data=[...]) ke cache.
   function setCache(name, data) {
-    return tx(STORE_CACHE, 'readwrite').then(store => new Promise((resolve, reject) => {
-      const req = store.put({ name, data, updatedAt: new Date().toISOString() });
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    }));
+    return runTx(STORE_CACHE, 'readwrite', (store) => {
+      store.put({ name, data, updatedAt: new Date().toISOString() });
+    });
   }
 
-  // Simpan banyak dataset sekaligus. entries = { allSiswa: [...], allJournals: [...], ... }
+  // entries = { allSiswa: [...], allJournals: [...], ... }
   function setCacheMany(entries) {
-    return tx(STORE_CACHE, 'readwrite').then(store => new Promise((resolve, reject) => {
-      const names = Object.keys(entries);
-      if (names.length === 0) return resolve();
-      let done = 0;
-      let failed = null;
+    const names = Object.keys(entries);
+    if (names.length === 0) return Promise.resolve();
+    return runTx(STORE_CACHE, 'readwrite', (store) => {
+      const now = new Date().toISOString();
       names.forEach(name => {
-        const req = store.put({ name, data: entries[name], updatedAt: new Date().toISOString() });
-        req.onsuccess = () => { done++; if (done === names.length) failed ? reject(failed) : resolve(); };
-        req.onerror = () => { failed = req.error; done++; if (done === names.length) reject(failed); };
+        store.put({ name, data: entries[name], updatedAt: now });
       });
-    }));
+    });
   }
 
   function getCache(name) {
-    return tx(STORE_CACHE, 'readonly').then(store => new Promise((resolve, reject) => {
+    return runTx(STORE_CACHE, 'readonly', (store, setResult) => {
       const req = store.get(name);
-      req.onsuccess = () => resolve(req.result ? req.result.data : undefined);
-      req.onerror = () => reject(req.error);
-    }));
+      req.onsuccess = () => setResult(req.result ? req.result.data : undefined);
+    });
   }
 
-  // Ambil semua dataset yang ada di cache sekaligus: { name: data, ... }
   function getCacheAll() {
-    return tx(STORE_CACHE, 'readonly').then(store => new Promise((resolve, reject) => {
+    return runTx(STORE_CACHE, 'readonly', (store, setResult) => {
       const req = store.getAll();
       req.onsuccess = () => {
         const out = {};
         (req.result || []).forEach(row => { out[row.name] = row.data; });
-        resolve(out);
+        setResult(out);
       };
-      req.onerror = () => reject(req.error);
-    }));
+    });
   }
 
   function getCacheUpdatedAt(name) {
-    return tx(STORE_CACHE, 'readonly').then(store => new Promise((resolve, reject) => {
+    return runTx(STORE_CACHE, 'readonly', (store, setResult) => {
       const req = store.get(name);
-      req.onsuccess = () => resolve(req.result ? req.result.updatedAt : null);
-      req.onerror = () => reject(req.error);
-    }));
+      req.onsuccess = () => setResult(req.result ? req.result.updatedAt : null);
+    });
   }
 
-  // ---------- pendingWrites: antrian absensi/jurnal saat offline ----------
+  // ---------- pendingWrites: antrean absensi/jurnal saat offline ----------
 
-  // payload bebas (object apapun); type = 'journal' | 'attendance' (bisa ditambah jenis lain nanti)
   function addPendingWrite(type, payload) {
-    return tx(STORE_QUEUE, 'readwrite').then(store => new Promise((resolve, reject) => {
+    return runTx(STORE_QUEUE, 'readwrite', (store, setResult) => {
       const record = { type, payload, createdAt: new Date().toISOString(), attempts: 0 };
       const req = store.add(record);
-      req.onsuccess = () => resolve(req.result); // id yang baru dibuat
-      req.onerror = () => reject(req.error);
-    }));
+      req.onsuccess = () => setResult(req.result); // id baru
+    });
   }
 
   function getAllPendingWrites() {
-    return tx(STORE_QUEUE, 'readonly').then(store => new Promise((resolve, reject) => {
+    return runTx(STORE_QUEUE, 'readonly', (store, setResult) => {
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
-    }));
+      req.onsuccess = () => setResult(req.result || []);
+    });
   }
 
   function countPendingWrites() {
-    return tx(STORE_QUEUE, 'readonly').then(store => new Promise((resolve, reject) => {
+    return runTx(STORE_QUEUE, 'readonly', (store, setResult) => {
       const req = store.count();
-      req.onsuccess = () => resolve(req.result || 0);
-      req.onerror = () => reject(req.error);
-    }));
+      req.onsuccess = () => setResult(req.result || 0);
+    });
   }
 
   function deletePendingWrite(id) {
-    return tx(STORE_QUEUE, 'readwrite').then(store => new Promise((resolve, reject) => {
-      const req = store.delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    }));
+    return runTx(STORE_QUEUE, 'readwrite', (store) => {
+      store.delete(id);
+    });
   }
 
-  // Catat percobaan sync yang gagal (untuk debugging & batas retry di masa depan)
-  function bumpAttempt(id) {
-    return tx(STORE_QUEUE, 'readwrite').then(store => new Promise((resolve, reject) => {
-      const getReq = store.get(id);
+  /*
+    bumpAttempt: catat percobaan gagal. Jika attempts >= MAX_ATTEMPTS,
+    item dipindah ke deadLetter dalam transaksi yang sama (atomik).
+    Mengembalikan 'retry' | 'dead' | 'missing'.
+  */
+  function bumpAttempt(id, errorMessage) {
+    return runTx([STORE_QUEUE, STORE_DEAD], 'readwrite', ([queue, dead], setResult) => {
+      const getReq = queue.get(id);
       getReq.onsuccess = () => {
         const row = getReq.result;
-        if (!row) return resolve();
+        if (!row) return setResult('missing');
         row.attempts = (row.attempts || 0) + 1;
         row.lastAttemptAt = new Date().toISOString();
-        const putReq = store.put(row);
-        putReq.onsuccess = () => resolve();
-        putReq.onerror = () => reject(putReq.error);
+        if (errorMessage) row.lastError = String(errorMessage).slice(0, 500);
+
+        if (row.attempts >= MAX_ATTEMPTS) {
+          queue.delete(id);
+          const { id: _omit, ...rest } = row;
+          dead.add({ ...rest, movedAt: new Date().toISOString() });
+          setResult('dead');
+        } else {
+          queue.put(row);
+          setResult('retry');
+        }
       };
-      getReq.onerror = () => reject(getReq.error);
-    }));
+    });
+  }
+
+  function getDeadLetters() {
+    return runTx(STORE_DEAD, 'readonly', (store, setResult) => {
+      const req = store.getAll();
+      req.onsuccess = () => setResult(req.result || []);
+    });
   }
 
   root.SIMambaOfflineDB = {
@@ -174,5 +225,7 @@
     countPendingWrites,
     deletePendingWrite,
     bumpAttempt,
+    getDeadLetters,
+    MAX_ATTEMPTS,
   };
 })(typeof self !== 'undefined' ? self : this);

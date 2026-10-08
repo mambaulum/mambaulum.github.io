@@ -166,6 +166,22 @@
     return adminSiap(!!paksa).then(function (ok) { adminSiapTerakhir = Date.now(); return ok; }, function (e) { adminSiapTerakhir = 0; throw e; });
   };
 
+  // Dipakai modul perangkat pembelajaran SEBELUM guru menulis ke node yang di Rules dikunci "pemilik" (perangkat_*_v4, NIP).
+  // Rules membuktikan guru lewat rantai sesi_guru/{uid} -> login_kredensial/{hash} -> key guru. Hash itu sudah ada di perangkat
+  // (penanda login, diisi saat login ONLINE berhasil), jadi cukup ditaruh di sesi_guru/{uid}. Diingat 5 menit.
+  var guruSiapTerakhir = 0, guruSiapKey = '';
+  window.kredGuruSiap = function () {
+    var key = (typeof currentUser !== 'undefined' && currentUser && currentUser.key) ? currentUser.key : '';
+    if (!key) return Promise.resolve(true);                   // Admin / Kepala (tanpa key guru): bukan jalur ini
+    if (guruSiapKey === key && Date.now() - guruSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
+    return bacaLokal().then(function (m) {
+      var h = m[key];
+      if (!hashOk(h)) throw new Error('Sesi guru belum siap di perangkat ini. Keluar lalu masuk lagi (online), kemudian coba simpan.');
+      return siapAuth().then(function (u) { return db.ref('sesi_guru/' + u).set(h); });
+    }).then(function () { guruSiapKey = key; guruSiapTerakhir = Date.now(); return true; },
+            function (e) { guruSiapTerakhir = 0; throw galat(e); });
+  };
+
   // Admin: tambah guru baru + kredensialnya (atomik).
   window.kredAdminTambahGuru = function (key, data, pin, cb) {
     adminSiap().then(function () {

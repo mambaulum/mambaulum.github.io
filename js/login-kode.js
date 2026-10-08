@@ -178,7 +178,9 @@
   // (1) cache tidak lagi tertulis tanpa kode baru; (2) tetap benar walau allGuru sudah diganti array baru oleh
   // loadGuruListForLogin() di tengah jalan (referensi objek lama tidak dipakai lagi).
   function simpan(updates, ket) {
-    return db.ref('guru').update(updates).then(function () {
+    // Admin wajib membawa sesi_admin sebelum menulis ke guru (Rules v2).
+    var siapAdmin = (typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : Promise.resolve(true);
+    return siapAdmin.then(function () { return db.ref('guru').update(updates); }).then(function () {
       Object.keys(updates).forEach(function (path) {
         var p = path.split('/'); if (p.length !== 2 || p[1] !== 'kode') return;
         (allGuru || []).forEach(function (g) { if (g.key === p[0]) g.kode = updates[path]; });
