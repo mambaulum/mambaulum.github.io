@@ -2832,7 +2832,9 @@
       } catch (e) { console.error('[SI MAMBA] Gagal melepas listener Firebase saat logout:', e); }
       try {
         if (typeof v4InvalidateLoads === 'function') v4InvalidateLoads();
-        if (typeof v4ActOpenTypeKey !== 'undefined') { v4ActOpenTypeKey = null; v4ActAttendanceDraft = {}; v4ActDateSel = {}; v4ActKelasSel = {}; v4PanelSiswaCache = {}; v4PanelSiswaGagal = {}; v4TfKelasSel = ''; }
+        if (typeof amalanKegiatanResetState === 'function') amalanKegiatanResetState();
+        if (typeof bacaanShalatResetState === 'function') bacaanShalatResetState();
+        if (typeof v4PanelSiswaCache !== 'undefined') { v4PanelSiswaCache = {}; v4PanelSiswaGagal = {}; v4TfKelasSel = ''; }
       } catch (e) { console.error('[SI MAMBA] Gagal reset state v4 saat logout:', e); }
       try { if (typeof kasResetState === 'function') kasResetState(); } catch (e) { console.error('[SI MAMBA] Gagal reset state Kas saat logout:', e); }
     }
@@ -2878,7 +2880,7 @@
       document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
       const bottomItem = document.querySelector(`.bottom-nav-item[data-bottom-page="${page}"]`);
       if (bottomItem) bottomItem.classList.add('active');
-      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan & Kegiatan', 'tahfidz-v4':'Tahfidz', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Sekolah', rekap:'Rekap', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Iuran Mingguan', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
+      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Shalat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Sekolah', rekap:'Rekap', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Iuran Mingguan', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
       document.getElementById('pageTitle').innerHTML = titleMap[page] || 'Dashboard';
       if (window.innerWidth <= 768) { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
       flushRenderTertunda(page); // render yang ditunda saat halaman ini tersembunyi (lihat renderAll)
@@ -2912,6 +2914,7 @@
       if (page === 'kalender-akademik') { ensureLazyDatasets(LAZY_PAGE_DATASETS['kalender-akademik'], () => { setupKalenderAkademikPage(); }); }
       if (page === 'saran-kritik') { setupSaranKritikPage(); }
       if (page === 'administrasi-ujian') { if (typeof setupAdministrasiUjianPage === 'function') setupAdministrasiUjianPage(); }
+      if (page === 'bacaan-shalat') { if (typeof setupBacaanShalatPage === 'function') setupBacaanShalatPage(); }
       finishRouteProgress();
     }
 
@@ -6548,10 +6551,10 @@
       if (type === 'sholat_dzuhur') return hari >= 1 && hari <= 4; // Senin-Kamis saja
       return true; // Dluha: Senin-Sabtu
     }
-    // Cari jenis kegiatan di "Amalan & Kegiatan" (v4) yang namanya cocok dengan sholat Dluha/Dzuhur.
+    // Cari jenis kegiatan di "Amalan Yaumiyah" (v4) yang namanya cocok dengan sholat Dluha/Dzuhur.
     // Dicocokkan lewat NAMA (bukan ID tetap) karena jenis kegiatan v4 dibuat bebas oleh Admin --
     // jadi Admin WAJIB membuat jenis kegiatan yang namanya mengandung kata "dhuha"/"dluha" atau
-    // "dzuhur" di menu Amalan & Kegiatan supaya validasi di bawah ini bisa jalan.
+    // "dzuhur" di menu Amalan Yaumiyah supaya validasi di bawah ini bisa jalan.
     function v4CariJenisKegiatanSholat(namaSholat) {
       const keywords = v4KataKunciSholat(namaSholat);
       return (V4.activityTypes || []).filter(a => {
@@ -6582,7 +6585,7 @@
           : undefined))).then(res => { if (res.some(r => r && r.committed)) v4LoadCore(); });
       }).catch(err => { v4SholatSeedDone = false; console.warn('[SI MAMBA] Gagal menyiapkan kegiatan sholat rutin:', err); });
     }
-    // null = jenis kegiatannya belum dibuat sama sekali oleh Admin di Amalan & Kegiatan.
+    // null = jenis kegiatannya belum dibuat sama sekali oleh Admin di Amalan Yaumiyah.
     // false = sudah dibuat, tapi absensi siswa untuk tanggal ini belum ada yang mengisi.
     // true = absensi siswa untuk sholat ini sudah diisi hari ini (oleh siapapun PJ-nya).
     function v4AbsensiSiswaSholatSudahDiisi(namaSholat, tanggal) {
@@ -6611,7 +6614,7 @@
       const selesai = window_.selesai.split(':'), selesaiMenit = parseInt(selesai[0])*60 + parseInt(selesai[1]);
       const isDalamJendela = sekarangMenit >= mulaiMenit && sekarangMenit <= selesaiMenit;
       if (!isDalamJendela && !isAdmin() && !isKepsek()) return toast(`Absen ${namaSholat} hanya bisa dicatat jam ${window_.mulai}-${window_.selesai}!`, true);
-      // Wajib: absensi SISWA untuk sholat ini harus sudah diisi dulu di menu Amalan & Kegiatan
+      // Wajib: absensi SISWA untuk sholat ini harus sudah diisi dulu di menu Amalan Yaumiyah
       // hari ini, baru guru boleh mencatat absen pribadinya sendiri (dasar Honor).
       const statusAbsenSiswa = v4AbsensiSiswaSholatSudahDiisi(namaSholat, today);
       if (statusAbsenSiswa === null) {
@@ -6619,11 +6622,11 @@
         // jangan langsung menuduh Admin belum membuat. Muat ulang, minta coba lagi.
         if (!(V4.activityTypes || []).length && typeof v4LoadCore === 'function') {
           v4LoadCore();
-          return toast('⏳ Data Amalan & Kegiatan sedang dimuat/disiapkan. Coba lagi sebentar lagi.', true);
+          return toast('⏳ Data Amalan Yaumiyah sedang dimuat/disiapkan. Coba lagi sebentar lagi.', true);
         }
-        return toast(`Admin belum membuat jenis kegiatan "Sholat ${namaSholat}" di menu Amalan & Kegiatan!`, true);
+        return toast(`Admin belum membuat jenis kegiatan "Sholat ${namaSholat}" di menu Amalan Yaumiyah!`, true);
       }
-      if (statusAbsenSiswa === false) return toast(`Absensi siswa untuk Sholat ${namaSholat} hari ini belum diisi di menu Amalan & Kegiatan. Isi dulu absensi siswanya.`, true);
+      if (statusAbsenSiswa === false) return toast(`Absensi siswa untuk Sholat ${namaSholat} hari ini belum diisi di menu Amalan Yaumiyah. Isi dulu absensi siswanya.`, true);
       const existing = allReligiAttendance.find(item => item.tanggal === today && (item.guruKey ? item.guruKey === currentUser.key : item.guru === currentUser.name));
       const ref = existing ? db.ref('religi_attendance/' + existing.key) : db.ref('religi_attendance').push();
       const data = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key || null, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };
@@ -7038,7 +7041,9 @@
     // SATU sumber kebenaran untuk rate & rumus honor, dipakai bersama oleh renderHonor,
     // renderHonorSlip, downloadHonorPDF, dan generateHonorReport (sebelumnya rumus yang sama
     // di-copy-paste 4x -- risiko salah satu kelewat kalau nanti rumus/rate berubah).
-    const V4_TARIF_DEFAULT = { original: 7000, substitute: 5000, activity: 0, dluha: 5000, dzuhur: 5000 };
+    // kepsek & yayasan = honor TETAP bulanan baris Kepala Madrasah / Ketua Yayasan di rekap Honor (dulu angka 300000/350000 ditulis langsung di kode)
+    const V4_TARIF_DEFAULT = { original: 7000, substitute: 5000, activity: 0, dluha: 5000, dzuhur: 5000, kepsek: 300000, yayasan: 350000 };
+    const V4_TARIF_BOLEH_NOL = { activity: 1, kepsek: 1, yayasan: 1 };   // boleh 0 (activity = default acara; kepsek/yayasan 0 = tanpa honor tetap)
     // Menormalkan isi honor_rates_v4: nilai harus angka hingga (>0; khusus `activity` boleh 0). Yang tidak valid
     // (0, kosong, teks, NEGATIF) diganti tarif default -- dulu 0 diam-diam jatuh ke default lewat `||`, tapi
     // nilai NEGATIF lolos & memotong honor. `rusak` = field yang ADA di database tapi tidak valid (field yang
@@ -7049,7 +7054,7 @@
         const v = src[k];
         let n = NaN;
         if (typeof v === 'number') n = v; else if (typeof v === 'string' && v.trim() !== '') n = Number(v);
-        const valid = isFinite(n) && (k === 'activity' ? n >= 0 : n > 0);
+        const valid = isFinite(n) && (V4_TARIF_BOLEH_NOL[k] ? n >= 0 : n > 0);
         if (valid) rates[k] = n;
         else { rates[k] = V4_TARIF_DEFAULT[k]; if (v !== undefined && v !== null) rusak.push(k); }
       });
@@ -7072,7 +7077,7 @@
     }
     function v4GetHonorRates(){
       const r = v4NormalisasiRates(V4.rates).rates;
-      return { reguler: r.original, nonReguler: r.substitute, dluha: r.dluha, dzuhur: r.dzuhur };
+      return { reguler: r.original, nonReguler: r.substitute, dluha: r.dluha, dzuhur: r.dzuhur, kepsek: r.kepsek, yayasan: r.yayasan };
     }
     // b = breakdown honor satu guru: {reguler, nonReguler, ekstraHonor, dluha, dzuhur, eventHonor,
     // ujianHonor, tunjangan, transport} -- field yang tidak diisi dianggap 0. rates opsional,
@@ -7118,21 +7123,24 @@
       const groupedReligi = {};
       filteredReligi.forEach(r => { const gk = resolveGuruKey(r.guruKey, r.guru); if (!groupedReligi[gk]) groupedReligi[gk] = { nama: r.guru, dluha: 0, dzuhur: 0 }; if (r.sholat_dluha && r.sholat_dluha.status === 'Hadir') groupedReligi[gk].dluha += 1; if (r.sholat_dzuhur && r.sholat_dzuhur.status === 'Hadir') groupedReligi[gk].dzuhur += 1; });
       const groupedEvents = {};
-      filteredEvents.forEach(e => { const gk = resolveGuruKey(e.guruKey, e.guru); if (!groupedEvents[gk]) groupedEvents[gk] = { nama: e.guru, jumlah: 0, honor: 0 }; groupedEvents[gk].jumlah += 1; groupedEvents[gk].honor += (e.honor || 0); });
+      // Honor "Dinas Luar Kepala" (dicatat Admin di menu Rapat -> event_attendance, guruKey 'kepsek') TIDAK dihitung sebagai baris
+      // guru; dijumlahkan ke baris tetap "Kepala Madrasah" di bawah (lihat bonusList).
+      const dlKepala = { jumlah: 0, honor: 0 };
+      filteredEvents.forEach(e => { if (e.guruKey === 'kepsek') { dlKepala.jumlah += 1; dlKepala.honor += (e.honor || 0); return; } const gk = resolveGuruKey(e.guruKey, e.guru); if (!groupedEvents[gk]) groupedEvents[gk] = { nama: e.guru, jumlah: 0, honor: 0 }; groupedEvents[gk].jumlah += 1; groupedEvents[gk].honor += (e.honor || 0); });
       const groupedUjian = {};
       filteredUjian.forEach(u => { const gk = resolveGuruKey(u.guruKey, u.guru); if (!groupedUjian[gk]) groupedUjian[gk] = { nama: u.guru, jumlah: 0, honor: 0 }; groupedUjian[gk].jumlah += 1; groupedUjian[gk].honor += (u.honor || 0); });
       const groupedEkskulPic = {};
       filteredEkskulPic.forEach(x => { const gk = resolveGuruKey(x.guruKey, x.guru); if (!groupedEkskulPic[gk]) groupedEkskulPic[gk] = { nama: x.guru, jumlah: 0, honor: 0 }; groupedEkskulPic[gk].jumlah += 1; groupedEkskulPic[gk].honor += (x.honor || 0); });
-      const rates = v4GetHonorRates(), HONOR_KEPSEK = 300000, HONOR_KETUA_YAYASAN = 350000;
+      const rates = v4GetHonorRates(), HONOR_KEPSEK = rates.kepsek, HONOR_KETUA_YAYASAN = rates.yayasan;   // diatur Admin di Tarif Honor Terpusat
       const allTeacherKeys = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic), ...guruAktifTunjangan.map(g => g.key || g.name)]);
-      let bonusList = []; bonusList.push({ label: 'Kepala Madrasah', amount: HONOR_KEPSEK }); bonusList.push({ label: 'Ketua Yayasan', amount: HONOR_KETUA_YAYASAN });
+      let bonusList = []; bonusList.push({ label: 'Kepala Madrasah', amount: HONOR_KEPSEK + dlKepala.honor, dlJumlah: dlKepala.jumlah, dlHonor: dlKepala.honor }); bonusList.push({ label: 'Ketua Yayasan', amount: HONOR_KETUA_YAYASAN });
       if (guruTerajinBulanIni) bonusList.push({ label: `🏆 Guru Terajin - ${guruTerajinBulanIni.guru}`, amount: guruTerajinBulanIni.honor });
       // Kepala Madrasah & Ketua Yayasan (2 item pertama bonusList) SENGAJA ditaruh di baris paling
       // atas tabel honor (bukan lagi di bawah) -- Guru Terajin (kalau ada) tetap di bawah bersama
       // baris guru lain, karena itu memang penghargaan tambahan atas honor mengajar biasa mereka.
       let tableData = []; let totalHonor = 0; let totalReguler = 0, totalNonReguler = 0, totalEkstra = 0, totalEkstraHonor = 0, totalDluha = 0, totalDzuhur = 0, totalEventJumlah = 0, totalEventHonor = 0, totalUjianJumlah = 0, totalUjianHonor = 0, totalTunjangan = 0, totalTransport = 0;
       const pimpinanList = bonusList.slice(0, 2), bonusLainnya = bonusList.slice(2);
-      pimpinanList.forEach(bonus => { tableData.push({ guru: bonus.label, reguler: '-', nonReguler: '-', ekstra: '-', ekstraHonor: 0, dluha: '-', dzuhur: '-', eventJumlah: '-', eventHonor: 0, ujianJumlah: '-', ujianHonor: 0, tunjangan: 0, transport: 0, honor: bonus.amount, isBonus: true }); totalHonor += bonus.amount; });
+      pimpinanList.forEach(bonus => { tableData.push({ guru: bonus.label, reguler: '-', nonReguler: '-', ekstra: '-', ekstraHonor: 0, dluha: '-', dzuhur: '-', eventJumlah: bonus.dlJumlah > 0 ? bonus.dlJumlah : '-', eventHonor: bonus.dlHonor || 0, ujianJumlah: '-', ujianHonor: 0, tunjangan: 0, transport: 0, honor: bonus.amount, isBonus: true }); totalHonor += bonus.amount; totalEventJumlah += (bonus.dlJumlah || 0); totalEventHonor += (bonus.dlHonor || 0); });
       for (const guruKey of allTeacherKeys) {
         const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }, r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 }, ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 }, uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 }, ekpic = groupedEkskulPic[guruKey] || { jumlah: 0, honor: 0 };
         // guruObj dicari lewat key dulu (akurat), fallback cari lewat nama untuk kompatibilitas
@@ -7160,7 +7168,7 @@
       let no = start + 1;
       for (const item of pageItems) {
         const isBonus = item.isBonus || false, bgStyle = isBonus ? 'style="background:#fef3c7;font-weight:600;"' : '';
-        const eventCell = isBonus ? '-' : `${item.eventJumlah}x (Rp ${item.eventHonor.toLocaleString()})`;
+        const eventCell = (isBonus && !(item.eventJumlah > 0)) ? '-' : `${item.eventJumlah}x (Rp ${item.eventHonor.toLocaleString()})`;   // baris Kepala menampilkan Dinas Luar bila ada
         const ujianCell = isBonus ? '-' : `${item.ujianJumlah}x (Rp ${item.ujianHonor.toLocaleString()})`;
         const tunjanganCell = isBonus ? '-' : `Rp ${item.tunjangan.toLocaleString()}`;
         const transportCell = isBonus ? '-' : `Rp ${item.transport.toLocaleString()}`;
@@ -8887,6 +8895,7 @@
     function kagCocokGuru(a, g) { return a.guruKey ? a.guruKey === g.key : a.guru === g.name; }
     function setupKelolaAbsenGuruPage() {
       if (!isAdmin() && !isKepsek()) return;
+      if (isAdmin()) { try { krgSetupCard(); } catch (e) { console.error('[SI MAMBA] krgSetupCard gagal:', e); } }
       const dari = kagEl('kagDari'), sampai = kagEl('kagSampai');
       if (!dari.value || !sampai.value) { const n = new Date(); dari.value = tglLokal(new Date(n.getFullYear(), n.getMonth(), 1)); sampai.value = tglLokal(n); }
       const sel = kagEl('kagFilterGuru'), cur = sel.value;
@@ -9013,6 +9022,159 @@
         addLog('hapus_absen_guru', `${a.guru} - ${a.tanggal} - ${a.type}`);
         reloadDataset('teacherAttendance'); loadKelolaAbsenGuru();
       }).catch(err => toast('Gagal menghapus: ' + err.message, true));
+    }
+    // ============================================================
+    // KOREKSI ABSEN RELIGI GURU (khusus Admin)
+    // ============================================================
+    // Koreksi manual absen Sholat Dhuha/Dzuhur guru (node religi_attendance), ditempatkan sebagai kartu di
+    // halaman "Kelola Absen Guru" (menu Religi untuk guru disembunyikan dari Admin). SENGAJA tidak memakai
+    // syarat jam, hari, maupun absensi siswa seperti saveReligi() -- ini jalur koreksi Admin.
+    // Honor ikut berubah otomatis: renderHonor()/renderHonorSlip() menghitung entri berstatus 'Hadir' dari
+    // religi_attendance. Setiap koreksi dicatat lewat addLog() lengkap dengan nilai lama dan baru.
+    // Struktur record: 1 record per guru per tanggal { tanggal, guru, guruKey, tahunAjaran, updatedAt,
+    // sholat_dluha:{status,...}, sholat_dzuhur:{status,...} }. 'sholat_dluha' = Dhuha (nama field lama, jangan diubah).
+    const KRG_SHOLAT = { sholat_dluha: 'Dhuha', sholat_dzuhur: 'Dzuhur' };
+    const KRG_STATUS = ['Hadir', 'Tidak Hadir'];
+    let krgSaving = false, krgSeq = 0, krgCache = { key: '', records: null };
+    function krgEl(id) { return document.getElementById(id); }
+    function krgRupiah(n) { return (n < 0 ? '−' : n > 0 ? '+' : '') + 'Rp ' + Math.abs(n).toLocaleString('id-ID'); }
+    function krgTarif(sholat) {
+      try { return Number(v4GetHonorRates()[sholat === 'sholat_dluha' ? 'dluha' : 'dzuhur']) || 0; } catch (e) { return 0; }
+    }
+    // Ambil SEMUA record religi seorang guru pada satu tanggal langsung dari Firebase (bukan dari memori),
+    // supaya nilai lama yang dicatat di log selalu data terbaru. Cocokkan guruKey dulu, fallback nama (record lama).
+    function krgFetchRecords(tanggal, guru) {
+      return db.ref('religi_attendance').orderByChild('tanggal').equalTo(tanggal).once('value').then(snap => {
+        const out = [];
+        snap.forEach(c => { const v = c.val() || {}; v.key = c.key; if (v.guruKey ? v.guruKey === guru.key : v.guru === guru.name) out.push(v); });
+        return out.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+      });
+    }
+    // aksi = 'Hadir' | 'Tidak Hadir' | 'hapus'. Honor menghitung SETIAP record berstatus Hadir, jadi record ganda
+    // (guru yang sama, hari yang sama) dihitung terpisah -- `duplikat` dipakai untuk membersihkannya.
+    function krgHitung(recs, sholat, aksi) {
+      const punya = recs.filter(r => r[sholat]);
+      const primary = punya[0] || recs[0] || null;
+      const lama = primary && primary[sholat] ? primary[sholat] : null;
+      const hadirLama = punya.filter(r => r[sholat].status === 'Hadir').length;
+      const hadirBaru = aksi === 'Hadir' ? 1 : 0;
+      return { primary, lama, duplikat: Math.max(0, punya.length - 1), delta: hadirBaru - hadirLama, rupiah: (hadirBaru - hadirLama) * krgTarif(sholat) };
+    }
+    // Susun update multi-path untuk SATU db.ref().update() (atomik). Tidak menyentuh field sholat lain.
+    function krgSusunUpdate(p) {
+      const base = 'religi_attendance/', updates = {};
+      const lain = p.sholat === 'sholat_dluha' ? 'sholat_dzuhur' : 'sholat_dluha';
+      const punya = p.recs.filter(r => r[p.sholat]);
+      // Buang field sholat dari sebuah record; kalau record jadi kosong (tak punya sholat lain) hapus utuh.
+      const buang = r => {
+        if (r[lain]) { updates[base + r.key + '/' + p.sholat] = null; updates[base + r.key + '/updatedAt'] = p.now; }
+        else updates[base + r.key] = null;
+      };
+      if (p.aksi === 'hapus') { punya.forEach(buang); return updates; }
+      const entry = { status: p.aksi, dikoreksi: true, diubahOleh: p.adminNama, diubahAt: p.now, catatanKoreksi: p.alasan };
+      if (p.h.primary) {
+        updates[base + p.h.primary.key + '/' + p.sholat] = entry;
+        updates[base + p.h.primary.key + '/updatedAt'] = p.now;
+      } else {
+        updates[base + p.newKey] = { tanggal: p.tanggal, guru: p.guru.name, guruKey: p.guru.key, tahunAjaran: p.tahunAjaran, updatedAt: p.now, [p.sholat]: entry };
+      }
+      punya.filter(r => !p.h.primary || r.key !== p.h.primary.key).forEach(buang); // bersihkan duplikat
+      return updates;
+    }
+    function krgSetupCard() {
+      if (!isAdmin()) return;
+      const page = document.getElementById('page-kelola-absen-guru'); if (!page) return;
+      let card = krgEl('krgCard');
+      if (!card) {
+        card = document.createElement('div');
+        card.id = 'krgCard'; card.className = 'card';
+        card.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px;">🕌 Koreksi Absen Religi Guru</h3>
+          <p class="text-muted" style="font-size:12px;margin:0 0 12px;">Khusus Admin. Tidak terkena syarat jam, hari, maupun absensi siswa. Honor guru ikut berubah otomatis dan setiap koreksi dicatat di Log Aktivitas.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
+            <div><label class="label">Guru</label><select id="krgGuru" class="field" onchange="krgPreview()"></select></div>
+            <div><label class="label">Tanggal</label><input type="date" id="krgTanggal" class="field" onchange="krgPreview()"></div>
+            <div><label class="label">Sholat</label><select id="krgSholat" class="field" onchange="krgPreview()"><option value="sholat_dluha">☀️ Dhuha</option><option value="sholat_dzuhur">🕌 Dzuhur</option></select></div>
+            <div><label class="label">Status</label><select id="krgStatus" class="field" onchange="krgPreview()"><option value="Hadir">✅ Hadir</option><option value="Tidak Hadir">❌ Tidak Hadir</option><option value="hapus">🗑️ Hapus catatan</option></select></div>
+          </div>
+          <div style="margin-top:10px;"><label class="label">Alasan koreksi (wajib)</label><input type="text" id="krgAlasan" class="field" maxlength="200" placeholder="mis. Lupa absen, sudah dikonfirmasi Kepala Madrasah"></div>
+          <div id="krgPreview" style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;font-size:13px;line-height:1.6;"></div>
+          <button id="krgBtn" class="btn btn-success" style="margin-top:10px;" onclick="krgSimpan()">💾 Simpan Koreksi</button>`;
+        page.appendChild(card);
+      }
+      const sel = krgEl('krgGuru'), cur = sel.value;
+      sel.innerHTML = '<option value="">-- Pilih Guru --</option>' + kagGuruList().map(g => `<option value="${escapeHtml(g.key)}">${escapeHtml(g.name)}</option>`).join('');
+      sel.value = cur;
+      if (!krgEl('krgTanggal').value) krgEl('krgTanggal').value = tglLokal();
+      krgCache = { key: '', records: null };
+      krgPreview();
+    }
+    function krgPreview() {
+      const box = krgEl('krgPreview'); if (!box) return;
+      const g = kagGuruList().find(x => x.key === krgEl('krgGuru').value), tanggal = krgEl('krgTanggal').value;
+      if (!g || !tanggal) { box.innerHTML = '<span class="text-muted">Pilih guru dan tanggal untuk melihat data saat ini.</span>'; return; }
+      const ck = g.key + '|' + tanggal;
+      if (krgCache.key === ck && krgCache.records) return krgRenderPreview(g, krgCache.records);
+      const seq = ++krgSeq;
+      box.innerHTML = '<span class="text-muted">Memuat data...</span>';
+      krgFetchRecords(tanggal, g).then(recs => {
+        if (seq !== krgSeq) return; // jawaban basi (guru/tanggal sudah diganti lagi)
+        krgCache = { key: ck, records: recs };
+        krgRenderPreview(g, recs);
+      }).catch(err => { if (seq !== krgSeq) return; krgCache = { key: '', records: null }; box.innerHTML = `<span style="color:#dc2626;">Gagal memuat: ${escapeHtml(err && err.message || String(err))}</span>`; });
+    }
+    function krgRenderPreview(g, recs) {
+      const box = krgEl('krgPreview'); if (!box) return;
+      const sholat = krgEl('krgSholat').value, aksi = krgEl('krgStatus').value;
+      const ringkas = k => { const p = recs.filter(r => r[k]); return p.length ? p.map(r => escapeHtml(r[k].status || '-') + (r[k].dikoreksi ? ' ✏️' : '')).join(' + ') + (p.length > 1 ? ' ⚠️ ganda' : '') : 'belum ada catatan'; };
+      const h = krgHitung(recs, sholat, aksi);
+      const lamaTxt = h.lama ? escapeHtml(h.lama.status || '-') : '(kosong)', baruTxt = aksi === 'hapus' ? '(dihapus)' : escapeHtml(aksi);
+      box.innerHTML = `<div>☀️ Dhuha: <b>${ringkas('sholat_dluha')}</b> &nbsp;·&nbsp; 🕌 Dzuhur: <b>${ringkas('sholat_dzuhur')}</b></div>
+        <div>Perubahan ${KRG_SHOLAT[sholat]}: <b>${lamaTxt}</b> → <b>${baruTxt}</b> &nbsp;·&nbsp; Dampak honor: <b style="color:${h.rupiah < 0 ? '#dc2626' : h.rupiah > 0 ? '#059669' : 'inherit'};">${krgRupiah(h.rupiah)}</b></div>`;
+    }
+    function krgMuatUlangReligi() {
+      const owner = currentUser && currentUser.key;
+      db.ref('religi_attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value').then(snap => {
+        if (!currentUser || currentUser.key !== owner) return;
+        const baru = []; snap.forEach(c => { const v = c.val() || {}; v.key = c.key; baru.push(v); });
+        allReligiAttendance = baru;
+        if (dataLoaded) cacheDatasetsToIndexedDB(owner);
+      }).catch(err => console.warn('[SI MAMBA] Gagal memuat ulang religi_attendance:', err && err.message || err));
+    }
+    function krgSimpan() {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      if (krgSaving) return;
+      if (!navigator.onLine) return toast('Koreksi absen religi butuh koneksi internet.', true);
+      const guru = kagGuruList().find(g => g.key === krgEl('krgGuru').value);
+      const tanggal = krgEl('krgTanggal').value, sholat = krgEl('krgSholat').value, aksi = krgEl('krgStatus').value, alasan = krgEl('krgAlasan').value.trim();
+      if (!guru) return toast('Pilih guru!', true);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || isNaN(new Date(tanggal + 'T00:00:00'))) return toast('Isi tanggal yang valid!', true);
+      if (!KRG_SHOLAT[sholat]) return toast('Pilih sholat!', true);
+      if (aksi !== 'hapus' && !KRG_STATUS.includes(aksi)) return toast('Pilih status!', true);
+      if (!alasan) return toast('Isi alasan koreksi (jejak audit honor)!', true);
+      const btn = krgEl('krgBtn'), label = KRG_SHOLAT[sholat];
+      krgSaving = true; if (btn) btn.disabled = true;
+      krgFetchRecords(tanggal, guru).then(recs => {
+        const h = krgHitung(recs, sholat, aksi);
+        if (aksi === 'hapus' && !h.lama) throw { tampil: `Tidak ada catatan ${label} untuk ${guru.name} pada ${tanggal}, jadi tidak ada yang dihapus.` };
+        if (h.lama && h.lama.status === aksi && !h.duplikat) throw { tampil: `Tidak ada perubahan: ${label} ${guru.name} pada ${tanggal} sudah berstatus ${aksi}.` };
+        const lamaTxt = h.lama ? h.lama.status : '(kosong)', baruTxt = aksi === 'hapus' ? '(dihapus)' : aksi;
+        const tglTampil = new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+        const pesan = `Koreksi absen religi\n\nGuru: ${guru.name}\nTanggal: ${tglTampil}\nSholat: ${label}\nPerubahan: ${lamaTxt} → ${baruTxt}\nDampak honor: ${krgRupiah(h.rupiah)}\nAlasan: ${alasan}`
+          + (tanggal > tglLokal() ? '\n\n⚠️ Tanggal ini di MASA DEPAN.' : '')
+          + (h.duplikat ? `\n\nℹ️ Ada ${h.duplikat} catatan ${label} ganda pada hari ini; akan dibersihkan supaya honor tidak terhitung dobel.` : '')
+          + '\n\nSimpan?';
+        if (!(aksi === 'hapus' ? doubleConfirm(pesan) : confirm(pesan))) return null;
+        const updates = krgSusunUpdate({ guru, tanggal, sholat, aksi, alasan, recs, h, now: new Date().toISOString(), adminNama: currentUser.name, tahunAjaran: currentTahunAjaran, newKey: db.ref('religi_attendance').push().key });
+        return db.ref().update(updates).then(() => ({ h, lamaTxt, baruTxt }));
+      }).then(res => {
+        if (!res) return;
+        toast(`✅ Koreksi tersimpan. Dampak honor ${guru.name}: ${krgRupiah(res.h.rupiah)}`);
+        addLog('koreksi_religi_guru', `${guru.name} | ${tanggal} | ${label}: ${res.lamaTxt} → ${res.baruTxt} | honor ${krgRupiah(res.h.rupiah)}${res.h.duplikat ? ' | duplikat dibersihkan: ' + res.h.duplikat : ''} | alasan: ${alasan}`);
+        krgCache = { key: '', records: null };
+        krgEl('krgAlasan').value = '';
+        krgMuatUlangReligi(); krgPreview();
+      }).catch(e => toast('❌ ' + ((e && e.tampil) || ('Gagal menyimpan: ' + ((e && e.message) || e))), true))
+        .finally(() => { krgSaving = false; if (btn) btn.disabled = false; });
     }
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');
@@ -9170,6 +9332,7 @@
             <div id="saranKritikStatus" style="margin-top:8px;font-size:12px;"></div>
           </div>
         `;
+        try { if (typeof bsOrtuRender === 'function') bsOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Bacaan Shalat (Portal Ortu) gagal dirender:', e); }
       }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${err.message}</p>`; });
     }
     // Saran & Kritik dari Portal Orang Tua -- disimpan terpisah dari data siswa lain (tidak ikut
@@ -9301,7 +9464,7 @@
       // (karena teks "(Bonus)" sudah dihapus) melainkan dari nomor baris (bonusRowIndices).
       const pimpinanListPdf = bonusList.slice(0, 2).sort((x, y) => (/yayasan/i.test(y.label) ? 1 : 0) - (/yayasan/i.test(x.label) ? 1 : 0)), bonusLainnyaPdf = bonusList.slice(2);   // Ketua Yayasan no. 1, Kepala Madrasah no. 2
       const rows = []; let no = 1; const bonusRowIndices = new Set();
-      pimpinanListPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });
+      pimpinanListPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', bonus.dlJumlah > 0 ? bonus.dlJumlah + 'x' : '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });   // kolom Lembur = Dinas Luar Kepala bila ada
       const allTeacherKeysPdf = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic||{}), ...allGuru.filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0)).map(g => g.key || g.name)]);
       for (const guruKey of allTeacherKeysPdf) { const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }, r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 }, ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 }, uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 }, ekpic = (groupedEkskulPic||{})[guruKey] || { jumlah: 0, honor: 0 }; const guruObj = allGuru.find(g => g.key === guruKey) || allGuru.find(g => g.name === guruKey); const guru = j.nama || r.nama || ev.nama || uj.nama || ekpic.nama || (guruObj && guruObj.name) || guruKey; const tunjangan = (guruObj && guruObj.tunjanganMasaKerja) || 0, transport = (guruObj && guruObj.bantuanTransportasi) || 0; const honor = v4HitungHonor({ reguler: j.reguler, nonReguler: j.nonReguler, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventHonor: ev.honor, ujianHonor: uj.honor, tunjangan, transport }, rates); rows.push([no++, guru, j.reguler, j.nonReguler, `${j.ekstra}x`, r.dluha, r.dzuhur, `${ev.jumlah}x`, `${uj.jumlah}x`, `${(tunjangan+transport).toLocaleString()}`, `Rp ${honor.toLocaleString()}`, '']); }
       bonusLainnyaPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });
@@ -10506,7 +10669,9 @@
       });
 
       const groupedEvents = {};
+      const dlKepalaReport = { jumlah: 0, honor: 0 };   // Dinas Luar Kepala -> digabung ke baris Kepala Madrasah (sama seperti renderHonor)
       filteredEvents.forEach(e => {
+        if (e.guruKey === 'kepsek') { dlKepalaReport.jumlah += 1; dlKepalaReport.honor += (e.honor || 0); return; }
         const gk = resolveGuruKeyReport(e.guruKey, e.guru);
         if (!groupedEvents[gk]) groupedEvents[gk] = { nama: e.guru, jumlah: 0, honor: 0 };
         groupedEvents[gk].jumlah += 1;
@@ -10529,14 +10694,14 @@
         groupedEkskulPic[gk].honor += (x.honor || 0);
       });
 
-      const rates = v4GetHonorRates(), HONOR_KEPSEK_REPORT = 300000, HONOR_KETUA_YAYASAN_REPORT = 350000;
+      const rates = v4GetHonorRates(), HONOR_KEPSEK_REPORT = rates.kepsek, HONOR_KETUA_YAYASAN_REPORT = rates.yayasan;
       const allTeacherKeys = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic), ...guruAktifTunjangan.map(g => g.key || g.name)]);
       // FIX: bonus tetap Kepala Madrasah & Ketua Yayasan, plus Guru Terajin bulan ini kalau ada --
       // sebelumnya TIDAK ADA di laporan cetak sama sekali, padahal renderHonor() selalu
       // menyertakan & menjumlahkannya ke totalHonor. Baris ini yang membuat TOTAL HONOR di
       // laporan cetak selalu lebih kecil ±Rp 650.000 (+ bonus guru terajin bila ada) dibanding
       // yang tampil di layar Honor untuk bulan yang sama.
-      let bonusListReport = [{ label: 'Kepala Madrasah', amount: HONOR_KEPSEK_REPORT }, { label: 'Ketua Yayasan', amount: HONOR_KETUA_YAYASAN_REPORT }];
+      let bonusListReport = [{ label: 'Kepala Madrasah', amount: HONOR_KEPSEK_REPORT + dlKepalaReport.honor, dlJumlah: dlKepalaReport.jumlah, dlHonor: dlKepalaReport.honor }, { label: 'Ketua Yayasan', amount: HONOR_KETUA_YAYASAN_REPORT }];
       if (guruTerajinBulanIniReport) bonusListReport.push({ label: `🏆 Guru Terajin - ${guruTerajinBulanIniReport.guru}`, amount: guruTerajinBulanIniReport.honor });
       
       let html = `<div style="text-align:center;font-size:14px;font-weight:700;margin-bottom:8px;">LAPORAN HONOR GURU</div>
@@ -10566,7 +10731,7 @@
         html += `<tr style="background:#fef3c7;font-weight:600;">
           <td>${no++}</td>
           <td>${escapeHtml(bonus.label)}</td>
-          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>${bonus.dlJumlah > 0 ? `${bonus.dlJumlah}x (Rp ${bonus.dlHonor.toLocaleString()})` : '-'}</td><td>-</td>
           <td>-</td><td>-</td>
           <td style="font-weight:700;color:#059669;">Rp ${bonus.amount.toLocaleString()}</td>
         </tr>`;
@@ -11323,7 +11488,7 @@
       const menuRules={
         'profile-v4':true,'dashboard':true,'teacher-attendance':v4IsTeacher(),'journal':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'grades':v4IsTeacher(),'attendance':v4IsTeacher()||v4IsAdmin(),'jadwal':v4CanClass(),'students':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'activities-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'tahfidz-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ekskul-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'pramuka-v4':v4IsAdmin()||v4IsHead()||v4PramukaMyKelas().length>0,
-        'events':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ujian':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'administrasi-ujian':(typeof aujCanOpenMenu === 'function' ? aujCanOpenMenu() : false),
+        'events':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ujian':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'administrasi-ujian':(typeof aujCanOpenMenu === 'function' ? aujCanOpenMenu() : false),'bacaan-shalat':(typeof bsCanOpenMenu === 'function' ? bsCanOpenMenu() : false),
         'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':(infaqCanAccess()||isKepsek()),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'laporan':v4CanHead(),'surat':v4IsAdmin()||isWaliKelasAssigned(),'notifications-v4':true,'tasks-v4':true,'user-management':v4IsAdmin(),'kelola-absen-guru':v4IsAdmin()||v4IsHead(),'admin':v4IsAdmin(),'profil-sekolah':v4IsAdmin(),'rekap-nilai':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'promotion':v4IsAdmin(),'setting-jam':v4IsAdmin(),'rekap':v4CanHead(),'religi':v4IsTeacher()
@@ -11497,14 +11662,6 @@
     // -------- Activity / Amalan --------
     function v4LoadList(path,assign,seq){ return fbTimeout(db.ref(path).once('value').then(s=>{const arr=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;arr.push(x)});if(seq!==undefined&&seq!==v4CoreSeq)return arr;assign(arr);if(path==='activity_types_v4')v4CoreFresh++;return arr;}), 7000, path); }
     // -------- Activity / Amalan (jenis kegiatan TETAP, absensi siswa saja, PJ ditentukan Admin) --------
-    let v4ActOpenTypeKey = null;
-    let v4ActDateSel = {};        // typeKey -> tanggal aktif
-    let v4ActKelasSel = {};       // typeKey -> kelas aktif
-    let v4ActAttendanceDraft = {};// studentKey -> {status} untuk panel yang sedang dibuka
-    let v4ActFastMode = {};       // typeKey -> true = Mode Cepat (ketuk nama siswa untuk ganti status)
-    // Filter untuk Rekap Absensi Sholat Siswa (Dhuha & Dzuhur) -- terpisah dari state
-    // pengisian absensi harian di atas.
-    let v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas' };
     let v4PanelSiswaCache = {};   // kelas -> siswa[] (dipakai bersama Activities & Tahfidz)
     let v4PanelSiswaGagal = {};   // kelas -> pesan error, diisi kalau query siswa gagal/timeout (dihapus saat coba lagi)
     const V4_PANEL_SISWA_TIMEOUT_MS = 10000;
@@ -11548,499 +11705,7 @@
       if (v4PanelSiswaGagal[kelas]) return `<div style="${st}">⚠️ Gagal memuat daftar siswa ${v4Safe(kelas)} (${v4Safe(v4PanelSiswaGagal[kelas])}). <button class="btn btn-soft" style="padding:4px 10px;font-size:12px;margin-left:6px;" onclick="${retryJs}">🔄 Coba lagi</button></div>`;
       return `<div style="${st}">⏳ Memuat daftar siswa ${v4Safe(kelas)}...</div>`;
     }
-    // Solusi kalau PJ (penanggung jawab) tetap suatu kegiatan tidak bisa hadir: Admin/Kepsek
-    // bisa menunjuk "Pengganti Hari Ini" untuk TANGGAL TERTENTU saja (PJ tetapnya tidak berubah,
-    // cuma untuk hari itu digantikan). Selain itu, Admin & Kepsek MEMANG SELALU bisa mengisi
-    // absensi kegiatan apa pun kapan saja sebagai jalan pintas darurat -- lihat myTypes filter
-    // di v4RenderActivities (v4IsAdmin()||v4IsHead()||v4IsActivityPic(a)).
-    function v4IsActivityPic(type, tanggal){
-      if (!currentUser || !type) return false;
-      if (type.picKey===currentUser.key || (currentUser.name && type.picName===currentUser.name)) return true;
-      const tgl = tanggal || v4Date();
-      const sub = V4.activitySubstitutes && V4.activitySubstitutes[type.key+'_'+tgl];
-      return !!(sub && (sub.guruKey===currentUser.key || (currentUser.name && sub.guruName===currentUser.name)));
-    }
-    function v4ActivitySubstituteToday(typeKey){ return V4.activitySubstitutes && V4.activitySubstitutes[typeKey+'_'+v4Date()]; }
-    function v4ToggleAppointSubstitute(typeKey){
-      if (!v4IsAdmin() && !v4IsHead()) return toast('Hanya Admin/Kepala Madrasah yang bisa menunjuk pengganti!', true);
-      v4SubstituteFormOpenFor = (v4SubstituteFormOpenFor===typeKey) ? null : typeKey;
-      v4RenderActivities();
-    }
-    function v4AppointActivitySubstitute(typeKey){
-      if (!v4IsAdmin() && !v4IsHead()) return toast('Hanya Admin/Kepala Madrasah yang bisa menunjuk pengganti untuk guru lain! Kalau Anda sendiri yang ingin menggantikan, pakai tombol "Saya Gantikan Hari Ini".', true);
-      const sel = document.getElementById('v4SubstitutePick_'+typeKey);
-      const guruValue = sel.value; if (!guruValue) return toast('Pilih guru pengganti dulu!', true);
-      const guru = (allGuru||[]).find(g => (g.key||g.name)===guruValue); if (!guru) return;
-      const tgl = v4Date();
-      db.ref('activity_substitute_v4/'+typeKey+'_'+tgl).set({ typeId: typeKey, tanggal: tgl, guruKey: guru.key||guru.name, guruName: guru.name, appointedBy: currentUser.name, appointedAt: new Date().toISOString() }).then(() => {
-        toast('✅ '+guru.name+' ditunjuk sebagai pengganti hari ini');
-        addLog('tunjuk_pengganti_kegiatan', typeKey+' - '+guru.name);
-        V4.activitySubstitutes[typeKey+'_'+tgl] = { typeId: typeKey, tanggal: tgl, guruKey: guru.key||guru.name, guruName: guru.name };
-        v4SubstituteFormOpenFor = null;
-        v4RenderActivities();
-      }).catch(err => toast('Gagal: '+err.message, true));
-    }
-    // Longgar: guru mana pun (asal bukan PIC kegiatan itu sendiri, dan belum ada pengganti lain
-    // hari itu) boleh mencalonkan DIRINYA SENDIRI sebagai pengganti PIC tanpa perlu Admin/Kepala
-    // -- supaya tidak macet kalau PIC berhalangan mendadak sementara Admin sedang tidak di tempat.
-    function v4VolunteerAsSubstitute(typeKey){
-      const type = (V4.activityTypes||[]).find(t => t.key===typeKey); if (!type) return;
-      if (v4IsActivityPic(type)) return toast('Anda sudah PIC kegiatan ini.', true);
-      const tgl = v4Date();
-      db.ref('activity_substitute_v4/'+typeKey+'_'+tgl).transaction(cur => {
-        if (cur) return; // sudah ada pengganti duluan, batalkan (jangan menimpa)
-        return { typeId: typeKey, tanggal: tgl, guruKey: currentUser.key||currentUser.name, guruName: currentUser.name, appointedBy: currentUser.name, appointedAt: new Date().toISOString(), volunteer: true };
-      }).then(result => {
-        if (!result.committed) return toast('Sudah ada guru lain yang lebih dulu menjadi pengganti hari ini.', true);
-        toast('✅ Anda tercatat sebagai pengganti PIC hari ini');
-        addLog('mencalonkan_diri_pengganti_kegiatan', typeKey+' - '+currentUser.name);
-        V4.activitySubstitutes[typeKey+'_'+tgl] = result.snapshot.val();
-        v4RenderActivities();
-      }).catch(err => toast('Gagal: '+(err.message||err), true));
-    }
-    function v4RemoveActivitySubstitute(typeKey){
-      const tgl = v4Date();
-      const sub = V4.activitySubstitutes && V4.activitySubstitutes[typeKey+'_'+tgl];
-      // Selain Admin/Kepala, guru yang tercatat sebagai pengganti hari itu (baik ditunjuk Admin
-      // maupun mencalonkan diri sendiri) juga boleh membatalkan penunjukannya sendiri.
-      const sayaPengganti = sub && (sub.guruKey===currentUser?.key || sub.guruName===currentUser?.name);
-      if (!v4IsAdmin() && !v4IsHead() && !sayaPengganti) return toast('Hanya Admin/Kepala Madrasah atau guru yang bersangkutan yang bisa membatalkan!', true);
-      db.ref('activity_substitute_v4/'+typeKey+'_'+tgl).remove().then(() => {
-        toast('Penunjukan pengganti dibatalkan');
-        delete V4.activitySubstitutes[typeKey+'_'+tgl];
-        v4RenderActivities();
-      }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
-    }
-    let v4SubstituteFormOpenFor = null;
-    function v4OpenActivityTypeForm(){
-      if(!v4CanAdmin()) return toast('Hanya Admin!',true);
-      const box=document.getElementById('v4ActivityTypeForm'); if(!box) return;
-      box.style.display = box.style.display==='none' ? 'block' : 'none';
-      const pic=document.getElementById('v4NewActPic');
-      if(pic) pic.innerHTML=(allGuru||[]).map(g=>`<option value="${v4Safe(g.key||g.name)}" data-name="${v4Safe(g.name)}">${v4Safe(g.name)}</option>`).join('');
-      const nameEl=document.getElementById('v4NewActName'); if(nameEl) nameEl.value='';
-      const honorEl=document.getElementById('v4NewActHonor'); if(honorEl) honorEl.checked=false;
-    }
-    function v4SaveNewActivityType(){
-      if(!v4CanAdmin()) return toast('Hanya Admin!',true);
-      if (isBusy('v4SaveNewActivityType')) return toast('Sedang menyimpan...', false, 1500);
-      const name=(document.getElementById('v4NewActName').value||'').trim();
-      if(!name) return toast('Nama kegiatan wajib diisi!',true);
-      const category=document.getElementById('v4NewActCategory').value;
-      const picSel=document.getElementById('v4NewActPic');
-      const picKey=picSel.value, picOpt=picSel.selectedOptions[0];
-      const picName=picOpt ? (picOpt.dataset.name || picOpt.textContent) : '';
-      if(!picKey) return toast('Pilih penanggung jawab!',true);
-      const honor=document.getElementById('v4NewActHonor').checked;
-      const btnSaveNewAct = document.getElementById('btnSaveNewActivityType');
-      setBusy('v4SaveNewActivityType', btnSaveNewAct);
-      db.ref('activity_types_v4').push().set({name,category,honorEnabled:honor,picKey,picName,createdAt:new Date().toISOString(),createdBy:currentUser.name}).then(()=>{
-        clearBusy('v4SaveNewActivityType', btnSaveNewAct);
-        toast('✅ Jenis kegiatan ditambahkan');
-        document.getElementById('v4ActivityTypeForm').style.display='none';
-        v4LoadCore();
-      }).catch(err => { clearBusy('v4SaveNewActivityType', btnSaveNewAct); console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
-    }
-    function v4ChangeActivityPic(key, picValue){
-      if(!v4CanAdmin()) return toast('Hanya Admin!',true);
-      const guru=(allGuru||[]).find(g=>(g.key||g.name)===picValue); if(!guru) return;
-      db.ref('activity_types_v4/'+key).update({picKey:guru.key||guru.name,picName:guru.name,updatedAt:new Date().toISOString()}).then(()=>{
-        toast('✅ Penanggung jawab diperbarui'); v4LoadCore();
-      }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
-    }
-    function v4ToggleActivityHonor(key){ if(!v4CanAdmin()) return toast('Hanya Admin!',true); const a=V4.activityTypes.find(x=>x.key===key); if(!a)return; db.ref('activity_types_v4/'+key).update({honorEnabled:!a.honorEnabled,updatedAt:new Date().toISOString()}).then(()=>{toast('Honor kegiatan diperbarui');v4LoadCore();}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); }); }
-    function v4DeleteActivityType(key){
-      if(!v4CanAdmin()) return toast('Hanya Admin!',true);
-      if(!confirm('Hapus jenis kegiatan ini? Data absensi yang sudah tercatat sebelumnya tidak akan ikut terhapus.')) return;
-      db.ref('activity_types_v4/'+key).remove().then(()=>{ toast('Jenis kegiatan dihapus'); v4LoadCore(); }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
-    }
-
-    function v4RenderActivities(){
-      const box=document.getElementById('v4ActivityConfig'); if(!box) return;
-      box.innerHTML=V4.activityTypes.length?V4.activityTypes.map(a=>{
-        const picOptions=(allGuru||[]).map(g=>`<option value="${v4Safe(g.key||g.name)}" ${(g.key||g.name)===a.picKey?'selected':''}>${v4Safe(g.name)}</option>`).join('');
-        const sub = v4ActivitySubstituteToday(a.key);
-        const subFormOpen = v4SubstituteFormOpenFor===a.key;
-        const sayaPic = v4IsActivityPic(a);
-        let subBlock = '';
-        if (v4IsAdmin() || v4IsHead()) {
-          // Admin/Kepala: bisa menunjuk SIAPA SAJA lewat dropdown penuh, seperti sebelumnya.
-          if (sub) {
-            subBlock = `<div style="margin-top:7px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 8px;font-size:11px;color:#92400e;">🔄 Pengganti hari ini: <strong>${v4Safe(sub.guruName)}</strong> <button class="btn btn-soft" style="padding:2px 7px;font-size:10px;min-height:22px;margin-left:4px;" onclick="v4RemoveActivitySubstitute('${a.key}')">Batalkan</button></div>`;
-          } else {
-            const subOptions=(allGuru||[]).map(g=>`<option value="${v4Safe(g.key||g.name)}">${v4Safe(g.name)}</option>`).join('');
-            subBlock = `<div style="margin-top:7px;">
-              <button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:28px;" onclick="v4ToggleAppointSubstitute('${a.key}')">🔄 PJ Tidak Bisa Hadir? Tunjuk Pengganti Hari Ini</button>
-              ${subFormOpen?`<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;"><select id="v4SubstitutePick_${a.key}" class="field" style="font-size:11px;padding:5px;flex:1;min-width:120px;"><option value="">-- Pilih Guru --</option>${subOptions}</select><button class="btn btn-success" style="padding:4px 10px;font-size:10px;" onclick="v4AppointActivitySubstitute('${a.key}')">✔️ Tunjuk</button></div>`:''}
-            </div>`;
-          }
-        } else if (sub) {
-          // Guru yang sedang jadi pengganti hari ini boleh batalkan sendiri kalau ternyata dia
-          // juga berhalangan -- tidak perlu tunggu Admin/Kepala.
-          const sayaPengganti = sub.guruKey===currentUser?.key || sub.guruName===currentUser?.name;
-          subBlock = `<div style="margin-top:7px;font-size:11px;color:#92400e;">🔄 Pengganti hari ini: <strong>${v4Safe(sub.guruName)}</strong>${sayaPengganti?` <button class="btn btn-soft" style="padding:2px 7px;font-size:10px;min-height:22px;margin-left:4px;" onclick="v4RemoveActivitySubstitute('${a.key}')">Batalkan</button>`:''}</div>`;
-        } else if (!sayaPic) {
-          // Longgar: guru mana pun (bukan PIC, bukan Admin/Kepala) boleh MENCALONKAN DIRI
-          // SENDIRI sebagai pengganti PIC hari itu, tanpa perlu menunggu Admin/Kepala --
-          // supaya tidak macet kalau kebetulan Admin sedang tidak di tempat pas jam sholat.
-          // Tidak bisa menunjuk ORANG LAIN (itu tetap wewenang Admin/Kepala di atas).
-          subBlock = `<div style="margin-top:7px;"><button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:28px;" onclick="v4VolunteerAsSubstitute('${a.key}')">🙋 PJ Tidak Hadir? Saya Gantikan Hari Ini</button></div>`;
-        }
-        return `<div class="v4-card">
-          <h4>${v4Safe(a.name)}</h4>
-          <div class="v4-muted">${v4Safe(a.category||'Kegiatan')} · Absensi siswa</div>
-          <div style="margin-top:7px;"><span class="v4-chip blue">👤 PJ: ${v4Safe(a.picName||'-')}</span></div>
-          ${v4IsAdmin()?`<div style="margin-top:7px;"><select class="field" style="font-size:11px;padding:5px;" onchange="v4ChangeActivityPic('${a.key}', this.value)">${picOptions}</select></div>`:''}
-          ${subBlock}
-          <div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap;">
-            <span class="v4-chip ${a.honorEnabled?'orange':''}">${a.honorEnabled?'💰 Honor aktif':'Tanpa honor'}</span>
-            ${v4IsAdmin()?`<button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:30px;" onclick="v4ToggleActivityHonor('${a.key}')">Ubah Honor</button><button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:30px;color:#b91c1c;" onclick="v4DeleteActivityType('${a.key}')">🗑️</button>`:''}
-          </div>
-        </div>`;
-      }).join(''):'<div class="v4-card"><h4>Belum ada jenis kegiatan</h4><div class="v4-muted">Admin dapat menambahkan amalan/kegiatan (mis. Shalat Dhuha, Shalat Dzuhur) beserta penanggung jawabnya.</div></div>';
-
-      const fillBox=document.getElementById('v4ActivityFillSection'); if(!fillBox) return;
-      const myTypes=V4.activityTypes.filter(a=>v4IsAdmin()||v4IsHead()||v4IsActivityPic(a));
-      if(myTypes.length===0){
-        fillBox.innerHTML = V4.activityTypes.length ? '<p class="v4-muted">Anda belum ditunjuk sebagai penanggung jawab kegiatan apa pun. Kalau PJ tetap berhalangan hadir, minta Admin/Kepala Madrasah menunjuk Anda sebagai pengganti hari ini di kartu kegiatan di atas.</p>' : '';
-        v4RenderRekapReligiSiswa();
-        return;
-      }
-      fillBox.innerHTML = myTypes.map(type=>{
-        const isOpen = v4ActOpenTypeKey===type.key;
-        const dateVal = v4ActDateSel[type.key] || v4Date();
-        v4ActDateSel[type.key] = dateVal;
-        const countToday=(V4.activityAttendance||[]).filter(r=>r.activityTypeId===type.key && r.tanggal===dateVal && r.status).length;
-        const sub = v4ActivitySubstituteToday(type.key);
-        const subNote = sub ? ` · 🔄 diisi sbg pengganti ${v4Safe(sub.guruName)} hari ini` : '';
-        return `<div class="v4-task" style="flex-direction:column;align-items:stretch;">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-            <div class="v4-task-main"><div class="v4-task-title">🕌 ${v4Safe(type.name)}</div><div class="v4-task-meta">PJ: ${v4Safe(type.picName||'-')} · ${countToday} siswa tercatat tgl ${v4Safe(dateVal)}${subNote}</div></div>
-            <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" onclick="v4ToggleActivityFill('${type.key}')">${isOpen?'✖️ Tutup':'📋 Isi Absensi'}</button>
-          </div>
-          ${isOpen?v4RenderActivityFillPanel(type):''}
-        </div>`;
-      }).join('');
-      v4RenderRekapReligiSiswa();
-    }
-    // Rekap absensi SISWA untuk Sholat Dhuha/Dzuhur -- dua tampilan:
-    // - "kelas": per tanggal dalam bulan terpilih, persentase kehadiran kelas itu.
-    // - "siswa": per siswa dalam kelas terpilih, jumlah hadir dibanding hari yang benar-benar
-    //   tercatat (bukan dibanding hari kalender -- supaya tidak perlu tahu kalender libur madrasah).
-    // Kelas yang bisa dipilih dibatasi siswaScopeKelas() -- sama seperti Data Siswa/Rekap Nilai,
-    // Wali Kelas cuma lihat kelasnya sendiri, Admin/Kepsek lihat semua.
-    // Normalisasi status absensi kegiatan: kode H/S/I/A (format input) dan kata penuh (data lama) -> H/S/I/A.
-    function v4NormStatusKegiatan(st) {
-      return ({ H:'H', Hadir:'H', S:'S', Sakit:'S', I:'I', Izin:'I', A:'A', Alpa:'A', Alpha:'A' })[st] || null;
-    }
-    let v4RekapReligiLast = null; // tabel rekap yang sedang tampil -- dipakai tombol ekspor
-    function v4ExportRekapReligi(fmt) {
-      const t = v4RekapReligiLast;
-      if (!t || !t.rows || !t.rows.length) return toast('Tidak ada data untuk diekspor.', true);
-      const nama = 'Rekap_Sholat_' + namaFileAman(t.fileTag);
-      if (fmt === 'xlsx') {
-        ensureLib('xlsx').then(() => {
-          const ws = XLSX.utils.aoa_to_sheet([[t.judul], [], t.head, ...t.rows, [], [t.catatan || '']]);
-          ws['!cols'] = t.head.map((h, i) => ({ wch: i === 0 ? 24 : Math.max(10, String(h).length + 2) }));
-          const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
-          XLSX.writeFile(wb, nama + '.xlsx');
-        }).catch(e => toast('Gagal memuat library Excel (butuh internet): ' + (e && e.message || e), true));
-      } else {
-        ensureLib('pdf').then(() => {
-          const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4'); const w = doc.internal.pageSize.getWidth();
-          doc.setFontSize(13); doc.text(doc.splitTextToSize(t.judul, w - 28), w / 2, 14, { align: 'center' });
-          doc.setFontSize(9); doc.text('Dicetak: ' + new Date().toLocaleString('id-ID'), w - 14, 24, { align: 'right' });
-          doc.autoTable({ startY: 28, head: [t.head], body: t.rows.map(r => r.map(String)), theme: 'striped', styles: { fontSize: 8 }, headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } });
-          if (t.catatan) { const y = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 30) + 6; doc.setFontSize(8); doc.text(doc.splitTextToSize(t.catatan, w - 28), 14, y); }
-          doc.save(nama + '.pdf');
-        }).catch(e => toast('Gagal memuat library PDF (butuh internet): ' + (e && e.message || e), true));
-      }
-    }
-    function v4RenderRekapReligiSiswa() {
-      const host = document.getElementById('v4RekapReligiSiswa');
-      if (!host) return;
-      const scope = siswaScopeKelas();
-      if (!scope.length) { host.innerHTML = '<div class="v4-card"><div class="v4-muted">Tidak ada kelas dalam jangkauan Anda.</div></div>'; return; }
-      if (!v4RekapReligiState.kelas || !scope.includes(v4RekapReligiState.kelas)) v4RekapReligiState.kelas = scope[0];
-      const now = new Date();
-      if (!v4RekapReligiState.bulan) v4RekapReligiState.bulan = now.getMonth() + 1;
-      if (!v4RekapReligiState.tahun) v4RekapReligiState.tahun = now.getFullYear();
-
-      const dluhaTypes = v4CariJenisKegiatanSholat('Dluha').map(t => t.key);
-      const dzuhurTypes = v4CariJenisKegiatanSholat('Dzuhur').map(t => t.key);
-      if (!dluhaTypes.length && !dzuhurTypes.length) {
-        host.innerHTML = '<div class="v4-card"><div class="v4-muted">Jenis kegiatan Sholat Dhuha/Dzuhur belum dibuat di atas, rekap belum bisa ditampilkan.</div></div>';
-        return;
-      }
-
-      const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-      const bulanOptions = namaBulan.map((n,i) => `<option value="${i+1}" ${v4RekapReligiState.bulan===i+1?'selected':''}>${n}</option>`).join('');
-      const tahunSekarang = now.getFullYear();
-      const tahunOptions = [tahunSekarang-1, tahunSekarang, tahunSekarang+1].map(t => `<option value="${t}" ${v4RekapReligiState.tahun===t?'selected':''}>${t}</option>`).join('');
-      const kelasOptions = scope.map(k => `<option value="${v4Safe(k)}" ${v4RekapReligiState.kelas===k?'selected':''}>${v4Safe(k)}</option>`).join('');
-
-      const monthStr = String(v4RekapReligiState.bulan).padStart(2,'0');
-      const inBulan = (tgl) => { if (!tgl) return false; const p = tgl.split('-'); return p[0] === String(v4RekapReligiState.tahun) && p[1] === monthStr; };
-      const siswaKelas = (allSiswa || []).filter(s => s.kelas === v4RekapReligiState.kelas);
-      const siswaKeyKelas = new Set(siswaKelas.map(s => s.key));
-      const recsBulanIni = (V4.activityAttendance || []).filter(r => inBulan(r.tanggal) && siswaKeyKelas.has(r.studentId));
-
-      const controlsHtml = `<div class="v4-card"><div class="v4-grid-3">
-        <div><label class="label">Kelas</label><select class="field" onchange="v4RekapReligiState.kelas=this.value;v4RenderRekapReligiSiswa();">${kelasOptions}</select></div>
-        <div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
-        <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>
-      </div>
-      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
-        <button class="btn ${v4RekapReligiState.view==='kelas'?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='kelas';v4RenderRekapReligiSiswa();">📅 Per Hari (Kelas)</button>
-        <button class="btn ${v4RekapReligiState.view==='siswa'?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='siswa';v4RenderRekapReligiSiswa();">🧑‍🎓 Per Siswa</button>
-        <button class="btn ${v4RekapReligiState.view==='pj'?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='pj';v4RenderRekapReligiSiswa();">📋 Kepatuhan PJ</button>
-        <button class="btn btn-soft" onclick="v4ExportRekapReligi('xlsx')">📥 Excel</button>
-        <button class="btn btn-soft" onclick="v4ExportRekapReligi('pdf')">📄 PDF</button>
-      </div></div>`;
-
-      // ---- Susun tabel SEKALI (dipakai untuk tampilan layar DAN ekspor Excel/PDF) ----
-      const vw = v4RekapReligiState.view;
-      const kelasTxt = v4RekapReligiState.kelas, bulanTxt = namaBulan[v4RekapReligiState.bulan - 1], tahunTxt = v4RekapReligiState.tahun;
-      const hitung = recs => { const c = { H:0, S:0, I:0, A:0, total:0 }; recs.forEach(r => { const k = v4NormStatusKegiatan(r.status); if (k) { c[k]++; c.total++; } }); return c; };
-      const persen = c => c.total ? Math.round(c.H / c.total * 100) + '%' : '-';
-      const sel = c => [c.H, c.S, c.I, c.A, persen(c)];
-      const headStatus = ['Dhuha H','Dhuha S','Dhuha I','Dhuha A','Dhuha %','Dzuhur H','Dzuhur S','Dzuhur I','Dzuhur A','Dzuhur %'];
-      const dl = recs => recs.filter(r => dluhaTypes.includes(r.activityTypeId));
-      const dz = recs => recs.filter(r => dzuhurTypes.includes(r.activityTypeId));
-      const catStatus = 'H = Hadir, S = Sakit, I = Izin, A = Alpa. % = persentase hadir dari yang tercatat.';
-      let tabel;
-      if (vw === 'siswa') {
-        tabel = {
-          judul: `Rekap Sholat Dhuha dan Dzuhur - Per Siswa - Kelas ${kelasTxt} - ${bulanTxt} ${tahunTxt}`, fileTag: `PerSiswa_${kelasTxt}_${bulanTxt}_${tahunTxt}`,
-          head: ['Nama Siswa', ...headStatus], catatan: catStatus, kosong: 'Tidak ada siswa di kelas ini.',
-          rows: siswaKelas.slice().sort((a,b)=>COLLATOR_ID.compare(a.name, b.name)).map(st => { const rs = recsBulanIni.filter(r => r.studentId === st.key); return [st.name, ...sel(hitung(dl(rs))), ...sel(hitung(dz(rs)))]; })
-        };
-      } else if (vw === 'pj') {
-        // Kepatuhan PJ: tiap hari sholat yang berlaku, apakah absensi siswa kelas ini sudah diisi & oleh siapa.
-        const hariIni = tglLokal(), jmlSiswa = siswaKelas.length;
-        const allMonth = (V4.activityAttendance || []).filter(r => r.status && inBulan(r.tanggal));
-        const jenis = [{ keys: dluhaTypes, jenis: 'sholat_dluha' }, { keys: dzuhurTypes, jenis: 'sholat_dzuhur' }];
-        const belum = [0, 0], rows = [];
-        const lastDay = new Date(v4RekapReligiState.tahun, v4RekapReligiState.bulan, 0).getDate();
-        for (let d = 1; d <= lastDay; d++) {
-          const tgl = `${v4RekapReligiState.tahun}-${monthStr}-${String(d).padStart(2,'0')}`;
-          if (tgl > hariIni) break;
-          const row = [tgl];
-          jenis.forEach((j, idx) => {
-            if (!j.keys.length || !v4HariDiizinkanSholat(j.jenis, tgl)) { row.push('-'); return; }
-            const sekolah = allMonth.filter(r => j.keys.includes(r.activityTypeId) && r.tanggal === tgl);
-            if (!sekolah.length) { row.push('Tidak ada data sekolah (libur?)'); return; }
-            const kls = sekolah.filter(r => siswaKeyKelas.has(r.studentId));
-            if (!kls.length) { belum[idx]++; row.push('BELUM DIISI'); return; }
-            const oleh = [...new Set(kls.map(r => r.recordedBy).filter(Boolean))].join(', ') || '-';
-            row.push(`Terisi ${kls.length}/${jmlSiswa} siswa - ${oleh}`);
-          });
-          if (row.slice(1).some(x => x !== '-')) rows.push(row);
-        }
-        tabel = {
-          judul: `Kepatuhan PJ Absensi Siswa Sholat - Kelas ${kelasTxt} - ${bulanTxt} ${tahunTxt}`, fileTag: `KepatuhanPJ_${kelasTxt}_${bulanTxt}_${tahunTxt}`,
-          head: ['Tanggal', 'Sholat Dhuha', 'Sholat Dzuhur'], rows,
-          catatan: `Hari belum diisi: Dhuha ${belum[0]}, Dzuhur ${belum[1]}. "Tidak ada data sekolah" = tidak ada satu kelas pun yang terisi pada hari itu (kemungkinan libur). Hari berlaku: Dhuha Senin-Sabtu, Dzuhur Senin-Kamis.`,
-          kosong: 'Belum ada hari sholat yang bisa dinilai pada bulan ini.'
-        };
-      } else {
-        const tanggalSet = [...new Set(recsBulanIni.filter(r => r.status).map(r => r.tanggal))].sort();
-        tabel = {
-          judul: `Rekap Sholat Dhuha dan Dzuhur - Per Hari - Kelas ${kelasTxt} - ${bulanTxt} ${tahunTxt}`, fileTag: `PerHari_${kelasTxt}_${bulanTxt}_${tahunTxt}`,
-          head: ['Tanggal', ...headStatus], catatan: catStatus, kosong: 'Belum ada data absensi sholat untuk kelas & bulan ini.',
-          rows: tanggalSet.map(tgl => { const rt = recsBulanIni.filter(r => r.tanggal === tgl); return [tgl, ...sel(hitung(dl(rt))), ...sel(hitung(dz(rt)))]; })
-        };
-      }
-      v4RekapReligiLast = tabel;
-      let bodyHtml;
-      if (!tabel.rows.length) {
-        bodyHtml = `<div class="v4-card"><div class="v4-muted">${v4Safe(tabel.kosong)}</div></div>`;
-      } else {
-        const th = tabel.head.map(h => `<th>${v4Safe(h)}</th>`).join('');
-        const tr = tabel.rows.map(r => `<tr>${r.map(c => { const t = String(c); const merah = t.startsWith('BELUM'); return `<td${merah ? ' style="color:#b91c1c;font-weight:700;"' : ''}>${v4Safe(t)}</td>`; }).join('')}</tr>`).join('');
-        bodyHtml = `<div class="v4-card" style="overflow-x:auto;margin-top:10px;"><table style="font-size:12px;"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table><div class="v4-muted" style="margin-top:6px;font-size:11px;">${v4Safe(tabel.catatan || '')}</div></div>`;
-      }
-      host.innerHTML = controlsHtml + bodyHtml;
-    }
-    function v4ToggleActivityFill(typeKey){
-      if (v4ActOpenTypeKey === typeKey) { v4ActOpenTypeKey = null; }
-      else { v4ActOpenTypeKey = typeKey; v4ActAttendanceDraft = {}; if (!v4ActKelasSel[typeKey]) v4ActKelasSel[typeKey] = ''; }
-      v4RenderActivities();
-    }
-    function v4RenderActivityFillPanel(type){
-      const dateVal = v4ActDateSel[type.key] || v4Date();
-      const kelasVal = v4ActKelasSel[type.key] || '';
-      const kelasOptions = KELAS_LIST.map(k => `<option value="${escapeHtml(k)}" ${kelasVal===k?'selected':''}>${escapeHtml(k)}</option>`).join('');
-      if (!kelasVal) {
-        return `<div class="border-muted" style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;">
-          <label class="label">Pilih kelas untuk mulai mengisi</label>
-          <select class="field" style="max-width:220px;" onchange="v4SetActivityKelas('${type.key}', this.value)"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select>
-        </div>`;
-      }
-      if (!v4PanelSiswaCache[kelasVal]) {
-        return v4PanelSiswaMemuatHtml(kelasVal, `v4SetActivityKelas('${escapeJs(type.key)}','${escapeJs(kelasVal)}')`, 'margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;');
-      }
-      const siswa = v4PanelSiswaCache[kelasVal].slice().sort((a,b)=>COLLATOR_ID.compare(a.name, b.name));
-      const existingMap = {};
-      (V4.activityAttendance||[]).filter(r => r.activityTypeId===type.key && r.tanggal===dateVal).forEach(r => { existingMap[r.studentId] = r; });
-      let rows = siswa.map(s => {
-        const draft = v4ActAttendanceDraft[s.key] || existingMap[s.key] || {};
-        const statusBtns = ['H','S','I','A'].map(st => `<button class="status-choice ${draft.status===st?'selected':''}" data-status="${st}" onclick="v4SetActivityField('${type.key}','${s.key}','${st}')">${st}</button>`).join('');
-        return `<tr><td style="font-weight:600;white-space:nowrap;">${v4Safe(s.name)}</td><td><div style="display:flex;gap:4px;flex-wrap:wrap;">${statusBtns}</div></td></tr>`;
-      }).join('');
-      if (siswa.length === 0) rows = `<tr><td colspan="2" class="text-muted" style="text-align:center;padding:12px;">Belum ada siswa di kelas ini.</td></tr>`;
-      // MODE CEPAT: daftar nama yang bisa diketuk. Ketuk = ganti status berurutan H -> A -> S -> I -> H.
-      // Cocok untuk kelas yang hampir semuanya hadir: cukup ketuk nama siswa yang tidak ikut sholat.
-      const fast = !!v4ActFastMode[type.key] && siswa.length > 0;
-      let listHtml;
-      if (fast) {
-        const warna = { H:['#dcfce7','#86efac','#166534'], A:['#fee2e2','#fca5a5','#991b1b'], S:['#fef9c3','#fde047','#854d0e'], I:['#dbeafe','#93c5fd','#1e40af'] };
-        const label = { H:'Hadir', A:'Alpa', S:'Sakit', I:'Izin' };
-        const cnt = { H:0, A:0, S:0, I:0, kosong:0 };
-        const chips = siswa.map(s => {
-          const st = (v4ActAttendanceDraft[s.key] || existingMap[s.key] || {}).status;
-          const c = warna[st]; if (c) cnt[st]++; else cnt.kosong++;
-          const [bg, bd, fg] = c || ['#f3f4f6','#d1d5db','#374151'];
-          return `<button type="button" onclick="v4CycleActivityStatus('${type.key}','${s.key}')" style="text-align:left;min-height:46px;padding:6px 10px;border-radius:10px;border:1.5px solid ${bd};background:${bg};color:${fg};cursor:pointer;font-size:13px;line-height:1.25;"><strong>${v4Safe(s.name)}</strong><br><span style="font-size:11px;">${st ? label[st] : 'Belum diisi'}</span></button>`;
-        }).join('');
-        listHtml = `<div style="font-size:12px;margin-bottom:6px;color:#374151;">Ketuk nama untuk mengubah status: Hadir → Alpa → Sakit → Izin → Hadir.<br>✅ Hadir ${cnt.H} · ❌ Alpa ${cnt.A} · 🤒 Sakit ${cnt.S} · 📝 Izin ${cnt.I}${cnt.kosong?` · ⬜ Belum ${cnt.kosong}`:''}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>`;
-      } else {
-        listHtml = `<div style="overflow-x:auto;"><table><thead><tr><th>Nama</th><th>Kehadiran</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-      }
-      return `<div style="margin-top:10px;">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-          <label class="label" style="margin:0;">Tanggal:</label>
-          <input type="date" class="field" style="max-width:150px;" value="${dateVal}" onchange="v4SetActivityDate('${type.key}', this.value)">
-          <label class="label" style="margin:0;">Kelas:</label>
-          <select class="field" style="max-width:170px;" onchange="v4SetActivityKelas('${type.key}', this.value)"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select>
-        </div>
-        ${siswa.length>0?`<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;"><button class="btn ${fast?'btn-success':'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="v4ToggleActivityFast('${type.key}')">⚡ Mode Cepat: Ketuk Nama${fast?' (aktif)':''}</button>${fast?'':`<button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="v4FillAllActivityHadir('${type.key}')">✅ Isi Semua Hadir (yang belum diisi)</button>`}</div>`:''}
-        ${listHtml}
-        ${siswa.length>0?`<button id="btnSaveV4Act_${type.key}" class="btn btn-success" style="margin-top:10px;" onclick="v4SaveActivityAttendance('${type.key}')">💾 Simpan Absensi (${kelasVal})</button>`:''}
-      </div>`;
-    }
-    function v4SetActivityDate(typeKey, date){
-      v4ActDateSel[typeKey] = date || v4Date();
-      v4ActAttendanceDraft = {};
-      v4RenderActivities();
-    }
-    function v4SetActivityKelas(typeKey, kelas){
-      v4ActKelasSel[typeKey] = kelas;
-      v4ActAttendanceDraft = {};
-      if (!kelas) { v4RenderActivities(); return; }
-      v4FetchSiswaByKelas(kelas, () => v4RenderActivities());
-      v4RenderActivities();
-    }
-    // Percepat input: tandai SEMUA siswa yang belum punya status sebagai Hadir, lalu guru tinggal mengetuk
-    // pengecualian (S/I/A). Status yang sudah diisi (draft maupun tersimpan) TIDAK ditimpa.
-    function v4ToggleActivityFast(typeKey){
-      v4ActFastMode[typeKey] = !v4ActFastMode[typeKey];
-      // Saat Mode Cepat dinyalakan, siswa yang belum diisi otomatis Hadir (yang sudah diisi tidak ditimpa).
-      if (v4ActFastMode[typeKey]) v4FillAllActivityHadir(typeKey); else v4RenderActivities();
-    }
-    function v4CycleActivityStatus(typeKey, studentKey){
-      const dateVal = v4ActDateSel[typeKey] || v4Date();
-      const existing = (V4.activityAttendance||[]).find(r => r.activityTypeId===typeKey && r.studentId===studentKey && r.tanggal===dateVal) || {};
-      const cur = (v4ActAttendanceDraft[studentKey] || existing || {}).status;
-      const next = { H:'A', A:'S', S:'I', I:'H' }[cur] || 'H';
-      v4ActAttendanceDraft[studentKey] = { status: next };
-      v4RenderActivities();
-    }
-    function v4FillAllActivityHadir(typeKey){
-      const kelasVal = v4ActKelasSel[typeKey] || '', dateVal = v4ActDateSel[typeKey] || v4Date();
-      const siswa = v4PanelSiswaCache[kelasVal] || [];
-      if (!siswa.length) return toast('Belum ada siswa di kelas ini.', true);
-      const existing = {};
-      (V4.activityAttendance||[]).filter(r => r.activityTypeId===typeKey && r.tanggal===dateVal).forEach(r => { existing[r.studentId] = r; });
-      let n = 0;
-      siswa.forEach(st => {
-        const cur = (v4ActAttendanceDraft[st.key] || existing[st.key] || {}).status;
-        if (!cur) { v4ActAttendanceDraft[st.key] = { status: 'H' }; n++; }
-      });
-      toast(n ? `✅ ${n} siswa ditandai Hadir. Ubah yang tidak hadir, lalu Simpan.` : 'Semua siswa sudah terisi.', false, 2500);
-      v4RenderActivities();
-    }
-    function v4SetActivityField(typeKey, studentKey, status){
-      if (!v4ActAttendanceDraft[studentKey]) {
-        const dateVal = v4ActDateSel[typeKey] || v4Date();
-        const existing = (V4.activityAttendance||[]).find(r => r.activityTypeId===typeKey && r.studentId===studentKey && r.tanggal===dateVal) || {};
-        v4ActAttendanceDraft[studentKey] = { status: existing.status||null };
-      }
-      v4ActAttendanceDraft[studentKey].status = (v4ActAttendanceDraft[studentKey].status === status) ? null : status;
-      v4RenderActivities();
-    }
-    function v4SaveActivityAttendance(typeKey){
-      const type = V4.activityTypes.find(x => x.key === typeKey);
-      if (!type) return toast('Kegiatan tidak ditemukan!', true);
-      if (!v4IsAdmin() && !v4IsHead() && !v4IsActivityPic(type)) return toast('Hanya penanggung jawab yang bisa mengisi absensi ini!', true);
-      if (isBusy('v4SaveAct_'+typeKey)) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
-      // Offline: write Firebase baru selesai (resolve) setelah server mengonfirmasi, jadi saat offline
-      // promise-nya menggantung dan kunci busy tidak pernah dilepas (tombol macet selamanya).
-      if (!navigator.onLine) return toast('📡 Sedang offline. Simpan absensi kegiatan butuh koneksi internet.', true);
-      const kelasVal = v4ActKelasSel[typeKey] || '', dateVal = v4ActDateSel[typeKey] || v4Date();
-      const siswa = v4PanelSiswaCache[kelasVal] || [];
-      if (siswa.length === 0) return toast('Tidak ada siswa di kelas ini.', true);
-
-      // RACE #1 (lost update antar-guru): dulu SEMUA siswa satu kelas ditulis ulang dari salinan lokal
-      // yang bisa sudah basi. PJ asli & PJ pengganti yang mengisi kelas/tanggal yang sama hampir
-      // bersamaan saling menimpa -- siswa yang tidak disentuh guru B ikut ditimpa dengan status basi
-      // atau null, menghapus isian guru A. Sekarang hanya siswa yang benar-benar diubah (ada di draft)
-      // yang ditulis. Snapshot diambil SEKARANG, sebelum ada await apa pun.
-      const snap = {};
-      siswa.forEach(st => { const d = v4ActAttendanceDraft[st.key]; if (d) snap[st.key] = d.status || null; });
-      const touched = siswa.filter(st => Object.prototype.hasOwnProperty.call(snap, st.key));
-      if (touched.length === 0) return toast('Belum ada perubahan absensi untuk disimpan.', false, 2000);
-
-      const getBtn = () => document.getElementById('btnSaveV4Act_'+typeKey); // tombol bisa dirender ulang saat menunggu
-      setBusy('v4SaveAct_'+typeKey, getBtn());
-      const nowIso = new Date().toISOString();
-      const records = {};
-      try {
-        touched.forEach(st => {
-          // FIX: status null (pilihan dibatalkan) TIDAK boleh ditulis sebagai record -- Rules mewajibkan child 'status'
-          // (hasChildren), jadi satu record tanpa status menggagalkan SELURUH update atomik (PERMISSION_DENIED).
-          // Dikirim sebagai null = hapus record tsb (hapus selalu lolos validasi).
-          records[`${typeKey}_${dateVal}_${st.key}`] = snap[st.key] ? { activityTypeId: typeKey, studentId: st.key, studentName: st.name, kelas: st.kelas, tanggal: dateVal, status: snap[st.key], recordedBy: currentUser.name, guruKey: currentUser.key || null, recordedAt: nowIso, tahunAjaran: currentTahunAjaran } : null;
-        });
-      } catch (e) {
-        clearBusy('v4SaveAct_'+typeKey, getBtn());
-        return toast('Gagal: '+(e && e.message || e), true);
-      }
-      // RACE #2 (partial write): dulu satu db.ref().set() per siswa -- kalau koneksi putus di tengah,
-      // sebagian tersimpan dan sebagian tidak, sementara pesan error tampil seolah semuanya gagal.
-      // Satu update() multi-path bersifat atomik: semua tersimpan atau tidak sama sekali.
-      db.ref('activity_attendance_v4').update(records).then(() => {
-        clearBusy('v4SaveAct_'+typeKey, getBtn());
-        toast('✅ Absensi tersimpan!');
-        v4Audit('SAVE_ACTIVITY_ATTENDANCE','ACTIVITY_TYPE',typeKey,null,{kelas:kelasVal,tanggal:dateVal,jumlah:touched.length});
-        // Perbarui salinan lokal SEKARANG supaya tampilan langsung benar, tidak menunggu v4LoadCore().
-        if (!Array.isArray(V4.activityAttendance)) V4.activityAttendance = [];
-        Object.keys(records).forEach(id => {
-          if (records[id] === null) {  // pilihan dibatalkan -> record dihapus di server, hapus juga di salinan lokal
-            const sid = id.slice((typeKey + '_' + dateVal + '_').length);
-            V4.activityAttendance = V4.activityAttendance.filter(r => !(r.activityTypeId===typeKey && r.studentId===sid && r.tanggal===dateVal));
-            return;
-          }
-          const rec = Object.assign({ key: id }, records[id]);
-          const i = V4.activityAttendance.findIndex(r => r.activityTypeId===typeKey && r.studentId===rec.studentId && r.tanggal===dateVal);
-          if (i >= 0) V4.activityAttendance[i] = rec; else V4.activityAttendance.push(rec);
-        });
-        // RACE #3 (lost edit): dulu v4ActAttendanceDraft = {} tanpa syarat. Ketukan H/S/I/A (atau ganti
-        // tanggal/kelas) yang terjadi SELAMA menunggu konfirmasi server ikut terhapus diam-diam.
-        // Sekarang hanya entri yang sudah tersimpan DAN belum berubah sejak snapshot yang dibuang,
-        // dan hanya kalau panel masih menampilkan kelas+tanggal yang sama.
-        const sameContext = v4ActOpenTypeKey === typeKey && (v4ActKelasSel[typeKey] || '') === kelasVal && (v4ActDateSel[typeKey] || v4Date()) === dateVal;
-        if (sameContext) {
-          touched.forEach(st => { const d = v4ActAttendanceDraft[st.key]; if (d && (d.status || null) === snap[st.key]) delete v4ActAttendanceDraft[st.key]; });
-        }
-        v4RenderActivities();
-        v4LoadCore();
-      }).catch(err => {
-        clearBusy('v4SaveAct_'+typeKey, getBtn());
-        console.error('[SI MAMBA] Gagal simpan absensi kegiatan:', err);
-        toast('❌ Gagal menyimpan (tidak ada data yang tersimpan, draft dipertahankan): '+(err && err.message || err), true);
-      });
-    }
+    // (Menu Amalan Yaumiyah dipindah ke js/amalan-kegiatan.js -- dimuat setelah app.js)
 
     // -------- Tahfidz (nama siswa per kelas, PJ per kelas ditentukan Admin) --------
     let v4TfKelasSel = '';
@@ -12446,7 +12111,7 @@
       if(v4IsAdmin()||v4IsHead()){
         let host=document.getElementById('v4HonorConfig');
         if(!host){host=document.createElement('div');host.id='v4HonorConfig';host.className='card';card.parentElement.insertBefore(host,card);}
-        host.innerHTML=`<div class="v4-section-title"><h3>⚙️ Tarif Honor Terpusat</h3><span class="v4-chip blue">Admin</span></div><div class="v4-grid-3"><div><label class="label">Honor Guru Asli / sesi</label><input id="v4RateOriginal" type="number" class="field" value="${V4.rates.original||7000}"></div><div><label class="label">Honor Guru Pengganti / sesi</label><input id="v4RateSubstitute" type="number" class="field" value="${V4.rates.substitute||5000}"></div><div><label class="label">Honor Kegiatan / sesi (Lembur-Rapat &amp; Ujian)</label><input id="v4RateActivity" type="number" class="field" value="${V4.rates.activity||0}"></div><div><label class="label">Honor Sholat Dhuha / hadir</label><input id="v4RateDluha" type="number" class="field" value="${V4.rates.dluha||5000}"></div><div><label class="label">Honor Sholat Dzuhur / hadir</label><input id="v4RateDzuhur" type="number" class="field" value="${V4.rates.dzuhur||5000}"></div></div><p class="v4-muted" style="margin-top:8px;">Honor Guru Asli &amp; Guru Pengganti langsung berlaku ke semua perhitungan honor. Honor Kegiatan hanya jadi <strong>nilai default</strong> yang otomatis terisi saat Admin membuat acara Lembur/Rapat atau Ujian baru di menu masing-masing -- tetap bisa diubah manual per acara, dan tidak mengubah honor acara yang sudah dibuat sebelumnya. Honor Sholat Dhuha &amp; Dzuhur langsung berlaku ke semua perhitungan honor bulan berjalan (dihitung per kehadiran "Hadir" guru pada absen religi).</p><button class="btn btn-success" style="margin-top:9px;" onclick="v4SaveHonorRates()">💾 Simpan Tarif</button>`;
+        host.innerHTML=`<div class="v4-section-title"><h3>⚙️ Tarif Honor Terpusat</h3><span class="v4-chip blue">Admin</span></div><div class="v4-grid-3"><div><label class="label">Honor Guru Asli / sesi</label><input id="v4RateOriginal" type="number" class="field" value="${V4.rates.original||7000}"></div><div><label class="label">Honor Guru Pengganti / sesi</label><input id="v4RateSubstitute" type="number" class="field" value="${V4.rates.substitute||5000}"></div><div><label class="label">Honor Kegiatan / sesi (Lembur-Rapat &amp; Ujian)</label><input id="v4RateActivity" type="number" class="field" value="${V4.rates.activity||0}"></div><div><label class="label">Honor Sholat Dhuha / hadir</label><input id="v4RateDluha" type="number" class="field" value="${V4.rates.dluha||5000}"></div><div><label class="label">Honor Sholat Dzuhur / hadir</label><input id="v4RateDzuhur" type="number" class="field" value="${V4.rates.dzuhur||5000}"></div><div><label class="label">Honor Tetap Kepala Madrasah / bulan</label><input id="v4RateKepsek" type="number" min="0" class="field" value="${V4.rates.kepsek ?? 300000}"></div><div><label class="label">Honor Tetap Ketua Yayasan / bulan</label><input id="v4RateYayasan" type="number" min="0" class="field" value="${V4.rates.yayasan ?? 350000}"></div></div><p class="v4-muted" style="margin-top:8px;">Honor Guru Asli &amp; Guru Pengganti langsung berlaku ke semua perhitungan honor. Honor Kegiatan hanya jadi <strong>nilai default</strong> yang otomatis terisi saat Admin membuat acara Lembur/Rapat atau Ujian baru di menu masing-masing -- tetap bisa diubah manual per acara, dan tidak mengubah honor acara yang sudah dibuat sebelumnya. Honor Sholat Dhuha &amp; Dzuhur langsung berlaku ke semua perhitungan honor bulan berjalan (dihitung per kehadiran "Hadir" guru pada absen religi). Honor Tetap Kepala Madrasah &amp; Ketua Yayasan adalah nominal bulanan di dua baris paling atas rekap Honor (tabel, PDF, dan laporan); isi 0 bila tidak ada honor tetap. Perubahan berlaku untuk perhitungan semua bulan yang dibuka sesudahnya.</p><button class="btn btn-success" style="margin-top:9px;" onclick="v4SaveHonorRates()">💾 Simpan Tarif</button>`;
       }
     }
     // Validasi tarif: kosong / bukan angka / negatif SELALU ditolak; nilai 0 ditolak untuk tarif yang
@@ -12460,7 +12125,9 @@
         ['substitute','v4RateSubstitute','Honor Guru Pengganti',false,null],
         ['activity','v4RateActivity','Honor Kegiatan',true,null],
         ['dluha','v4RateDluha','Honor Sholat Dhuha',false,5000],
-        ['dzuhur','v4RateDzuhur','Honor Sholat Dzuhur',false,5000]
+        ['dzuhur','v4RateDzuhur','Honor Sholat Dzuhur',false,5000],
+        ['kepsek','v4RateKepsek','Honor Tetap Kepala Madrasah',true,300000],
+        ['yayasan','v4RateYayasan','Honor Tetap Ketua Yayasan',true,350000]
       ];
       const rates={};
       for(const [k,id,label,bolehNol,fallback] of defs){
@@ -12732,7 +12399,7 @@
       V4_CACHE_FIELDS.forEach(f => { out[f] = V4[f]; });
       SIMambaOfflineDB.setCache(key, out).catch(err => console.warn('[SI MAMBA] Gagal cache data V4:', err));
     }
-    function v4RenderAllCore(){ v4RenderActivities();v4RenderTahfidz();v4RenderEkskul();v4RenderPramuka();v4RenderHonorConfig();v4PopulateReport();v4RefreshTasks(); }
+    function v4RenderAllCore(){ try{ if(typeof v4RenderActivities==='function') v4RenderActivities(); else console.warn('[SI MAMBA] js/amalan-kegiatan.js belum termuat -- menu Amalan Yaumiyah dilewati.'); }catch(e){ console.error('[SI MAMBA] v4RenderActivities gagal:', e); } v4RenderTahfidz();v4RenderEkskul();v4RenderPramuka();v4RenderHonorConfig();v4PopulateReport();v4RefreshTasks(); }
     function v4RestoreCoreFromCache(seq){
       const key = v4CacheKey();
       if (!window.SIMambaOfflineDB || !key) return Promise.resolve();
@@ -12772,10 +12439,10 @@
     const v4OriginalNavigate=window.navigateTo;
     window.navigateTo=function(page){
       v4OriginalNavigate(page);
-      const titleMap={'profile-v4':'Profil Saya','activities-v4':'Amalan & Kegiatan','tahfidz-v4':'Tahfidz','ekskul-v4':'Ekstrakurikuler','pramuka-v4':'Pramuka (SKU)','approval-v4':'Approval','notifications-v4':'Notifikasi','tasks-v4':'Task Center','raport-v4':'Raport'};
+      const titleMap={'profile-v4':'Profil Saya','activities-v4':'Amalan Yaumiyah','tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Shalat','ekskul-v4':'Ekstrakurikuler','pramuka-v4':'Pramuka (SKU)','approval-v4':'Approval','notifications-v4':'Notifikasi','tasks-v4':'Task Center','raport-v4':'Raport'};
       if(titleMap[page]) document.getElementById('pageTitle').innerHTML=titleMap[page];
       if(page==='profile-v4') v4ApplyMode();
-      if(page==='activities-v4') v4RenderActivities();
+      if(page==='activities-v4' && typeof v4RenderActivities==='function') v4RenderActivities();
       if(page==='tahfidz-v4') v4RenderTahfidz();
       if(page==='ekskul-v4') v4RenderEkskul();
       if(page==='pramuka-v4') v4RenderPramuka();
