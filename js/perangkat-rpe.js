@@ -285,11 +285,55 @@ ${tabelHtml(h)}
       <div style="margin-top:12px;font-weight:700;font-size:13px;">Hari tidak efektif</div>
       <div style="${muted}">Libur nasional, cuti bersama, libur semester, ujian, dan kegiatan yang meniadakan KBM. Isi tanggal selesai bila lebih dari sehari. Hari Minggu otomatis tidak dihitung.</div>
       ${baris}
-      <div style="margin-top:8px;">${btn('atur-tambah', '➕ Tambah baris')}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${btn('atur-tambah', '➕ Tambah baris')}${btn('atur-kalender', '📥 Ambil dari Kalender Akademik')}</div>
       <div style="margin-top:12px;font-weight:700;font-size:13px;">Kop dan tanda tangan</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">${fld('madrasah', 'Nama madrasah', '', 260)}${fld('kota', 'Kota (untuk tanggal cetak)', 'mis. Surabaya', 180)}${fld('kepala', 'Nama Kepala Madrasah', '', 260)}${fld('nipKepala', 'NIP Kepala Madrasah', 'boleh dikosongkan', 200)}</div>
       <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;">${btn('atur-simpan', '💾 Simpan kalender', 'btn-success')}${btn(M.rec ? 'batal-atur' : 'tutup', 'Batal')}</div>`;
   }
+  // ---------- Isi kalender efektif dari Kalender Akademik (hanya mengisi formulir; Admin tetap menyimpan) ----------
+  function ambilDariKalender() {
+    if (!isAdm() || !M.edit) return;
+    if (typeof db === 'undefined' || !db) return;
+    if (!navigator.onLine) return say('Perlu koneksi internet untuk mengambil data kalender.', true);
+    db.ref('kalender_akademik').once('value').then(function (snap) {
+      const rows = [];
+      snap.forEach(function (c) {
+        const v = c.val() || {};
+        const a = parseTgl(v.tanggalMulai); if (!a) return;
+        const b = parseTgl(v.tanggalSelesai) || a;
+        rows.push({ jenis: String(v.jenis || ''), judul: String(v.judul || '').trim(), a: a, b: b });
+      });
+      const gasal = M.sem === 'ganjil';
+      const awal = rows.filter(function (r) {
+        if (!/awal masuk/i.test(r.judul)) return false;
+        return gasal ? (/tahun ajaran/i.test(r.judul) && !/genap/i.test(r.judul)) : /genap/i.test(r.judul);
+      }).sort(function (x, y) { return x.a - y.a; });
+      if (!awal.length) return say('Agenda awal masuk semester ini belum ada di Kalender Akademik. Impor kalender nasional dulu, lalu coba lagi.', true);
+      const mulai = awal[0].a;
+      // Akhir semester = sehari sebelum libur penutup berikutnya.
+      const penutup = rows.filter(function (r) {
+        if (r.a <= mulai) return false;
+        return gasal ? /libur semester/i.test(r.judul) : /libur (akhir tahun|kenaikan)/i.test(r.judul);
+      }).sort(function (x, y) { return x.a - y.a; })[0];
+      const selesai = penutup ? new Date(penutup.a.getTime() - 864e5) : null;
+      const libur = rows.filter(function (r) {
+        if (!selesai) return false;
+        if (r.a > selesai || r.b < mulai) return false;          // di luar semester
+        if (/awal masuk/i.test(r.judul)) return false;           // awal masuk bukan hari tidak efektif
+        return r.jenis === 'libur' || /ujian|asas|pengenalan|laporan|rapor/i.test(r.judul);
+      }).sort(function (x, y) { return x.a - y.a; });
+      M.edit.mulai = iso(mulai);
+      M.edit.selesai = selesai ? iso(selesai) : '';
+      M.edit.libur = libur.slice(0, MAX_LIBUR).map(function (r) {
+        return { a: iso(r.a), b: iso(r.b), ket: r.judul.slice(0, 80) };
+      });
+      if (!M.edit.libur.length) M.edit.libur.push({ a: '', b: '', ket: '' });
+      gambar();
+      if (!selesai) say('Tanggal mulai diisi, tetapi tanggal selesai tidak ditemukan. Isi manual.', true);
+      else say('✅ ' + libur.length + ' agenda diambil dari Kalender Akademik. Periksa lalu tekan Simpan.');
+    }).catch(function (err) { console.error('[SI MAMBA] rpe kalender:', err); say('❌ Gagal mengambil kalender: ' + ((err && err.message) || err), true); });
+  }
+
   function simpanAtur() {
     sinkron(); const e = M.edit; if (!e || !isAdm()) return;
     const a = parseTgl(e.mulai), b = parseTgl(e.selesai);
@@ -312,7 +356,7 @@ ${tabelHtml(h)}
     if (typeof db === 'undefined' || !db) return;
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     if (M.busy) return; M.busy = true;
-    db.ref(path()).set(obj).then(() => {
+    siap().then(() => db.ref(path()).set(obj)).then(() => {
       M.busy = false; M.raw = obj; M.cfg = bacaCfg(obj); audit('SAVE_RPE_KALDIK', slug(M.ta) + '_' + M.sem); say('✅ Kalender efektif tersimpan');
       if (M.rec) { M.mode = 'cetak'; M.edit = null; gambar(); } else tutup();
     }).catch(err => { M.busy = false; console.error('[SI MAMBA] rpe:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
@@ -325,7 +369,7 @@ ${tabelHtml(h)}
     nipSimpan(nip);
     // Simpan JP per pekan pada baris mapel (hanya pemilik). Gagal simpan tidak menghalangi cetak.
     if (jp && M.rec.guruKey === myId() && M.rec.jpPerPekan !== jp && typeof db !== 'undefined' && db && navigator.onLine) {
-      db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp).then(() => { M.rec.jpPerPekan = jp; }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
+      siap().then(() => db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp)).then(() => { M.rec.jpPerPekan = jp; }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
     }
     const html = dokumen(M.cfg, h, { guru: M.rec.guruName || myName(), nip: nip, mapel: M.rec.mapel, kelas: M.rec.kelas, ta: M.ta, sem: SEM_LABEL[M.sem] });
     keluarkan(html, 'RPE_' + M.rec.mapel + '_' + M.rec.kelas + '_' + SEM_LABEL[M.sem], mode);
@@ -343,6 +387,7 @@ ${tabelHtml(h)}
       case 'pakai-hari': sinkron(); M.edit.hari = +t.getAttribute('data-v') === 5 ? 5 : 6; return gambar();
       case 'batal-atur': M.mode = 'cetak'; M.edit = null; return gambar();
       case 'atur-tambah': sinkron(); M.edit.libur.push({ a: '', b: '', ket: '' }); return gambar();
+      case 'atur-kalender': return ambilDariKalender();
       case 'atur-hapus': sinkron(); M.edit.libur.splice(+t.getAttribute('data-i'), 1); if (!M.edit.libur.length) M.edit.libur.push({ a: '', b: '', ket: '' }); return gambar();
       case 'atur-simpan': return simpanAtur();
     }
@@ -434,7 +479,7 @@ ${tabelHtml(h)}
     try { localStorage.setItem(nipKunci(), v); } catch (e) {}
     if (typeof db === 'undefined' || !db || !navigator.onLine || !myId() || v === nipServer) return Promise.resolve();
     const ref = db.ref('perangkat_setting_v4/nip/' + slug(myId()));
-    return (v ? ref.set(v) : ref.remove()).then(() => { nipServer = v; }).catch(e => console.warn('[SI MAMBA] nip:', e));
+    return siap().then(() => (v ? ref.set(v) : ref.remove())).then(() => { nipServer = v; }).catch(e => console.warn('[SI MAMBA] nip:', e));
   }
   // Isi kolom NIP dari server bila pengguna belum mengetik apa pun sejak panel dibuka.
   function nipIsi(state, selektor) {
@@ -458,7 +503,15 @@ ${tabelHtml(h)}
     M.mode = 'atur'; M.id = null; M.rec = null; M.sem = sem === 'genap' ? 'genap' : 'ganjil'; M.ta = String(ta || '');
     muatCfg(function () { siapEdit(); muatHariJadwal(); });
   };
-  window.rpeUtil = { parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
+  // Sesi tulis untuk Rules: Admin -> sesi_admin (kredAdminSiap, Kunci Admin tersimpan di perangkat); Guru -> sesi_guru (kredGuruSiap).
+  function siap() {
+    try {
+      if (typeof v4IsAdmin === 'function' && v4IsAdmin()) return typeof window.kredAdminSiap === 'function' ? Promise.resolve(window.kredAdminSiap()) : Promise.resolve(true);
+      if (typeof window.kredGuruSiap === 'function') return Promise.resolve(window.kredGuruSiap());
+    } catch (e) { return Promise.reject(e); }
+    return Promise.resolve(true);
+  }
+  window.rpeUtil = { siap: siap, parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
     esc: esc, slug: slug, fmtTgl: fmtTgl, fmtRentang: fmtRentang, daftar: daftar, BULAN: BULAN,
     keluarkan: keluarkan, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
 })();
