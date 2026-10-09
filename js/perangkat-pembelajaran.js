@@ -226,9 +226,11 @@
 
   // Cek kesiapan data dasar untuk pembuatan otomatis (hanya membaca; tidak mengubah data).
   function siapCek(rec) {
+    // NIP sengaja TIDAK dijadikan syarat: guru honorer/non-ASN memang tidak punya NIP,
+    // dan dokumen cetak sudah menangani ini dengan baik (NIP kosong -> titik-titik, format baku
+    // untuk non-PNS). Menjadikannya syarat wajib akan membuat peringatan ini tidak pernah hilang
+    // bagi guru honorer walau tidak ada yang perlu diperbaiki.
     const k = [];
-    let nip = ''; try { nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { nip = ''; }
-    if (!nip) k.push('NIP guru (isi sekali di salah satu dokumen, mis. RPE)');
     if (!jpJadwal(rec) && !rec.jpPerPekan) k.push('jam pelajaran per pekan (tambahkan mapel dari Jadwal)');
     if (!(S.kaldik && S.kaldik.url)) k.push('tautan Kaldik semester ini (diatur admin)');
     return k;

@@ -103,9 +103,71 @@
       if (!committed) { toast('Status modul sudah berubah. Memuat ulang…', true, 4000); return load(true, function () { renderBody(); }); }
       var v = snap.val() || {}; v.key = key; Object.assign(m, v);
       addLog(logAksi, judulModul(m)); toast(okMsg); kirimNotif(ke, m);
+      if (ke === 'disetujui') tulisVerifikasi(m); else hapusVerifikasi(key);
       if (tab === 'buat') { editingKey = null; tab = 'daftar'; render(); } else renderBody();
     }, false);
   }
+  /* ---------- verifikasi QR ----------
+     Saat disetujui, ringkasan minimal (tanpa isi modul) ditulis ke modul_verifikasi/<key>. QR di dokumen cetak
+     mengarah ke BASE_URL?verifikasi=<key>; halaman itu membaca node tersebut dan menampilkan penyetuju & tanggal.
+     Dihapus lagi bila modul diubah/ditolak/dihapus, sehingga QR dokumen lama menjadi "tidak berlaku". */
+  var BASE_URL = 'https://mambaulum.github.io/';
+  function urlVerifikasi(key) { return BASE_URL + '?verifikasi=' + encodeURIComponent(key); }
+  function tulisVerifikasi(m) {
+    try {
+      db.ref('modul_verifikasi/' + m.key).set({
+        judul: judulModul(m), mapel: m.mapel || '', kelas: m.kelas || '', guru: m.guru || m.ownerName || '',
+        sekolah: m.sekolah || (typeof MADRASAH !== 'undefined' ? MADRASAH.nama : ''),
+        oleh: m.persetujuanOleh || '', role: m.persetujuanRole || '', at: m.persetujuanAt || ''
+      }, function (err) { if (err) console.warn('[modul-ajar] verifikasi gagal ditulis (cek aturan database)', err); });
+    } catch (e) { console.warn(e); }
+  }
+  function hapusVerifikasi(key) { try { db.ref('modul_verifikasi/' + key).remove(function () {}); } catch (e) {} }
+  var qrCache = {};
+  // Hasilkan QR sebagai data-URL di jendela utama (pustaka QRCode.js ada di sini, bukan di jendela cetak).
+  function qrDataUrl(text) {
+    if (qrCache[text]) return qrCache[text];
+    try {
+      if (typeof QRCode === 'undefined') return '';
+      var box = document.createElement('div');
+      new QRCode(box, { text: text, width: 160, height: 160, correctLevel: QRCode.CorrectLevel ? QRCode.CorrectLevel.M : 0 });
+      var cv = box.querySelector('canvas'), u = '';
+      if (cv && cv.toDataURL) u = cv.toDataURL('image/png');
+      if (!u) { var im = box.querySelector('img'); if (im && im.src && im.src.indexOf('data:') === 0) u = im.src; }
+      return (qrCache[text] = u);
+    } catch (e) { return ''; }
+  }
+  // Halaman publik hasil pindai QR (tanpa login). Muncul sebagai lapisan penuh di atas aplikasi.
+  function tampilVerifikasi() {
+    var key; try { key = new URLSearchParams(location.search).get('verifikasi'); } catch (e) { return; }
+    if (!key) return;
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#f5f7f8;display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,Arial,sans-serif;overflow:auto';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border:1px solid #e3e8eb;border-radius:18px;box-shadow:0 6px 22px rgba(15,59,44,.08);max-width:440px;width:100%;padding:24px;text-align:center;color:#17212b';
+    var set = function (ikon, judul, isi) {
+      box.innerHTML = '<div style="font-size:44px;line-height:1">' + ikon + '</div><h2 style="margin:10px 0 6px;font-size:18px">' + judul + '</h2><div style="font-size:14px;line-height:1.6;text-align:left">' + isi + '</div>' +
+        '<button type="button" id="mpVerTutup" style="margin-top:16px;padding:10px 18px;border:0;border-radius:10px;background:#006b4f;color:#fff;font-weight:600;cursor:pointer">Buka Aplikasi</button>';
+      var b = box.querySelector('#mpVerTutup');
+      if (b) b.onclick = function () { try { history.replaceState(null, '', location.pathname); } catch (e) {} ov.remove(); };
+    };
+    set('⏳', 'Memeriksa keaslian dokumen…', '');
+    ov.appendChild(box); document.body.appendChild(ov);
+    var tries = 0;
+    (function cek() {
+      if (typeof db === 'undefined') { if (++tries < 60) return setTimeout(cek, 250); return set('⚠️', 'Tidak dapat memeriksa', 'Layanan belum siap. Periksa koneksi internet lalu pindai ulang.'); }
+      db.ref('modul_verifikasi/' + key).once('value', function (snap) {
+        var v = snap.val();
+        if (!v) return set('❌', 'Dokumen tidak terverifikasi', 'Tidak ada catatan persetujuan untuk kode ini. Modul mungkin belum disetujui, sudah diubah setelah disetujui, atau sudah dihapus. Jangan anggap dokumen ini sah.');
+        var baris = [['Sekolah', v.sekolah], ['Modul', v.judul], ['Kelas', v.kelas], ['Guru', v.guru], ['Disetujui oleh', v.oleh + (v.role ? ' (' + v.role + ')' : '')], ['Tanggal', tglIso(v.at)]]
+          .filter(function (r) { return r[1]; }).map(function (r) { return '<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #eef2f4"><b style="flex:0 0 110px;color:#6b7785;font-weight:600">' + esc(r[0]) + '</b><span>' + esc(r[1]) + '</span></div>'; }).join('');
+        set('✅', 'Dokumen terverifikasi', baris);
+      }, function (err) {
+        set('⚠️', 'Tidak dapat memeriksa', 'Akses ke data verifikasi ditolak (' + esc(err && err.message || 'error') + '). Hubungi admin madrasah.');
+      });
+    })();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tampilVerifikasi); else tampilVerifikasi();
   // Notifikasi in-app (notifications_v4). Kepsek/Admin memang melihat semua notifikasi, jadi target 'Kepala Madrasah'
   // (akun Kepsek tidak punya key). Guru dicocokkan lewat key atau nama, sama seperti v4LoadNotifications.
   function kirimNotif(ke, m) {
@@ -377,14 +439,23 @@
       if (tab === 'referensi') renderBody(); if (cb) cb();
     });
   }
+  // Nama kurikulum yang ditampilkan ke guru/dokumen: selalu singkat, bukan nama sumber/SK referensi.
+  var NAMA_KURIKULUM = 'Kurikulum Merdeka';
   function refInfoHtml() {
     if (!formRef) return '🧭 Belum terhubung ke referensi kurikulum. Pilih mapel & kelas, lalu klik “Isi dari kurikulum”.';
     var r = refByKey(formRef.key), stale = r && formRef.at && String(r.updatedAt || '') > String(formRef.at);
-    return '🧭 Terisi dari: <b>' + esc(formRef.versi || 'referensi') + '</b> · ' + esc(tglIso(formRef.at)) +
+    return '🧭 Terisi dari: <b>' + esc(NAMA_KURIKULUM) + '</b> · ' + esc(tglIso(formRef.at)) +
       (stale ? ' · <span style="color:#b45309;font-weight:600;">⚠ Referensi sudah diperbarui — klik “Isi dari kurikulum” untuk memuat ulang</span>' : '');
   }
   function refreshRefInfo() { var el = $('mpfRef'); if (el) el.innerHTML = refInfoHtml(); }
   // auto=true: isi diam-diam hanya kolom yang kosong/belum diubah guru. auto=false: tombol manual.
+  // Pecah CP yang berupa satu paragraf panjang menjadi baris per elemen bernomor ("1.1. ", "2.3. ", dst),
+  // sesuai pola penomoran di SK Dirjen Pendis 9941/2025 dan KepKa BSKAP 046/2025. Hanya format tampilan;
+  // kata-katanya tidak diubah. CP yang tidak memakai pola ini (mis. ringkasan lama) tidak terpengaruh.
+  function formatCP(s) {
+    s = String(s || '');
+    return s.replace(/\s*(?=\d+\.\d+\.\s)/g, '\n').trim();
+  }
   function applyRef(auto) {
     var mapel = val('mpf-mapel'), fase = val('mpf-fase'), cpEl = $('mpf-cp'), tpEl = $('mpf-tujuan');
     if (!cpEl || !tpEl) return;
@@ -404,11 +475,11 @@
     // lastFill dibaca balik dari elemen (bukan dari teks sumber) supaya cocok dengan normalisasi baris baru textarea.
     var isi = function (el, k, teks) { el.value = teks; lastFill[k] = el.value.trim(); };
     // Urutan tetap: CP dulu, lalu TP.
-    if (cp && (cpOk || !auto)) isi(cpEl, 'cp', cp);
+    if (cp && (cpOk || !auto)) isi(cpEl, 'cp', formatCP(cp));
     if (tp && (tpOk || !auto)) isi(tpEl, 'tp', tp);
     formRef = { key: r.key, versi: r.versi || '', at: r.updatedAt || '' };
     refreshRefInfo(); refreshAcc();
-    if (!auto) toast('✅ CP & TP diisi dari ' + (r.versi || 'referensi kurikulum'));
+    if (!auto) toast('✅ CP & TP diisi dari ' + NAMA_KURIKULUM);
   }
   function refTabHtml() {
     var admin = isAdmin();
@@ -628,7 +699,7 @@
     if (menuVisible('grades')) go += btn('gonilai', '📝 Nilai ' + esc(m.kelas));
     return '<div class="mp-card">' +
       '<div class="mp-card-h"><div class="mp-title">' + esc(judulModul(m)) + (m.favorit ? ' ⭐' : '') + '</div>' +
-      '<div class="mp-metas">' + persBadge(m) + chip(m.kelas) + (m.fase ? chip('Fase ' + m.fase) : '') + chip('Sem. ' + (m.semester || '-')) + chip(m.tahunAjaran || '-') + (m.alokasi ? chip('⏱ ' + m.alokasi) : '') + (pertSaved(m).length ? chip('🗓️ ' + pertSaved(m).length + ' pertemuan') : '') + (m.kurikulumVersi ? chip('🧭 ' + m.kurikulumVersi) : '') + (refStale(m) ? '<span class="mp-meta mp-warn">⚠ Kurikulum diperbarui</span>' : '') + '</div></div>' +
+      '<div class="mp-metas">' + persBadge(m) + chip(m.kelas) + (m.fase ? chip('Fase ' + m.fase) : '') + chip('Sem. ' + (m.semester || '-')) + chip(m.tahunAjaran || '-') + (m.alokasi ? chip('⏱ ' + m.alokasi) : '') + (pertSaved(m).length ? chip('🗓️ ' + pertSaved(m).length + ' pertemuan') : '') + (m.kurikulumVersi ? chip('🧭 ' + NAMA_KURIKULUM) : '') + (refStale(m) ? '<span class="mp-meta mp-warn">⚠ Kurikulum diperbarui</span>' : '') + '</div></div>' +
       '<div class="mp-rel">' + relasi(m) + '</div>' + persInfoHtml(m) +
       (m.tujuan ? '<div class="mp-snip">' + nl2br(String(m.tujuan).slice(0, 160)) + (String(m.tujuan).length > 160 ? '…' : '') + '</div>' : '') +
       '<div class="mp-actions">' + acts + '</div>' +
@@ -765,6 +836,20 @@
     });
     dl.innerHTML = out.map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
   }
+  // Tombol aksi (Simpan/Batal) di formulir memakai position:sticky di bawah layar.
+  // Navbar bawah aplikasi (#bottomNav, posisi fixed) bisa menutupinya di tampilan HP, karena
+  // keduanya sama-sama menempel ke tepi bawah. Di sini jarak "bottom" tombol didorong naik
+  // setinggi navbar (diukur langsung, bukan angka tetap, supaya tetap benar walau desain
+  // navbar berubah) sehingga tombol selalu terlihat penuh di atas navbar.
+  function adjustSticky() {
+    var bar = root && root.querySelector('.mp-sticky'); if (!bar) return;
+    var nav = document.getElementById('bottomNav');
+    // Catatan: nav ber-position:fixed, sehingga nav.offsetParent selalu null -- jangan dipakai untuk
+    // mendeteksi tampil/tidaknya. Pakai display terhitung + ukuran aktual.
+    var shown = nav && getComputedStyle(nav).display !== 'none';
+    var h = shown ? Math.ceil(nav.getBoundingClientRect().height) : 0;
+    bar.style.bottom = h ? (h + 8) + 'px' : '';
+  }
   function bindForm() {
     var k = $('mpf-kelas'); if (!k) return;
     var upd = function () {
@@ -776,7 +861,8 @@
     var mp = $('mpf-mapel'); if (mp) mp.addEventListener('change', function () { upd(); auto(); refreshMateriSaran(); });
     refreshMateriSaran();
     var fs = $('mpf-fase'); if (fs) fs.addEventListener('change', auto);
-    upd(); refreshRefInfo();
+    upd(); refreshRefInfo(); adjustSticky();
+    setTimeout(adjustSticky, 300); // ukur ulang setelah layout/font selesai
     // Modul baru: langsung isi dari entri jadwal pertama (guru bisa mengganti pilihannya).
     if (!editingKey) {
       var jo = $('mpfJadwal');
@@ -1069,6 +1155,7 @@
       clearBusy('simpanModul', btn);
       if (err) return toast('Gagal: ' + err.message, true);
       full.key = ref.key;
+      if (kembaliDraf) hapusVerifikasi(ref.key);
       if (lama) Object.assign(lama, full); else data.unshift(full);
       sortData();
       toast(kembaliDraf ? '✅ Modul disimpan. Status kembali ke Draf, ajukan ulang untuk persetujuan.' : '✅ Modul disimpan!', false, kembaliDraf ? 5000 : undefined); addLog(lama ? 'ubah_modul_ajar' : 'buat_modul_ajar', judulModul(full));
@@ -1124,13 +1211,15 @@
     if (pers(m) !== 'disetujui') return '<br><br><br>(………………………)';
     var img = '';
     try { var b64 = (typeof MADRASAH !== 'undefined') ? (MADRASAH.ttdKepalaBase64 || '') : ''; if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
-    return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (img || '<br><br><br>') + '<b>' + esc(m.persetujuanOleh || '') + '</b>';
+    var qr = m.key ? qrDataUrl(urlVerifikasi(m.key)) : '';
+    var qrHtml = qr ? '<div style="margin:4px auto 0;"><img src="' + qr + '" alt="QR verifikasi" style="width:70px;height:70px;"><div style="font-size:9px;color:#555;line-height:1.2;">Pindai untuk verifikasi</div></div>' : '';
+    return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (img || (qr ? '' : '<br><br><br>')) + qrHtml + '<b>' + esc(m.persetujuanOleh || '') + '</b>';
   }
   function docHtml(m) {
     var dpl = m.dpl || [], pc = m.pancaCinta || [];
     var rows = [['Nama Sekolah', m.sekolah || MADRASAH.nama], ['Mata Pelajaran', m.mapel], ['Kelas / Fase', (m.kelas || '-') + (m.fase ? ' / Fase ' + m.fase : '')],
       ['Semester', m.semester], ['Tahun Pelajaran', m.tahunAjaran], ['Nama Guru', m.guru], ['Materi', m.materi], ['Alokasi Waktu', m.alokasi],
-      ['Model Pembelajaran', m.model], ['Metode', m.metode], ['Pendekatan', m.pendekatan], ['Kurikulum', m.kurikulumVersi], ['Peserta Didik', jumlahSiswa(m.kelas) + ' siswa']]
+      ['Model Pembelajaran', m.model], ['Metode', m.metode], ['Pendekatan', m.pendekatan], ['Kurikulum', NAMA_KURIKULUM], ['Peserta Didik', jumlahSiswa(m.kelas) + ' siswa']]
       .filter(function (r) { return r[1]; })
       .map(function (r) { return '<tr><td class="k">' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('');
     var adaPert = pertSaved(m).length > 0;
@@ -1150,12 +1239,24 @@
     if (!w) return toast('Popup diblokir browser.', true);
     var css = 'body{font-family:Arial,sans-serif;padding:30px;color:#111;line-height:1.5;font-size:13px}h2{text-align:center;margin:14px 0}h3{margin:16px 0 4px;font-size:14px}' +
       'table{width:100%;border-collapse:collapse}td{border:1px solid #999;padding:5px 8px;vertical-align:top}td.k{width:32%;background:#f3f4f6;font-weight:600}' +
-      '.kop{display:flex;align-items:center;gap:14px;border-bottom:3px double #333;padding-bottom:10px}.kop img{width:64px;height:64px;object-fit:contain}.kop .n{font-weight:700;font-size:16px}.kop .a{font-size:12px}' +
+      '.kop{display:flex;align-items:center;gap:14px;border-bottom:3px double #333;padding-bottom:10px}.kop img{width:64px;height:64px;object-fit:contain;flex:none}.kop .n{font-weight:700;font-size:16px}.kop .a{font-size:12px}' +
       '.b{border:1px solid #ddd;border-radius:6px;padding:8px 10px;white-space:normal}.ttd{display:flex;justify-content:space-between;margin-top:36px;text-align:center}' +
       '.tip{background:#fef3c7;border:1px solid #f59e0b;padding:8px 12px;border-radius:8px;margin-bottom:12px}@media print{.tip{display:none}}';
     var tip = pdf ? '<div class="tip">Untuk menyimpan sebagai PDF: pada dialog cetak, pilih tujuan <b>Simpan sebagai PDF</b>.</div>' : '';
     w.document.write('<html><head><base href="' + esc(document.baseURI) + '"><title>Modul ' + esc(judulModul(m)) + '</title><style>' + css + '</style></head><body>' + tip + docHtml(m) + '</body></html>');
-    w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400);
+    w.document.close(); w.focus();
+    // Tunggu semua gambar (logo, TTD) selesai dimuat sebelum dialog cetak/PDF dibuka; kalau tidak,
+    // logo bisa belum tampil di hasil cetak. Batas tunggu 5 detik agar tidak menggantung.
+    var done = false, go = function () { if (done) return; done = true; try { w.print(); } catch (x) {} };
+    var imgs = Array.prototype.slice.call(w.document.images || []);
+    var pending = imgs.filter(function (im) { return !im.complete; }).length;
+    if (!pending) { setTimeout(go, 150); return; }
+    imgs.forEach(function (im) {
+      if (im.complete) return;
+      var fin = function () { if (--pending <= 0) setTimeout(go, 100); };
+      im.addEventListener('load', fin); im.addEventListener('error', fin);
+    });
+    setTimeout(go, 5000);
   }
 
   /* ---------- event ---------- */
@@ -1227,6 +1328,7 @@
           if (isBusy('hapusModul')) break;
           if (!doubleConfirm('Hapus modul ini secara permanen?')) break;
           setBusy('hapusModul');
+          hapusVerifikasi(key);
           db.ref('modul_ajar/' + key).remove(function (err) {
             clearBusy('hapusModul');
             if (err) return toast('Gagal: ' + err.message, true);
@@ -1305,6 +1407,8 @@
       return;
     }
     hooked = true;
+    window.addEventListener('resize', adjustSticky);
+    window.addEventListener('orientationchange', adjustSticky);
     var orig = window.navigateTo;
     window.navigateTo = function (page) {
       var r = orig.apply(this, arguments);
