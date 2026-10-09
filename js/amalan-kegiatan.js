@@ -866,9 +866,6 @@ function v4SaveActivityAttendance(typeKey) {
     // (termasuk seluruh absensi tahun ajaran) di SETIAP simpan -- boros kuota. Salinan lokal sudah akurat; tombol
     // "🔄 Segarkan" tersedia kalau ingin melihat isian guru lain.
     v4ActSelesaiLokal(typeKey, kelasVal, dateVal, touched, records, snap);
-    // Honor sholat dihitung dari religi_attendance (absen pribadi guru). Petugas yang sudah check-in QR + mengisi absensi
-    // siswa otomatis dicatat Hadir di sana, supaya muncul di rekap honor tanpa harus mengisi dua kali.
-    v4ActCatatAbsenSholatPetugas(v4ActTypeByKey(typeKey), dateVal);
   }).catch(err => {
     clearTimeout(tmo);
     console.error('[SI MAMBA] Gagal simpan absensi kegiatan:', err);
@@ -877,47 +874,6 @@ function v4SaveActivityAttendance(typeKey) {
     clearBusy('v4SaveAct_' + typeKey, getBtn());
     toast('❌ Gagal menyimpan (tidak ada data yang tersimpan, draft dipertahankan): ' + (err && err.message || err), true);
   });
-}
-
-// ---------- Absen sholat petugas -> dasar honor ----------
-// Rekap honor (renderHonor di app.js) menghitung Dhuha/Dzuhur dari node religi_attendance, yaitu absen sholat pribadi guru
-// (status 'Hadir' x tarif Dluha/Dzuhur). Check-in QR dan absensi siswa TIDAK ditulis ke node itu, jadi honor PJ kosong.
-// Setelah absensi siswa tersimpan, petugas hari ini (yang check-in) otomatis dicatat Hadir untuk sholat tersebut.
-// Aturan: hanya tanggal hari ini, hanya petugas yang check-in (bukan Admin/Kepsek yang mengisi sebagai jalan pintas),
-// hanya hari yang diizinkan (Dzuhur Sen-Kam, Minggu libur), tidak menimpa status yang sudah ada, dan hanya saat online.
-function v4ActCatatAbsenSholatPetugas(type, tgl) {
-  try {
-    if (!type || !currentUser || !tgl || tgl !== v4Date() || !navigator.onLine) return;
-    const jenis = v4ActJenisSholat(type); if (!jenis) return;
-    if (!v4ActIsMine(v4ActCheckin(type.key, tgl))) return;
-    if (typeof v4HariDiizinkanSholat === 'function' && !v4HariDiizinkanSholat(jenis, tgl)) return;
-    // Baca dari server (bukan allReligiAttendance yang bisa belum termuat) agar tidak membuat catatan ganda di hari yang sama.
-    db.ref('religi_attendance').orderByChild('tanggal').equalTo(tgl).once('value').then(snap => {
-      let existing = null;
-      snap.forEach(c => {
-        const v = c.val() || {};
-        if (!existing && (v.guruKey ? v.guruKey === currentUser.key : v.guru === currentUser.name)) { existing = Object.assign({ key: c.key }, v); }
-      });
-      if (existing && existing[jenis] && existing[jenis].status) return; // sudah ada (Hadir/Izin/dll): jangan ditimpa
-      const waktu = new Date().toISOString();
-      const entri = { status: 'Hadir', waktu };
-      const ref = existing ? db.ref('religi_attendance/' + existing.key) : db.ref('religi_attendance').push();
-      const data = existing
-        ? { updatedAt: waktu, [jenis]: entri }
-        : { tanggal: tgl, guru: currentUser.name, guruKey: currentUser.key || null, tahunAjaran: currentTahunAjaran, updatedAt: waktu, [jenis]: entri };
-      return ref[existing ? 'update' : 'set'](data).then(() => {
-        try {
-          const lokal = (typeof allReligiAttendance !== 'undefined' && Array.isArray(allReligiAttendance)) ? allReligiAttendance : null;
-          if (lokal) {
-            const ada = lokal.find(it => it.key === ref.key);
-            if (ada) { ada[jenis] = entri; ada.updatedAt = waktu; } else lokal.push(Object.assign({ key: ref.key }, existing || {}, data));
-          }
-        } catch (e) { console.warn('[SI MAMBA] Gagal memperbarui salinan lokal absen sholat:', e); }
-        v4ActLogAman('absen_sholat_petugas_otomatis', type.key + ' - ' + currentUser.name);
-        toast('✅ Absen sholat Anda ikut tercatat Hadir (dasar honor).', false, 3500);
-      });
-    }).catch(err => console.warn('[SI MAMBA] Gagal mencatat absen sholat petugas:', err && err.message || err));
-  } catch (e) { console.warn('[SI MAMBA] Gagal mencatat absen sholat petugas:', e); }
 }
 
 // ============================================================
@@ -1291,7 +1247,10 @@ function v4ActProsesQr(data) {
     if (err && err.batal) return;
     if (v4ActScan !== s && !menulis) return; // dibatalkan, lalu GPS gagal: tidak perlu mengganggu
     if (v4ActScan === s) v4ActTutupScan();
-    toast('❌ ' + (err && err.message || err), true);
+    let pesan = (err && err.message) || String(err);
+    // Bedakan "ditolak server" (Rules Firebase) dari izin kamera/lokasi: dulu semuanya terbaca sebagai "denied" yang membingungkan.
+    if (/permission[_ ]denied/i.test(((err && err.code) || '') + ' ' + pesan)) pesan = 'Ditolak oleh server (Rules Firebase). Minta Admin memastikan Rules terbaru (node activity_checkin_v4) sudah dipublikasikan, lalu coba lagi.';
+    toast('❌ ' + pesan, true, 8000);
     v4ActRenderUlang();
   }).catch(e => console.error('[SI MAMBA] Gagal memperbarui tampilan check-in:', e));
 }
@@ -1314,7 +1273,7 @@ function v4ActCekLokasi() {
         if (jarak > radius) return reject(new Error('Anda terlalu jauh dari madrasah (±' + Math.round(jarak) + ' m, maksimal ' + radius + ' m). Check-in harus di lokasi.'));
         resolve(jarak);
       } catch (e) { reject(e); }
-    }, err => reject(new Error('GPS gagal: ' + (err && err.message || 'izin lokasi ditolak') + '. Aktifkan lokasi lalu coba lagi.')),
+    }, err => reject(new Error((err && err.code === 1) ? 'Izin LOKASI ditolak di browser. Izinkan lokasi untuk situs ini (ikon gembok di address bar > Izin > Lokasi), aktifkan GPS, lalu scan ulang.' : 'GPS gagal: ' + (err && err.message || 'tidak bisa membaca lokasi') + '. Aktifkan lokasi lalu coba lagi.')),
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   });
 }
