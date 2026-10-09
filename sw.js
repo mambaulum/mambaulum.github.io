@@ -38,7 +38,7 @@
    js/kredensial.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.47';
+const APP_VERSION = 'v6.48';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -75,16 +75,16 @@ const PRECACHE_URLS = [
   './js/kredensial.js?v=2',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/menu-hub.js?v=4',
   './js/rapat.js?v=5',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
-  './js/data-tp-mi.js?v=2',
-  './js/data-soal-mi.js?v=3',
+  './js/data-tp-mi.js?v=3',
+  './js/data-soal-mi.js?v=4',
   './js/perangkat-rpe.js?v=5',
   './js/perangkat-prota-promes.js?v=4',
   './js/perangkat-atp-tp.js?v=4',
-  './js/data-kisi-resmi-mi.js?v=2',
+  './js/data-kisi-resmi-mi.js?v=3',
   './js/perangkat-kisi.js?v=6',
   './js/perangkat-soal.js?v=5',
-  './js/perangkat-pembelajaran.js?v=5',
-  './js/modul-ajar.js?v=5',
+  './js/perangkat-pembelajaran.js?v=6',
+  './js/modul-ajar.js?v=6',
   './js/buku-tamu.js?v=4',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=5',
