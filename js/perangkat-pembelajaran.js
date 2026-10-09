@@ -224,6 +224,15 @@
     return h;
   }
 
+  // Cek kesiapan data dasar untuk pembuatan otomatis (hanya membaca; tidak mengubah data).
+  function siapCek(rec) {
+    const k = [];
+    let nip = ''; try { nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { nip = ''; }
+    if (!nip) k.push('NIP guru (isi sekali di salah satu dokumen, mis. RPE)');
+    if (!jpJadwal(rec) && !rec.jpPerPekan) k.push('jam pelajaran per pekan (tambahkan mapel dari Jadwal)');
+    if (!(S.kaldik && S.kaldik.url)) k.push('tautan Kaldik semester ini (diatur admin)');
+    return k;
+  }
   function rowCard(id, rec) {
     const c = hitung(rec), d = rec.docs || {};
     const chips = JENIS.map(j => {
@@ -232,11 +241,15 @@
       return `<button type="button" data-act="edit" data-id="${esc(id)}" data-j="${j.k}" style="text-align:left;min-height:46px;padding:6px 10px;border-radius:10px;border:${on ? 2 : 1.5}px solid ${on ? '#2563eb' : st[1]};background:${st[0]};color:${st[2]};cursor:pointer;font-size:13px;line-height:1.25;"><strong>${st[3]} ${esc(j.n)}</strong><br><span style="font-size:11px;">${x && x.url ? (x.status === 'final' ? 'Final' : 'Draf') : 'Belum diisi'}${x && x.revisi ? ' · ⚠️ revisi' : ''}</span></button>`;
     }).join('');
     const panel = (S.edit && S.edit.id === id) ? editorHtml(id, rec, S.edit.j) : '';
+    const sk = siapCek(rec);
+    const siapHtml = sk.length
+      ? `<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">Belum siap dibuat otomatis: ${sk.map(esc).join('; ')}.</div>`
+      : `<div style="margin-top:6px;font-size:12px;color:#166534;">✅ Data dasar lengkap untuk pembuatan otomatis.</div>`;
     return `<div class="border-muted" style="margin-top:10px;padding:10px;border-radius:10px;">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
         <div style="font-weight:700;">${esc(rec.mapel)} · Kelas ${esc(rec.kelas)}${(() => { const jj = jpJadwal(rec); return jj ? `<div style="${muted}font-weight:400;">📅 Jadwal: ${jj} JP/pekan${rec.jpPerPekan && rec.jpPerPekan !== jj ? ` · di dokumen tersimpan ${esc(rec.jpPerPekan)} (beda dari jadwal, cek kembali)` : ''}</div>` : ''; })()}</div>
         <div style="font-size:12px;">${c.final}/${c.total} final${c.draf ? ` · ${c.draf} draf` : ''} <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="rpe" data-id="${esc(id)}">🖨 Buat RPE</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="prota" data-id="${esc(id)}">🗂 Prota/Promes</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="atp" data-id="${esc(id)}">🎯 ATP/TP</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="kisi" data-id="${esc(id)}">📋 Kisi-kisi</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="soal" data-id="${esc(id)}">📝 Soal</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="hapus-baris" data-id="${esc(id)}">🗑</button></div></div>
-      <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>${panel}</div>`;
+      <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>${siapHtml}${panel}</div>`;
   }
 
   function editorHtml(id, rec, jk) {

@@ -8,6 +8,8 @@
    Dipakai js/perangkat-kisi.js sebagai usulan awal indikator dan keterangan bentuk soal.
    CATATAN: berkas sumber tidak memuat nomor soal, level kognitif, maupun keterangan penerbit; cocokkan dengan
    PDF resmi Kemenag (lampiran Kepdirjen 751/2026) sebelum dipakai sebagai dokumen final.
+   Verifikasi (Oktober 2026): nama materi setiap butir yang dipetakan dicocokkan dengan TP di data-tp-mi.js dan
+   sesuai. Indikator dan bentuk soal belum dicocokkan kata per kata dengan PDF resmi.
    Butir tanpa padanan TP (dilewati):
      Al-Qur'an Hadis: no.11 kelas V QS. al-Qari'ah; no.12 kelas V QS. al-Zalzalah; no.13 kelas V QS. al-'Adiyat; no.14 kelas V QS. at-Tin; no.15 kelas V QS. al-Humazah; no.16 kelas V Hadis tentang Silaturahmi; no.19 kelas VI QS. al-Bayyinah; no.20 kelas VI QS. al-'Alaq (Ayat 1-5); no.21 kelas VI QS. al-Qadr; no.22 kelas VI QS. adh-Dhuha; no.23 kelas VI QS. al-Insyirah.
      Bahasa Arab: no.8 kelas Kelas V المهنة (Al-Mihnah/Profesi); no.9 kelas Kelas V الحديقة (Al-Hadiqah/Kebun); no.15 kelas Kelas VI الأنشطة اليومية (Al-Ansyithah Al-Yaumiyah); no.16 kelas Kelas VI الأنشطة اليومية (Al-Ansyithah Al-Yaumiyah).

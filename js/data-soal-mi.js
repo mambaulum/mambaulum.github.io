@@ -5,6 +5,9 @@
    TIDAK mencakup hafalan surah/ayat/hadis dan Bahasa Arab: soal untuk itu diketik guru di modul Kartu Soal.
    Soal ditulis ulang oleh penyusun aplikasi dan berstatus DRAF: guru wajib memeriksa kebenaran isi, kesesuaian
    dengan buku ajar/mazhab yang dipakai madrasah, dan tingkat kesulitan sebelum dipakai.
+   Verifikasi (Oktober 2026): isi soal AQH, Akidah Akhlak, Fikih, dan SKI dicek ulang terhadap materi SK 9941/2025
+   dan fakta dasarnya (kunci jawaban pilihan ganda, arti asmaulhusna, rukun, rakaat, nama nabi/sahabat). Tidak ada
+   kunci yang keliru. Belum dicek: tingkat kesulitan dan kesesuaian dengan buku ajar madrasah.
    Format:
      PG    : ['pg', level, soal, [jawaban BENAR, pengecoh1, pengecoh2, pengecoh3]]  (urutan opsi diacak saat dipakai)
      Isian : ['is', level, soal, jawaban]

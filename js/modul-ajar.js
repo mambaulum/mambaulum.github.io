@@ -696,7 +696,7 @@
         fld('', 'Mata Pelajaran *', '<select id="mpf-mapel" class="field">' + mapelOptions(m.mapel) + '</select>') +
         fld('', 'Kelas *', '<select id="mpf-kelas" class="field">' + kelasOpt + '</select>') +
         fld('', 'Semester', '<select id="mpf-semester" class="field">' + semOpt + '</select>') +
-        fld('', 'Materi *', inp('mpf-materi', m.materi, 'Contoh: Alam sekitar')) +
+        fld('', 'Materi *', inp('mpf-materi', m.materi, 'Contoh: Alam sekitar', 'mpDlMateri')) +
         fld('', 'Alokasi Waktu', inp('mpf-alokasi', m.alokasi, 'Contoh: 2 × 35 menit')) +
         fld('', 'Model Pembelajaran', inp('mpf-model', m.model, 'Contoh: Project Based Learning', 'mpDlModel')) +
       '</div>' +
@@ -711,6 +711,7 @@
         '</div>', false, 'mpbadge-detail') +
       '<datalist id="mpDlModel"><option value="Problem Based Learning"><option value="Project Based Learning"><option value="Discovery Learning"><option value="Inquiry Learning"><option value="Cooperative Learning"></datalist>' +
       '<datalist id="mpDlMetode"><option value="Ceramah"><option value="Diskusi"><option value="Demonstrasi"><option value="Tanya jawab"><option value="Penugasan"><option value="Praktik"></datalist>' +
+      '<datalist id="mpDlMateri"></datalist>' +
       '<datalist id="mpDlPend"><option value="Saintifik"><option value="Kontekstual"><option value="Pembelajaran berdiferensiasi"><option value="Tematik"></datalist>' +
       (editingKey ? '' : jadwalBarHtml()) +
       '<div class="mp-rel" id="mpfRel" style="margin:10px 0 8px;"></div>' +
@@ -748,6 +749,22 @@
     var n = root.querySelectorAll('.mpf-dpl:checked, .mpf-panca:checked').length, bp = $('mpbadge-profil');
     if (bp) bp.textContent = n ? n + ' dipilih' : 'kosong';
   }
+  // Saran materi: label materi dari bank TP (semua mapel) lalu dari bank kisi-kisi resmi (AQH & BA).
+  // Hanya saran; guru tetap bebas mengetik.
+  function refreshMateriSaran() {
+    var dl = $('mpDlMateri'); if (!dl) return;
+    var mapel = val('mpf-mapel'), seen = {}, out = [];
+    var tambah = function (m) { var t = String(m || '').trim(); if (t && !seen[t]) { seen[t] = 1; out.push(t); } };
+    var tp = window.BANK_TP_MI, kr = window.BANK_KISI_RESMI_MI;
+    if (tp && tp.mapel) Object.keys(tp.mapel).forEach(function (k) {
+      var mp = tp.mapel[k]; if (!mp || mp.nama !== mapel) return;
+      Object.keys(mp.tp || {}).forEach(function (f) { (mp.tp[f] || []).forEach(function (t) { tambah(t && t[2]); }); });
+    });
+    if (kr) Object.keys(kr).forEach(function (k) {
+      (kr[k] || []).forEach(function (e) { if (e.mp === mapel) tambah(e.materi); });
+    });
+    dl.innerHTML = out.map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
+  }
   function bindForm() {
     var k = $('mpf-kelas'); if (!k) return;
     var upd = function () {
@@ -756,9 +773,15 @@
     };
     var auto = function () { if (!editingKey) applyRef(true); };
     k.addEventListener('change', function () { var f = faseDari(k.value); if (f && $('mpf-fase')) $('mpf-fase').value = f; upd(); auto(); });
-    var mp = $('mpf-mapel'); if (mp) mp.addEventListener('change', function () { upd(); auto(); });
+    var mp = $('mpf-mapel'); if (mp) mp.addEventListener('change', function () { upd(); auto(); refreshMateriSaran(); });
+    refreshMateriSaran();
     var fs = $('mpf-fase'); if (fs) fs.addEventListener('change', auto);
     upd(); refreshRefInfo();
+    // Modul baru: langsung isi dari entri jadwal pertama (guru bisa mengganti pilihannya).
+    if (!editingKey) {
+      var jo = $('mpfJadwal');
+      if (jo && jo.options.length > 1 && !jo.value) { jo.value = jo.options[1].value; isiDariJadwal(jo.value); }
+    }
     if (refLoaded && !editingKey) applyRef(true);
     refreshAcc();
   }
@@ -1100,7 +1123,7 @@
   function ttdHtml(m) {
     if (pers(m) !== 'disetujui') return '<br><br><br>(………………………)';
     var img = '';
-    try { var b64 = (typeof MADRASAH !== 'undefined') ? (MADRASAH.ttdKepalaBase64 || '') : ''; if (/^data:image\//.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
+    try { var b64 = (typeof MADRASAH !== 'undefined') ? (MADRASAH.ttdKepalaBase64 || '') : ''; if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
     return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (img || '<br><br><br>') + '<b>' + esc(m.persetujuanOleh || '') + '</b>';
   }
   function docHtml(m) {

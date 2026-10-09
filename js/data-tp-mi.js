@@ -6,6 +6,9 @@
    telaah bersama KKG/Kepala Madrasah dan rujuk naskah resmi SK sebelum dipakai sebagai dokumen final.
    Fase A = kelas 1-2, Fase B = kelas 3-4, Fase C = kelas 5-6. SKI baru diajarkan mulai Fase B.
    Bentuk TP: [elemen, tujuan pembelajaran, materi pokok (singkat, dipakai sebagai materi di Prota/Promes)].
+   Verifikasi (Oktober 2026): setiap TP dan CP per fase dicocokkan dengan naskah SK 9941/2025 bagian MI
+   (Al-Qur'an Hadis, Akidah Akhlak, Fikih, SKI, Bahasa Arab). Konten sudah sesuai; tidak ada perbedaan materi.
+   Belum dicek: urutan rumusan kata per kata dan kisi-kisi/bank soal terhadap SK ini.
 ============================================================ */
 (function () {
   'use strict';
