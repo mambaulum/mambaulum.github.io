@@ -38,7 +38,7 @@
    js/kredensial.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.44';
+const APP_VERSION = 'v6.40';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -69,27 +69,27 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=5',
   './js/administrasi-ujian.js?v=2',
-  './js/app.js?v=47',
-  './js/amalan-kegiatan.js?v=5',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
+  './js/app.js?v=45',
+  './js/amalan-kegiatan.js?v=6',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=1',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
-  './js/kredensial.js?v=3',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
-  './js/menu-hub.js?v=5',
+  './js/kredensial.js?v=2',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
+  './js/menu-hub.js?v=4',
   './js/rapat.js?v=5',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-tp-mi.js?v=2',
   './js/data-soal-mi.js?v=3',
-  './js/perangkat-rpe.js?v=8',
-  './js/perangkat-prota-promes.js?v=6',
-  './js/perangkat-atp-tp.js?v=6',
+  './js/perangkat-rpe.js?v=5',
+  './js/perangkat-prota-promes.js?v=4',
+  './js/perangkat-atp-tp.js?v=4',
   './js/data-kisi-resmi-mi.js?v=2',
-  './js/perangkat-kisi.js?v=8',
-  './js/perangkat-soal.js?v=7',
-  './js/perangkat-pembelajaran.js?v=7',
+  './js/perangkat-kisi.js?v=6',
+  './js/perangkat-soal.js?v=5',
+  './js/perangkat-pembelajaran.js?v=5',
   './js/modul-ajar.js?v=5',
   './js/buku-tamu.js?v=4',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=5',
   './js/auto-logout.js?v=4',
-  './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
+  './js/login-kode.js?v=11',               // juga dipakai login OFFLINE (membungkus login())
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=4',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html

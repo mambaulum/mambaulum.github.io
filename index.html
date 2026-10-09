@@ -90,27 +90,27 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=47"></script>
+  <script defer src="js/app.js?v=45"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
-  <script defer src="js/amalan-kegiatan.js?v=5"></script>
+  <script defer src="js/amalan-kegiatan.js?v=6"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=1"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
-  <script defer src="js/kredensial.js?v=3"></script>
-  <script defer src="js/menu-hub.js?v=5"></script>
+  <script defer src="js/kredensial.js?v=2"></script>
+  <script defer src="js/menu-hub.js?v=4"></script>
   <!-- Menu Rapat (daftar hadir guru, pimpinan pengganti, notulen, cetak). Halaman dibuat sendiri oleh JS; WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rapat.js?v=5"></script>
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.
        Urutan: data bank -> perangkat-rpe (rpeUtil) -> modul turunan -> perangkat-pembelajaran (hub, TERAKHIR karena membungkus navigateTo). -->
   <script defer src="js/data-tp-mi.js?v=2"></script>
   <script defer src="js/data-soal-mi.js?v=3"></script>
-  <script defer src="js/perangkat-rpe.js?v=8"></script>
-  <script defer src="js/perangkat-prota-promes.js?v=6"></script>
-  <script defer src="js/perangkat-atp-tp.js?v=6"></script>
+  <script defer src="js/perangkat-rpe.js?v=5"></script>
+  <script defer src="js/perangkat-prota-promes.js?v=4"></script>
+  <script defer src="js/perangkat-atp-tp.js?v=4"></script>
   <script defer src="js/data-kisi-resmi-mi.js?v=2"></script>
-  <script defer src="js/perangkat-kisi.js?v=8"></script>
-  <script defer src="js/perangkat-soal.js?v=7"></script>
-  <script defer src="js/perangkat-pembelajaran.js?v=7"></script>
+  <script defer src="js/perangkat-kisi.js?v=6"></script>
+  <script defer src="js/perangkat-soal.js?v=5"></script>
+  <script defer src="js/perangkat-pembelajaran.js?v=5"></script>
   <script defer src="js/modul-ajar.js?v=5"></script>
   <script defer src="js/buku-tamu.js?v=4"></script>
 
@@ -125,7 +125,7 @@
   <script defer src="js/auto-logout.js?v=4"></script>
 
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
-  <script defer src="js/login-kode.js?v=12"></script>
+  <script defer src="js/login-kode.js?v=11"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
   <script defer src="js/tahfidz-grafik.js?v=4"></script>
@@ -309,8 +309,8 @@
             <div class="menu-item" data-page="events"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-events"/></svg></span> Kegiatan Tambahan</div>
             <div class="menu-item" data-page="rapat"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-events"/></svg></span> Rapat</div>
             <div class="menu-item" data-page="ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-ujian"/></svg></span> Honor Ujian</div>
-            <div class="menu-item" data-page="administrasi-ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-administrasi-ujian"/></svg></span> Administrasi Ujian</div>
             <div class="menu-item" data-page="perangkat-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Perangkat Pembelajaran</div>
+            <div class="menu-item" data-page="administrasi-ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-administrasi-ujian"/></svg></span> Administrasi Ujian</div>
             <div class="menu-item" data-page="buku-tamu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Tamu</div>
           </div>
         </div>
