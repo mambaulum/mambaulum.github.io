@@ -6532,6 +6532,13 @@
     function loadReligi() { renderReligi(allReligiAttendance); }
     function renderReligi(data) {
       const today = tglLokal(), bulanIni = today.slice(0,7);
+      // Label jam di halaman selalu mengikuti getJamReligi() supaya tidak berbeda dari aturan yang benar-benar dipakai saveReligi().
+      try {
+        const jd = getJamReligi('sholat_dluha'), jz = getJamReligi('sholat_dzuhur');
+        const ld = document.getElementById('jamReligiDluhaLabel'), lz = document.getElementById('jamReligiDzuhurLabel');
+        if (ld) ld.textContent = jd.mulai + '-' + jd.selesai;
+        if (lz) lz.textContent = jz.mulai + '-' + jz.selesai;
+      } catch (e) { /* label hanya tampilan */ }
       let filtered = data;
       if (!isAdmin() && !isKepsek()) filtered = filtered.filter(item => (item.guruKey ? item.guruKey === currentUser.key : item.guru === currentUser.name));
       const todayList = filtered.filter(item => item.tanggal === today);
@@ -6553,7 +6560,7 @@
       paginationEl.innerHTML = `<button onclick="religiPage--; renderReligi(allReligiAttendance);" ${religiPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${religiPage} / ${totalPages}</span><button onclick="religiPage++; renderReligi(allReligiAttendance);" ${religiPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems} data</span>`;
     }
     function getJamReligi(type) {
-      return type === 'sholat_dluha' ? { mulai: '07:00', selesai: '10:00' } : { mulai: '11:00', selesai: '12:30' };
+      return type === 'sholat_dluha' ? { mulai: '06:30', selesai: '09:00' } : { mulai: '11:00', selesai: '12:30' };
     }
     // Hari diizinkan untuk masing-masing sholat: Dluha setiap hari KECUALI Minggu (madrasah
     // libur); Dzuhur HANYA Senin-Kamis (Jumat & Sabtu tidak ada Dzuhur berjamaah di madrasah,
@@ -6640,24 +6647,59 @@
         return toast(`Admin belum membuat jenis kegiatan "Sholat ${namaSholat}" di menu Amalan Yaumiyah!`, true);
       }
       if (statusAbsenSiswa === false) return toast(`Absensi siswa untuk Sholat ${namaSholat} hari ini belum diisi di menu Amalan Yaumiyah. Isi dulu absensi siswanya.`, true);
-      const existing = allReligiAttendance.find(item => item.tanggal === today && (item.guruKey ? item.guruKey === currentUser.key : item.guru === currentUser.name));
-      const ref = existing ? db.ref('religi_attendance/' + existing.key) : db.ref('religi_attendance').push();
-      const data = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key || null, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };
-      data[type] = { status: status, waktu: new Date().toISOString() };
-      if (existing) { const otherType = type === 'sholat_dluha' ? 'sholat_dzuhur' : 'sholat_dluha'; if (existing[otherType]) data[otherType] = existing[otherType]; }
       const btn = document.getElementById('btnSaveReligi');
-      setBusy('saveReligi', btn);
-      try {
-        ref.update(data, err => {
+      setBusy('saveReligi', btn);   // dikunci sejak awal: pemeriksaan petugas ke server butuh beberapa detik
+      const lanjutSimpan = () => {
+        try {
+          const existing = allReligiAttendance.find(item => item.tanggal === today && (item.guruKey ? item.guruKey === currentUser.key : item.guru === currentUser.name));
+          const ref = existing ? db.ref('religi_attendance/' + existing.key) : db.ref('religi_attendance').push();
+          const data = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key || null, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };
+          data[type] = { status: status, waktu: new Date().toISOString() };
+          if (existing) { const otherType = type === 'sholat_dluha' ? 'sholat_dzuhur' : 'sholat_dluha'; if (existing[otherType]) data[otherType] = existing[otherType]; }
+          ref.update(data, err => {
+            clearBusy('saveReligi', btn);
+            if (err) toast('Gagal: ' + err.message, true);
+            else { toast('✅ Absensi religi tersimpan!'); addLog('simpan_religi', type + ' - ' + status); db.ref('religi_attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { allReligiAttendance = []; snap.forEach(child => { const item = child.val(); item.key = child.key; allReligiAttendance.push(item); }); renderReligi(allReligiAttendance); }); }
+          });
+        } catch (e) {
           clearBusy('saveReligi', btn);
-          if (err) toast('Gagal: ' + err.message, true);
-          else { toast('✅ Absensi religi tersimpan!'); addLog('simpan_religi', type + ' - ' + status); db.ref('religi_attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { allReligiAttendance = []; snap.forEach(child => { const item = child.val(); item.key = child.key; allReligiAttendance.push(item); }); renderReligi(allReligiAttendance); }); }
-        });
-      } catch (e) {
+          toast('Gagal: '+(e && e.message || e), true);
+        }
+      };
+      // Honor sholat (dihitung dari status "Hadir") hanya untuk PETUGAS hari itu: PJ, pengganti yang ditunjuk Admin,
+      // atau guru yang mengklaim saat PJ tidak hadir -- yaitu yang tercatat check-in QR di Amalan Yaumiyah.
+      // Status selain Hadir tidak menghasilkan honor, jadi tidak diperiksa. Admin/Kepsek dikecualikan.
+      if (status !== 'Hadir' || isAdmin() || isKepsek()) return lanjutSimpan();
+      v4PeriksaPetugasSholat(type, today).then(pesan => {
+        if (pesan) { clearBusy('saveReligi', btn); return toast(pesan, true, 9000); }
+        lanjutSimpan();
+      }).catch(err => {
         clearBusy('saveReligi', btn);
-        toast('Gagal: '+(e && e.message || e), true);
-      }
+        toast('Gagal memeriksa petugas ' + namaSholat + ': ' + ((err && err.message) || err) + ' Coba lagi saat sinyal membaik.', true, 6000);
+      });
     }
+    // Hasil: null = guru ini petugas sholat hari ini (boleh mencatat Hadir); string = alasan penolakan.
+    // Dibaca langsung dari server (bukan cache layar Amalan Yaumiyah yang belum tentu terbuka/ter-load).
+    function v4PeriksaPetugasSholat(type, tanggal) {
+      const namaSholat = type === 'sholat_dluha' ? 'Dhuha' : 'Dzuhur';
+      const keys = v4CariJenisKegiatanSholat(type === 'sholat_dluha' ? 'Dluha' : 'Dzuhur').map(t => t.key);
+      if (!keys.length) return Promise.resolve(null);   // jenis kegiatan belum ada: sudah ditolak oleh validasi sebelumnya
+      if (!navigator.onLine) return Promise.resolve('Mencatat Hadir sholat ' + namaSholat + ' butuh koneksi internet untuk memeriksa petugas hari ini.');
+      const saya = (typeof v4ActMyId === 'function') ? v4ActMyId() : (currentUser.key || currentUser.name || '');
+      const baca = Promise.all(keys.map(k => db.ref('activity_checkin_v4/' + tanggal + '_' + k).once('value')));
+      const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 15000));
+      return Promise.race([baca, batas]).then(snaps => {
+        const daftar = snaps.map(sn => sn.val()).filter(Boolean);
+        if (daftar.some(ci => ci.guruKey && ci.guruKey === saya)) return null;
+        if (typeof v4ActCiTunda !== 'undefined' && keys.some(k => v4ActCiTunda[tanggal + '_' + k])) {
+          try { if (typeof v4ActCiTundaKirim === 'function') v4ActCiTundaKirim(false); } catch (e) { /* dicoba lagi otomatis */ }
+          return 'Check-in petugas ' + namaSholat + ' Anda belum sampai ke server. Tunggu sampai terkirim, lalu simpan lagi.';
+        }
+        if (daftar.length) return 'Honor Sholat ' + namaSholat + ' hari ini untuk petugas yang check-in: ' + (daftar[0].guruName || 'guru lain') + '. Absen ini tidak dihitung honor.';
+        return 'Belum ada check-in petugas Sholat ' + namaSholat + ' hari ini. PJ (atau pengganti yang ditunjuk Admin) scan QR di Amalan Yaumiyah dulu; bila PJ tidak hadir, guru lain bisa klaim pengganti setelah jam klaim dibuka.';
+      });
+    }
+
 
     // ============================================================
     // REKAP
