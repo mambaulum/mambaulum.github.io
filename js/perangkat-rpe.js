@@ -169,8 +169,8 @@ ${CSS_TABEL}
 <table class="info"><tr><td>Mata Pelajaran</td><td>: ${esc(info.mapel)}</td></tr><tr><td>Kelas</td><td>: ${esc(info.kelas)}</td></tr><tr><td>Guru</td><td>: ${esc(info.guru)}</td></tr>${h.jp ? `<tr><td>Alokasi waktu</td><td>: ${h.jp} JP per pekan</td></tr>` : ''}<tr><td>Hari belajar</td><td>: ${h.hp} hari per pekan (${fmtTgl(cfg.mulai)} s.d. ${fmtTgl(cfg.selesai)})</td></tr></table>
 ${tabelHtml(h)}
 <div class="cat">Pekan efektif = (hari belajar − hari tidak efektif) ÷ ${h.hp} hari belajar per pekan.${h.jp ? ' JP efektif = pekan efektif × ' + h.jp + ' JP per pekan, dibulatkan per bulan.' : ''}</div>
-<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}<div class="sp"></div><b><u>${esc(cfg.kepala || titik)}</u></b><br>NIP. ${esc(cfg.nipKepala || titik)}</div>
-<div>${esc(cfg.kota || titik)}, ${fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(info.guru || titik)}</u></b><br>NIP. ${esc(info.nip || titik)}</div></div>
+<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}<div class="sp"></div><b><u>${esc(cfg.kepala || titik)}</u></b><br>PEG ID. ${esc(cfg.nipKepala || titik)}</div>
+<div>${esc(cfg.kota || titik)}, ${fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(info.guru || titik)}</u></b><br>PEG ID. ${esc(info.nip || titik)}</div></div>
 </body></html>`;
   }
 
@@ -224,7 +224,7 @@ ${tabelHtml(h)}
     }
     h += `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
       <label style="font-size:12px;">JP per pekan<br><input class="field" type="number" min="1" max="40" inputmode="numeric" style="width:100px;" data-f="jp" value="${esc(M.jp)}" placeholder="mis. 4"></label>
-      <label style="font-size:12px;">NIP guru (untuk tanda tangan)<br><input class="field" maxlength="30" style="width:220px;" data-f="nip" value="${esc(M.nip)}" placeholder="boleh dikosongkan"></label></div>
+      <label style="font-size:12px;">PEG ID guru (untuk tanda tangan)<br><input class="field" maxlength="30" style="width:220px;" data-f="nip" value="${esc(M.nip)}" placeholder="boleh dikosongkan"></label></div>
       <div style="${muted}margin-top:4px;">Kolom JP efektif hanya muncul bila JP per pekan diisi.</div>
       <div id="rpePrev">${pratinjau()}</div>
       <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;">${btn('cetak', '🖨 Cetak / Simpan PDF', 'btn-success')}${btn('word', '📄 Unduh Word')}${isAdm() ? btn('atur', '🗓 Ubah kalender efektif') : ''}${btn('tutup', 'Tutup')}</div>`;
@@ -287,7 +287,7 @@ ${tabelHtml(h)}
       ${baris}
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${btn('atur-tambah', '➕ Tambah baris')}${btn('atur-kalender', '📥 Ambil dari Kalender Akademik')}</div>
       <div style="margin-top:12px;font-weight:700;font-size:13px;">Kop dan tanda tangan</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">${fld('madrasah', 'Nama madrasah', '', 260)}${fld('kota', 'Kota (untuk tanggal cetak)', 'mis. Surabaya', 180)}${fld('kepala', 'Nama Kepala Madrasah', '', 260)}${fld('nipKepala', 'NIP Kepala Madrasah', 'boleh dikosongkan', 200)}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">${fld('madrasah', 'Nama madrasah', '', 260)}${fld('kota', 'Kota (untuk tanggal cetak)', 'mis. Surabaya', 180)}${fld('kepala', 'Nama Kepala Madrasah', '', 260)}${fld('nipKepala', 'PEG ID Kepala Madrasah', 'boleh dikosongkan', 200)}</div>
       <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;">${btn('atur-simpan', '💾 Simpan kalender', 'btn-success')}${btn(M.rec ? 'batal-atur' : 'tutup', 'Batal')}</div>`;
   }
   // ---------- Isi kalender efektif dari Kalender Akademik (hanya mengisi formulir; Admin tetap menyimpan) ----------
@@ -407,7 +407,7 @@ ${tabelHtml(h)}
     }).catch(err => { if (ep !== M.epoch) return; M.loading = false; M.err = (err && err.message) || String(err); gambar(); });
   }
 
-  // ---------- Keluaran bersama: cetak / unduh Word, dan NIP guru tersimpan di server ----------
+  // ---------- Keluaran bersama: cetak / unduh Word, dan PEG ID guru tersimpan di server ----------
   // Indeks akhir (setelah </div>) dari <div> yang dibuka pada indeks 'awal'; -1 bila tidak seimbang.
   function blokSeimbang(h, awal) {
     const re = /<div\b|<\/div>/g; re.lastIndex = awal; let d = 0, m;
@@ -461,14 +461,18 @@ ${tabelHtml(h)}
     setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 500);
     return true;
   }
+  // PEG ID guru (nama field internal tetap 'nip' agar data lama di perangkat tidak hilang).
+  // Server diutamakan (ikut ke HP lain), localStorage sebagai cadangan/offline.
+  // Server: perangkat_setting_v4/pegId/<id guru> -- node ini WAJIB ada di Firebase Rules (lihat DEPLOY.md);
+  // bila belum ada, simpan ditolak dan PEG ID tetap tersimpan di perangkat ini saja.
   const nipKunci = () => 'rpe_nip_' + myId();
+  const nipRef = () => db.ref('perangkat_setting_v4/pegId/' + slug(myId()));
   let nipServer = null; // nilai terakhir yang diketahui ada di server
   function nipLokal() { try { return localStorage.getItem(nipKunci()) || ''; } catch (e) { return ''; } }
-  // NIP: server diutamakan (ikut ke HP lain), localStorage sebagai cadangan/offline.
   function nipMuat() {
     const lokal = nipLokal();
     if (typeof db === 'undefined' || !db || !navigator.onLine || !myId()) return Promise.resolve(lokal);
-    return db.ref('perangkat_setting_v4/nip/' + slug(myId())).once('value').then(sn => {
+    return nipRef().once('value').then(sn => {
       const v = sn.val(); nipServer = (typeof v === 'string') ? v : '';
       if (nipServer) { try { localStorage.setItem(nipKunci(), nipServer); } catch (e) {} return nipServer; }
       return lokal;
@@ -478,10 +482,11 @@ ${tabelHtml(h)}
     v = String(v || '').trim().slice(0, 30);
     try { localStorage.setItem(nipKunci(), v); } catch (e) {}
     if (typeof db === 'undefined' || !db || !navigator.onLine || !myId() || v === nipServer) return Promise.resolve();
-    const ref = db.ref('perangkat_setting_v4/nip/' + slug(myId()));
-    return siap().then(() => (v ? ref.set(v) : ref.remove())).then(() => { nipServer = v; }).catch(e => console.warn('[SI MAMBA] nip:', e));
+    const ref = nipRef();
+    return siap().then(() => (v ? ref.set(v) : ref.remove())).then(() => { nipServer = v; })
+      .catch(e => console.warn('[SI MAMBA] PEG ID belum tersimpan di server (cek Firebase Rules perangkat_setting_v4):', e && e.message || e));
   }
-  // Isi kolom NIP dari server bila pengguna belum mengetik apa pun sejak panel dibuka.
+  // Isi kolom PEG ID dari server bila pengguna belum mengetik apa pun sejak panel dibuka.
   function nipIsi(state, selektor) {
     const awal = state.nip;
     nipMuat().then(v => {

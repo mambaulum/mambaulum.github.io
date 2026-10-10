@@ -100,8 +100,8 @@
   }
   function ttdHtml() {
     const c = kopCfg(), t = '........................................', nip = String(A.nip || '').trim();
-    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>NIP. ${esc(c.nipKepala || t)}</div>
-<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(A.rec.guruName || myName() || t)}</u></b><br>NIP. ${esc(nip || t)}</div></div>`;
+    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
+<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(A.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div>`;
   }
   function dokumen(judulTab, isi) {
     return `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${judulTab} ${esc(A.rec.mapel)} Kelas ${esc(A.rec.kelas)}</title><style>
@@ -216,7 +216,7 @@ tr{page-break-inside:avoid}
     let h = `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
       <label style="font-size:12px;">JP per pekan<br><input class="field" type="number" min="1" max="40" inputmode="numeric" style="width:100px;" data-f="jp" value="${esc(A.jp)}" placeholder="mis. 4"></label>
       <label style="font-size:12px;">Sisihkan JP penilaian<br><input class="field" type="number" min="0" max="60" inputmode="numeric" style="width:120px;" data-f="res" value="${esc(A.res)}" title="JP yang tidak dibagikan ke TP, untuk ulangan/asesmen"></label>
-      <label style="font-size:12px;">NIP guru (tanda tangan)<br><input class="field" maxlength="30" style="width:200px;" data-f="nip" value="${esc(A.nip)}" placeholder="boleh dikosongkan"></label></div>
+      <label style="font-size:12px;">PEG ID guru (tanda tangan)<br><input class="field" maxlength="30" style="width:200px;" data-f="nip" value="${esc(A.nip)}" placeholder="boleh dikosongkan"></label></div>
       <div id="atpTotal" style="margin:10px 0;font-size:13px;">${totalHtml()}</div>`;
     if (!A.items.length) return h + `<div style="${muted}">Belum ada TP terpilih. Kembali ke langkah 1.</div>${btn('tab" data-t="pilih', '‹ Pilih TP')}`;
     SEM.forEach(s => {

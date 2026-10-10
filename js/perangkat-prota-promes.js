@@ -90,8 +90,8 @@ table.t td.on{background:#bbf7d0;font-weight:700;text-align:center}table.t td.no
 <div class="kop"><div class="m">${esc(madrasah)}</div><div class="j">${esc(judul)}</div><div class="s">Tahun Pelajaran ${esc(P.ta)}${orient === 'landscape' ? ' · Semester ' + SEM_LABEL[P.sem] : ''}</div></div>
 <table class="info"><tr><td>Mata Pelajaran</td><td>: ${esc(rec.mapel)}</td></tr><tr><td>Kelas</td><td>: ${esc(rec.kelas)}</td></tr><tr><td>Guru</td><td>: ${esc(guru)}</td></tr>${orient === 'landscape' && jp ? `<tr><td>Alokasi waktu</td><td>: ${jp} JP per pekan</td></tr>` : ''}</table>
 ${isi}
-<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}<div class="sp"></div><b><u>${esc(cfg.kepala || titik)}</u></b><br>NIP. ${esc(cfg.nipKepala || titik)}</div>
-<div>${esc(cfg.kota || titik)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(guru || titik)}</u></b><br>NIP. ${esc(P.nip || titik)}</div></div>
+<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}<div class="sp"></div><b><u>${esc(cfg.kepala || titik)}</u></b><br>PEG ID. ${esc(cfg.nipKepala || titik)}</div>
+<div>${esc(cfg.kota || titik)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(guru || titik)}</u></b><br>PEG ID. ${esc(P.nip || titik)}</div></div>
 </body></html>`;
   }
   function htmlProta() {
@@ -177,7 +177,7 @@ ${isi}
       <div style="${muted}">Tahun ajaran ${esc(P.ta)}${own ? '' : ' · hanya lihat (bukan pemilik)'}</div></div>${btn('tutup', '✕')}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
         <label style="font-size:12px;">JP per pekan<br><input class="field" type="number" min="1" max="40" inputmode="numeric" style="width:100px;" data-f="jp" value="${esc(P.jp)}" placeholder="mis. 4" ${own ? '' : 'disabled'}></label>
-        <label style="font-size:12px;">NIP guru (untuk tanda tangan)<br><input class="field" maxlength="30" style="width:220px;" data-f="nip" value="${esc(P.nip)}" placeholder="boleh dikosongkan"></label></div>
+        <label style="font-size:12px;">PEG ID guru (untuk tanda tangan)<br><input class="field" maxlength="30" style="width:220px;" data-f="nip" value="${esc(P.nip)}" placeholder="boleh dikosongkan"></label></div>
       <div style="${muted}margin-top:4px;">Materi juga bisa terisi otomatis dari menu 🎯 ATP/TP (tombol Terapkan ke Prota/Promes).</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">${tab('ganjil')}${tab('genap')}</div>
       <div id="protaSum" style="margin:8px 0;font-size:13px;">${ringkas()}</div>

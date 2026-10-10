@@ -136,8 +136,8 @@ h4{margin:12px 0 6px;font-size:11.5pt}
   function kopHtml(s, judul) { return `<div class="kop"><div class="m">${esc(kopCfg().madrasah || 'MADRASAH')}</div><div class="j">${judul}</div><div class="s">${esc(judulAs(s))} Semester ${SEM_LABEL[s]} · Tahun Pelajaran ${esc(S.ta)}</div></div>`; }
   function ttdHtml() {
     const c = kopCfg(), t = '........................................', nip = String(S.nip || '').trim();
-    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>NIP. ${esc(c.nipKepala || t)}</div>
-<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(S.rec.guruName || myName() || t)}</u></b><br>NIP. ${esc(nip || t)}</div></div>`;
+    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
+<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(S.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div>`;
   }
   const html = (judul, isi) => `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${judul} ${esc(S.rec.mapel)} Kelas ${esc(S.rec.kelas)}</title><style>${CSS_DOK}</style></head><body>${isi}</body></html>`;
   const bentukNama = b => BENTUK.find(x => x[0] === b)[1];
@@ -257,7 +257,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
       <div id="soalSum" style="margin:10px 0;font-size:13px;">${ringkasHtml()}</div>`;
     h += sl.map((x, i) => kartuHtml(x, i)).join('');
     return h + `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
-      <label style="font-size:12px;">NIP guru (tanda tangan)<br><input class="field" maxlength="30" style="width:200px;" data-f="nip" value="${esc(S.nip)}" placeholder="boleh dikosongkan"></label>
+      <label style="font-size:12px;">PEG ID guru (tanda tangan)<br><input class="field" maxlength="30" style="width:200px;" data-f="nip" value="${esc(S.nip)}" placeholder="boleh dikosongkan"></label>
       ${btn('simpan', '💾 Simpan', 'btn-success')}${btn('cetak-kartu', '🖨 Kartu Soal')}${btn('cetak-naskah', '🖨 Naskah Soal')}${btn('cetak-kunci', '🖨 Kunci &amp; Penskoran')}${btn('word-kartu', '📄 Kartu Word')}${btn('word-naskah', '📄 Naskah Word')}${btn('word-kunci', '📄 Kunci Word')}</div>`;
   }
   function gambar() {

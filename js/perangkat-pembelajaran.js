@@ -226,8 +226,8 @@
 
   // Cek kesiapan data dasar untuk pembuatan otomatis (hanya membaca; tidak mengubah data).
   function siapCek(rec) {
-    // NIP sengaja TIDAK dijadikan syarat: guru honorer/non-ASN memang tidak punya NIP,
-    // dan dokumen cetak sudah menangani ini dengan baik (NIP kosong -> titik-titik, format baku
+    // PEG ID (dulu NIP) sengaja TIDAK dijadikan syarat: tidak semua guru punya,
+    // dan dokumen cetak sudah menangani ini dengan baik (PEG ID kosong -> titik-titik, format baku
     // untuk non-PNS). Menjadikannya syarat wajib akan membuat peringatan ini tidak pernah hilang
     // bagi guru honorer walau tidak ada yang perlu diperbaiki.
     const k = [];

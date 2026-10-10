@@ -38,7 +38,7 @@
    js/kredensial.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.53';
+const APP_VERSION = 'v6.57';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -77,14 +77,14 @@ const PRECACHE_URLS = [
   './js/rapat.js?v=5',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-tp-mi.js?v=3',
   './js/data-soal-mi.js?v=4',
-  './js/perangkat-rpe.js?v=6',
-  './js/perangkat-prota-promes.js?v=5',
-  './js/perangkat-atp-tp.js?v=5',
+  './js/perangkat-rpe.js?v=8',
+  './js/perangkat-prota-promes.js?v=6',
+  './js/perangkat-atp-tp.js?v=6',
   './js/data-kisi-resmi-mi.js?v=3',
-  './js/perangkat-kisi.js?v=7',
-  './js/perangkat-soal.js?v=6',
+  './js/perangkat-kisi.js?v=8',
+  './js/perangkat-soal.js?v=7',
   './js/perangkat-pembelajaran.js?v=7',
-  './js/modul-ajar.js?v=9',
+  './js/modul-ajar.js?v=11',
   './js/buku-tamu.js?v=4',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=5',

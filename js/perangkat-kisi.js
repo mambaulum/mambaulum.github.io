@@ -123,8 +123,8 @@ tr{page-break-inside:avoid}
 <tr><td>Kelas${K.fase ? ' / Fase' : ''}</td><td>: ${esc(K.rec.kelas)}${K.fase ? ' / Fase ' + K.fase : ''}</td><td>Alokasi Waktu</td><td>: ${esc(st.waktu || '-')} menit</td></tr>
 <tr><td>Kurikulum</td><td>: Kurikulum Merdeka</td><td>Penyusun</td><td>: ${esc(K.rec.guruName || myName())}</td></tr></table>
 ${tabelKisi(s)}
-<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>NIP. ${esc(c.nipKepala || t)}</div>
-<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(K.rec.guruName || myName() || t)}</u></b><br>NIP. ${esc(nip || t)}</div></div></body></html>`;
+<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
+<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(K.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div></body></html>`;
   }
   function cetak(mode) {
     sinkron(); const s = K.sem;
@@ -182,7 +182,7 @@ ${tabelKisi(s)}
           <span id="kisiNo${i}" style="${muted}">No: ${[no[i].pg && 'PG ' + no[i].pg, no[i].is && 'Isian ' + no[i].is, no[i].ur && 'Uraian ' + no[i].ur].filter(Boolean).join(' · ') || '-'}</span></div></div>`;
     });
     h += `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
-      <label style="font-size:12px;">NIP guru (tanda tangan)<br><input class="field" maxlength="30" style="width:200px;" data-f="nip" value="${esc(K.nip)}" placeholder="boleh dikosongkan"></label>
+      <label style="font-size:12px;">PEG ID guru (tanda tangan)<br><input class="field" maxlength="30" style="width:200px;" data-f="nip" value="${esc(K.nip)}" placeholder="boleh dikosongkan"></label>
       ${btn('simpan', '💾 Simpan', 'btn-success')}${btn('cetak', '🖨 Cetak Kisi-kisi')}${btn('word', '📄 Kisi-kisi Word')}</div>
       <div style="${muted}margin-top:6px;">Indikator dan level di atas adalah usulan dari TP; sesuaikan dengan soal yang akan dibuat.</div>`;
     return h;

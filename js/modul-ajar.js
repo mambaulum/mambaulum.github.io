@@ -358,17 +358,50 @@
   // kepala madrasah akan selalu kosong. Disimpan di Firebase (bukan localStorage) karena nilainya
   // satu untuk seluruh madrasah, bukan per guru.
   var kepalaNama = '';
+  // Disimpan di school_settings/namaKepala: node ini sudah ada di Firebase Rules (baca/tulis untuk user login,
+  // anak tambahan diizinkan lewat $other), jadi tidak perlu mengubah Rules. Jalur lama 'pengaturan_cetak' dan
+  // 'perangkat_setting_v4' TIDAK ada di Rules sehingga selalu ditolak. Salinan localStorage tetap dibuat supaya
+  // cetak di perangkat ini terisi walau sedang offline.
+  var KEPALA_PATHS = ['school_settings/namaKepala'];
+  var KEPALA_LS = 'mp_nama_kepala';
+  function kepalaLokal() { try { return localStorage.getItem(KEPALA_LS) || ''; } catch (e) { return ''; } }
+  function kepalaSegarkan() { if (tab !== 'buat') renderBody(); } // jangan timpa form yang sedang diisi
+  function kepalaOnline() { return typeof isReallyOnline === 'function' ? isReallyOnline() : navigator.onLine; }
   function loadKepalaNama() {
-    if (typeof db === 'undefined') return;
-    db.ref('pengaturan_cetak/namaKepala').once('value', function (snap) { kepalaNama = snap.val() || ''; renderBody(); });
+    kepalaNama = kepalaLokal();
+    if (typeof db === 'undefined' || !db || !kepalaOnline()) { kepalaSegarkan(); return; }
+    (function coba(i) {
+      if (i >= KEPALA_PATHS.length) { kepalaSegarkan(); return; }
+      db.ref(KEPALA_PATHS[i]).once('value', function (snap) {
+        var v = snap.val();
+        if (typeof v === 'string' && v.trim()) { kepalaNama = v.trim(); kepalaSegarkan(); } else coba(i + 1);
+      }, function () { coba(i + 1); }); // dibaca ditolak -> coba jalur berikutnya, bukan diam saja
+    })(0);
+  }
+  function simpanKepalaServer(v, cb) { // cb(errTerakhir | null)
+    var selesai = false, timer = setTimeout(function () { if (!selesai) { selesai = true; cb({ message: 'server tidak merespons' }); } }, 12000);
+    function akhir(err) { if (selesai) return; selesai = true; clearTimeout(timer); cb(err); }
+    (function coba(i, lastErr) {
+      if (selesai) return;
+      if (i >= KEPALA_PATHS.length) return akhir(lastErr || { message: 'gagal' });
+      try {
+        db.ref(KEPALA_PATHS[i]).set(v, function (err) { if (err) coba(i + 1, err); else akhir(null); });
+      } catch (e) { coba(i + 1, e); }
+    })(0, null);
   }
   function aturKepalaNama() {
+    if (!isAdmin()) return toast('Hanya Admin yang bisa mengubah nama Kepala Madrasah.', true);
     var v = prompt('Nama Kepala Madrasah (dicetak di baris tanda tangan Modul Ajar bila belum disetujui lewat aplikasi):', kepalaNama || '');
     if (v === null) return;
-    v = v.trim();
-    db.ref('pengaturan_cetak/namaKepala').set(v, function (err) {
-      if (err) return toast('Gagal menyimpan: ' + err.message, true);
-      kepalaNama = v; toast('✅ Nama Kepala Madrasah disimpan'); renderBody();
+    v = v.trim().slice(0, 80);
+    try { localStorage.setItem(KEPALA_LS, v); } catch (e) {}
+    kepalaNama = v; kepalaSegarkan();
+    if (typeof db === 'undefined' || !db || !kepalaOnline()) {
+      return toast('⚠️ Offline: nama tersimpan di perangkat ini saja. Simpan ulang saat online agar berlaku di semua perangkat.', true);
+    }
+    simpanKepalaServer(v, function (err) {
+      if (err) return toast('⚠️ Tersimpan di perangkat ini saja. Server menolak: ' + (err.message || err) + '. Coba lagi saat online dan sudah login.', true);
+      toast('✅ Nama Kepala Madrasah disimpan');
     });
   }
   function refFor(mapel, fase) { return refs.filter(function (r) { return r.mapel === mapel && r.fase === fase; })[0]; }
@@ -1341,7 +1374,7 @@
           if (!root) ensurePage();
           var t = $('pageTitle'); if (t) t.textContent = 'Modul Pembelajaran';
           if (tab === 'buat' && !editingKey) tab = 'daftar';
-          render(); load(false); loadRef(false);
+          render(); load(false); loadRef(false); loadKepalaNama();
         } catch (e) { console.error('[modul-ajar]', e); }
       }
       return r;
