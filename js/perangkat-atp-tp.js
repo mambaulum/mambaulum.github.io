@@ -152,7 +152,7 @@ tr{page-break-inside:avoid}
     let el = document.getElementById('atpOverlay'); if (el) return el;
     el = document.createElement('div'); el.id = 'atpOverlay';
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
-    el.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:9999;background:rgba(15,23,42,.5);overflow:auto;padding:12px;';
+    el.className = 'pp-modal-overlay';
     el.addEventListener('click', klik); el.addEventListener('input', ketik);
     document.body.appendChild(el); return el;
   }

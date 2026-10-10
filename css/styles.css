@@ -2429,3 +2429,23 @@ body.dark-mode #loadingOverlay .loading-spinner {
   border-top-color: var(--c-emerald-400) !important;
   border-right-color: #d9b45a !important;
 }
+
+/* ============================================================
+   PATCH PERANGKAT PEMBELAJARAN: MODAL EDITOR vs BOTTOM NAV (HP)
+   Modal editor RPE/ATP-TP/Prota-Promes/Kisi-kisi/Soal (overlay penuh layar,
+   z-index:9999) berada DI BAWAH bottom-nav di HP (z-index: var(--z-bottom-nav-mobile)
+   = 100000 -- lihat PATCH MOBILE di atas, sengaja dibuat lebih tinggi dari "modal
+   biasa"). Akibatnya tombol Simpan yang berada di paling bawah modal bisa ketutup
+   bottom-nav saat modal di-scroll sampai akhir. Diperbaiki BUKAN dengan menaikkan
+   z-index modal (supaya tidak mengubah urutan tumpukan yang sudah sengaja diatur),
+   tapi dengan menambah ruang kosong di bawah area scroll modal itu sendiri setinggi
+   bottom-nav, sehingga tombol Simpan tidak pernah sampai ke zona yang ketutup.
+   Diletakkan PALING AKHIR supaya menang dari .pp-modal-overlay dasar (kalau ada).
+============================================================ */
+.pp-modal-overlay {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 9999; background: rgba(15,23,42,.5); overflow: auto; padding: 12px;
+}
+@media (max-width: 768px) {
+  .pp-modal-overlay { padding-bottom: calc(12px + 64px + env(safe-area-inset-bottom, 0px)) !important; }
+}
