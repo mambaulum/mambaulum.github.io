@@ -38,7 +38,7 @@
    js/kredensial.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.57';
+const APP_VERSION = 'v6.59';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -84,12 +84,13 @@ const PRECACHE_URLS = [
   './js/perangkat-kisi.js?v=8',
   './js/perangkat-soal.js?v=7',
   './js/perangkat-pembelajaran.js?v=7',
-  './js/modul-ajar.js?v=11',
+  './js/modul-ajar.js?v=12',
   './js/buku-tamu.js?v=4',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=5',
   './js/auto-logout.js?v=4',
   './js/login-kode.js?v=11',               // juga dipakai login OFFLINE (membungkus login())
+  './js/impersonate.js?v=1',
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=4',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
