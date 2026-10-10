@@ -1180,7 +1180,7 @@
   /* ---------- cetak / PDF ---------- */
   // Blok pengesahan: hanya terisi bila modul berstatus disetujui (nama penyetuju + tanggal, tanda tangan digital bila ada).
   function ttdHtml(m) {
-    if (pers(m) !== 'disetujui') return '<br><br><br>(' + esc(kepalaNama || '………………………') + ')';
+    if (pers(m) !== 'disetujui') return '<br><br><br><b>' + esc(kepalaNama || '………………………') + '</b>';
     var img = '';
     try { var b64 = (typeof MADRASAH !== 'undefined') ? (MADRASAH.ttdKepalaBase64 || '') : ''; if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
     return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (img || '<br><br><br>') + '<b>' + esc(m.persetujuanOleh || '') + '</b>';
