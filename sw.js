@@ -38,7 +38,7 @@
    js/kredensial.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.59';
+const APP_VERSION = 'v6.71';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -69,11 +69,12 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=5',
   './js/administrasi-ujian.js?v=2',
-  './js/app.js?v=47',
+  './js/app.js?v=56',
   './js/amalan-kegiatan.js?v=6',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=1',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=2',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
-  './js/menu-hub.js?v=4',
+  './js/menu-hub.js?v=10',
+  './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=5',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-tp-mi.js?v=3',
   './js/data-soal-mi.js?v=4',
@@ -90,7 +91,7 @@ const PRECACHE_URLS = [
   './js/tunggakan-infaq.js?v=5',
   './js/auto-logout.js?v=4',
   './js/login-kode.js?v=11',               // juga dipakai login OFFLINE (membungkus login())
-  './js/impersonate.js?v=1',
+  './js/impersonate.js?v=2',
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=4',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html

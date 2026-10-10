@@ -90,14 +90,16 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=47"></script>
+  <script defer src="js/app.js?v=56"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=6"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=1"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=2"></script>
-  <script defer src="js/menu-hub.js?v=4"></script>
+  <script defer src="js/menu-hub.js?v=10"></script>
+  <!-- Rekap Jurnal Mengajar (menu Pembelajaran, Admin & Kepsek). WAJIB sesudah app.js & menu-hub.js. -->
+  <script defer src="js/rekap-jurnal.js?v=1"></script>
   <!-- Menu Rapat (daftar hadir guru, pimpinan pengganti, notulen, cetak). Halaman dibuat sendiri oleh JS; WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rapat.js?v=5"></script>
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.
@@ -127,7 +129,7 @@
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
   <script defer src="js/login-kode.js?v=11"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
-  <script defer src="js/impersonate.js?v=1"></script>
+  <script defer src="js/impersonate.js?v=2"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
   <script defer src="js/tahfidz-grafik.js?v=4"></script>
@@ -270,29 +272,53 @@
       <nav class="sidebar-menu" id="v4SidebarMenu">
         <div class="menu-item active" data-page="dashboard"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-dashboard"/></svg></span> Dashboard</div>
         <div class="menu-item" data-page="profile-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-profile-v4"/></svg></span> Profil Saya</div>
+        <div class="menu-item" data-page="profil-sekolah"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-profil-sekolah"/></svg></span> Profil Madrasah</div>
         <div class="menu-item" data-page="kalender-akademik"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kalender-akademik"/></svg></span> Kalender Akademik</div>
+        <div class="menu-item notif-badge" data-page="notifications-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-notifications-v4"/></svg></span> Notifikasi <span class="badge-dot" id="v4NotifDot"></span></div>
+        <div class="menu-item" data-page="tasks-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tasks-v4"/></svg></span> Task Center</div>
+        <div class="menu-item" data-page="approval-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-approval-v4"/></svg></span> Approval</div>
+        <div class="menu-item notif-badge" data-page="saran-kritik"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-saran-kritik"/></svg></span> Saran &amp; Kritik <span class="badge-dot" id="saranKritikNotifDot"></span></div>
 
-        <div class="menu-group" data-group="akademik-v4">
-          <div class="menu-group-header" onclick="toggleMenuGroup('akademik-v4')">Akademik <span class="chevron">▲</span></div>
+        <div class="menu-group collapsed" data-group="akademik-v4">
+          <div class="menu-group-header" onclick="toggleMenuGroup('akademik-v4')">Pembelajaran <span class="chevron">▲</span></div>
           <div class="menu-group-items">
-            <div class="menu-item" data-page="students"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-students"/></svg></span> Siswa</div>
             <div class="menu-item" data-page="jadwal"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-jadwal"/></svg></span> Jadwal</div>
-            <div class="menu-item" data-page="grades"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-grades"/></svg></span> Nilai</div>
-            <div class="menu-item" data-page="journal"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-journal"/></svg></span> Jurnal</div>
+            <div class="menu-item" data-page="rekap-jurnal"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-journal"/></svg></span> Rekap Jurnal</div>
+            <div class="menu-item" data-page="journal"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-journal"/></svg></span> Jurnal Mengajar</div>
             <div class="menu-item" data-page="attendance"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-attendance"/></svg></span> Absensi Siswa</div>
-            <div class="menu-item" data-page="sikap-siswa"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-sikap-siswa"/></svg></span> Sikap Siswa</div>
-            <div class="menu-item" data-page="buku-penghubung"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Penghubung</div>
-            <div class="menu-item notif-badge" data-page="info-ortu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-info-ortu"/></svg></span> Info ke Ortu <span class="badge-dot" id="infoOrtuNotifDot"></span></div>
+            <div class="menu-item" data-page="perangkat-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Perangkat Pembelajaran</div>
             <div class="menu-item" data-page="modul-ajar"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Modul Pembelajaran</div>
             <div class="menu-item" data-page="materi-belajar"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Materi Belajar</div>
             <div class="menu-item" data-page="tugas-siswa"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tugas-siswa"/></svg></span> Tugas Siswa</div>
-            <div class="menu-item" data-page="rekap-nilai"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap-nilai"/></svg></span> Rekap Nilai</div>
-            <div class="menu-item" data-page="promotion"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-promotion"/></svg></span> Kenaikan Kelas</div>
           </div>
         </div>
 
-        <div class="menu-group" data-group="kegiatan-v4">
-          <div class="menu-group-header" onclick="toggleMenuGroup('kegiatan-v4')">Kegiatan <span class="chevron">▲</span></div>
+        <div class="menu-group collapsed" data-group="siswa-ortu-v4">
+          <div class="menu-group-header" onclick="toggleMenuGroup('siswa-ortu-v4')">Siswa & Orang Tua <span class="chevron">▲</span></div>
+          <div class="menu-group-items">
+            <div class="menu-item" data-page="students"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-students"/></svg></span> Siswa</div>
+            <div class="menu-item" data-page="promotion"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-promotion"/></svg></span> Kenaikan Kelas</div>
+            <div class="menu-item" data-page="buku-penghubung"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Penghubung</div>
+            <div class="menu-item notif-badge" data-page="info-ortu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-info-ortu"/></svg></span> Info ke Ortu <span class="badge-dot" id="infoOrtuNotifDot"></span></div>
+          </div>
+        </div>
+
+        <div class="menu-group collapsed" data-group="raport-v4">
+          <div class="menu-group-header" onclick="toggleMenuGroup('raport-v4')">Penilaian & Raport <span class="chevron">▲</span></div>
+          <div class="menu-group-items">
+            <div class="menu-item" data-page="grades"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-grades"/></svg></span> Nilai</div>
+            <div class="menu-item" data-page="rekap-nilai"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap-nilai"/></svg></span> Rekap Nilai</div>
+            <div class="menu-item" data-page="sikap-siswa"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-sikap-siswa"/></svg></span> Sikap Siswa</div>
+            <div class="menu-item" data-page="ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-ujian"/></svg></span> Honor Ujian</div>
+            <div class="menu-item" data-page="administrasi-ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-administrasi-ujian"/></svg></span> Administrasi Ujian</div>
+            <div class="menu-item" data-page="raport-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-raport-v4"/></svg></span> Raport</div>
+            <div class="menu-item" data-page="laporan"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-laporan"/></svg></span> Laporan Resmi</div>
+            <div class="menu-item" data-page="surat"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-surat"/></svg></span> Surat & Ijin</div>
+          </div>
+        </div>
+
+        <div class="menu-group collapsed" data-group="kegiatan-v4">
+          <div class="menu-group-header" onclick="toggleMenuGroup('kegiatan-v4')">Kegiatan Siswa <span class="chevron">▲</span></div>
           <div class="menu-group-items">
             <div class="menu-item" data-page="activities-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-activities-v4"/></svg></span> Amalan Yaumiyah</div>
             <div class="menu-item" data-page="religi"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-religi"/></svg></span> Absen Religi Saya</div>
@@ -303,53 +329,37 @@
           </div>
         </div>
 
-        <div class="menu-group" data-group="operasional-v4">
-          <div class="menu-group-header" onclick="toggleMenuGroup('operasional-v4')">Operasional <span class="chevron">▲</span></div>
+        <div class="menu-group collapsed" data-group="operasional-v4">
+          <div class="menu-group-header" onclick="toggleMenuGroup('operasional-v4')">Guru & Madrasah <span class="chevron">▲</span></div>
           <div class="menu-group-items">
             <div class="menu-item" data-page="teacher-attendance"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-teacher-attendance"/></svg></span> Absen Guru</div>
             <div class="menu-item" data-page="kelola-absen-guru"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kelola-absen-guru"/></svg></span> Kelola Absen Guru</div>
-            <div class="menu-item" data-page="events"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-events"/></svg></span> Kegiatan Tambahan</div>
+            <div class="menu-item" data-page="events"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-events"/></svg></span> Lembur & Kegiatan Tambahan</div>
             <div class="menu-item" data-page="rapat"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-events"/></svg></span> Rapat</div>
-            <div class="menu-item" data-page="ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-ujian"/></svg></span> Honor Ujian</div>
-            <div class="menu-item" data-page="perangkat-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Perangkat Pembelajaran</div>
-            <div class="menu-item" data-page="administrasi-ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-administrasi-ujian"/></svg></span> Administrasi Ujian</div>
             <div class="menu-item" data-page="buku-tamu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Tamu</div>
           </div>
         </div>
 
-        <div class="menu-group" data-group="keuangan-v4">
+        <div class="menu-group collapsed" data-group="keuangan-v4">
           <div class="menu-group-header" onclick="toggleMenuGroup('keuangan-v4')">Keuangan <span class="chevron">▲</span></div>
           <div class="menu-group-items">
             <div class="menu-item" data-page="honor"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-honor"/></svg></span> Honor</div>
             <div class="menu-item" data-page="honor-slip"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-honor-slip"/></svg></span> Slip Honor Saya</div>
-            <div class="menu-item notif-badge" data-page="infaq-madrasah"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-infaq-madrasah"/></svg></span> Infaq Mingguan <span class="badge-dot" id="infaqNotifDot"></span></div>
             <div class="menu-item" data-page="kas-umum"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kas-umum"/></svg></span> Kas Madrasah</div>
-            <div class="menu-item" data-page="approval-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-approval-v4"/></svg></span> Approval</div>
+            <div class="menu-item notif-badge" data-page="infaq-madrasah"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-infaq-madrasah"/></svg></span> Infaq Mingguan <span class="badge-dot" id="infaqNotifDot"></span></div>
           </div>
         </div>
 
-        <div class="menu-group" data-group="raport-v4">
-          <div class="menu-group-header" onclick="toggleMenuGroup('raport-v4')">Raport & Laporan <span class="chevron">▲</span></div>
-          <div class="menu-group-items">
-            <div class="menu-item" data-page="raport-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-raport-v4"/></svg></span> Raport</div>
-            <div class="menu-item" data-page="laporan"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-laporan"/></svg></span> Laporan & Cetak</div>
-            <div class="menu-item" data-page="surat"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-surat"/></svg></span> Surat & Ijin</div>
-          </div>
-        </div>
-
-        <div class="menu-group" data-group="sistem-v4">
+        <div class="menu-group collapsed" data-group="sistem-v4">
           <div class="menu-group-header" onclick="toggleMenuGroup('sistem-v4')">Sistem <span class="chevron">▲</span></div>
           <div class="menu-group-items">
-            <div class="menu-item notif-badge" data-page="notifications-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-notifications-v4"/></svg></span> Notifikasi <span class="badge-dot" id="v4NotifDot"></span></div>
-            <div class="menu-item notif-badge" data-page="saran-kritik"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-saran-kritik"/></svg></span> Saran &amp; Kritik <span class="badge-dot" id="saranKritikNotifDot"></span></div>
-            <div class="menu-item" data-page="tasks-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tasks-v4"/></svg></span> Task Center</div>
-            <div class="menu-item" data-page="user-management"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> User & Permission</div>
             <div class="menu-item notif-badge" data-page="admin"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-admin"/></svg></span> Admin <span class="badge-dot" id="adminNotifDot"></span></div>
-            <div class="menu-item" data-page="rekap"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> Rekap Sekolah</div>
+            <div class="menu-item" data-page="user-management"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> User & Permission</div>
+            <div class="menu-item" data-page="rekap"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> Ringkasan Sekolah</div>
             <div class="menu-item" data-page="setting-jam"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-setting-jam"/></svg></span> Setting Jam</div>
-            <div class="menu-item" data-page="profil-sekolah"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-profil-sekolah"/></svg></span> Pengaturan Madrasah</div>
           </div>
         </div>
+
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
@@ -755,6 +765,26 @@
       <!-- ============================================================
            PAGE: JURNAL (SINGKAT - SAMA SEPERTI SEBELUMNYA)
       ============================================================ -->
+      <div id="page-rekap-jurnal" class="page-content hidden">
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📖 Rekap Jurnal Mengajar</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Rekap jurnal mengajar seluruh guru. <span style="color:#dc2626;font-weight:600;">* Hanya Admin & Kepsek.</span> Untuk mengisi jurnal manual (darurat) atau menyetujui jurnal susulan, buka tab <strong>Jurnal Mengajar</strong>.</p>
+          <div class="grid-4" style="margin-bottom:16px;">
+            <div><label class="label">Periode</label><select id="rjPeriode" class="field" onchange="rjRender()"><option value="bulanan">Bulanan</option><option value="harian">Harian</option></select></div>
+            <div><label class="label">Tanggal (bulan mengikuti tanggal)</label><input id="rjTanggal" class="field" type="date" onchange="rjRender()"></div>
+            <div><label class="label">Guru</label><select id="rjGuru" class="field" onchange="rjRender()"><option value="">Semua Guru</option></select></div>
+            <div><label class="label">Kelas</label><select id="rjKelas" class="field" onchange="rjRender()"></select></div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px;">
+            <div style="background:#fffbeb;padding:10px 16px;border-radius:8px;text-align:center;"><p style="font-size:12px;color:#6b7280;">Total Jurnal</p><p id="rjTotalJurnal" style="font-size:20px;font-weight:700;">0</p></div>
+            <div style="background:#eff6ff;padding:10px 16px;border-radius:8px;text-align:center;"><p style="font-size:12px;color:#6b7280;">Jumlah Guru</p><p id="rjTotalGuru" style="font-size:20px;font-weight:700;">0</p></div>
+            <span id="rjLabelPeriode" style="font-size:13px;color:#374151;font-weight:600;"></span>
+            <button class="btn btn-success" style="margin-left:auto;" onclick="rjUnduhPdf()">📥 Unduh PDF</button>
+          </div>
+          <div id="rjList"></div>
+        </div>
+      </div>
+
       <div id="page-journal" class="page-content hidden">
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📓 Jurnal Pembelajaran</h3>
@@ -888,7 +918,9 @@
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
             <button class="btn btn-primary" onclick="loadKelolaAbsenGuru()">🔍 Tampilkan</button>
             <button id="kagTambahBtn" class="btn btn-success" onclick="kagBuka(null)">➕ Tambah Catatan</button>
+            <button class="btn btn-soft" onclick="kagUnduhRekapPdf()">📥 Unduh Rekap (PDF)</button>
           </div>
+          <p style="font-size:11px;color:#6b7280;margin:-4px 0 10px;">Rekap PDF mengikuti rentang tanggal &amp; guru di atas (filter Jenis tidak berlaku; catatan Dobel dihitung satu).</p>
           <div id="kagSummary" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:12px;"></div>
           <div id="kagList" style="overflow-x:auto;"></div>
         </div>
@@ -1146,7 +1178,7 @@
       <div id="page-rekap" class="page-content hidden">
         <div class="card">
 
-          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 Rekap Sekolah</h3>
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 Ringkasan Sekolah</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Rekapitulasi seluruh data sekolah</p>
           <div class="grid-3" style="margin-bottom:16px;">
             <div><label class="label">Filter Guru</label><select id="rekapFilterGuru" class="field" onchange="renderRekap()"><option value="">Semua Guru</option></select></div>
@@ -1159,7 +1191,7 @@
             <div style="background:#fffbeb;padding:12px;border-radius:8px;text-align:center;"><p style="font-size:12px;color:#6b7280;">Total Jurnal</p><p id="rekapTotalJurnal" style="font-size:20px;font-weight:700;">0</p></div>
             <div style="background:#fef2f2;padding:12px;border-radius:8px;text-align:center;"><p style="font-size:12px;color:#6b7280;">Guru Hadir</p><p id="rekapGuruHadir" style="font-size:20px;font-weight:700;">0</p></div>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"><button class="btn btn-success" onclick="downloadRekapAbsensiSiswa()">📥 Rekap Absensi Siswa</button><button class="btn btn-success" onclick="downloadRekapAbsensiGuru()">📥 Rekap Absensi Guru</button><button class="btn btn-soft" onclick="downloadRekapSemua()">📥 Rekap Semua Data</button></div>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;"><select id="rekapPeriodePdf" class="field" style="width:auto;" aria-label="Periode PDF rekap" title="Periode PDF"><option value="harian">PDF: Harian</option><option value="bulanan">PDF: Bulanan</option></select><button class="btn btn-success" onclick="downloadRekapAbsensiSiswa()">📥 Absensi Siswa (PDF)</button><button class="btn btn-soft" onclick="downloadRekapSemua()">📥 Rekap Semua Data (CSV)</button></div>
           <div id="rekapList"></div>
           <div id="rekapPagination" class="pagination"></div>
         </div>
@@ -1547,7 +1579,7 @@
       ============================================================ -->
       <div id="page-laporan" class="page-content hidden">
         <div class="card">
-          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 Laporan Formal</h3>
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 Laporan Resmi</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:16px;">Cetak laporan formal dengan kop surat resmi madrasah. <span style="color:#dc2626;font-weight:600;">* Hanya Admin & Kepsek yang bisa mengakses.</span></p>
 
           <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
@@ -1557,8 +1589,6 @@
                 <option value="kehadiran">📋 Kehadiran Siswa Bulanan</option>
                 <option value="nilai">📊 Rekap Nilai Rapor</option>
                 <option value="honor">💰 Laporan Honor Guru</option>
-                <option value="jurnal">📖 Rekap Jurnal Mengajar Bulanan</option>
-                <option value="absensi-guru">🕐 Rekap Absensi Guru Bulanan</option>
               </select>
             </div>
             <div style="flex:1;min-width:150px;" id="reportClassContainer">
