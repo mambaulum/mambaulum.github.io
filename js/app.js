@@ -2278,6 +2278,12 @@
       renderDashboardNilaiChart();
       renderDashboardInfaqChart();
     }
+    // Kehadiran guru = HANYA catatan bertipe 'Datang' (Telat adalah bagian dari Datang). Catatan Izin, Sakit, dan
+    // Alpha (termasuk Alpha otomatis sistem) BUKAN hadir. Dihitung per guru per hari (Datang ganda di hari yang
+    // sama tidak dihitung dua kali). Dulu semua catatan dihitung -> persen kehadiran selalu 100%.
+    function hariHadirGuruUnik(list) {
+      return new Set((list || []).filter(a => a && a.type === 'Datang').map(a => (a.guruKey || a.guru) + '|' + a.tanggal)).size;
+    }
     function renderRingkasanKepsekKartu() {
       const grid = document.getElementById('dashboardRingkasanGrid');
       if (!grid) return;
@@ -2288,7 +2294,7 @@
       const attendanceGuruBulan = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.tahunAjaran === currentTahunAjaran);
       const hariAktifGuru = new Set(attendanceGuruBulan.map(a => a.tanggal)).size;
       const totalGuru = allGuru.length;
-      const persenGuru = (hariAktifGuru > 0 && totalGuru > 0) ? Math.min(100, Math.round((attendanceGuruBulan.length / (hariAktifGuru * totalGuru)) * 100)) : 0;
+      const persenGuru = (hariAktifGuru > 0 && totalGuru > 0) ? Math.min(100, Math.round((hariHadirGuruUnik(attendanceGuruBulan) / (hariAktifGuru * totalGuru)) * 100)) : 0;
       // Kehadiran siswa bulan ini -- rumus persis sama dengan hitungPersen() di renderSiswaChart()
       const attendanceSiswaBulan = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.tahunAjaran === currentTahunAjaran);
       let totalHadirSiswa = 0, totalSiswaTercatat = 0;
@@ -2500,7 +2506,7 @@
           const data = bulanInfo.map(b => {
             const recBulanIni = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(b.monthStr) && a.tahunAjaran === currentTahunAjaran);
             const hariAktifBulanIni = new Set(recBulanIni.map(a => a.tanggal)).size;
-            const hariHadirGuruIni = new Set(recBulanIni.filter(a => (a.guruKey ? a.guruKey === g.key : a.guru === g.name)).map(a => a.tanggal)).size;
+            const hariHadirGuruIni = new Set(recBulanIni.filter(a => a.type === 'Datang' && (a.guruKey ? a.guruKey === g.key : a.guru === g.name)).map(a => a.tanggal)).size;
             return hariAktifBulanIni > 0 ? Math.round((hariHadirGuruIni / hariAktifBulanIni) * 100) : 0;
           });
           return { label: g.name, data: data, borderColor: color, backgroundColor: color, borderWidth: 2, fill: false, tension: 0.3, pointRadius: 3, pointBackgroundColor: color };
@@ -2523,7 +2529,7 @@
         const hariAktif = new Set(attendanceGuru.map(a => a.tanggal)).size;
         const totalGuru = allGuru.length;
         let rataHadir = 0;
-        if (hariAktif > 0 && totalGuru > 0) { const totalAbsen = attendanceGuru.length; rataHadir = Math.round((totalAbsen / (hariAktif * totalGuru)) * 100); }
+        if (hariAktif > 0 && totalGuru > 0) { const totalAbsen = hariHadirGuruUnik(attendanceGuru); rataHadir = Math.round((totalAbsen / (hariAktif * totalGuru)) * 100); }
         dataHadir.push(Math.min(rataHadir, 100));
       }
       guruChartInstance = v4RenderChart(guruChartInstance, ctx, {
@@ -2732,7 +2738,7 @@
         } else if (page === 'jadwal') {
           if (isAdmin() || isKepsek() || isWaliKelas() || isTeacher()) item.classList.remove('hidden-tab');
           else item.classList.add('hidden-tab');
-        } else if (page === 'laporan' || page === 'kelola-absen-guru') {
+        } else if (page === 'laporan' || page === 'kelola-absen-guru' || page === 'rekap-jurnal') {
           if (isAdmin() || isKepsek()) item.classList.remove('hidden-tab');
           else item.classList.add('hidden-tab');
         } else if (page === 'user-management') {
@@ -2852,10 +2858,33 @@
       document.getElementById('sidebar').classList.toggle('open');
       document.getElementById('sidebarOverlay').classList.toggle('show');
     }
+    // Sidebar model akordeon: hanya satu grup terbuka dalam satu waktu supaya menu tetap ringkas.
     function toggleMenuGroup(groupName) {
       const group = document.querySelector(`.menu-group[data-group="${groupName}"]`);
-      if (group) group.classList.toggle('collapsed');
+      if (!group) return;
+      const willOpen = group.classList.contains('collapsed');
+      document.querySelectorAll('#v4SidebarMenu .menu-group').forEach(g => g.classList.add('collapsed'));
+      if (willOpen) group.classList.remove('collapsed');
     }
+    // Sembunyikan header grup yang tidak punya entri tampil: semua item kena hidden-tab (hak akses peran),
+    // atau hanya berisi anggota hub yang disembunyikan / hub kosong (lihat menu-hub.js).
+    function syncMenuGroupVisibility() {
+      document.querySelectorAll('#v4SidebarMenu .menu-group').forEach(g => {
+        const ada = !!g.querySelector('.menu-item:not(.hidden-tab):not(.hub-member):not(.hub-empty)');
+        g.style.display = ada ? '' : 'none';
+      });
+    }
+    (function initMenuGroupSync() {
+      const run = () => {
+        const nav = document.getElementById('v4SidebarMenu');
+        if (!nav) return;
+        let t = null;
+        new MutationObserver(() => { clearTimeout(t); t = setTimeout(syncMenuGroupVisibility, 0); })
+          .observe(nav, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
+        syncMenuGroupVisibility();
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+    })();
 
     // Progress bar tipis di atas layar, dipicu tiap kali navigateTo() dipanggil. Pakai trik
     // "force reflow" (baca offsetWidth di tengah-tengah) supaya transisi CSS-nya benar-benar
@@ -2889,7 +2918,7 @@
       document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
       const bottomItem = document.querySelector(`.bottom-nav-item[data-bottom-page="${page}"]`);
       if (bottomItem) bottomItem.classList.add('active');
-      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Shalat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Sekolah', rekap:'Rekap', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Iuran Mingguan', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
+      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Shalat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Madrasah', rekap:'Ringkasan Sekolah', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan Resmi', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Iuran Mingguan', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
       document.getElementById('pageTitle').innerHTML = titleMap[page] || 'Dashboard';
       if (window.innerWidth <= 768) { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
       flushRenderTertunda(page); // render yang ditunda saat halaman ini tersembunyi (lihat renderAll)
@@ -6745,13 +6774,13 @@
       document.getElementById('rekapTotalJurnal').textContent = journalList.length;
       const today = filterTanggal || tglLokal();
       const hadirToday = allTeacherAttendance.filter(a => a.tanggal === today);
-      document.getElementById('rekapGuruHadir').textContent = hadirToday.length;
+      document.getElementById('rekapGuruHadir').textContent = new Set(hadirToday.filter(a => a.type === 'Datang').map(a => a.guruKey || a.guru)).size;
       const list = document.getElementById('rekapList');
       list.innerHTML = '';
       const grouped = {};
       siswaList.forEach(s => { const uid = uidSiswaGuru(s); if (!grouped[uid]) grouped[uid] = { nama: s.guru, siswa: [], jurnal: [], absen: 0 }; grouped[uid].siswa.push(s); });
       journalList.forEach(j => { const uid = uidRec(j); if (!grouped[uid]) grouped[uid] = { nama: j.guru, siswa: [], jurnal: [], absen: 0 }; grouped[uid].jurnal.push(j); });
-      attendanceList.forEach(a => { const uid = uidRec(a); if (grouped[uid]) { grouped[uid].absen = (grouped[uid].absen || 0) + 1; } });
+      attendanceList.forEach(a => { const uid = uidRec(a); if (grouped[uid] && a.type === 'Datang') { (grouped[uid]._hari = grouped[uid]._hari || new Set()).add(a.tanggal); grouped[uid].absen = grouped[uid]._hari.size; } });
       guruList.forEach(g => { const uid = uidGuru(g); if (!grouped[uid]) grouped[uid] = { nama: g.name, siswa: [], jurnal: [], absen: 0 }; });
       const entries = Object.entries(grouped);
       if (entries.length === 0) { list.innerHTML = '<p class="text-muted">Tidak ada data yang sesuai filter.</p>'; document.getElementById('rekapPagination').innerHTML = ''; return; }
@@ -6765,7 +6794,7 @@
         html += `<div style="background:white;border-radius:12px;padding:16px;border-left:4px solid #2E7D32;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
           <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:8px;">
             <div><div class="text-muted" style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Guru</div><div style="font-size:18px;font-weight:700;">${escapeHtml(guruName)}</div><div class="text-muted" style="font-size:14px;">Kelas: ${escapeHtml(kelasList)}</div></div>
-            <div style="display:flex;gap:16px;font-size:14px;"><div><span style="font-weight:700;">${data.siswa.length}</span> Siswa</div><div><span style="font-weight:700;">${data.jurnal.length}</span> Jurnal</div><div><span style="font-weight:700;">${data.absen || 0}</span> Absen</div></div>
+            <div style="display:flex;gap:16px;font-size:14px;"><div><span style="font-weight:700;">${data.siswa.length}</span> Siswa</div><div><span style="font-weight:700;">${data.jurnal.length}</span> Jurnal</div><div><span style="font-weight:700;">${data.absen || 0}</span> Hadir</div></div>
           </div>
           ${data.jurnal.slice(0,3).map(j => `<div class="text-medium" style="font-size:14px;margin-top:4px;">📓 ${escapeHtml(j.tanggal)} - ${escapeHtml(j.subject)}: ${escapeHtml(j.activity.substring(0,50))}${j.activity.length > 50 ? '...' : ''}</div>`).join('')}
           ${data.jurnal.length > 3 ? `<div class="text-muted" style="font-size:12px;margin-top:4px;">+ ${data.jurnal.length - 3} jurnal lainnya</div>` : ''}
@@ -8947,7 +8976,7 @@
     // baru + hapus key lama dalam SATU update atomik, dan ditolak kalau key baru sudah terisi.
     const KAG_TIPE = ['Datang', 'Pulang', 'Izin', 'Sakit', 'Alpha'];
     const KAG_HARI_PENUH = ['Izin', 'Sakit', 'Alpha'];
-    let kagRows = [], kagEditKey = null, kagLoading = false, kagSaving = false;
+    let kagRows = [], kagRange = null, kagEditKey = null, kagLoading = false, kagSaving = false;
     function kagEl(id) { return document.getElementById(id); }
     function kagGuruList() { return (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas').sort((a, b) => COLLATOR_ID.compare((a.name || ''), b.name || '')); }
     function kagCocokGuru(a, g) { return a.guruKey ? a.guruKey === g.key : a.guru === g.name; }
@@ -8973,8 +9002,26 @@
       list.innerHTML = '<p class="text-muted" style="font-size:13px;padding:8px;">Memuat catatan absen...</p>';
       db.ref('teacher_attendance').orderByChild('tanggal').startAt(dari).endAt(sampai).once('value').then(snap => {
         kagRows = []; snap.forEach(c => { const v = c.val() || {}; v.key = c.key; kagRows.push(v); });
+        kagRange = { dari, sampai };
         kagLoading = false; renderKelolaAbsenGuru();
       }).catch(err => { kagLoading = false; list.innerHTML = `<p style="color:#dc2626;font-size:13px;">Gagal memuat: ${escapeHtml(err.message)}</p>`; });
+    }
+    // Unduh REKAP ABSENSI GURU (PDF formal berkop + tanda tangan Kepala) untuk rentang & guru yang sedang ditampilkan.
+    // Memakai pembuat PDF yang sama dengan Ringkasan Sekolah (downloadRekapAbsensiGuru), mode ringkasan per guru.
+    // Filter "Jenis" tidak dipakai (rekap harus memuat semua jenis); catatan Dobel dihitung satu.
+    function kagUnduhRekapPdf() {
+      if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
+      const dari = kagEl('kagDari').value, sampai = kagEl('kagSampai').value;
+      if (!kagRange || kagRange.dari !== dari || kagRange.sampai !== sampai) return toast('Rentang tanggal berubah. Klik "Tampilkan" dulu, baru unduh rekap.', true);
+      const fg = kagEl('kagFilterGuru').value;
+      const gObj = fg ? kagGuruList().find(g => g.key === fg) : null;
+      const sudah = new Set();
+      const data = kagRows.filter(a => !gObj || kagCocokGuru(a, gObj)).filter(a => {
+        const k = a.tanggal + '|' + (a.guruKey || a.guru) + '|' + a.type;
+        if (sudah.has(k)) return false; sudah.add(k); return true;
+      });
+      const P = { bulanan: true, tgl: sampai, tag: dari + '_sd_' + sampai, judul: 'REKAP ABSENSI GURU', label: 'Periode: ' + rekapTglIndonesia(dari) + ' s.d. ' + rekapTglIndonesia(sampai), cocok: () => true };
+      return window.downloadRekapAbsensiGuru({ P, filterGuru: fg, data });
     }
     function renderKelolaAbsenGuru() {
       const list = kagEl('kagList'), ringkas = kagEl('kagSummary'); if (!list) return;
@@ -10371,27 +10418,230 @@
     }
 
     // ============================================================
-    // REKAP DOWNLOADS
+    // REKAP DOWNLOADS (PDF berkop) -- absensi siswa, absensi guru, jurnal
     // ============================================================
-    function downloadRekapAbsensiSiswa() { if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
-      const today = document.getElementById('rekapFilterTanggal').value || tglLokal();
-      const filterGuru = document.getElementById('rekapFilterGuru').value, filterKelas = document.getElementById('rekapFilterKelas').value;
-      let data = allAttendance.filter(a => a.tanggal === today);
-      // FIX: record absensi siswa sudah punya guruKey (lihat simpanAbsensi) -- filterGuru sekarang
-      // berisi guruKey, jadi cocokkan lewat itu supaya tidak salah tembak antar guru bernama sama.
-      if (filterGuru) data = data.filter(a => (a.guruKey || a.guru) === filterGuru); if (filterKelas) data = data.filter(a => a.kelas === filterKelas);
-      let csv = 'Tanggal,Kelas,Guru,Siswa,Status\n';
-      data.forEach(a => { if (a.data) { Object.entries(a.data).forEach(([siswaKey, status]) => { const siswa = allSiswa.find(s => s.key === siswaKey); const namaSiswa = siswa ? siswa.name : siswaKey; csv += `${a.tanggal},${a.kelas},${a.guru},${namaSiswa},${status}\n`; }); } });
-      downloadFile(csv, `rekap_absensi_siswa_${today}.csv`, 'text/csv'); toast('📥 Rekap absensi siswa diunduh.');
+    const REKAP_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    function rekapTglIndonesia(tgl) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(tgl || '');
+      return m ? `${parseInt(m[3], 10)} ${REKAP_BULAN_ID[parseInt(m[2], 10) - 1]} ${m[1]}` : (tgl || '-');
     }
-    function downloadRekapAbsensiGuru() { if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
-      const today = document.getElementById('rekapFilterTanggal').value || tglLokal();
-      const filterGuru = document.getElementById('rekapFilterGuru').value;
-      let data = allTeacherAttendance.filter(a => a.tanggal === today);
+    // Kop surat + judul. Mengembalikan posisi Y untuk konten berikutnya.
+    function rekapGambarKop(doc, logoData, judul, barisInfo) {
+      const pw = doc.internal.pageSize.getWidth();
+      const offsetY = MADRASAH.nsm ? 5 : 0;
+      v4TambahLogoKeKopPdf(doc, logoData, offsetY);
+      doc.setTextColor(0);
+      doc.setFont(undefined, 'bold'); doc.setFontSize(16);
+      doc.text(MADRASAH.nama, pw / 2, 20, { align: 'center' });
+      doc.setFontSize(10);
+      if (MADRASAH.nsm) doc.text(`NSM: ${MADRASAH.nsm}`, pw / 2, 25, { align: 'center' });
+      doc.setFont(undefined, 'normal');
+      doc.text(MADRASAH.alamat || '', pw / 2, 27 + offsetY, { align: 'center' });
+      doc.text(`Telp: ${MADRASAH.telp} | Email: ${MADRASAH.email} | Web: ${MADRASAH.website}`, pw / 2, 33 + offsetY, { align: 'center' });
+      doc.setDrawColor(0); doc.setLineWidth(0.5);
+      doc.line(15, 38 + offsetY, pw - 15, 38 + offsetY);
+      doc.line(15, 40 + offsetY, pw - 15, 40 + offsetY);
+      let y = 49 + offsetY;
+      doc.setFont(undefined, 'bold'); doc.setFontSize(13);
+      doc.text(judul, pw / 2, y, { align: 'center' });
+      doc.setFont(undefined, 'normal'); doc.setFontSize(10);
+      y += 7;
+      (barisInfo || []).forEach(b => { doc.text(b, pw / 2, y, { align: 'center' }); y += 5; });
+      return y + 3;
+    }
+    // Blok tanda tangan Kepala Madrasah (pindah halaman bila sisa ruang kurang).
+    async function rekapGambarTtd(doc) {
+      const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
+      let y = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 60) + 12;
+      if (y + 55 > ph - 10) { doc.addPage(); y = 25; }
+      const x = pw - 55;
+      doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.setTextColor(0);
+      doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 15, y);
+      doc.text('Kepala ' + MADRASAH.nama, x, y, { align: 'center' });
+      let yNama = y + 24;
+      const ttd = await v4LoadTtdKepalaForPdf();
+      if (ttd) {
+        try {
+          const w = 35, p = doc.getImageProperties(ttd), h = Math.min(18, w * (p.height / p.width));
+          doc.addImage(ttd, 'PNG', x - w / 2, y + 3, w, h);
+        } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Rekap:', e); }
+      }
+      doc.setFont(undefined, 'bold');
+      doc.text(MADRASAH.kepala_sekolah || '', x, yNama, { align: 'center' });
+      doc.setFont(undefined, 'normal');
+      doc.text('NIP. ' + (MADRASAH.nip_kepala_sekolah || '-'), x, yNama + 5, { align: 'center' });
+    }
+    // Nomor halaman di kaki setiap halaman.
+    function rekapNomorHalaman(doc) {
+      const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight(), n = doc.internal.getNumberOfPages();
+      doc.setFontSize(8); doc.setTextColor(120);
+      for (let i = 1; i <= n; i++) { doc.setPage(i); doc.text(`Halaman ${i} dari ${n}`, pw / 2, ph - 8, { align: 'center' }); }
+      doc.setTextColor(0);
+    }
+    function rekapNamaGuruFilter(filterGuru) {
+      return filterGuru ? ((allGuru || []).find(g => (g.key || g.name) === filterGuru)?.name || filterGuru) : 'Semua Guru';
+    }
+    function rekapInfoFilter(tglTeks, filterGuru, filterKelas) {
+      return [tglTeks, `Guru: ${rekapNamaGuruFilter(filterGuru)}  |  Kelas: ${filterKelas || 'Semua Kelas'}`];
+    }
+    const REKAP_HEAD_STYLE = { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', halign: 'center' };
+
+    // Periode PDF: Harian (tanggal terpilih) atau Bulanan (bulan dari tanggal terpilih).
+    // Pilihan diambil dari <select id="rekapPeriodePdf"> yang disisipkan di samping tombol unduh.
+    function rekapPeriode() {
+      const tgl = document.getElementById('rekapFilterTanggal').value || tglLokal();
+      const sel = document.getElementById('rekapPeriodePdf');
+      const bulanan = !!sel && sel.value === 'bulanan';
+      if (!bulanan) return { bulanan: false, tgl, tag: tgl, label: `Tanggal: ${rekapTglIndonesia(tgl)}`, cocok: t => t === tgl };
+      const pre = tgl.slice(0, 7), m = parseInt(tgl.slice(5, 7), 10);
+      return { bulanan: true, tgl, tag: pre, label: `Bulan: ${REKAP_BULAN_ID[m - 1]} ${tgl.slice(0, 4)}`, cocok: t => (t || '').startsWith(pre) };
+    }
+    function rekapTglPendek(t) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (t || '-'); }
+
+    async function downloadRekapAbsensiSiswa() { if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
+      const P = rekapPeriode();
+      const filterGuru = document.getElementById('rekapFilterGuru').value, filterKelas = document.getElementById('rekapFilterKelas').value;
+      let data = allAttendance.filter(a => P.cocok(a.tanggal));
+      // filterGuru berisi guruKey -- cocokkan lewat itu (record lama: fallback nama).
       if (filterGuru) data = data.filter(a => (a.guruKey || a.guru) === filterGuru);
-      let csv = 'Tanggal,Guru,Kelas,Waktu,Type,Ke,Metode,Jam,Keterangan\n';
-      data.forEach(a => { const kelasStr = Array.isArray(a.kelas) ? a.kelas.join(', ') : a.kelas || '-'; const waktu = a.waktu ? new Date(a.waktu).toLocaleString() : '-'; csv += `${a.tanggal},${a.guru},${kelasStr},${waktu},${a.type||'Reguler'},${a.ke||1},${a.metode||'manual'},${a.jam_ke||'-'},${a.keterangan||'-'}\n`; });
-      downloadFile(csv, `rekap_absensi_guru_${today}.csv`, 'text/csv'); toast('📥 Rekap absensi guru diunduh.');
+      if (filterKelas) data = data.filter(a => a.kelas === filterKelas);
+      const STAT = { H: 'Hadir', S: 'Sakit', I: 'Izin', A: 'Alpha' };
+      let rows = [], foot, head, colStyles, orient = 'p';
+      if (!P.bulanan) {
+        const tot = { H: 0, S: 0, I: 0, A: 0 };
+        data.forEach(a => { if (a.data) Object.entries(a.data).forEach(([siswaKey, status]) => {
+          const s = allSiswa.find(x => x.key === siswaKey), st = String(status || '').toUpperCase();
+          if (tot[st] !== undefined) tot[st]++;
+          rows.push([a.kelas || '-', s ? s.name : siswaKey, a.guru || '-', STAT[st] || status || '-']);
+        }); });
+        rows.sort((a, b) => COLLATOR_ID.compare(a[0], b[0]) || COLLATOR_ID.compare(a[1], b[1]));
+        rows.forEach((r, i) => r.unshift(String(i + 1)));
+        head = ['No', 'Kelas', 'Nama Siswa', 'Guru', 'Status'];
+        foot = ['', '', `Total ${rows.length} siswa`, '', `H:${tot.H}  S:${tot.S}  I:${tot.I}  A:${tot.A}`];
+        colStyles = { 0: { halign: 'center', cellWidth: 12 }, 1: { cellWidth: 22 }, 4: { halign: 'center', cellWidth: 38 } };
+      } else {
+        // Bulanan: jumlah H/S/I/A per siswa + persentase kehadiran.
+        const per = {}; const hariSet = new Set();
+        data.forEach(a => { hariSet.add(a.tanggal); if (a.data) Object.entries(a.data).forEach(([siswaKey, status]) => {
+          const st = String(status || '').toUpperCase(); const k = siswaKey + '|' + (a.kelas || '');
+          const o = per[k] || (per[k] = { key: siswaKey, kelas: a.kelas || '-', H: 0, S: 0, I: 0, A: 0 });
+          if (o[st] !== undefined) o[st]++;
+        }); });
+        const tot = { H: 0, S: 0, I: 0, A: 0 };
+        Object.values(per).forEach(o => { const s = allSiswa.find(x => x.key === o.key); o.nama = s ? s.name : o.key; ['H','S','I','A'].forEach(c => tot[c] += o[c]); });
+        const list = Object.values(per).sort((a, b) => COLLATOR_ID.compare(a.kelas, b.kelas) || COLLATOR_ID.compare(a.nama, b.nama));
+        const pct = o => { const n = o.H + o.S + o.I + o.A; return n ? Math.round(o.H / n * 100) + '%' : '-'; };
+        rows = list.map((o, i) => [String(i + 1), o.kelas, o.nama, String(o.H), String(o.S), String(o.I), String(o.A), pct(o)]);
+        const n = tot.H + tot.S + tot.I + tot.A;
+        head = ['No', 'Kelas', 'Nama Siswa', 'Hadir', 'Sakit', 'Izin', 'Alpha', '% Hadir'];
+        foot = ['', '', `${list.length} siswa / ${hariSet.size} hari absen`, String(tot.H), String(tot.S), String(tot.I), String(tot.A), n ? Math.round(tot.H / n * 100) + '%' : '-'];
+        colStyles = { 0: { halign: 'center', cellWidth: 12 }, 1: { cellWidth: 22 }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center', cellWidth: 20 } };
+      }
+      if (!rows.length) return toast('Tidak ada data absensi siswa pada filter ini.', true);
+      const { jsPDF } = window.jspdf; const doc = new jsPDF(orient, 'mm', 'a4');
+      const logoData = await v4LoadLogoForPdf();
+      const startY = rekapGambarKop(doc, logoData, P.bulanan ? 'REKAP ABSENSI SISWA BULANAN' : 'REKAP ABSENSI SISWA', rekapInfoFilter(P.label, filterGuru, filterKelas));
+      doc.autoTable({
+        head: [head], body: rows, foot: [foot],
+        startY, theme: 'grid', styles: { fontSize: 8.5, cellPadding: 1.8 }, headStyles: REKAP_HEAD_STYLE,
+        footStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: 'bold' },
+        columnStyles: colStyles, margin: { left: 15, right: 15, bottom: 15 },
+        didParseCell: h => { if (h.section === 'body' && !P.bulanan && h.column.index === 4 && h.cell.raw === 'Alpha') h.cell.styles.textColor = [185, 28, 28]; }
+      });
+      await rekapGambarTtd(doc); rekapNomorHalaman(doc);
+      doc.save(`rekap_absensi_siswa_${P.tag}.pdf`); toast('📥 Rekap absensi siswa (PDF) diunduh.');
+      addLog('download_rekap', `absensi siswa PDF - ${P.tag}`);
+    }
+    // opts (opsional) dipakai dari Kelola Absen Guru: { P, filterGuru, data }. data = baris absen yang sudah
+    // difilter (tidak disaring ulang). Tanpa opts = jalur lama (tombolnya sudah dihapus dari Ringkasan Sekolah).
+    async function downloadRekapAbsensiGuru(opts) { if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
+      const o = (opts && typeof opts === 'object' && opts.P && Array.isArray(opts.data)) ? opts : null;
+      const P = o ? o.P : rekapPeriode();
+      const filterGuru = o ? (o.filterGuru || '') : document.getElementById('rekapFilterGuru').value;
+      let data = o ? o.data.slice() : allTeacherAttendance.filter(a => P.cocok(a.tanggal));
+      if (!o && filterGuru) data = data.filter(a => (a.guruKey || a.guru) === filterGuru);
+      if (!data.length) return toast('Tidak ada data absensi guru pada filter ini.', true);
+      let rows, head, foot, colStyles, orient;
+      if (!P.bulanan) {
+        data = data.slice().sort((a, b) => COLLATOR_ID.compare(a.guru || '', b.guru || '') || (waktuMs(a.waktu) - waktuMs(b.waktu)));
+        rows = data.map((a, i) => [
+          String(i + 1), a.guru || '-', Array.isArray(a.kelas) ? a.kelas.join(', ') : (a.kelas || '-'),
+          waktuMs(a.waktu) ? new Date(waktuMs(a.waktu)).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-',
+          a.type || 'Reguler', a.jam_ke || '-', a.metode || 'manual', a.keterangan || '-'
+        ]);
+        const tot = {}; data.forEach(a => { const t = a.type || 'Reguler'; tot[t] = (tot[t] || 0) + 1; });
+        head = ['No', 'Guru', 'Kelas', 'Waktu', 'Jenis', 'Jam Ke', 'Metode', 'Keterangan'];
+        foot = ['', `Total ${rows.length} catatan`, '', '', Object.entries(tot).map(([k, v]) => `${k}: ${v}`).join('  '), '', '', ''];
+        colStyles = { 0: { halign: 'center', cellWidth: 12 }, 3: { halign: 'center', cellWidth: 20 }, 5: { halign: 'center', cellWidth: 18 } };
+        orient = 'l';
+      } else {
+        // Bulanan: hitung per guru -- hari hadir (hari yang punya absen Datang), Datang, Pulang, Izin, Sakit, Alpha.
+        const per = {};
+        data.forEach(a => {
+          const k = a.guruKey || a.guru;
+          const o = per[k] || (per[k] = { nama: a.guru || k, hari: new Set(), Datang: 0, Pulang: 0, Izin: 0, Sakit: 0, Alpha: 0 });
+          const t = a.type; if (o[t] !== undefined && typeof o[t] === 'number') o[t]++;
+          if (t === 'Datang') o.hari.add(a.tanggal);
+        });
+        const list = Object.values(per).sort((a, b) => COLLATOR_ID.compare(a.nama, b.nama));
+        const sum = c => list.reduce((x, o) => x + o[c], 0);
+        rows = list.map((o, i) => [String(i + 1), o.nama, String(o.hari.size), String(o.Datang), String(o.Pulang), String(o.Izin), String(o.Sakit), String(o.Alpha)]);
+        head = ['No', 'Nama Guru', 'Hari Hadir', 'Datang', 'Pulang', 'Izin', 'Sakit', 'Alpha'];
+        foot = ['', `${list.length} guru`, String(list.reduce((x, o) => x + o.hari.size, 0)), String(sum('Datang')), String(sum('Pulang')), String(sum('Izin')), String(sum('Sakit')), String(sum('Alpha'))];
+        colStyles = { 0: { halign: 'center', cellWidth: 12 }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' } };
+        orient = 'p';
+      }
+      const { jsPDF } = window.jspdf; const doc = new jsPDF(orient, 'mm', 'a4');
+      const logoData = await v4LoadLogoForPdf();
+      const startY = rekapGambarKop(doc, logoData, P.judul || (P.bulanan ? 'REKAP ABSENSI GURU BULANAN' : 'REKAP ABSENSI GURU'), [P.label, `Guru: ${rekapNamaGuruFilter(filterGuru)}`]);
+      doc.autoTable({
+        head: [head], body: rows, foot: [foot],
+        startY, theme: 'grid', styles: { fontSize: 8.5, cellPadding: 1.8 }, headStyles: REKAP_HEAD_STYLE,
+        footStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: 'bold' },
+        columnStyles: colStyles, margin: { left: 15, right: 15, bottom: 15 }
+      });
+      await rekapGambarTtd(doc); rekapNomorHalaman(doc);
+      doc.save(`rekap_absensi_guru_${P.tag}.pdf`); toast('📥 Rekap absensi guru (PDF) diunduh.');
+      addLog('download_rekap', `absensi guru PDF - ${P.tag}`);
+    }
+    // opts (opsional) dipakai halaman Rekap Jurnal di menu Pembelajaran: { P, filterGuru, filterKelas }.
+    // Tanpa opts (jalur lama; tombolnya sudah dihapus dari Ringkasan Sekolah) filter dibaca dari halaman Ringkasan.
+    async function downloadRekapJurnal(opts) { if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
+      const o = (opts && typeof opts === 'object' && opts.P) ? opts : null;
+      const P = o ? o.P : rekapPeriode();
+      const filterGuru = o ? (o.filterGuru || '') : document.getElementById('rekapFilterGuru').value, filterKelas = o ? (o.filterKelas || '') : document.getElementById('rekapFilterKelas').value;
+      // Jurnal yang ditolak tidak ikut direkap.
+      let data = allJournals.filter(j => P.cocok(j.tanggal) && j.status !== 'ditolak');
+      if (filterGuru) data = data.filter(j => (j.guruKey || j.guru) === filterGuru);
+      if (filterKelas) data = data.filter(j => j.kelas === filterKelas);
+      data = data.slice().sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || '') || COLLATOR_ID.compare(a.guru || '', b.guru || '') || ((parseInt(a.jam_ke, 10) || 0) - (parseInt(b.jam_ke, 10) || 0)));
+      if (!data.length) return toast('Tidak ada jurnal pada filter ini.', true);
+      const jenis = j => j.type || (isJamEkstra(j.jam_ke) ? 'Ekstra' : 'Reguler');
+      const rows = data.map((j, i) => [String(i + 1), rekapTglPendek(j.tanggal), j.guru || '-', j.kelas || '-', j.subject || '-', j.activity || '-', j.jam_ke || '-', jenis(j)]);
+      // Ringkasan per guru (jumlah jurnal) sebagai baris total.
+      const perGuru = {}; data.forEach(j => { const g = j.guru || '-'; perGuru[g] = (perGuru[g] || 0) + 1; });
+      const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
+      const logoData = await v4LoadLogoForPdf();
+      const startY = rekapGambarKop(doc, logoData, P.bulanan ? 'REKAP JURNAL MENGAJAR BULANAN' : 'REKAP JURNAL MENGAJAR', rekapInfoFilter(P.label, filterGuru, filterKelas));
+      doc.autoTable({
+        head: [['No', 'Tanggal', 'Guru', 'Kelas', 'Mata Pelajaran', 'Kegiatan', 'Jam Ke', 'Jenis']], body: rows,
+        foot: [['', `Total ${rows.length} jurnal`, '', '', '', '', '', '']],
+        startY, theme: 'grid', styles: { fontSize: 8.5, cellPadding: 1.8, valign: 'top' }, headStyles: REKAP_HEAD_STYLE,
+        footStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 22 }, 3: { cellWidth: 18 }, 5: { cellWidth: 75 }, 6: { halign: 'center', cellWidth: 15 }, 7: { halign: 'center', cellWidth: 20 } },
+        margin: { left: 15, right: 15, bottom: 15 }
+      });
+      if (P.bulanan && Object.keys(perGuru).length > 1) {
+        // Tabel ringkas jumlah jurnal per guru di akhir.
+        doc.autoTable({
+          head: [['Guru', 'Jumlah Jurnal']], body: Object.entries(perGuru).sort((a, b) => COLLATOR_ID.compare(a[0], b[0])).map(([g, n]) => [g, String(n)]),
+          startY: doc.lastAutoTable.finalY + 8, theme: 'grid', styles: { fontSize: 8.5, cellPadding: 1.6 }, headStyles: REKAP_HEAD_STYLE,
+          columnStyles: { 1: { halign: 'center', cellWidth: 30 } }, tableWidth: 110, margin: { left: 15, right: 15, bottom: 15 }
+        });
+      }
+      await rekapGambarTtd(doc); rekapNomorHalaman(doc);
+      doc.save(`rekap_jurnal_${P.tag}.pdf`); toast('📥 Rekap jurnal (PDF) diunduh.');
+      addLog('download_rekap', `jurnal PDF - ${P.tag}`);
     }
     function downloadRekapSemua() { if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
       const filterGuru = document.getElementById('rekapFilterGuru').value, filterKelas = document.getElementById('rekapFilterKelas').value;
@@ -11549,7 +11799,7 @@
         'events':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ujian':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'administrasi-ujian':(typeof aujCanOpenMenu === 'function' ? aujCanOpenMenu() : false),'bacaan-shalat':(typeof bsCanOpenMenu === 'function' ? bsCanOpenMenu() : false),
         'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':(infaqCanAccess()||isKepsek()),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'laporan':v4CanHead(),'surat':v4IsAdmin()||isWaliKelasAssigned(),'notifications-v4':true,'tasks-v4':true,'user-management':v4IsAdmin(),'kelola-absen-guru':v4IsAdmin()||v4IsHead(),'admin':v4IsAdmin(),'profil-sekolah':v4IsAdmin(),'rekap-nilai':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
-        'promotion':v4IsAdmin(),'setting-jam':v4IsAdmin(),'rekap':v4CanHead(),'religi':v4IsTeacher()
+        'promotion':v4IsAdmin(),'setting-jam':v4IsAdmin(),'rekap':v4CanHead(),'rekap-jurnal':v4CanHead(),'religi':v4IsTeacher()
       };
       document.querySelectorAll('#v4SidebarMenu .menu-item').forEach(item=>{ const p=item.dataset.page; item.classList.toggle('hidden-tab',menuRules[p]===false); });
       // Tombol "Absensi" & FAB "Scan QR" di bottom-nav (mobile) sebelumnya selalu tampil untuk
@@ -12584,7 +12834,8 @@
       var defs = [
         ['exportRekapNilaiPDF', 'pdf', 'PDF'], ['exportRekapNilaiExcel', 'xlsx', 'Excel'],
         ['downloadHonorPDF', 'pdf', 'PDF'], ['downloadSuratPDF', 'pdf', 'PDF'],
-        ['exportJadwalPDF', 'pdf', 'PDF'], ['downloadReportPDF', 'pdf', 'PDF']
+        ['exportJadwalPDF', 'pdf', 'PDF'], ['downloadReportPDF', 'pdf', 'PDF'],
+        ['downloadRekapAbsensiSiswa', 'pdf', 'PDF'], ['downloadRekapAbsensiGuru', 'pdf', 'PDF'], ['downloadRekapJurnal', 'pdf', 'PDF']
       ];
       defs.forEach(function (d) {
         var name = d[0], lib = d[1], label = d[2], orig = window[name];
@@ -12603,6 +12854,8 @@
         };
       });
     })();
+
+    // (Penyisip tombol "Jurnal (PDF)" di Ringkasan Sekolah dihapus: rekap jurnal kini ada di Pembelajaran > Jurnal Mengajar > Rekap Jurnal.)
 
     // ============================================================
     // AKSESIBILITAS: dialog modal (role/fokus/Esc) + nama untuk tombol yang isinya cuma emoji

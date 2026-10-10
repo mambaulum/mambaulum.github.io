@@ -12,20 +12,21 @@
 
   // Urutan pages = urutan tab. Label hub = teks di sidebar.
   var HUBS = [
+    { id: 'profil',    label: 'Profil',              pages: ['profile-v4', 'profil-sekolah'] },
     { id: 'siswa',     label: 'Siswa',               pages: ['students', 'promotion'] },
     { id: 'nilai',     label: 'Nilai & Sikap',       pages: ['grades', 'rekap-nilai', 'sikap-siswa'] },
+    { id: 'jurnal',    label: 'Jurnal Mengajar',     pages: ['rekap-jurnal', 'journal'] },
     { id: 'komortu',   label: 'Komunikasi Ortu',     pages: ['buku-penghubung', 'info-ortu'] },
-    { id: 'belajar',   label: 'Belajar',             pages: ['modul-ajar', 'materi-belajar', 'tugas-siswa'] },
-    { id: 'amalan',    label: 'Amalan & Kegiatan',   pages: ['activities-v4', 'religi', 'tahfidz-v4'] },
+    { id: 'belajar',   label: 'Modul & Materi',      pages: ['modul-ajar', 'materi-belajar', 'tugas-siswa'] },
+    { id: 'amalan',    label: 'Religi & Tahfidz',    pages: ['religi', 'tahfidz-v4'] },
     { id: 'ekskul',    label: 'Ekskul & Pramuka',    pages: ['ekskul-v4', 'pramuka-v4'] },
     { id: 'absenguru', label: 'Absen Guru',          pages: ['teacher-attendance', 'kelola-absen-guru'] },
     { id: 'ujian',     label: 'Ujian',               pages: ['ujian', 'administrasi-ujian'] },
     { id: 'honor',     label: 'Honor',               pages: ['honor', 'honor-slip'] },
     { id: 'kas',       label: 'Kas & Infaq',         pages: ['kas-umum', 'infaq-madrasah'] },
-    { id: 'raport',    label: 'Raport & Cetak',      pages: ['raport-v4', 'laporan', 'surat'] },
-    { id: 'notif',     label: 'Notifikasi & Tugas',  pages: ['notifications-v4', 'tasks-v4', 'saran-kritik'] },
-    { id: 'admin',     label: 'Admin & Rekap',       pages: ['admin', 'user-management', 'rekap'] },
-    { id: 'setting',   label: 'Pengaturan',          pages: ['setting-jam', 'profil-sekolah'] }
+    { id: 'raport',    label: 'Raport & Dokumen',    pages: ['raport-v4', 'laporan', 'surat'] },
+    { id: 'notif',     label: 'Notifikasi & Tugas',  pages: ['notifications-v4', 'tasks-v4', 'approval-v4', 'saran-kritik'] },
+    { id: 'admin',     label: 'Admin & Ringkasan',   pages: ['admin', 'user-management', 'rekap'] }
   ];
 
   var menu = document.getElementById('v4SidebarMenu');
@@ -114,6 +115,15 @@
     renderTabs();
   }
 
+  // Sidebar akordeon: buka grup yang memuat entri aktif (hub atau item biasa), tutup grup lain.
+  // Anggota hub (.hub-member) disembunyikan, jadi yang dipakai adalah entri hub-nya.
+  function openActiveGroup() {
+    var act = menu.querySelector('.menu-item.active:not(.hub-member)');
+    var grp = act && act.closest('.menu-group');
+    if (!grp) return;
+    Array.prototype.forEach.call(menu.querySelectorAll('.menu-group'), function (g) { setClass(g, 'collapsed', g !== grp); });
+  }
+
   build();
 
   // Bungkus navigateTo: semua pemanggilan (sidebar, bottom nav, dashboard, dll.) ikut memperbarui hub.
@@ -125,6 +135,7 @@
         curPage = page;
         hubs.forEach(function (h) { if (h.cfg.pages.indexOf(page) !== -1) h.last = page; });
         sync();
+        openActiveGroup();
       } catch (e) { console.error('[menu-hub]', e); }
       return r;
     };
