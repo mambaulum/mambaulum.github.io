@@ -172,7 +172,8 @@
   var guruSiapTerakhir = 0, guruSiapKey = '';
   window.kredGuruSiap = function () {
     var key = (typeof currentUser !== 'undefined' && currentUser && currentUser.key) ? currentUser.key : '';
-    if (!key) return Promise.resolve(true);                   // Admin / Kepala (tanpa key guru): bukan jalur ini
+    // Admin / Kepala: bukan jalur ini. Key akun sistem '__admin__'/'__kepsek__' (app.js) bukan key guru.
+    if (!key || key === '__admin__' || key === '__kepsek__') return Promise.resolve(true);
     if (guruSiapKey === key && Date.now() - guruSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
     return bacaLokal().then(function (m) {
       var h = m[key];

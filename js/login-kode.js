@@ -442,7 +442,7 @@
   function segarkanKodeSaya() {
     var kartu = $('kodeSayaCard'); if (!kartu) return;
     var u = (typeof currentUser !== 'undefined') ? currentUser : null;
-    if (!u || !u.key || u.key === 'admin' || u.key === 'kepsek') { kartu.style.display = 'none'; return; }
+    if (!u || !u.key || u.key === 'admin' || u.key === 'kepsek' || u.key === '__admin__' || u.key === '__kepsek__') { kartu.style.display = 'none'; return; }
     var key = u.key;
     var g = (allGuru || []).filter(function (x) { return x.key === key; })[0];
     if (g && g.kode) { kodeSayaCache[key] = { v: g.kode, t: Date.now() }; return tampilKodeSaya(kartu, g.kode); }

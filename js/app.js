@@ -833,6 +833,7 @@
     // Migrasi satu kali (oleh Admin): pindahkan TTD lama dari school_settings ke school_assets. Satu update
     // multi-path = atomik, jadi TTD lama baru terhapus kalau yang baru benar-benar tertulis.
     function migrasiTtdKepalaLama() {
+      if (!isAdmin()) return;
       const upd = {};
       upd['school_assets/ttdKepala'] = { base64: MADRASAH.ttdKepalaBase64, updatedBy: currentUser.name, updatedAt: new Date().toISOString(), migrasi: true };
       upd['school_settings/ttdKepalaBase64'] = null;
@@ -1215,6 +1216,10 @@
       });
     }
 
+    // Key unik untuk akun Admin & Kepsek (bukan key guru Firebase, jadi tidak mungkin bentrok). Tanpa ini
+    // currentUser.key = undefined untuk keduanya, sehingga cache offline (offlineCachePrefix), cek pemilik data
+    // (currentUser.key === owner) dan kunci mode kerja (sim_mode_*) tercampur antara Admin dan Kepsek.
+    const ADMIN_USER_KEY = '__admin__', KEPSEK_USER_KEY = '__kepsek__';
     function isAdmin() { return currentUser && currentUser.role === ROLES.ADMIN; }
     function isKepsek() { return currentUser && currentUser.role === ROLES.HEADMASTER; }
     function isTeacher() { return currentUser && currentUser.role === ROLES.TEACHER; }
@@ -1366,6 +1371,17 @@
     window.perpanjangSesiPrivileged = function() {
       try { if (typeof currentUser !== 'undefined' && currentUser && isPrivilegedSession(currentUser)) saveSession(currentUser); } catch (e) {}
     };
+    // Sesi yang disimpan sebelum baseRole/key Admin-Kepsek ada tidak punya field itu, sehingga isPrivilegedSession()
+    // (yang memeriksa baseRole) bisa meloloskan sesi lama. Dilengkapi SETELAH tanda tangan lolos, SEBELUM dicek.
+    function lengkapiSesiLama(u) {
+      if (!u || typeof u !== 'object') return u;
+      if (!u.baseRole) u.baseRole = (u.role === ROLES.ADMIN || u.role === ROLES.HEADMASTER) ? u.role : ROLES.TEACHER;
+      if (!u.key) {
+        if (u.baseRole === ROLES.ADMIN) u.key = ADMIN_USER_KEY;
+        else if (u.baseRole === ROLES.HEADMASTER) u.key = KEPSEK_USER_KEY;
+      }
+      return u;
+    }
     function loadSession() {
       try {
         // 1) Sesi Admin/Kepsek (sessionStorage, 15 menit).
@@ -1374,7 +1390,7 @@
           const pa = JSON.parse(da);
           if (!pa || Date.now() - pa.timestamp > ADMIN_SESI_MS) { sessionStorage.removeItem(ADMIN_SESI_KEY); }
           else if (pa.sig !== v4SignSession(pa.user, pa.timestamp)) { console.warn('[SI MAMBA] sesi Admin tidak valid, dihapus.'); sessionStorage.removeItem(ADMIN_SESI_KEY); }
-          else if (isPrivilegedSession(pa.user)) return pa.user;
+          else if (isPrivilegedSession(lengkapiSesiLama(pa.user))) return pa.user;
           else sessionStorage.removeItem(ADMIN_SESI_KEY);
         }
         // 2) Sesi guru (localStorage, 24 jam).
@@ -1382,6 +1398,7 @@
         const p = JSON.parse(d);
         if (Date.now() - p.timestamp > 24*60*60*1000) { localStorage.removeItem('sim_session'); return null; }
         if (p.sig !== v4SignSession(p.user, p.timestamp)) { console.warn('[SI MAMBA] sim_session tidak valid (diubah manual?), sesi dihapus.'); localStorage.removeItem('sim_session'); return null; }
+        lengkapiSesiLama(p.user);
         if (isPrivilegedSession(p.user)) { console.warn('[SI MAMBA] sesi Admin/Kepsek tidak boleh dipulihkan dari localStorage, sesi dihapus (login ulang dengan PIN).'); localStorage.removeItem('sim_session'); return null; }
         return p.user;
       } catch(e) { return null; }
@@ -1414,9 +1431,12 @@
     // ajaran manapun yang sedang aktif -- lihat sesuaiTahunAjaranTermasukDataLama() di bawah.
     function tahunAjaranDariTanggal(tanggalStr) {
       if (!tanggalStr) return null;
-      const parts = String(tanggalStr).split('-');
-      const y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
-      if (!y || !m) return null;
+      // Guard format: hanya terima "YYYY-M[M][-D...]" (termasuk ISO "YYYY-MM-DDTHH:mm..."). Teks lain, angka
+      // epoch, atau tahun/bulan di luar jangkauan wajar dianggap tidak bisa dihitung (null), bukan ditebak.
+      const mt = /^(\d{4})-(\d{1,2})(?:\D|$)/.exec(String(tanggalStr).trim());
+      if (!mt) return null;
+      const y = parseInt(mt[1], 10), m = parseInt(mt[2], 10);
+      if (y < 2000 || y > 2100 || m < 1 || m > 12) return null;
       return m >= 7 ? `${y}/${y + 1}` : `${y - 1}/${y}`;
     }
     // Ganti langsung untuk pola `!x.tahunAjaran || x.tahunAjaran === currentTahunAjaran` yang
@@ -1428,7 +1448,45 @@
     function sesuaiTahunAjaranTermasukDataLama(x) {
       if (x.tahunAjaran) return x.tahunAjaran === currentTahunAjaran;
       const inferred = tahunAjaranDariTanggal(x.tanggal || x.dibuat || x.createdAt || x.updatedAt);
-      return inferred ? inferred === currentTahunAjaran : true; // kalau tetap tak bisa dihitung, biarkan tampil (fallback lama) drpd hilang total
+      if (inferred) return inferred === currentTahunAjaran;
+      // Tidak ada tahunAjaran DAN tanggal tak bisa dihitung: dulu dibiarkan tampil di tahun ajaran mana pun
+      // (fallback true) sehingga "ikut pindah" tiap ganti tahun ajaran. Sekarang disembunyikan & dilaporkan.
+      laporRecordTanpaTanggal(x);
+      return false;
+    }
+    let _taTanpaTanggalHitung = 0, _taTanpaTanggalDiberitahu = false;
+    function laporRecordTanpaTanggal(x) {
+      _taTanpaTanggalHitung++;
+      if (_taTanpaTanggalHitung === 1) console.warn('[SI MAMBA] Ada record tanpa tahunAjaran & tanpa tanggal yang bisa dihitung; disembunyikan dari tampilan tahun ajaran aktif. Contoh:', x);
+      if (!_taTanpaTanggalDiberitahu && currentUser && isAdmin()) {
+        _taTanpaTanggalDiberitahu = true;
+        try { toast('⚠️ Ada data lama tanpa tahun ajaran & tanpa tanggal, sehingga disembunyikan. Jalankan migrasiTahunAjaranDataLama() (dry-run) di console, atau beri opsi tahunAjaranDefault.', true, 9000); } catch (e) {}
+      }
+    }
+    // Peringatan dini untuk Admin: loader memakai query orderByChild('tahunAjaran').equalTo(...) sehingga record
+    // lama TANPA field itu tidak pernah dimuat di aplikasi staf, padahal Portal Ortu (sesuaiTahunAjaranTermasukDataLama)
+    // bisa menampilkannya -> angka kedua sisi berbeda. Cek ringan (1 record per koleksi, hanya yang sudah terindeks).
+    const CEK_MIGRASI_TA_KOLEKSI = ['attendance', 'grades', 'journal', 'teacher_attendance', 'early_leave_requests', 'events',
+      'event_attendance', 'ujian', 'ujian_attendance', 'ekskul_pic_honor_v4', 'iuran_siswa', 'kedisiplinan_siswa',
+      'buku_penghubung', 'religi_attendance', 'activity_attendance_v4', 'extracurricular_attendance_v4'];
+    let _cekMigrasiTaSudah = false;
+    function cekDataLamaBelumMigrasi() {
+      if (_cekMigrasiTaSudah || !db || !currentUser || !isAdmin() || !navigator.onLine) return;
+      // Cukup sekali per 7 hari per perangkat supaya Admin tidak dipelototi toast yang sama tiap login.
+      const KUNCI_CEK = 'simambaCekMigrasiTA';
+      try { const t = parseInt(localStorage.getItem(KUNCI_CEK) || '0', 10); if (t && Date.now() - t < 7 * 864e5) return; } catch (e) {}
+      _cekMigrasiTaSudah = true;
+      Promise.all(CEK_MIGRASI_TA_KOLEKSI.map(path =>
+        db.ref(path).orderByChild('tahunAjaran').equalTo(null).limitToFirst(1).once('value')
+          .then(snap => snap.exists() ? path : null).catch(() => null)
+      )).then(hasil => {
+        const ada = hasil.filter(Boolean);
+        // Tandai dicek hanya bila bersih ATAU peringatan sudah ditampilkan.
+        try { localStorage.setItem(KUNCI_CEK, String(Date.now())); } catch (e) {}
+        if (!ada.length) return;
+        console.warn('[SI MAMBA] Data lama tanpa field tahunAjaran ditemukan di:', ada);
+        toast(`⚠️ Admin: ada data lama belum bertahun ajaran di ${ada.length} koleksi (${ada.slice(0, 3).join(', ')}${ada.length > 3 ? ', …' : ''}). Data itu tidak muncul di rekap staf tetapi bisa muncul di Portal Ortu. Jalankan migrasiTahunAjaranDataLama() di console (dry-run dulu).`, true, 12000);
+      }).catch(() => {});
     }
     function updateTahunAjaranBadge() {
       const badge = document.getElementById('tahunAjaranBadge');
@@ -2291,12 +2349,12 @@
       const monthStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
       // Kehadiran guru bulan ini -- rumus persis sama dengan renderGuruChart() supaya angka di
       // kartu ringkasan selalu konsisten dengan yang ditampilkan di grafik.
-      const attendanceGuruBulan = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.tahunAjaran === currentTahunAjaran);
+      const attendanceGuruBulan = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && sesuaiTahunAjaranTermasukDataLama(a));
       const hariAktifGuru = new Set(attendanceGuruBulan.map(a => a.tanggal)).size;
       const totalGuru = allGuru.length;
       const persenGuru = (hariAktifGuru > 0 && totalGuru > 0) ? Math.min(100, Math.round((hariHadirGuruUnik(attendanceGuruBulan) / (hariAktifGuru * totalGuru)) * 100)) : 0;
       // Kehadiran siswa bulan ini -- rumus persis sama dengan hitungPersen() di renderSiswaChart()
-      const attendanceSiswaBulan = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.tahunAjaran === currentTahunAjaran);
+      const attendanceSiswaBulan = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && sesuaiTahunAjaranTermasukDataLama(a));
       let totalHadirSiswa = 0, totalSiswaTercatat = 0;
       attendanceSiswaBulan.forEach(a => { if (a.data) { const values = Object.values(a.data); totalHadirSiswa += values.filter(v => v === 'H').length; totalSiswaTercatat += values.length; } });
       const persenSiswa = totalSiswaTercatat > 0 ? Math.round((totalHadirSiswa / totalSiswaTercatat) * 100) : 0;
@@ -2409,7 +2467,7 @@
           const d = new Date(now); d.setDate(d.getDate() - i);
           const tgl = tglLokal(d);
           labels.push(d.getDate() + '/' + (d.getMonth()+1));
-          let list = allAttendance.filter(a => a.tanggal === tgl && a.tahunAjaran === currentTahunAjaran);
+          let list = allAttendance.filter(a => a.tanggal === tgl && sesuaiTahunAjaranTermasukDataLama(a));
           if (filterKelas) list = list.filter(a => a.kelas === filterKelas);
           dataValues.push(hitungPersen(list));
         }
@@ -2420,7 +2478,7 @@
         const monthStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
         kelasUnikAll.forEach(k => {
           labels.push(k);
-          const list = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.tahunAjaran === currentTahunAjaran && a.kelas === k);
+          const list = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && sesuaiTahunAjaranTermasukDataLama(a) && a.kelas === k);
           dataValues.push(hitungPersen(list));
         });
       } else if (mode === 'bulanan-perkelas') {
@@ -2435,7 +2493,7 @@
         multiDatasets = kelasUnikAll.map((k, idx) => {
           const color = barPalette[idx % barPalette.length];
           const data = bulanInfo.map(b => {
-            const list = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(b.monthStr) && a.tahunAjaran === currentTahunAjaran && a.kelas === k);
+            const list = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(b.monthStr) && sesuaiTahunAjaranTermasukDataLama(a) && a.kelas === k);
             return hitungPersen(list);
           });
           return { label: k, data: data, borderColor: color, backgroundColor: color, borderWidth: 2, fill: false, tension: 0.3, pointRadius: 3, pointBackgroundColor: color };
@@ -2448,7 +2506,7 @@
           const namaBulan = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][d.getMonth()];
           labels.push(namaBulan + ' ' + d.getFullYear());
           const monthStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-          let list = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.tahunAjaran === currentTahunAjaran);
+          let list = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && sesuaiTahunAjaranTermasukDataLama(a));
           if (filterKelas) list = list.filter(a => a.kelas === filterKelas);
           dataValues.push(hitungPersen(list));
         }
@@ -2504,7 +2562,7 @@
         const datasets = guruAktif.map((g, idx) => {
           const color = linePalette[idx % linePalette.length];
           const data = bulanInfo.map(b => {
-            const recBulanIni = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(b.monthStr) && a.tahunAjaran === currentTahunAjaran);
+            const recBulanIni = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(b.monthStr) && sesuaiTahunAjaranTermasukDataLama(a));
             const hariAktifBulanIni = new Set(recBulanIni.map(a => a.tanggal)).size;
             const hariHadirGuruIni = new Set(recBulanIni.filter(a => a.type === 'Datang' && (a.guruKey ? a.guruKey === g.key : a.guru === g.name)).map(a => a.tanggal)).size;
             return hariAktifBulanIni > 0 ? Math.round((hariHadirGuruIni / hariAktifBulanIni) * 100) : 0;
@@ -2525,7 +2583,7 @@
         const namaBulan = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][d.getMonth()];
         bulan.push(namaBulan + ' ' + d.getFullYear());
         const monthStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-        const attendanceGuru = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.tahunAjaran === currentTahunAjaran);
+        const attendanceGuru = allTeacherAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && sesuaiTahunAjaranTermasukDataLama(a));
         const hariAktif = new Set(attendanceGuru.map(a => a.tanggal)).size;
         const totalGuru = allGuru.length;
         let rataHadir = 0;
@@ -2712,42 +2770,10 @@
       document.getElementById('btnVerifyFace').disabled = !canEditTeacher;
       document.getElementById('siswaNote').textContent = isAdmin() ? '✅ Admin - Bisa kelola semua siswa' : '🔒 Hanya Admin yang bisa mengelola siswa';
 
-      document.querySelectorAll('.sidebar-menu .menu-item').forEach(item => {
-        const page = item.dataset.page;
-        if (page === 'admin' || page === 'setting-jam' || page === 'promotion' || page === 'profil-sekolah') {
-          if (isAdmin()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else if (page === 'rekap' || page === 'honor') {
-          if (isAdmin() || isKepsek()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else if (page === 'rekap-nilai') {
-          if (isAdmin() || isKepsek() || isWaliKelas()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else if (page === 'teacher-attendance' || page === 'journal' || page === 'religi') {
-          if (isAdmin() || isKepsek()) item.classList.add('hidden-tab');
-          else item.classList.remove('hidden-tab');
-        } else if (page === 'students') {
-          if (isTeacher() && !isAdmin() && !isKepsek()) item.classList.add('hidden-tab');
-          else item.classList.remove('hidden-tab');
-        } else if (page === 'surat') {
-          if (isAdmin() || isWaliKelas()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else if (page === 'modul-ajar') {
-          if (isAdmin() || isKepsek() || isTeacher() || isWaliKelas()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else if (page === 'jadwal') {
-          if (isAdmin() || isKepsek() || isWaliKelas() || isTeacher()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else if (page === 'laporan' || page === 'kelola-absen-guru' || page === 'rekap-jurnal') {
-          if (isAdmin() || isKepsek()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else if (page === 'user-management') {
-          if (isAdmin()) item.classList.remove('hidden-tab');
-          else item.classList.add('hidden-tab');
-        } else {
-          item.classList.remove('hidden-tab');
-        }
-      });
+      // Visibilitas menu ditentukan SATU tempat saja: menuRules di v4ApplyMode(). Blok lama di sini
+      // (aturan per-role terpisah) dihapus karena bertabrakan dengan menuRules (mis. wali kelas murni
+      // atau mode Guru tidak konsisten antara dua sistem itu).
+      if (typeof v4ApplyMode === 'function') v4ApplyMode();
 
       navigateTo('dashboard');
       const today = tglLokal();
@@ -2811,6 +2837,7 @@
       // itulah kenapa tombol "Keluar" bisa terlihat tidak merespon sama sekali.
       const wasUser = currentUser;
       currentUser = null;
+      Object.keys(_flushAttKeyByItem).forEach(k => { delete _flushAttKeyByItem[k]; });   // memo key flush absensi tidak boleh terbawa ke akun berikutnya
       clearSession();
       document.getElementById('appPage').style.display = 'none';
       document.getElementById('loginPage').style.display = 'none';
@@ -3215,14 +3242,14 @@
         if (sekarangMenit <= selesaiMenit + 5) lastJournal = j;
       }
       if (lastJournal) return [lastJournal.kelas];
-      return currentUser.kelas || [];
+      return loaderScopeKelas();
     }
 
     function populateClassFilterDropdowns() {
       const attendanceSelect = document.getElementById('attendanceClassFilter'), gradesSelect = document.getElementById('gradesClassFilter'), sikapSelect = document.getElementById('sikapKelasFilter');
       let kelasListAttendance = [], kelasListGrades = [];
       if (isAdmin() || isKepsek()) { kelasListAttendance = [...KELAS_LIST]; kelasListGrades = kelasListAttendance; }
-      else { kelasListAttendance = getKelasSaatIni(); kelasListGrades = currentUser.kelas || []; }
+      else { kelasListAttendance = getKelasSaatIni(); kelasListGrades = loaderScopeKelas(); }
       attendanceSelect.innerHTML = '<option value="">-- Pilih Kelas --</option>';
       gradesSelect.innerHTML = '<option value="">-- Pilih Kelas --</option>';
       kelasListAttendance.forEach(k => { attendanceSelect.innerHTML += `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`; });
@@ -3317,10 +3344,19 @@
       opts = opts || {};
       const pre = offlineCachePrefix();
       if (!window.SIMambaOfflineDB || !pre) { if (callback) callback(); return; }
-      SIMambaOfflineDB.getCacheAll().then(all => {
+      Promise.all([
+        SIMambaOfflineDB.getCacheAll(),
+        SIMambaOfflineDB.getAllPendingWrites().then(items => new Set((items || []).map(x => x.id)), () => null)
+      ]).then(([all, pendingIds]) => {
         if (opts.skipIf && opts.skipIf()) { if (callback) callback(); return; }
         const cache = {};
         Object.keys(all || {}).forEach(k => { if (k.indexOf(pre) === 0) cache[k.slice(pre.length)] = all[k]; });
+        // Buang record pendingSync yatim: sudah tidak ada di antrean (terkirim/dibatalkan) tapi masih tertinggal di cache.
+        if (pendingIds) {
+          ['allJournals', 'allAttendance', 'allTeacherAttendance', 'allTeacherAttendanceToday'].forEach(k => {
+            if (Array.isArray(cache[k])) cache[k] = cache[k].filter(r => !(r && r.pendingSync) || pendingIds.has(r._pendingId));
+          });
+        }
         const found = Object.keys(cache).length > 0;
         if (cache.allSiswa) allSiswa = cache.allSiswa;
         if (cache.allAttendance) allAttendance = cache.allAttendance;
@@ -3402,6 +3438,9 @@
     }
 
     // ---------- Antrian: JURNAL ----------
+    // Promise penyimpanan antrean per tempKey jurnal: dipakai cancelPendingJournal() kalau _pendingId belum terisi
+    // (addPendingWrite masih berjalan). Sengaja di luar record supaya tidak ikut ter-clone ke cache IndexedDB.
+    const _pendingAddByKey = {};
     function queueOfflineJournal(payload, customMsg) {
       // [PATCH] Tetapkan key Firebase SEKARANG (push() tanpa set() tidak menulis apa pun & tidak
       // butuh jaringan). Dengan key tetap, pengiriman ulang antrian bersifat idempoten.
@@ -3414,11 +3453,24 @@
       const localRecord = Object.assign({ key: tempKey, pendingSync: true }, payload);
       allJournals.push(localRecord); bumpJournalRev();
       if (window.SIMambaOfflineDB) {
-        SIMambaOfflineDB.addPendingWrite('journal', payload).then(id => {
+        const addP = SIMambaOfflineDB.addPendingWrite('journal', payload);
+        _pendingAddByKey[tempKey] = addP;
+        addP.then(id => {
+          delete _pendingAddByKey[tempKey];
           localRecord._pendingId = id;
           updatePendingBadge();
           registerBackgroundSyncTag();
-        }).catch(err => console.error('[Offline] Gagal antre jurnal:', err));
+        }).catch(err => {
+          delete _pendingAddByKey[tempKey];
+          console.error('[Offline] Gagal antre jurnal:', err);
+          // Rollback: record tidak ada di antrean, jadi jangan dibiarkan tampil seolah tersimpan.
+          const i = allJournals.indexOf(localRecord); if (i > -1) allJournals.splice(i, 1);
+          bumpJournalRev();
+          const actEl = document.getElementById('journalActivity');
+          if (actEl && !actEl.value) { actEl.value = payload.activity || ''; updateJournalActivityCounter(); }
+          renderJournals();
+          toast('❌ Gagal menyimpan jurnal offline. Isi jurnal dikembalikan ke form, coba simpan lagi.', true, 5000);
+        });
       }
       document.getElementById('journalActivity').value = '';
       updateJournalActivityCounter();
@@ -3438,8 +3490,13 @@
       if (!confirm('Batalkan jurnal offline ini? Data yang sudah diketik akan hilang.')) return;
       const record = allJournals[idx];
       allJournals.splice(idx, 1); bumpJournalRev();
-      if (window.SIMambaOfflineDB && record._pendingId != null) {
-        SIMambaOfflineDB.deletePendingWrite(record._pendingId).then(updatePendingBadge).catch(() => {});
+      if (window.SIMambaOfflineDB) {
+        if (record._pendingId != null) {
+          SIMambaOfflineDB.deletePendingWrite(record._pendingId).then(updatePendingBadge).catch(() => {});
+        } else if (_pendingAddByKey[tempKey]) {
+          // _pendingId belum siap (antrean masih menyimpan): tunggu id-nya lalu hapus, supaya tidak terkirim diam-diam.
+          _pendingAddByKey[tempKey].then(id => SIMambaOfflineDB.deletePendingWrite(id)).then(updatePendingBadge).catch(() => {});
+        }
       }
       renderJournals();
       toast('✖️ Jurnal offline dibatalkan.', false, 2000);
@@ -3452,13 +3509,21 @@
       // belum benar-benar terkirim ke Firebase.
       const existingIdx = allAttendance.findIndex(a => a.tanggal === payload.tanggal && a.kelas === payload.kelas);
       const localRecord = Object.assign({ key: 'pending-attendance-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), pendingSync: true }, payload);
+      const prevRecord = existingIdx > -1 ? allAttendance[existingIdx] : null;
       if (existingIdx > -1) allAttendance[existingIdx] = localRecord; else allAttendance.push(localRecord);
       if (window.SIMambaOfflineDB) {
         SIMambaOfflineDB.addPendingWrite('attendance', payload).then(id => {
           localRecord._pendingId = id;
           updatePendingBadge();
           registerBackgroundSyncTag();
-        }).catch(err => console.error('[Offline] Gagal antre absensi:', err));
+        }).catch(err => {
+          console.error('[Offline] Gagal antre absensi:', err);
+          // Rollback: kembalikan record lama (kalau ada) atau buang record sementara.
+          const i = allAttendance.indexOf(localRecord);
+          if (i > -1) { if (prevRecord) allAttendance[i] = prevRecord; else allAttendance.splice(i, 1); }
+          try { loadAttendance(); } catch (e) {}
+          toast('❌ Gagal menyimpan absensi offline. Coba simpan lagi.', true, 5000);
+        });
       }
       toast(customMsg || '📥 Offline: absensi disimpan di perangkat ini, akan otomatis dikirim saat online kembali.', false, 4500);
     }
@@ -3472,30 +3537,41 @@
       SIMambaOfflineDB.getAllPendingWrites().then(items => {
         if (items.length === 0) { isFlushingPendingWrites = false; if (manual) toast('✅ Tidak ada data yang menunggu sinkronisasi.', false, 2000); return; }
         if (manual) toast(`🔄 Menyinkronkan ${items.length} data tertunda...`, false, 3000);
-        let idx = 0, gagal = 0;
+        let idx = 0, gagal = 0, tertunda = 0, berhasil = 0;
         function next() {
           // [PATCH] koneksi putus di tengah sinkron -> berhenti, sisa antrian dicoba lagi nanti
           if (idx < items.length && !isReallyOnline()) { isFlushingPendingWrites = false; updatePendingBadge(); return; }
           if (idx >= items.length) {
             isFlushingPendingWrites = false;
             updatePendingBadge();
-            loadAllData();
+            // Cache offline sebelum flush masih memuat record pendingSync; kosongkan dulu supaya tidak jadi
+            // "yatim" kalau app dibuka offline setelah ini. loadAllData() menulis ulang cache dari data server.
+            (berhasil > 0 ? invalidasiCachePendingSetelahFlush() : Promise.resolve()).then(() => loadAllData());
             if (gagal > 0) toast(`⚠️ ${gagal} data belum berhasil disinkron, akan dicoba lagi otomatis.`, true, 4000);
+            else if (tertunda > 0) toast(`⏳ ${tertunda} data masih menunggu sinyal yang lebih stabil, akan dicoba lagi otomatis.`, false, 4000);
             else if (manual) toast('✅ Semua data berhasil disinkronkan!', false, 3000);
             return;
           }
           const item = items[idx++];
-          flushOnePendingWrite(item).then(() => next()).catch(err => {
-            gagal++;
+          flushOnePendingWrite(item).then(() => { berhasil++; next(); }).catch(err => {
             console.warn('[Offline] Gagal sinkron 1 item, akan dicoba lagi nanti:', err);
             // [PATCH] Timeout karena jaringan macet BUKAN kegagalan data -- jangan dihitung sebagai
             // percobaan gagal (supaya item tidak dibuang gara-gara sinyal jelek).
-            if (err && err.isDeadline) next();
-            else SIMambaOfflineDB.bumpAttempt(item.id).finally(next);
+            if (err && err.isDeadline) { tertunda++; next(); }
+            else { gagal++; SIMambaOfflineDB.bumpAttempt(item.id).finally(next); }
           });
         }
         next();
       }).catch(err => { isFlushingPendingWrites = false; console.error('[Offline] Gagal baca antrian:', err); });
+    }
+
+    // Kosongkan salinan cache dataset yang bisa memuat record pendingSync (milik user aktif).
+    function invalidasiCachePendingSetelahFlush() {
+      const pre = offlineCachePrefix();
+      if (!window.SIMambaOfflineDB || !pre) return Promise.resolve();
+      const kosong = {};
+      ['allJournals', 'allAttendance', 'allTeacherAttendance', 'allTeacherAttendanceToday'].forEach(k => { kosong[pre + k] = null; });
+      return SIMambaOfflineDB.setCacheMany(kosong).catch(err => console.warn('[Offline] Gagal invalidasi cache:', err));
     }
 
     function flushOnePendingWrite(item) {
@@ -3765,6 +3841,7 @@
         Promise.all(secondaryPromises).then(() => {
           cacheDatasetsToIndexedDB(_owner);
           dataLoaded = true;
+          try { if (isAdmin()) cekDataLamaBelumMigrasi(); } catch (e) {}
           const _tR2 = performance.now();
           renderFullUI();
           perfLog('FASE 2 selesai', Math.round(_tR2 - _tStart) + 'ms sejak loadAllData mulai | renderFullUI', Math.round(performance.now() - _tR2) + 'ms');
@@ -6106,6 +6183,7 @@
       const list = document.getElementById('adminTeacherAttendanceList');
       const summary = document.getElementById('adminTeacherAttendanceSummary');
       if (!list) return;
+      if (!isAdmin() && !isKepsek()) return;
       const today = tglLokal();
       const guruAktif = (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas');
       if (guruAktif.length === 0) { list.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada data guru.</p>'; return; }
@@ -6263,7 +6341,7 @@
       remindersWatchAttached = true;
       const today = tglLokal();
       remindersWatchDate = today;
-      const remindersQuery = currentUser.key ? db.ref('reminders/' + today).orderByChild('toKey').equalTo(currentUser.key) : db.ref('reminders/' + today).orderByChild('to').equalTo(currentUser.name);
+      const remindersQuery = (currentUser.key && currentUser.key !== ADMIN_USER_KEY && currentUser.key !== KEPSEK_USER_KEY) ? db.ref('reminders/' + today).orderByChild('toKey').equalTo(currentUser.key) : db.ref('reminders/' + today).orderByChild('to').equalTo(currentUser.name);
       remindersListenerRef = remindersQuery;
       remindersQuery.on('child_added', snap => {
         const val = snap.val();
@@ -6744,7 +6822,7 @@
     function renderRekap() {
       if (!currentUser) return; if (!isAdmin() && !isKepsek()) return;
       const filterGuru = document.getElementById('rekapFilterGuru').value, filterKelas = document.getElementById('rekapFilterKelas').value, filterTanggal = document.getElementById('rekapFilterTanggal').value;
-      let guruList = allGuru, siswaList = allSiswa, journalList = allJournals, attendanceList = allTeacherAttendance;
+      let guruList = allGuru, siswaList = allSiswa, journalList = allJournals.filter(j => j.status !== 'ditolak'), attendanceList = allTeacherAttendance;
       // FIX: dulu filterGuru & pengelompokan rekap sama-sama pakai NAMA guru -- kalau ada 2 guru
       // bernama sama, memilih salah satu di filter menampilkan data GABUNGAN keduanya, dan tanpa
       // filter pun rekap per-guru di bawah menggabung jurnal/absen/siswa keduanya jadi satu baris
@@ -7181,11 +7259,11 @@
       renderGuruTerajinRanking();
       const month = document.getElementById('honorMonth').value.padStart(2,'0'), year = document.getElementById('honorYear').value;
       const container = document.getElementById('honorResult'), btnPdf = document.getElementById('btnDownloadHonorPDF'), paginationEl = document.getElementById('honorPagination');
-      const filteredJournals = allJournals.filter(j => { if (!j.tanggal) return false; const parts = j.tanggal.split('-'); return parts[0] === year && parts[1] === month && j.tahunAjaran === currentTahunAjaran; }).filter(j => j.status !== 'ditolak');
-      const filteredReligi = allReligiAttendance.filter(r => { if (!r.tanggal) return false; const parts = r.tanggal.split('-'); return parts[0] === year && parts[1] === month && r.tahunAjaran === currentTahunAjaran; });
-      const filteredEvents = allEventAttendance.filter(e => { if (!e.tanggal) return false; const parts = e.tanggal.split('-'); return parts[0] === year && parts[1] === month && e.tahunAjaran === currentTahunAjaran; });
-      const filteredUjian = allUjianAttendance.filter(u => { if (!u.tanggal) return false; const parts = u.tanggal.split('-'); return parts[0] === year && parts[1] === month && u.tahunAjaran === currentTahunAjaran; });
-      const filteredEkskulPic = allEkskulPicHonor.filter(x => { if (!x.tanggal) return false; const parts = x.tanggal.split('-'); return parts[0] === year && parts[1] === month && x.tahunAjaran === currentTahunAjaran; });
+      const filteredJournals = allJournals.filter(j => { if (!j.tanggal) return false; const parts = j.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(j); }).filter(j => j.status !== 'ditolak');
+      const filteredReligi = allReligiAttendance.filter(r => { if (!r.tanggal) return false; const parts = r.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(r); });
+      const filteredEvents = allEventAttendance.filter(e => { if (!e.tanggal) return false; const parts = e.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(e); });
+      const filteredUjian = allUjianAttendance.filter(u => { if (!u.tanggal) return false; const parts = u.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(u); });
+      const filteredEkskulPic = allEkskulPicHonor.filter(x => { if (!x.tanggal) return false; const parts = x.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(x); });
       const guruAktifTunjangan = (allGuru || []).filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0));
       const guruTerajinKey = year + '-' + month;
       const guruTerajinBulanIni = allGuruTerajin[guruTerajinKey];
@@ -7285,11 +7363,11 @@
       // Fallback ke nama dipertahankan untuk record lama yang belum punya guruKey.
       const cocokSaya = (rec) => rec.guruKey ? rec.guruKey === currentUser.key : rec.guru === namaSaya;
       const inBulan = (tgl) => { if (!tgl) return false; const p = tgl.split('-'); return p[0] === year && p[1] === month; };
-      const fJournals = allJournals.filter(j => cocokSaya(j) && inBulan(j.tanggal) && j.tahunAjaran === currentTahunAjaran && j.status !== 'ditolak');
-      const fReligi = allReligiAttendance.filter(r => cocokSaya(r) && inBulan(r.tanggal) && r.tahunAjaran === currentTahunAjaran);
-      const fEvents = allEventAttendance.filter(e => cocokSaya(e) && inBulan(e.tanggal) && e.tahunAjaran === currentTahunAjaran);
-      const fUjian = allUjianAttendance.filter(u => cocokSaya(u) && inBulan(u.tanggal) && u.tahunAjaran === currentTahunAjaran);
-      const fEkskulPic = allEkskulPicHonor.filter(x => cocokSaya(x) && inBulan(x.tanggal) && x.tahunAjaran === currentTahunAjaran);
+      const fJournals = allJournals.filter(j => cocokSaya(j) && inBulan(j.tanggal) && sesuaiTahunAjaranTermasukDataLama(j) && j.status !== 'ditolak');
+      const fReligi = allReligiAttendance.filter(r => cocokSaya(r) && inBulan(r.tanggal) && sesuaiTahunAjaranTermasukDataLama(r));
+      const fEvents = allEventAttendance.filter(e => cocokSaya(e) && inBulan(e.tanggal) && sesuaiTahunAjaranTermasukDataLama(e));
+      const fUjian = allUjianAttendance.filter(u => cocokSaya(u) && inBulan(u.tanggal) && sesuaiTahunAjaranTermasukDataLama(u));
+      const fEkskulPic = allEkskulPicHonor.filter(x => cocokSaya(x) && inBulan(x.tanggal) && sesuaiTahunAjaranTermasukDataLama(x));
       const rates = v4GetHonorRates();
       let reguler=0, nonReguler=0, ekstra=0, ekstraHonor=0;
       fJournals.forEach(j => { if (isJamEkstra(j.jam_ke)) { ekstra+=1; ekstraHonor+=getEkstraRate(j.subject); } else if (j.type==='Non-Reguler') nonReguler+=1; else reguler+=1; });
@@ -7747,7 +7825,7 @@
       const dariFirebase = allKedisiplinanKategori[jenis];
       return (dariFirebase && dariFirebase.length) ? dariFirebase : (jenis === 'prestasi' ? KATEGORI_PRESTASI_DEFAULT : KATEGORI_PELANGGARAN_DEFAULT);
     }
-    function sikapCanAccess() { return !!currentUser && (isAdmin() || isKepsek() || (currentUser.kelas && currentUser.kelas.length > 0)); }
+    function sikapCanAccess() { return !!currentUser && (isAdmin() || isKepsek() || loaderScopeKelas().length > 0); }
     function setupSikapPage() {
       if (!sikapCanAccess()) {
         document.getElementById('sikapFormArea').innerHTML = '<p style="color:#dc2626;">🔒 Anda belum ditugaskan ke kelas manapun.</p>';
@@ -7862,7 +7940,7 @@
     }
     function renderSikapRekap() {
       const area = document.getElementById('sikapRekapArea'); if (!area) return;
-      const kelasList = (isAdmin() || isKepsek()) ? KELAS_LIST : (currentUser.kelas || []);
+      const kelasList = (isAdmin() || isKepsek()) ? KELAS_LIST : loaderScopeKelas();
       let rows = '';
       kelasList.forEach(kelas => {
         const siswaKelas = allSiswa.filter(s => s.kelas === kelas);
@@ -7970,7 +8048,7 @@
     // status lunas di Infaq Mingguan) -- begitu diklik "Kirim WA", item itu hilang dari daftar.
     function infoOrtuKelasRelevan() {
       if (!currentUser) return [];
-      return (isAdmin() || isKepsek()) ? KELAS_LIST : (currentUser.kelas || []);
+      return (isAdmin() || isKepsek()) ? KELAS_LIST : loaderScopeKelas();
     }
     function infoOrtuItemsBelumKirim() {
       const kelasRelevan = infoOrtuKelasRelevan();
@@ -10275,6 +10353,7 @@
       });
     }
     function openEditGuruModal(key) {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
       const guru = allGuru.find(g => g.key === key);
       if (!guru) return toast('Guru tidak ditemukan!', true);
       editingGuruKey = key;
@@ -10645,7 +10724,7 @@
     }
     function downloadRekapSemua() { if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
       const filterGuru = document.getElementById('rekapFilterGuru').value, filterKelas = document.getElementById('rekapFilterKelas').value;
-      let siswa = allSiswa, guru = allGuru, jurnal = allJournals, absenSiswa = allAttendance, absenGuru = allTeacherAttendance;
+      let siswa = allSiswa, guru = allGuru, jurnal = allJournals.filter(j => j.status !== 'ditolak'), absenSiswa = allAttendance, absenGuru = allTeacherAttendance;
       // Siswa (wali kelas) cuma simpan nama, tidak ada guruKey -- resolve filterGuru (key) balik
       // ke nama khusus untuk baris ini. Jurnal & absen guru sudah punya guruKey, cocokkan lewat itu.
       const filterGuruNama = filterGuru ? ((allGuru || []).find(g => (g.key || g.name) === filterGuru)?.name || filterGuru) : '';
@@ -10793,7 +10872,7 @@
 
       let totalHadir = 0, totalSakit = 0, totalIzin = 0, totalAlfa = 0;
       siswa.forEach((s, idx) => {
-        const attendanceData = allAttendance.filter(a => a.tanggal.startsWith(monthStr) && a.kelas === kelas);
+        const attendanceData = allAttendance.filter(a => a.tanggal && a.tanggal.startsWith(monthStr) && a.kelas === kelas && sesuaiTahunAjaranTermasukDataLama(a));
         let hadir = 0, sakit = 0, izin = 0, alfa = 0;
         attendanceData.forEach(a => {
           if (a.data && a.data[s.key]) {
@@ -10915,27 +10994,27 @@
       const filteredJournals = allJournals.filter(j => {
         if (!j.tanggal) return false;
         const parts = j.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && j.tahunAjaran === currentTahunAjaran && j.status !== 'ditolak';
+        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(j) && j.status !== 'ditolak';
       });
       const filteredReligi = allReligiAttendance.filter(r => {
         if (!r.tanggal) return false;
         const parts = r.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && r.tahunAjaran === currentTahunAjaran;
+        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(r);
       });
       const filteredEvents = allEventAttendance.filter(e => {
         if (!e.tanggal) return false;
         const parts = e.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && e.tahunAjaran === currentTahunAjaran;
+        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(e);
       });
       const filteredUjian = allUjianAttendance.filter(u => {
         if (!u.tanggal) return false;
         const parts = u.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && u.tahunAjaran === currentTahunAjaran;
+        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(u);
       });
       const filteredEkskulPic = allEkskulPicHonor.filter(x => {
         if (!x.tanggal) return false;
         const parts = x.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && x.tahunAjaran === currentTahunAjaran;
+        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(x);
       });
       const guruAktifTunjangan = (allGuru || []).filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0));
       // FIX: dulu fungsi ini return kosong kalau kelima sumber data guru kosong, PADAHAL
@@ -11097,7 +11176,7 @@
       const filteredJournals = allJournals.filter(j => {
         if (!j.tanggal) return false;
         const parts = j.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && j.tahunAjaran === currentTahunAjaran && j.status !== 'ditolak';
+        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(j) && j.status !== 'ditolak';
       });
       if (filteredJournals.length === 0) {
         return `<p class="text-muted" style="text-align:center;padding:20px 0;">Tidak ada data jurnal untuk bulan ${monthName} ${year}.</p>`;
@@ -11145,7 +11224,7 @@
       const filtered = allTeacherAttendance.filter(a => {
         if (!a.tanggal) return false;
         const parts = a.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && a.tahunAjaran === currentTahunAjaran;
+        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(a);
       });
       if (filtered.length === 0) {
         return `<p class="text-muted" style="text-align:center;padding:20px 0;">Tidak ada data absensi guru untuk bulan ${monthName} ${year}.</p>`;
@@ -11561,7 +11640,7 @@
       let totalHadir = 0, totalSiswa = 0;
       hadir.forEach(a => { if (a.data) { const values = Object.values(a.data); totalHadir += values.filter(v => v === 'H').length; totalSiswa += values.length; } });
       document.getElementById('statHadir').textContent = totalSiswa > 0 ? Math.round((totalHadir/totalSiswa)*100) + '%' : '0%';
-      const jurnalHariIni = allJournals.filter(j => j.tanggal === today && (isAdmin() || isKepsek() || (j.guruKey ? j.guruKey === currentUser.key : j.guru === currentUser.name)) && j.tahunAjaran === currentTahunAjaran);
+      const jurnalHariIni = allJournals.filter(j => j.tanggal === today && (isAdmin() || isKepsek() || (j.guruKey ? j.guruKey === currentUser.key : j.guru === currentUser.name)) && j.tahunAjaran === currentTahunAjaran && j.status !== 'ditolak');
       document.getElementById('statJurnal').textContent = jurnalHariIni.length;
       const guruHadir = allTeacherAttendance.filter(a => a.tanggal === today && a.tahunAjaran === currentTahunAjaran);
       document.getElementById('statAbsenGuru').textContent = guruHadir.length;
@@ -11932,12 +12011,12 @@
         if(key==='admin'){
           if(hashPin(pin)!==ADMIN_PIN_HASH) { adminLoginCatatGagal(); return toast('PIN Admin salah!',true); }
           adminLoginResetGagal();
-          currentUser={name:'Admin',role:ROLES.ADMIN,baseRole:ROLES.ADMIN,kelas:[...KELAS_LIST]};
+          currentUser={name:'Admin',role:ROLES.ADMIN,baseRole:ROLES.ADMIN,key:ADMIN_USER_KEY,kelas:[...KELAS_LIST]};
           if (typeof window.kredAdminSiap === 'function') window.kredAdminSiap().catch(function () {});   // siapkan sesi_admin untuk Rules v2/v3
         } else if(key==='kepsek'){
           if(hashPin(pin)!==KEPSEK_PIN_HASH) { adminLoginCatatGagal(); return toast('PIN Kepsek salah!',true); }
           adminLoginResetGagal();
-          currentUser={name:'Kepala Madrasah',role:ROLES.HEADMASTER,baseRole:ROLES.HEADMASTER,kelas:[...KELAS_LIST]};
+          currentUser={name:'Kepala Madrasah',role:ROLES.HEADMASTER,baseRole:ROLES.HEADMASTER,key:KEPSEK_USER_KEY,kelas:[...KELAS_LIST]};
         } else {
           const guru=(allGuru||[]).find(g=>g.key===key); if(!guru) return toast('Guru tidak ditemukan!',true);
           // [KREDENSIAL v1] PIN guru diperiksa lewat js/kredensial.js (indeks login_kredensial), bukan hash di data guru.
@@ -12715,6 +12794,12 @@
       v4NotifSeq++; v4ApprSeq++; // load online yang masih menggantung tidak boleh menimpa hasil cache
       return SIMambaOfflineDB.getCache(key).then(c => {
         if (seq !== v4CoreSeq) return; // sudah ada v4LoadCore() yang lebih baru
+        // Cache dari tahun ajaran lain (atau cache lama tanpa penanda) jangan dipakai: data tahun lalu bisa tampil
+        // sebagai data tahun ajaran aktif saat offline.
+        if (c && c.tahunAjaran !== currentTahunAjaran) {
+          console.warn('[SI MAMBA] Cache V4 milik tahun ajaran', c.tahunAjaran || '(tanpa penanda)', 'bukan', currentTahunAjaran, '-- diabaikan.');
+          c = null;
+        }
         if (c) V4_CACHE_FIELDS.forEach(f => { if (c[f] !== undefined && c[f] !== null) V4[f] = c[f]; });
         else console.warn('[SI MAMBA] Offline & belum ada cache data V4 -- modul V4 kosong sampai online sekali.');
         v4RenderAllCore(); v4RenderNotifications(); v4RenderApprovals();
