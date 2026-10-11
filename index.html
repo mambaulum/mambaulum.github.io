@@ -90,13 +90,13 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=56"></script>
+  <script defer src="js/app.js?v=60"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=6"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=1"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
-  <script defer src="js/kredensial.js?v=2"></script>
+  <script defer src="js/kredensial.js?v=3"></script>
   <script defer src="js/menu-hub.js?v=10"></script>
   <!-- Rekap Jurnal Mengajar (menu Pembelajaran, Admin & Kepsek). WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rekap-jurnal.js?v=1"></script>
@@ -127,7 +127,7 @@
   <script defer src="js/auto-logout.js?v=4"></script>
 
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
-  <script defer src="js/login-kode.js?v=11"></script>
+  <script defer src="js/login-kode.js?v=12"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
   <script defer src="js/impersonate.js?v=2"></script>
 
