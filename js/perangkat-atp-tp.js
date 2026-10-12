@@ -98,10 +98,10 @@
   function infoHtml() {
     return `<table class="info"><tr><td>Mata Pelajaran</td><td>: ${esc(A.rec.mapel)}</td></tr><tr><td>Kelas${A.fase ? ' / Fase' : ''}</td><td>: ${esc(A.rec.kelas)}${A.fase ? ' / Fase ' + A.fase : ''}</td></tr><tr><td>Guru</td><td>: ${esc(A.rec.guruName || myName())}</td></tr></table>`;
   }
-  function ttdHtml() {
+  function ttdHtml(jenis) {
     const c = kopCfg(), t = '........................................', nip = String(A.nip || '').trim();
-    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
-<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(A.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div>`;
+    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}${R().ttdKepalaSp(String(jenis).toLowerCase(), A.id, { jenis: jenis, ket: A.rec.mapel + ' Kelas ' + A.rec.kelas + ' · TP ' + A.ta + ' · Guru: ' + (A.rec.guruName || myName()), nama: c.kepala, jabatan: 'Kepala ' + (c.madrasah || 'Madrasah'), nip: c.nipKepala })}<b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
+<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran${R().ttdSp({ jenis: jenis, ket: A.rec.mapel + ' Kelas ' + A.rec.kelas + ' · TP ' + A.ta, nama: A.rec.guruName || myName(), jabatan: 'Guru Mata Pelajaran', nip: nip })}<b><u>${esc(A.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div>`;
   }
   function dokumen(judulTab, isi) {
     return `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${judulTab} ${esc(A.rec.mapel)} Kelas ${esc(A.rec.kelas)}</title><style>
@@ -115,9 +115,9 @@ body{font-family:"Times New Roman",Times,serif;font-size:12pt;color:#111;margin:
 ${CSS}
 h4{margin:12px 0 4px;font-size:11.5pt}.cp{font-size:10.5pt;margin:2px 0}
 .ttd{display:flex;justify-content:space-between;gap:20px;margin-top:18px;font-size:11pt;page-break-inside:avoid}
-.ttd>div{width:48%}.ttd .sp{height:56px}
+.ttd>div{width:48%}.ttd .sp{min-height:56px}
 tr{page-break-inside:avoid}
-</style></head><body>${isi}${ttdHtml()}</body></html>`;
+</style></head><body>${isi}${ttdHtml(judulTab)}</body></html>`;
   }
   function buka(html, nama, mode) { R().keluarkan(html, nama + '_' + A.rec.mapel + '_' + A.rec.kelas, mode); }
   function tabelAtp() {
@@ -295,7 +295,7 @@ tr{page-break-inside:avoid}
       manual: !!A.manual, items: bersihItems().map(x => ({ k: x.k, e: x.e, t: x.t, m: x.m, sem: x.sem, jp: x.jp === '' ? 0 : x.jp })), jpPerPekan: jpNum() || null,
       at: new Date().toISOString(), by: myName() };
     return db.ref('perangkat_tp_v4/' + idTp()).set(obj).then(() => {
-      A.busy = false; A.dirty = false; audit('SAVE_PERANGKAT_TP', idTp()); if (!diam) say('✅ Tersimpan'); if (A.rec) gambar();
+      A.busy = false; A.dirty = false; audit('SAVE_PERANGKAT_TP', idTp()); R().cabutSetuju(A.id, ['atp', 'tp']); if (!diam) say('✅ Tersimpan'); if (A.rec) gambar();
     }).catch(err => { A.busy = false; console.error('[SI MAMBA] atp:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function terapkan() {
@@ -312,7 +312,7 @@ tr{page-break-inside:avoid}
     const now = new Date().toISOString();
     const tulis = SEM.filter(s => per[s].length).map(s => db.ref('perangkat_materi_v4/' + idMateri(s)).set({ guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: A.ta, semester: s,
       mapel: rec.mapel, kelas: rec.kelas, materi: per[s], jpPerPekan: jpNum() || null, at: now, by: myName() }));
-    Promise.all(tulis).then(() => { A.busy = false; return simpan(true); }).then(() => { A.busy = false; audit('APPLY_PERANGKAT_TP', idTp()); say('✅ Materi Prota/Promes terisi. Buka 🗂 Prota/Promes untuk melihatnya.'); })
+    Promise.all(tulis).then(() => { A.busy = false; return simpan(true); }).then(() => { A.busy = false; audit('APPLY_PERANGKAT_TP', idTp()); SEM.forEach(s => R().cabutSetuju(R().idSemester(A.id, s), ['prota', 'promes'])); say('✅ Materi Prota/Promes terisi. Buka 🗂 Prota/Promes untuk melihatnya.'); })
       .catch(err => { A.busy = false; console.error('[SI MAMBA] atp terapkan:', err); say('❌ Gagal menerapkan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {
@@ -372,7 +372,7 @@ tr{page-break-inside:avoid}
     if (!rec) return;
     if (!window.rpeUtil) return say('Modul RPE belum dimuat (js/perangkat-rpe.js harus dimuat lebih dulu).', true);
     if (!window.BANK_TP_MI) return say('Bank TP belum dimuat (js/data-tp-mi.js).', true);
-    A.rec = rec; A.ro = rec.guruKey !== myId(); A.ta = String(ta || ''); A.fase = fase(rec.kelas); A.kunci = kunciMapel(rec.mapel);
+    A.id = id; A.rec = rec; A.ro = rec.guruKey !== myId(); A.ta = String(ta || ''); A.fase = fase(rec.kelas); A.kunci = kunciMapel(rec.mapel);
     A.bank = (A.fase && A.kunci) ? itemBank(A.kunci, A.fase) : [];
     const mp = window.BANK_TP_MI.mapel[A.kunci];
     A.cp = (A.fase && mp && mp.cp[A.fase]) ? mp.cp[A.fase] : [];

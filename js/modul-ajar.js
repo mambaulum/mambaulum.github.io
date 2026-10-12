@@ -1181,9 +1181,17 @@
   // Blok pengesahan: hanya terisi bila modul berstatus disetujui (nama penyetuju + tanggal, tanda tangan digital bila ada).
   function ttdHtml(m) {
     if (pers(m) !== 'disetujui') return '<br><br><br><b>' + esc(kepalaNama || '………………………') + '</b>';
+    // Penandatangan = Kepala Madrasah (dari data madrasah), bukan siapa yang menekan tombol Setujui (bisa Admin).
+    // Penyetuju sebenarnya dicatat di keterangan QR.
+    var kpNama = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || kepalaNama || m.persetujuanOleh || '';
+    var kpNip = (typeof MADRASAH !== 'undefined' && MADRASAH.nip_kepala_sekolah) || '';
+    var penyetuju = (m.persetujuanOleh || '') + (m.persetujuanRole ? ' (' + m.persetujuanRole + ')' : '');
+    var blokTtd = (window.TTD && TTD.penanda)
+      ? '<div style="min-height:19mm;">' + TTD.penanda('kepala', { jenis: 'Persetujuan Modul Pembelajaran', ket: [judulModul(m), m.guru, 'disetujui ' + tglIso(m.persetujuanAt) + (penyetuju ? ' oleh ' + penyetuju : '')].filter(Boolean).join(' | '), nama: kpNama, jabatan: 'Kepala Madrasah', nip: kpNip }, { mm: 17 }) + '</div>'
+      : '';
     var img = '';
     try { var b64 = (typeof MADRASAH !== 'undefined') ? (MADRASAH.ttdKepalaBase64 || '') : ''; if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
-    return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (img || '<br><br><br>') + '<b>' + esc(m.persetujuanOleh || '') + '</b>';
+    return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (blokTtd || img || '<br><br><br>') + '<b>' + esc(kpNama) + '</b>' + (m.persetujuanRole === 'Admin' ? '<div style="font-size:10px;color:#555;">disetujui melalui aplikasi oleh ' + esc(m.persetujuanOleh || '') + ' (Admin)</div>' : '');
   }
   function docHtml(m) {
     var dpl = m.dpl || [], pc = m.pancaCinta || [];
@@ -1213,8 +1221,12 @@
       '.b{border:1px solid #ddd;border-radius:6px;padding:8px 10px;white-space:normal}.ttd{display:flex;justify-content:space-between;margin-top:36px;text-align:center}' +
       '.tip{background:#fef3c7;border:1px solid #f59e0b;padding:8px 12px;border-radius:8px;margin-bottom:12px}@media print{.tip{display:none}}';
     var tip = pdf ? '<div class="tip">Untuk menyimpan sebagai PDF: pada dialog cetak, pilih tujuan <b>Simpan sebagai PDF</b>.</div>' : '';
-    w.document.write('<html><head><base href="' + esc(document.baseURI) + '"><title>Modul ' + esc(judulModul(m)) + '</title><style>' + css + '</style></head><body>' + tip + docHtml(m) + '</body></html>');
-    w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400);
+    var htmlModul = '<html><head><base href="' + esc(document.baseURI) + '"><title>Modul ' + esc(judulModul(m)) + '</title><style>' + css + '</style></head><body>' + tip + docHtml(m) + '</body></html>';
+    var tulisModul = function (h) { w.document.open(); w.document.write(h); w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400); };
+    if (window.TTD && TTD.isiHtml && /\[\[TTD:/.test(htmlModul)) {
+      w.document.write('<p style="font-family:Arial,sans-serif;padding:24px;">Menyiapkan dokumen…</p>');
+      TTD.isiHtml(htmlModul).catch(function () { return htmlModul.replace(/\[\[TTD:[^\]]*\]\]/g, ''); }).then(tulisModul);
+    } else tulisModul(htmlModul);
   }
 
   /* ---------- event ---------- */

@@ -163,14 +163,14 @@ ${CSS_TABEL}
 .cat{font-size:10pt;margin-top:8px}
 .ttd{display:flex;justify-content:space-between;gap:20px;margin-top:22px;font-size:11.5pt;page-break-inside:avoid}
 .ttd>div{width:48%;text-align:left}
-.ttd .sp{height:62px}
+.ttd .sp{min-height:62px}
 </style></head><body>
 <div class="kop"><div class="m">${esc(madrasah)}</div><div class="j">RENCANA PEKAN EFEKTIF (RPE)</div><div class="s">Tahun Pelajaran ${esc(info.ta)} · Semester ${esc(info.sem)}</div></div>
 <table class="info"><tr><td>Mata Pelajaran</td><td>: ${esc(info.mapel)}</td></tr><tr><td>Kelas</td><td>: ${esc(info.kelas)}</td></tr><tr><td>Guru</td><td>: ${esc(info.guru)}</td></tr>${h.jp ? `<tr><td>Alokasi waktu</td><td>: ${h.jp} JP per pekan</td></tr>` : ''}<tr><td>Hari belajar</td><td>: ${h.hp} hari per pekan (${fmtTgl(cfg.mulai)} s.d. ${fmtTgl(cfg.selesai)})</td></tr></table>
 ${tabelHtml(h)}
 <div class="cat">Pekan efektif = (hari belajar − hari tidak efektif) ÷ ${h.hp} hari belajar per pekan.${h.jp ? ' JP efektif = pekan efektif × ' + h.jp + ' JP per pekan, dibulatkan per bulan.' : ''}</div>
-<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}<div class="sp"></div><b><u>${esc(cfg.kepala || titik)}</u></b><br>PEG ID. ${esc(cfg.nipKepala || titik)}</div>
-<div>${esc(cfg.kota || titik)}, ${fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(info.guru || titik)}</u></b><br>PEG ID. ${esc(info.nip || titik)}</div></div>
+<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}${ttdKepalaSp('rpe', M.id, { jenis: 'Rencana Pekan Efektif (RPE)', ket: info.mapel + ' Kelas ' + info.kelas + ' · Semester ' + info.sem + ' · TP ' + info.ta + ' · Guru: ' + info.guru, nama: cfg.kepala, jabatan: 'Kepala ' + madrasah, nip: cfg.nipKepala })}<b><u>${esc(cfg.kepala || titik)}</u></b><br>PEG ID. ${esc(cfg.nipKepala || titik)}</div>
+<div>${esc(cfg.kota || titik)}, ${fmtTgl(new Date())}<br>Guru Mata Pelajaran${ttdSp({ jenis: 'Rencana Pekan Efektif (RPE)', ket: info.mapel + ' Kelas ' + info.kelas + ' · Semester ' + info.sem + ' · TP ' + info.ta, nama: info.guru, jabatan: 'Guru Mata Pelajaran', nip: info.nip })}<b><u>${esc(info.guru || titik)}</u></b><br>PEG ID. ${esc(info.nip || titik)}</div></div>
 </body></html>`;
   }
 
@@ -448,17 +448,55 @@ ${tabelHtml(h)}
       .replace(/<body[^>]*>/i, '<body><div class="Section1">').replace(/<\/body>/i, '</div></body>');
     return h;
   }
+  // Blok kosong untuk tanda tangan GURU. Bila ttd-digital.js termuat, diisi penanda QR (diganti oleh TTD.isiHtml saat keluaran).
+  // Blok Kepala sengaja tetap kosong: Kepala menandatangani sendiri (basah) karena yang mencetak adalah guru.
+  function ttdSp(meta) {
+    const p = (window.TTD && typeof window.TTD.penanda === 'function') ? window.TTD.penanda('umum', meta || {}) : '';
+    return '<div class="sp">' + p + '</div>';
+  }
+  // Baris perangkat_v4 per semester: id = ta_sem_guru_mapel_kelas -> ganti bagian semester.
+  function idSemester(id, sem) {
+    const p = String(id || '').split('_');
+    if (p.length === 5 && (sem === 'ganjil' || sem === 'genap')) p[1] = sem;
+    return p.join('_');
+  }
+  // Blok tanda tangan KEPALA. Hanya dokumen bertanda setuju:true (lihat JENIS di perangkat-pembelajaran.js) yang memakai QR,
+  // dan QR baru muncul bila Admin/Kepsek sudah menyetujui (dicek ke Firebase saat cetak oleh TTD.isiHtml). Selain itu ruang kosong.
+  function ttdKepalaSp(jk, id, meta) {
+    const J = ((window.perangkatUtil && window.perangkatUtil.JENIS) || []).find(x => x.k === jk);
+    if (!J || !J.setuju || !id || !window.TTD || typeof window.TTD.penanda !== 'function') return '<div class="sp"></div>';
+    return '<div class="sp">' + window.TTD.penanda('kepala', meta || {}, { syarat: 'perangkat_v4/' + id + '/docs/' + jk + '/setuju' }) + '</div>';
+  }
+  // Guru mengubah dokumen -> persetujuan lama gugur (QR Kepala tidak lagi muncul sampai disetujui ulang). Best effort.
+  function cabutSetuju(id, daftarJk) {
+    if (!id || typeof db === 'undefined' || !db || !navigator.onLine) return;
+    (daftarJk || []).forEach(jk => { try { db.ref('perangkat_v4/' + id + '/docs/' + jk + '/setuju').remove().catch(() => {}); } catch (e) {} });
+  }
   // mode 'word' => unduh .doc; selain itu buka jendela cetak.
+  // Jendela cetak dibuka SINKRON (agar tidak diblokir popup), isinya ditulis setelah QR selesai dibuat.
   function keluarkan(html, nama, mode) {
-    if (mode === 'word') {
-      const blob = new Blob(['\ufeff' + wordDari(html)], { type: 'application/msword' }), a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = String(nama || 'dokumen').replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').slice(0, 80) + '.doc';
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); return true;
+    let w = null;
+    if (mode !== 'word') {
+      w = window.open('', '_blank');
+      if (!w) { say('Pop-up diblokir. Izinkan pop-up untuk situs ini, lalu coba lagi.', true); return false; }
+      try { w.document.write('<p style="font-family:sans-serif;padding:16px">Menyiapkan dokumen...</p>'); } catch (e) {}
     }
-    const w = window.open('', '_blank');
-    if (!w) { say('Pop-up diblokir. Izinkan pop-up untuk situs ini, lalu coba lagi.', true); return false; }
-    w.document.open(); w.document.write(html); w.document.close();
-    setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 500);
+    const ada = /\[\[TTD:/.test(html);
+    const siap = (ada && window.TTD && typeof window.TTD.isiHtml === 'function')
+      ? window.TTD.isiHtml(html).catch(e => { console.error('[perangkat] QR tanda tangan gagal:', e); return html; })
+      : Promise.resolve(html);
+    siap.then(h => {
+      h = String(h).replace(/\[\[TTD:[^\]\s]*\]\]/g, '');   // penanda yang tak terproses jangan sampai tercetak
+      if (mode === 'word') {
+        const blob = new Blob(['\ufeff' + wordDari(h)], { type: 'application/msword' }), a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = String(nama || 'dokumen').replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').slice(0, 80) + '.doc';
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        return;
+      }
+      if (w.closed) return;
+      w.document.open(); w.document.write(h); w.document.close();
+      setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 500);
+    });
     return true;
   }
   // PEG ID guru (nama field internal tetap 'nip' agar data lama di perangkat tidak hilang).
@@ -518,5 +556,5 @@ ${tabelHtml(h)}
   }
   window.rpeUtil = { siap: siap, parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
     esc: esc, slug: slug, fmtTgl: fmtTgl, fmtRentang: fmtRentang, daftar: daftar, BULAN: BULAN,
-    keluarkan: keluarkan, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
+    keluarkan: keluarkan, ttdSp: ttdSp, ttdKepalaSp: ttdKepalaSp, cabutSetuju: cabutSetuju, idSemester: idSemester, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
 })();

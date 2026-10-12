@@ -25,15 +25,28 @@
   'use strict';
 
   const JENIS = [
-    { k: 'rpe',    n: 'RPE',               full: 'RPE (Rencana Pekan Efektif)' },
-    { k: 'prota',  n: 'Prota',             full: 'Prota (Program Tahunan)' },
-    { k: 'promes', n: 'Promes',            full: 'Promes (Program Semester)' },
-    { k: 'atp',    n: 'ATP',               full: 'ATP (Alur Tujuan Pembelajaran)' },
-    { k: 'tp',     n: 'TP',                full: 'TP (Tujuan Pembelajaran)' },
-    { k: 'kisi',   n: 'Kisi-kisi',         full: 'Kisi-kisi Asesmen' },
-    { k: 'kartu',  n: 'Kartu Soal',        full: 'Kartu Soal' },
-    { k: 'kunci',  n: 'Kunci & Penskoran', full: 'Kunci Jawaban dan Pedoman Penskoran' }
+    // setuju: true = dokumen ini disahkan Kepala (tombol Setujui muncul; blok Kepala di cetakan berisi QR hanya setelah disetujui).
+    //         false = blok Kepala di cetakan tetap kosong untuk tanda tangan basah. Ubah true/false di sini saja.
+    { k: 'rpe',    n: 'RPE',               full: 'RPE (Rencana Pekan Efektif)', setuju: true },
+    { k: 'prota',  n: 'Prota',             full: 'Prota (Program Tahunan)', setuju: true },
+    { k: 'promes', n: 'Promes',            full: 'Promes (Program Semester)', setuju: true },
+    { k: 'atp',    n: 'ATP',               full: 'ATP (Alur Tujuan Pembelajaran)', setuju: true },
+    { k: 'tp',     n: 'TP',                full: 'TP (Tujuan Pembelajaran)', setuju: false },
+    { k: 'kisi',   n: 'Kisi-kisi',         full: 'Kisi-kisi Asesmen', setuju: true },
+    { k: 'kartu',  n: 'Kartu Soal',        full: 'Kartu Soal', setuju: false },
+    { k: 'kunci',  n: 'Kunci & Penskoran', full: 'Kunci Jawaban dan Pedoman Penskoran', setuju: false }
   ];
+  function tglPendek(iso) { try { return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } }
+  // Blok persetujuan di editor dokumen. Admin/Kepsek (bukan pemilik) boleh setuju/cabut; guru hanya melihat statusnya.
+  function setujuHtml(id, rec, jk, j, x, boleh) {
+    if (!j.setuju) return '';
+    const st = x.setuju;
+    if (st) return `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#ecfdf5;border:1px solid #6ee7b7;font-size:12px;color:#065f46;">✅ Disetujui oleh ${esc(st.oleh || '-')} · ${esc(tglPendek(st.at))}${boleh ? ` <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:6px;" data-act="cabut-setuju" data-id="${esc(id)}" data-j="${jk}">Cabut</button>` : ''}</div>`;
+    if (boleh) return (x.url || genAda(jk, id))
+      ? `<div style="margin-bottom:8px;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="setuju" data-id="${esc(id)}" data-j="${jk}">✅ Setujui dokumen ini</button><div style="${muted}margin-top:4px;">Setelah disetujui, cetakan guru memuat QR tanda tangan Kepala. Bila guru mengubah dokumen, persetujuan otomatis gugur.</div></div>`
+      : `<div style="${muted}margin-bottom:8px;">Belum bisa disetujui: guru belum mengisi tautan atau membuat dokumen.</div>`;
+    return `<div style="${muted}margin-bottom:8px;">Dokumen ini perlu persetujuan Kepala sebelum cetakannya memuat QR tanda tangan Kepala.</div>`;
+  }
   const SEM_LABEL = { ganjil: 'Ganjil', genap: 'Genap' };
 
   function semDefault() { const m = new Date().getMonth() + 1; return (m >= 7 && m <= 12) ? 'ganjil' : 'genap'; }
@@ -260,12 +273,13 @@
     const rev = x.revisi ? `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">⚠️ Catatan revisi${x.revisiBy ? ' dari ' + esc(x.revisiBy) : ''}: ${esc(x.revisi)}</div>` : '';
     if (adm) return `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;">
       <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)} · ${esc(rec.guruName || '')}</div>
+      ${setujuHtml(id, rec, jk, j, x, true)}
       ${x.url ? `<div style="font-size:13px;margin-bottom:8px;"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a> · ${x.status === 'final' ? 'Final' : 'Draf'}</div>
       <input id="ppRevisi" class="field" maxlength="200" placeholder="Catatan revisi untuk guru (kosongkan bila sudah sesuai)" value="${esc(x.revisi || '')}">
       <div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="simpan-revisi" data-id="${esc(id)}" data-j="${jk}">💾 Simpan catatan</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tutup">Tutup</button></div>`
       : `<div style="${muted}">Guru belum mengisi tautan dokumen ini.</div><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;margin-top:8px;" data-act="tutup">Tutup</button>`}</div>`;
     return `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;">
-      <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)}</div>${rev}
+      <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)}</div>${rev}${setujuHtml(id, rec, jk, j, x, false)}
       <input id="ppUrl" class="field" maxlength="500" placeholder="https://drive.google.com/..." value="${esc(x.url || '')}">
       <div style="${muted}margin:4px 0 8px;">Pastikan akses tautan bisa dilihat oleh Kepala Madrasah/Admin. Hanya tautan https yang diterima.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
@@ -385,7 +399,7 @@
     if (!urlOk(url)) return say('Isi tautan yang valid, diawali https://', true);
     const now = new Date().toISOString(), u = url.trim(), b = 'docs/' + jk + '/';
     const upd = {}; upd[b + 'url'] = u; upd[b + 'status'] = st; upd[b + 'at'] = now; upd[b + 'by'] = myName();
-    upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd.updatedAt = now; // guru menyimpan ulang = catatan revisi dianggap ditindaklanjuti
+    upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd.updatedAt = now; // guru menyimpan ulang = catatan revisi dianggap ditindaklanjuti
     tulis('perangkat_v4/' + id, upd, () => {
       rec.docs = rec.docs || {}; rec.docs[jk] = { url: u, status: st, at: now, by: myName() }; rec.updatedAt = now; S.edit = null; say('✅ Tersimpan');
     }, 'SAVE_PERANGKAT_DOC', id);
@@ -402,6 +416,20 @@
     const t = ((document.getElementById('ppRevisi') || {}).value || '').trim().slice(0, 200), b = 'docs/' + jk + '/';
     const upd = {}; upd[b + 'revisi'] = t || null; upd[b + 'revisiBy'] = t ? myName() : null;
     tulis('perangkat_v4/' + id, upd, () => { if (t) { x.revisi = t; x.revisiBy = myName(); } else { delete x.revisi; delete x.revisiBy; } S.edit = null; say('✅ Catatan tersimpan'); }, 'REVIEW_PERANGKAT_DOC', id);
+  }
+  function setujuDoc(id, jk, cabut) {
+    const rec = S.rows[id], j = JENIS.find(z => z.k === jk); if (!rec || !j || !j.setuju || !isAdm()) return;
+    if (rec.guruKey === myId()) return say('Persetujuan tidak boleh diberikan pada dokumen sendiri.', true);
+    const x = (rec.docs || {})[jk] || {};
+    if (!cabut && !(x.url || genAda(jk, id))) return say('Dokumen belum ada.', true);
+    if (!confirm((cabut ? 'Cabut persetujuan ' : 'Setujui ') + j.n + ' ' + (rec.guruName || '') + ' · ' + rec.mapel + ' ' + rec.kelas + '?')) return;
+    const now = new Date().toISOString(), upd = {};
+    upd['docs/' + jk + '/setuju'] = cabut ? null : { oleh: myName(), peran: (typeof v4IsHead === 'function' && v4IsHead()) ? 'Kepala' : 'Admin', at: now };
+    tulis('perangkat_v4/' + id, upd, () => {
+      rec.docs = rec.docs || {}; rec.docs[jk] = rec.docs[jk] || {};
+      if (cabut) delete rec.docs[jk].setuju; else rec.docs[jk].setuju = upd['docs/' + jk + '/setuju'];
+      say(cabut ? 'Persetujuan dicabut' : '✅ Dokumen disetujui');
+    }, cabut ? 'REVOKE_PERANGKAT_DOC' : 'APPROVE_PERANGKAT_DOC', id);
   }
   function recBaru(mapel, kelas, jp) {
     const rec = { tahunAjaran: taText(), semester: S.sem, guruKey: myId(), guruName: myName(), mapel: mapel, kelas: kelas, updatedAt: new Date().toISOString() };
@@ -472,6 +500,8 @@
       case 'simpan-doc': return simpanDoc(id, j);
       case 'hapus-doc': return hapusDoc(id, j);
       case 'simpan-revisi': return simpanRevisi(id, j);
+      case 'setuju': return setujuDoc(id, j, false);
+      case 'cabut-setuju': return setujuDoc(id, j, true);
       case 'hapus-baris': return hapusBaris(id);
       case 'kaldik-edit': S.kaldikEdit = true; return render();
       case 'kaldik-batal': S.kaldikEdit = false; return render();

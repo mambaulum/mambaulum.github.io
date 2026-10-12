@@ -132,12 +132,12 @@ table{border-collapse:collapse;width:100%}
 .nk{margin:0 0 6px;font-size:11pt}.nk p{margin:0 0 8px;page-break-inside:avoid}
 h4{margin:12px 0 6px;font-size:11.5pt}
 .ttd{display:flex;justify-content:space-between;gap:20px;margin-top:16px;font-size:11pt;page-break-inside:avoid}
-.ttd>div{width:45%}.ttd .sp{height:52px}`;
+.ttd>div{width:45%}.ttd .sp{min-height:52px}`;
   function kopHtml(s, judul) { return `<div class="kop"><div class="m">${esc(kopCfg().madrasah || 'MADRASAH')}</div><div class="j">${judul}</div><div class="s">${esc(judulAs(s))} Semester ${SEM_LABEL[s]} · Tahun Pelajaran ${esc(S.ta)}</div></div>`; }
-  function ttdHtml() {
+  function ttdHtml(jenis, s, jk) {
     const c = kopCfg(), t = '........................................', nip = String(S.nip || '').trim();
-    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
-<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(S.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div>`;
+    return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}${R().ttdKepalaSp(jk, R().idSemester(S.id, s), { jenis: jenis, ket: S.rec.mapel + ' Kelas ' + S.rec.kelas + ' · Semester ' + SEM_LABEL[s] + ' · TP ' + S.ta + ' · Guru: ' + (S.rec.guruName || myName()), nama: c.kepala, jabatan: 'Kepala ' + (c.madrasah || 'Madrasah'), nip: c.nipKepala })}<b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
+<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran${R().ttdSp({ jenis: jenis, ket: S.rec.mapel + ' Kelas ' + S.rec.kelas + ' · Semester ' + SEM_LABEL[s] + ' · TP ' + S.ta, nama: S.rec.guruName || myName(), jabatan: 'Guru Mata Pelajaran', nip: nip })}<b><u>${esc(S.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div>`;
   }
   const html = (judul, isi) => `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${judul} ${esc(S.rec.mapel)} Kelas ${esc(S.rec.kelas)}</title><style>${CSS_DOK}</style></head><body>${isi}</body></html>`;
   const bentukNama = b => BENTUK.find(x => x[0] === b)[1];
@@ -169,7 +169,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
 <tr><td class="l">Indikator Soal</td><td colspan="3">${esc(x.i)}</td></tr>
 <tr><td colspan="4"><b>Soal:</b><br>${soalHtml(x)}</td></tr>
 <tr><td class="l">Kunci / Pedoman</td><td colspan="2">${kunciTeks(x)}</td><td><b>Skor:</b> ${skorB(x.b)}</td></tr></table>`;
-    return html('Kartu Soal', kopHtml(s, 'KARTU SOAL') + S.slots[s].map(info).join('') + ttdHtml());
+    return html('Kartu Soal', kopHtml(s, 'KARTU SOAL') + S.slots[s].map(info).join('') + ttdHtml('Kartu Soal', s, 'kartu'));
   }
   function dokNaskah(s) {
     let h = kopHtml(s, 'NASKAH SOAL') + `<table class="nk"><tr><td style="width:50%">Mata Pelajaran: ${esc(S.rec.mapel)}</td><td>Hari/Tanggal: ....................</td></tr><tr><td>Kelas: ${esc(S.rec.kelas)}</td><td>Nama: ....................</td></tr></table>`;
@@ -184,7 +184,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     const per = BENTUK.map(b => { const n = S.slots[s].filter(x => x.b === b[0]).length; return n ? `${b[1]}: ${n} soal × ${skorB(b[0])} = ${n * skorB(b[0])}` : ''; }).filter(Boolean).join('; ');
     return html('Kunci dan Penskoran', kopHtml(s, 'KUNCI JAWABAN DAN PEDOMAN PENSKORAN') + `<table class="kn"><thead><tr><th style="width:36px">No</th><th style="width:110px">Bentuk</th><th>Kunci Jawaban / Pedoman Penskoran</th><th style="width:48px">Skor</th></tr></thead><tbody>${rows}
 <tr><td colspan="3" class="c"><b>Skor maksimal</b></td><td class="c"><b>${skorMaks(s)}</b></td></tr></tbody></table>
-<p style="font-size:10.5pt;margin-top:8px;">${esc(per)}.<br>${catatanSub(s)}Nilai akhir = (jumlah skor yang diperoleh ÷ skor maksimal ${skorMaks(s)}) × 100.</p>` + ttdHtml());
+<p style="font-size:10.5pt;margin-top:8px;">${esc(per)}.<br>${catatanSub(s)}Nilai akhir = (jumlah skor yang diperoleh ÷ skor maksimal ${skorMaks(s)}) × 100.</p>` + ttdHtml('Kunci Jawaban dan Penskoran', s, 'kunci'));
   }
   function cekCetak(s) {
     const sl = S.slots[s];
@@ -332,7 +332,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
       guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: S.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
       skor: { pg: angka(S.skor.pg), is: angka(S.skor.is), ur: angka(S.skor.ur) },
       soal: S.slots[s].map(x => ({ key: cut(x.key, 80), q: cut(x.q, 600), o: x.b === 'pg' ? x.o.map(o => cut(o, 160)) : [], kp: x.kp, st: x.st || '', ks: cut(x.ks, 7), kt: cut(x.kt, 600), src: x.src, ok: !!x.ok })), at: now, by: myName() }));
-    Promise.all(tulis).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); say('✅ Soal tersimpan'); if (S.rec) gambar(); })
+    Promise.all(tulis).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); SEM.forEach(x => R().cabutSetuju(R().idSemester(S.id, x), ['kartu', 'kunci'])); say('✅ Soal tersimpan'); if (S.rec) gambar(); })
       .catch(err => { S.busy = false; console.error('[SI MAMBA] soal:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {
@@ -388,7 +388,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
   window.soalBuka = function (id, rec, sem, ta) {
     if (!rec) return;
     if (!window.rpeUtil) return say('Modul RPE belum dimuat (js/perangkat-rpe.js harus dimuat lebih dulu).', true);
-    S.rec = rec; S.ro = rec.guruKey !== myId(); S.ta = String(ta || ''); S.fase = fase(rec.kelas); S.sem = sem === 'genap' ? 'genap' : 'ganjil'; S.dirty = false;
+    S.id = id; S.rec = rec; S.ro = rec.guruKey !== myId(); S.ta = String(ta || ''); S.fase = fase(rec.kelas); S.sem = sem === 'genap' ? 'genap' : 'ganjil'; S.dirty = false;
     S.slots = { ganjil: [], genap: [] }; S.skor = { pg: '1', is: '2', ur: '5' }; S.yatim = { ganjil: 0, genap: 0 };
     try { S.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { S.nip = ''; }
     R().nipIsi(S, '#soalOverlay');

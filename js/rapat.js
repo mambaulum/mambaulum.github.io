@@ -455,14 +455,24 @@
     }).join('');
     var css = '@page{size:215mm 330mm;margin:14mm}body{font-family:Arial,sans-serif;color:#111;font-size:12.5px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:middle}th{background:#f3f4f6}' +
       '.kop{text-align:center;border-bottom:3px double #333;padding-bottom:8px;margin-bottom:12px}.kop b{font-size:16px}.ttd{margin-top:28px;display:flex;justify-content:space-between}.ttd div{width:46%;text-align:center}';
-    w.document.write('<html><head><title>Daftar Hadir Rapat</title><style>' + css + '</style></head><body><div class="kop"><b>' + esc(madInfo().nama || 'Madrasah') + '</b><br>' + esc(madInfo().alamat || '') + '</div>' +
+    var kpId = kp && kp.id;
+    // QR atas nama PIMPINAN rapat (bukan Kepala, kecuali Kepala sendiri yang memimpin), dan hanya setelah rapat ditutup (status selesai).
+    // Sebelum itu, ruang tanda tangan dibiarkan kosong untuk tanda tangan basah. Role 'umum': siapa pun yang mencetak tidak mengatasnamakan Kepala.
+    var ttdRapat = (window.TTD && TTD.penanda && r.status === 'selesai')
+      ? '<div style="min-height:19mm;">' + TTD.penanda('umum', { jenis: 'Daftar Hadir Rapat', ket: String(r.judul || '') + ' | ' + tgl(r.tanggal), nama: r.pimpinan || '', jabatan: (r.pimpinanId && r.pimpinanId === kpId ? 'Kepala Madrasah, ' : '') + 'Pimpinan Rapat' + (pengganti ? ' a.n. Kepala Madrasah' : ''), nip: '' }, { mm: 17 }) + '</div>'
+      : '<br><br><br>';
+    var htmlRapat = ('<html><head><title>Daftar Hadir Rapat</title><style>' + css + '</style></head><body><div class="kop"><b>' + esc(madInfo().nama || 'Madrasah') + '</b><br>' + esc(madInfo().alamat || '') + '</div>' +
       '<h3 style="text-align:center;margin:0 0 10px;">DAFTAR HADIR RAPAT</h3><p>Acara: <b>' + esc(r.judul) + '</b><br>Hari/Tanggal: ' + esc(tgl(r.tanggal)) + (r.jam ? '<br>Waktu: ' + esc(r.jam) : '') +
       (r.tempat ? '<br>Tempat: ' + esc(r.tempat) : '') + '<br>Pimpinan rapat: ' + esc(r.pimpinan || '-') + '</p>' +
       (pengganti ? '<p><i>Kepala Madrasah berhalangan (' + ST[kpRec.status] + (kpRec.ket ? ': ' + esc(kpRec.ket) : '') + '); rapat dipimpin oleh ' + esc(r.pimpinan || '-') + '.</i></p>' : '') +
       '<table><tr><th>No</th><th>Nama</th><th>Status</th><th>Keterangan</th><th>Tanda Tangan</th></tr>' + rows + '</table>' +
       (r.notulen ? '<h4 style="margin:14px 0 4px;">Notulen</h4><div style="white-space:pre-wrap;">' + esc(r.notulen) + '</div>' : '') +
-      '<div class="ttd"><div>Pimpinan Rapat' + (pengganti ? '<br>a.n. Kepala Madrasah' : '') + '<br><br><br><br><b><u>' + esc(r.pimpinan || '................') + '</u></b></div><div>Notulis<br><br><br><br><b>................................</b></div></div></body></html>');
-    w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400);
+      '<div class="ttd"><div>Pimpinan Rapat' + (pengganti ? '<br>a.n. Kepala Madrasah' : '') + '<br>' + ttdRapat + '<br><b><u>' + esc(r.pimpinan || '................') + '</u></b></div><div>Notulis<br><br><br><br><b>................................</b></div></div></body></html>');
+    var tulisRapat = function (h) { w.document.open(); w.document.write(h); w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400); };
+    if (window.TTD && TTD.isiHtml) {
+      w.document.write('<p style="font-family:Arial,sans-serif;padding:24px;">Menyiapkan dokumen…</p>');
+      TTD.isiHtml(htmlRapat).catch(function () { return htmlRapat.replace(/\[\[TTD:[^\]]*\]\]/g, ''); }).then(tulisRapat);
+    } else tulisRapat(htmlRapat);
   }
 
   /* ---------- event ---------- */

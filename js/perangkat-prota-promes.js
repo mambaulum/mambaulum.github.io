@@ -70,7 +70,7 @@
   const pemilik = () => !!P.rec && P.rec.guruKey === myId();
 
   // ---------- Dokumen cetak ----------
-  function bungkus(judul, orient, isi) {
+  function bungkus(judul, orient, isi, jk) {
     const cfg = P.cfg.ganjil || P.cfg.genap || {}, titik = '........................................', madrasah = cfg.madrasah || 'MADRASAH';
     const rec = P.rec, guru = rec.guruName || myName(), jp = jpNum();
     return `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${esc(judul)} ${esc(rec.mapel)} Kelas ${esc(rec.kelas)}</title>
@@ -85,13 +85,13 @@ table.t{border-collapse:collapse;width:100%}table.t th,table.t td{border:1px sol
 table.t th{background:#e5e7eb;text-align:center;font-weight:700}table.t td.c{text-align:center}table.t tr.sm td{background:#f3f4f6;font-weight:700}
 table.t td.on{background:#bbf7d0;font-weight:700;text-align:center}table.t td.non{background:#d1d5db;text-align:center}table.t tfoot td{font-weight:700;background:#f3f4f6;text-align:center}
 .cat{font-size:10pt;margin-top:8px}.warn{font-size:10pt;margin-top:6px;color:#b91c1c}
-.ttd{display:flex;justify-content:space-between;gap:20px;margin-top:22px;font-size:11pt;page-break-inside:avoid}.ttd>div{width:48%;text-align:left}.ttd .sp{height:62px}
+.ttd{display:flex;justify-content:space-between;gap:20px;margin-top:22px;font-size:11pt;page-break-inside:avoid}.ttd>div{width:48%;text-align:left}.ttd .sp{min-height:62px}
 </style></head><body>
 <div class="kop"><div class="m">${esc(madrasah)}</div><div class="j">${esc(judul)}</div><div class="s">Tahun Pelajaran ${esc(P.ta)}${orient === 'landscape' ? ' · Semester ' + SEM_LABEL[P.sem] : ''}</div></div>
 <table class="info"><tr><td>Mata Pelajaran</td><td>: ${esc(rec.mapel)}</td></tr><tr><td>Kelas</td><td>: ${esc(rec.kelas)}</td></tr><tr><td>Guru</td><td>: ${esc(guru)}</td></tr>${orient === 'landscape' && jp ? `<tr><td>Alokasi waktu</td><td>: ${jp} JP per pekan</td></tr>` : ''}</table>
 ${isi}
-<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}<div class="sp"></div><b><u>${esc(cfg.kepala || titik)}</u></b><br>PEG ID. ${esc(cfg.nipKepala || titik)}</div>
-<div>${esc(cfg.kota || titik)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(guru || titik)}</u></b><br>PEG ID. ${esc(P.nip || titik)}</div></div>
+<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(madrasah)}${R().ttdKepalaSp(jk, jk === 'promes' ? R().idSemester(P.id, P.sem) : P.id, { jenis: judul, ket: rec.mapel + ' Kelas ' + rec.kelas + ' · TP ' + P.ta + ' · Guru: ' + guru, nama: cfg.kepala, jabatan: 'Kepala ' + madrasah, nip: cfg.nipKepala })}<b><u>${esc(cfg.kepala || titik)}</u></b><br>PEG ID. ${esc(cfg.nipKepala || titik)}</div>
+<div>${esc(cfg.kota || titik)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran${R().ttdSp({ jenis: judul, ket: rec.mapel + ' Kelas ' + rec.kelas + ' · TP ' + P.ta, nama: guru, jabatan: 'Guru Mata Pelajaran', nip: P.nip })}<b><u>${esc(guru || titik)}</u></b><br>PEG ID. ${esc(P.nip || titik)}</div></div>
 </body></html>`;
   }
   function htmlProta() {
@@ -127,7 +127,7 @@ ${isi}
     R().nipSimpan(P.nip);
     const isi = jenis === 'prota' ? htmlProta() : htmlPromes();
     if (!isi) { if (jenis === 'prota') say('Isi daftar materi dulu.', true); return; }
-    const html = jenis === 'prota' ? bungkus('PROGRAM TAHUNAN (PROTA)', 'portrait', isi) : bungkus('PROGRAM SEMESTER (PROMES)', 'landscape', isi);
+    const html = jenis === 'prota' ? bungkus('PROGRAM TAHUNAN (PROTA)', 'portrait', isi, 'prota') : bungkus('PROGRAM SEMESTER (PROMES)', 'landscape', isi, 'promes');
     R().keluarkan(html, (jenis === 'prota' ? 'Prota_' : 'Promes_' + P.sem + '_') + P.rec.mapel + '_' + P.rec.kelas, mode);
   }
 
@@ -209,7 +209,7 @@ ${isi}
     });
     Promise.all(tulis).then(() => {
       P.busy = false; P.dirty = false; SEM.forEach(s => { P.data[s] = isi[s]; P.ada[s] = isi[s].length > 0; });
-      audit('SAVE_PERANGKAT_MATERI', idMateri(P.sem)); say('✅ Materi tersimpan'); if (P.rec) gambar();
+      audit('SAVE_PERANGKAT_MATERI', idMateri(P.sem)); SEM.forEach(x => R().cabutSetuju(R().idSemester(P.id, x), ['prota', 'promes'])); say('✅ Materi tersimpan'); if (P.rec) gambar();
     }).catch(err => { P.busy = false; console.error('[SI MAMBA] prota/promes:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
 
@@ -271,7 +271,7 @@ ${isi}
   window.protaBuka = function (id, rec, sem, ta) {
     if (!rec) return;
     if (!window.rpeUtil) return say('Modul RPE belum dimuat (js/perangkat-rpe.js harus dimuat lebih dulu).', true);
-    P.rec = rec; P.ta = String(ta || ''); P.sem = sem === 'genap' ? 'genap' : 'ganjil'; P.dirty = false; P.bulk = false;
+    P.id = id; P.rec = rec; P.ta = String(ta || ''); P.sem = sem === 'genap' ? 'genap' : 'ganjil'; P.dirty = false; P.bulk = false;
     P.data = { ganjil: [], genap: [] }; P.ada = { ganjil: false, genap: false }; P.cfg = { ganjil: null, genap: null };
     try { P.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { P.nip = ''; }
     R().nipIsi(P, '#protaOverlay');

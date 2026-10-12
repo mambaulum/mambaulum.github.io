@@ -115,7 +115,7 @@ body{font-family:"Times New Roman",Times,serif;font-size:11pt;color:#111;margin:
 .info{margin:0 0 8px;font-size:10.5pt;width:100%}.info td{padding:1px 8px 1px 0;vertical-align:top;border:0}
 ${CSS}
 .ttd{display:flex;justify-content:space-between;gap:20px;margin-top:16px;font-size:11pt;page-break-inside:avoid}
-.ttd>div{width:40%}.ttd .sp{height:52px}
+.ttd>div{width:40%}.ttd .sp{min-height:52px}
 tr{page-break-inside:avoid}
 </style></head><body>
 <div class="kop"><div class="m">${esc(c.madrasah || 'MADRASAH')}</div><div class="j">KISI-KISI ${esc(String(st.judul || 'Asesmen Sumatif Akhir Semester').toUpperCase())}</div><div class="s">Semester ${SEM_LABEL[s]} · Tahun Pelajaran ${esc(K.ta)}</div></div>
@@ -123,8 +123,8 @@ tr{page-break-inside:avoid}
 <tr><td>Kelas${K.fase ? ' / Fase' : ''}</td><td>: ${esc(K.rec.kelas)}${K.fase ? ' / Fase ' + K.fase : ''}</td><td>Alokasi Waktu</td><td>: ${esc(st.waktu || '-')} menit</td></tr>
 <tr><td>Kurikulum</td><td>: Kurikulum Merdeka</td><td>Penyusun</td><td>: ${esc(K.rec.guruName || myName())}</td></tr></table>
 ${tabelKisi(s)}
-<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
-<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran<div class="sp"></div><b><u>${esc(K.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div></body></html>`;
+<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}${R().ttdKepalaSp('kisi', R().idSemester(K.id, s), { jenis: 'Kisi-kisi Soal', ket: K.rec.mapel + ' Kelas ' + K.rec.kelas + ' · Semester ' + SEM_LABEL[s] + ' · TP ' + K.ta + ' · Guru: ' + (K.rec.guruName || myName()), nama: c.kepala, jabatan: 'Kepala ' + (c.madrasah || 'Madrasah'), nip: c.nipKepala })}<b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
+<div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran${R().ttdSp({ jenis: 'Kisi-kisi Soal', ket: K.rec.mapel + ' Kelas ' + K.rec.kelas + ' · Semester ' + SEM_LABEL[s] + ' · TP ' + K.ta, nama: K.rec.guruName || myName(), jabatan: 'Guru Mata Pelajaran', nip: nip })}<b><u>${esc(K.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div></body></html>`;
   }
   function cetak(mode) {
     sinkron(); const s = K.sem;
@@ -239,7 +239,7 @@ ${tabelKisi(s)}
       tot: { pg: angka(K.set[s].pg), is: angka(K.set[s].is), ur: angka(K.set[s].ur) },
       items: K.rows[s].map(r => ({ k: String(r.k || '').slice(0, 40), e: cut(r.e, 60), t: cut(r.t, 300), m: cut(r.m, 120), jp: Math.max(0, parseInt(r.jp, 10) || 0),
         i: cut(r.i, 300), lv: ['L1', 'L2', 'L3'].includes(r.lv) ? r.lv : 'L2', pg: angka(r.pg), is: angka(r.is), ur: angka(r.ur) })), at: now, by: myName() }));
-    Promise.all(tulis).then(() => { K.busy = false; K.dirty = false; audit('SAVE_PERANGKAT_KISI', idKisi(K.sem)); say('✅ Kisi-kisi tersimpan'); if (K.rec) gambar(); })
+    Promise.all(tulis).then(() => { K.busy = false; K.dirty = false; audit('SAVE_PERANGKAT_KISI', idKisi(K.sem)); SEM.forEach(s => R().cabutSetuju(R().idSemester(K.id, s), ['kisi'])); say('✅ Kisi-kisi tersimpan'); if (K.rec) gambar(); })
       .catch(err => { K.busy = false; console.error('[SI MAMBA] kisi:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {
@@ -286,7 +286,7 @@ ${tabelKisi(s)}
   window.kisiBuka = function (id, rec, sem, ta) {
     if (!rec) return;
     if (!window.rpeUtil) return say('Modul RPE belum dimuat (js/perangkat-rpe.js harus dimuat lebih dulu).', true);
-    K.rec = rec; K.ro = rec.guruKey !== myId(); K.ta = String(ta || ''); K.fase = fase(rec.kelas); K.sem = sem === 'genap' ? 'genap' : 'ganjil'; K.dirty = false;
+    K.id = id; K.rec = rec; K.ro = rec.guruKey !== myId(); K.ta = String(ta || ''); K.fase = fase(rec.kelas); K.sem = sem === 'genap' ? 'genap' : 'ganjil'; K.dirty = false;
     K.rows = { ganjil: [], genap: [] }; K.set = { ganjil: mkSet(), genap: mkSet() };
     try { K.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { K.nip = ''; }
     R().nipIsi(K, '#kisiOverlay');

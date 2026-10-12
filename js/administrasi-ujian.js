@@ -668,7 +668,7 @@ function aujKartuHtml(rec, p, kursiTeks) {
       <div class="kp-kanan">
         <div class="kp-foto">Pas foto</div>
         <div class="kp-ttd">Kepala Madrasah,
-          <div class="kp-ttd-ruang">${MADRASAH.ttdKepalaBase64 ? `<img src="${escapeHtml(MADRASAH.ttdKepalaBase64)}" alt="">` : ''}</div>
+          <div class="kp-ttd-ruang">${(MADRASAH.ttdKepalaBase64 && aujBolehTtdKepala()) ? `<img src="${escapeHtml(MADRASAH.ttdKepalaBase64)}" alt="">` : ''}</div>
           <b>${escapeHtml(MADRASAH.kepala_sekolah || '(........................)')}</b></div>
       </div>
     </div>
@@ -727,7 +727,7 @@ const AUJ_CSS = `
   h2 { page-break-after: avoid; }
   .ttd { width: 100%; margin-top: 22px; border-collapse: collapse; page-break-inside: avoid; }
   .ttd td { border: none; text-align: center; vertical-align: top; width: 33%; padding: 0 4px; font-size: 11.5pt; }
-  .ttd .ruang { height: 64px; }
+  .ttd .ruang { min-height: 64px; }
   .blok { page-break-inside: avoid; }
   .muted { color: #555; font-size: 10pt; }
 `;
@@ -750,9 +750,15 @@ function aujInfoHtml(rec) {
   ];
   return `<table class="info">${baris.map(b => `<tr><td style="width:120px;">${b[0]}</td><td style="width:10px;">:</td><td>${escapeHtml(b[1] || '-')}</td></tr>`).join('')}</table>`;
 }
-function aujTtdKepalaHtml() {
+// Gambar TTD Kepala hanya ikut tercetak bila yang mencetak Admin/Kepsek (guru yang membuka menu ini tidak mendapatkannya).
+function aujBolehTtdKepala() { return !!currentUser && (isAdmin() || isKepsek()); }
+function aujTtdKepalaHtml(rec) {
+  // Tanda tangan QR / gambar lewat js/ttd-digital.js (penanda diganti di aujCetakHtml); tanpa file itu, pakai gambar lama.
+  const isiTtd = (window.TTD && TTD.penanda && rec)
+    ? TTD.penanda('kepala', { jenis: 'Berita Acara ASAS/ASAT', ket: [rec.nama, rec.kelas, rec.ruang, aujTglIndo(rec.tanggal)].filter(Boolean).join(' | ') }, { mm: 17, hanyaPimpinan: true })
+    : ((MADRASAH.ttdKepalaBase64 && aujBolehTtdKepala()) ? `<img src="${escapeHtml(MADRASAH.ttdKepalaBase64)}" style="height:58px;max-width:150px;" alt="">` : '');
   return `<td><div>Mengetahui,</div><div>Kepala Madrasah</div>
-    <div class="ruang">${MADRASAH.ttdKepalaBase64 ? `<img src="${escapeHtml(MADRASAH.ttdKepalaBase64)}" style="height:58px;max-width:150px;" alt="">` : ''}</div>
+    <div class="ruang">${isiTtd}</div>
     <div style="font-weight:700;text-decoration:underline;">${escapeHtml(MADRASAH.kepala_sekolah || '(............................)')}</div>
     ${MADRASAH.nip_kepala_sekolah ? `<div>NIP. ${escapeHtml(MADRASAH.nip_kepala_sekolah)}</div>` : ''}</td>`;
 }
@@ -827,7 +833,7 @@ function aujCetakBAHtml(rec) {
       <div style="border:1px solid #000;min-height:80px;padding:6px 8px;margin-top:3px;white-space:pre-wrap;font-size:11.5pt;">${escapeHtml(rec.baCatatan || '')}</div></div>
     <p style="margin-top:12px;">Demikian berita acara ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.</p>
     <div style="text-align:right;margin-top:6px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(rec.tanggal))}</div>
-    <table class="ttd"><tr>${aujTtdPengawasHtml(rec.pengawas1, 1)}${aujTtdPengawasHtml(rec.pengawas2, 2)}${aujTtdKepalaHtml()}</tr></table>
+    <table class="ttd"><tr>${aujTtdPengawasHtml(rec.pengawas1, 1)}${aujTtdPengawasHtml(rec.pengawas2, 2)}${aujTtdKepalaHtml(rec)}</tr></table>
   </div>`;
 }
 
@@ -849,12 +855,19 @@ function aujCetakSemua() {
   aujCetakHtml(['hadir', 'tatib', 'denah', 'ba'].map(j => AUJ_CETAK[j](rec)).join(''), `Berkas Administrasi ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`);
 }
 function aujCetakHtml(bodyHtml, judul, cssKhusus) {
-  const w = window.open('', '_blank', 'width=900,height=700');
+  const w = window.open('', '_blank', 'width=900,height=700');   // dibuka dulu (sinkron) agar tidak diblokir popup
   if (!w) return toast('Popup diblokir browser. Izinkan popup untuk situs ini lalu coba lagi.', true);
-  w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${escapeHtml(judul)}</title><style>${cssKhusus || AUJ_CSS}</style></head><body>${bodyHtml}</body></html>`);
-  w.document.close();
-  let sudah = false;
-  const cetak = () => { if (sudah) return; sudah = true; try { w.focus(); w.print(); } catch (e) { /* jendela ditutup */ } };
-  w.addEventListener('load', cetak);
-  setTimeout(cetak, 1500);   // cadangan kalau event load tidak terpicu
+  const tulis = (html) => {
+    w.document.open();
+    w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${escapeHtml(judul)}</title><style>${cssKhusus || AUJ_CSS}</style></head><body>${html}</body></html>`);
+    w.document.close();
+    let sudah = false;
+    const cetak = () => { if (sudah) return; sudah = true; try { w.focus(); w.print(); } catch (e) { /* jendela ditutup */ } };
+    w.addEventListener('load', cetak);
+    setTimeout(cetak, 1500);   // cadangan kalau event load tidak terpicu
+  };
+  if (window.TTD && TTD.isiHtml && /\[\[TTD:/.test(bodyHtml)) {
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Menyiapkan…</title><p style="font-family:Arial,sans-serif;padding:24px;">Menyiapkan dokumen…</p>');
+    TTD.isiHtml(bodyHtml).catch(() => bodyHtml.replace(/\[\[TTD:[^\]]*\]\]/g, '')).then(tulis);
+  } else tulis(bodyHtml);
 }

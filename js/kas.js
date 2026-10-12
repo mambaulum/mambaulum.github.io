@@ -9,12 +9,41 @@
    CARA KERJA / KETERGANTUNGAN
    - Script klasik biasa (bukan ES module), dimuat SEBELUM js/app.js (lihat index.html). Semua
      fungsi di sini hanya MENDEFINISIKAN sesuatu saat dimuat; variabel & fungsi milik app.js
-     (currentUser, allInfaqSiswa, allKasUmum, db, toast, reloadDataset, infaqMyKelasList,
-     MADRASAH, dst.) baru dipakai saat fungsi dipanggil, yaitu setelah app.js selesai dimuat.
+     (daftar lengkap di bawah) baru dipakai saat fungsi dipanggil, yaitu setelah app.js selesai dimuat.
    - Yang MASIH tinggal di app.js hanya "sambungan"-nya: pemanggilan setupKasUmumPage() di
      showPage(), aturan tampil menu (kasCanOpenMenu) di menuRules, dan pemuatan dataset
      kasUmum/infaqSiswa (loadAllData/DATASET_LOADERS). Data setoran dimuat sendiri di sini.
+   - PENGATURAN SETORAN (diatur Admin): aturan tenggat setor + PENERIMA setoran (bendahara atau orang lain yang
+     ditunjuk, bisa per kelas) disimpan di node Firebase `setoran_pengaturan`
+     (satu dokumen, bukan per tahun ajaran). Kartu pengaturannya dibuat lewat JS (setoranRenderTenggat)
+     di atas #setoranRingkasArea, jadi index.html tidak perlu diubah. Node ini perlu aturan baca/tulis
+     di firebase-security-rules.json (tulis: Admin saja, sama seperti setoran_infaq).
    - Kalau menambah fitur Kas Madrasah, tempatkan di file ini, bukan di app.js.
+
+   DAFTAR KETERGANTUNGAN (dipakai file ini, TIDAK didefinisikan di sini; bentuk pemakaian sesuai
+   yang tertulis di bawah). Kalau salah satunya diganti nama / dihapus di app.js, Kas Madrasah ikut rusak.
+   - Variabel global : currentUser, currentTahunAjaran ('2026/2027'), currentSemesterAktif ('Ganjil'|'Genap'),
+                       allKasUmum, allInfaqSiswa (cache di sini bergantung pada penggantian dengan array
+                       BARU, bukan mutasi di tempat), db (Firebase Realtime Database),
+                       MADRASAH (nama, nsm, alamat, telp, email, website, bendahara, nip_bendahara,
+                       kepala_sekolah, nip_kepala_sekolah), KELAS_LIST.
+                       allKasUmum juga DITULIS dari sini (kasResetState: allKasUmum = []), jadi di app.js
+                       harus let/var, bukan const.
+   - Hak akses       : isAdmin(), isKepsek(), infaqMyKelasList() -> [kelas], infaqPetugasNama(kelas),
+                       iuranTerkunci(rec) (aturan 24 jam)
+   - Data            : reloadDataset(nama | [nama], callback) dengan nama 'kasUmum' & 'infaqSiswa';
+                       _fetchList(ref, filterFn) -> Promise<array|null> dan _byTahun(node)
+                       (dipakai setoranMuat untuk node `setoran_infaq`)
+   - Tanggal         : tglLokal(date?) -> 'YYYY-MM-DD', bulanLokal(date?) -> 'YYYY-MM',
+                       mingguKeTanggal(kodeMinggu) -> { senin: Date, ... }
+   - UI & status     : toast(pesan, isError?, ms?), doubleConfirm(pesan), escapeHtml(teks), escapeJs(teks),
+                       isBusy(kunci), setBusy(kunci, tombol?), clearBusy(kunci, tombol?),
+                       isReallyOnline(), addLog(aksi, detail)
+   - Pustaka & PDF   : ensureLib('pdf' | 'xlsx') -> window.jspdf (+ jspdf-autotable) / XLSX (SheetJS),
+                       v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf(), v4TambahLogoKeKopPdf(doc, logo, offY)
+   - Markup          : elemen berid kas* dan setoran* di #page-kas-umum (index.html).
+   DIPAKAI app.js DARI FILE INI: setupKasUmumPage() (showPage), kasCanOpenMenu() (menuRules),
+   kasResetState() (logout / ganti pengguna), serta handler onclick di index.html.
 ============================================================ */
 
 // =====================================================
@@ -52,6 +81,11 @@ const KAS_NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli'
 let kasEditingKey = null;
 let kasBukuAktif = 'umum';                // buku yang dipakai tabel/PDF/Excel: 'umum' | 'infaq'
 let kasTabAktif = 'umum';                 // tab yang sedang dibuka: 'umum' | 'infaq' | 'setoran'
+// Jenis bawaan form catat kas = jenis yang terakhir berhasil disimpan di perangkat ini ('keluar' kalau belum
+// ada) -- pengeluaran memang paling sering dicatat, dan pencatatan beruntun biasanya sejenis.
+const KAS_JENIS_KEY = 'simamba_kas_jenis_terakhir';
+function kasJenisBawaan() { try { return localStorage.getItem(KAS_JENIS_KEY) === 'masuk' ? 'masuk' : 'keluar'; } catch (e) { return 'keluar'; } }
+function kasSimpanJenisBawaan(jenis) { try { localStorage.setItem(KAS_JENIS_KEY, jenis === 'masuk' ? 'masuk' : 'keluar'); } catch (e) { /* penyimpanan diblokir -> abaikan */ } }
 let kasTerakhirSegar = 0;                 // epoch ms penyegaran data kas+infaq terakhir dari Firebase
 const KAS_SEGAR_MS = 3 * 60 * 1000;       // jangan unduh ulang kalau penyegaran terakhir < 3 menit lalu
 function kasCanView() { return !!currentUser && (isAdmin() || isKepsek()); }
@@ -73,15 +107,20 @@ function kasTanggalIuran(it) {
   if (!tgl && it.minggu) { try { tgl = tglLokal(mingguKeTanggal(it.minggu).senin); } catch (e) { /* format minggu tak dikenal -> lewati */ } }
   return tgl;
 }
-// Nominal satu pembayaran infaq -> bilangan bulat. parseInt polos salah membaca teks berformat
-// ribuan ("5.000" -> 5), yang membuat "terkumpul" kurang dari sebenarnya. Dipakai baris otomatis
-// Kas Infaq DAN setoranHitungTerkumpul supaya kedua angka tetap sejalan.
+// Nominal satu pembayaran infaq -> bilangan bulat rupiah (dibulatkan ke rupiah terdekat). Menangani:
+//  - angka asli (number): 5000 -> 5000, 5000.5 -> 5001
+//  - teks berformat ribuan: "5.000", "1,500,000" (parseInt polos membaca "5.000" sebagai 5)
+//  - teks berdesimal, format Indonesia maupun Inggris: "5.000,50", "1,500,000.50", "5000.5", "5,5"
+//    (pemisah TERAKHIR dianggap desimal bila diikuti 1-2 digit; tepat 3 digit = pemisah ribuan)
+//  - awalan "Rp" dan spasi: "Rp 5.000"
+// Dipakai baris otomatis Kas Infaq DAN setoranIndeksIuran supaya kedua angka tetap sejalan.
 function kasNominalIuran(it) {
   const v = it ? it.nominal : 0;
-  if (typeof v === 'number') return isFinite(v) ? Math.trunc(v) : 0;
-  const s = String(v == null ? '' : v).trim();
-  if (/^\d{1,3}([.,]\d{3})+$/.test(s)) return parseInt(s.replace(/[.,]/g, ''), 10) || 0;   // "5.000", "1,500,000"
-  return parseInt(s, 10) || 0;
+  if (typeof v === 'number') return isFinite(v) ? Math.round(v) : 0;
+  const s = String(v == null ? '' : v).trim().replace(/^Rp\.?\s*/i, '').replace(/\s+/g, '');
+  const m = /^(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(s);
+  if (m) return Math.round(Number(m[1].replace(/[.,]/g, '') + '.' + (m[2] || '0'))) || 0;
+  return parseInt(s, 10) || 0;   // format tak dikenal: perilaku lama
 }
 function kasSamaKelas(a, b) { return String(a == null ? '' : a).trim() === String(b == null ? '' : b).trim(); }
 function kasUrutkan(arr) {
@@ -129,6 +168,20 @@ function kasSusunEntriBaru(buku) {
   }
   return rows;
 }
+// Entri yang tanggalnya tidak valid ('' / bukan YYYY-MM-DD) tidak bisa ditempatkan di bulan mana pun.
+// Dulu ikut terurut paling awal lalu diam-diam terhitung di "saldo sebelumnya" SEMUA bulan, padahal tidak
+// pernah tampil di bulan mana pun. Sekarang dipisah eksplisit: TIDAK ikut saldo/total, tapi dikembalikan
+// terpisah supaya diperingatkan di layar & bisa diperbaiki Admin. (kasSimpan selalu mewajibkan tanggal
+// valid, jadi entri seperti ini hanya mungkin dari data lama / suntingan manual di Firebase.)
+function kasPisahTanggal(buku) {
+  const semua = kasSusunEntri(buku);
+  return { valid: semua.filter(e => kasAdaTanggal(e.tanggal)), tanpaTanggal: semua.filter(e => !kasAdaTanggal(e.tanggal)) };
+}
+function kasPeringatanTanpaTanggal(d) {
+  if (!d.tanpaTanggal.length) return '';
+  const baris = d.tanpaTanggal.map(e => `<li>${escapeHtml(e.kategori)}: ${escapeHtml(e.uraian || '-')} (${e.jenis === 'masuk' ? 'masuk' : 'keluar'} ${kasRp(e.nominal)})${kasCanEdit() ? ` <button class="btn btn-edit" style="padding:2px 8px;font-size:11px;" onclick="kasEdit('${escapeJs(e.key)}')">✏️ Isi tanggal</button>` : ''}</li>`).join('');
+  return `<div style="margin-top:8px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:8px 12px;font-size:12px;color:#92400e;">⚠️ ${d.tanpaTanggal.length} catatan ${escapeHtml(d.namaBuku)} tidak punya tanggal valid, jadi <strong>tidak dihitung</strong> di saldo & total di atas. Lengkapi tanggalnya:<ul style="margin:6px 0 0 16px;">${baris}</ul></div>`;
+}
 function kasHitungSaldo(entries) {
   let saldo = 0;
   return entries.map(e => { saldo += e.jenis === 'masuk' ? e.nominal : -e.nominal; return Object.assign({}, e, { saldo }); });
@@ -154,7 +207,8 @@ function kasIsiBulanSelect(entries) {
 }
 // Satu sumber data untuk tampilan layar, PDF & Excel supaya angkanya selalu sama (buku yang sedang dibuka).
 function kasDataPeriode() {
-  const semua = kasHitungSaldo(kasSusunEntri(kasBukuAktif));
+  const pisah = kasPisahTanggal(kasBukuAktif);
+  const semua = kasHitungSaldo(pisah.valid);
   const sel = document.getElementById('kasBulan');
   const bulan = (sel && sel.value && sel.value !== 'ALL') ? sel.value : 'ALL';
   let tampil = semua, saldoSebelum = 0, label = `Tahun Ajaran ${currentTahunAjaran}`, slug = 'TA_' + String(currentTahunAjaran).replace('/', '-');
@@ -167,7 +221,7 @@ function kasDataPeriode() {
   }
   const totalMasuk = tampil.filter(e => e.jenis === 'masuk').reduce((s, e) => s + e.nominal, 0);
   const totalKeluar = tampil.filter(e => e.jenis === 'keluar').reduce((s, e) => s + e.nominal, 0);
-  return { buku: kasBukuAktif, namaBuku: KAS_NAMA_BUKU[kasBukuAktif], semua, tampil, bulan, label, slug, saldoSebelum, totalMasuk, totalKeluar, saldoAkhir: saldoSebelum + totalMasuk - totalKeluar };
+  return { buku: kasBukuAktif, namaBuku: KAS_NAMA_BUKU[kasBukuAktif], semua, tampil, tanpaTanggal: pisah.tanpaTanggal, bulan, label, slug, saldoSebelum, totalMasuk, totalKeluar, saldoAkhir: saldoSebelum + totalMasuk - totalKeluar };
 }
 function kasOnJenisChange() {
   const jenis = (document.getElementById('kasJenis') || {}).value === 'masuk' ? 'masuk' : 'keluar';
@@ -181,7 +235,7 @@ function kasOnJenisChange() {
 function kasResetForm() {
   kasEditingKey = null;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-  set('kasBukuForm', kasBukuAktif); set('kasJenis', 'keluar'); kasOnJenisChange();
+  set('kasBukuForm', kasBukuAktif); set('kasJenis', kasJenisBawaan()); kasOnJenisChange();
   set('kasTanggal', tglLokal()); set('kasUraian', ''); set('kasNominal', ''); set('kasBukti', '');
   const btn = document.getElementById('btnSimpanKas'); if (btn) btn.textContent = '💾 Simpan';
   const batal = document.getElementById('btnBatalKas'); if (batal) batal.style.display = 'none';
@@ -260,7 +314,7 @@ function renderKasUmum() {
     ${kartu('💰 Total Pemasukan', kasRp(d.totalMasuk), '#059669', '#f0fdf4')}
     ${kartu('💸 Total Pengeluaran', kasRp(d.totalKeluar), '#dc2626', '#fef2f2')}
     ${kartu('🏦 Saldo Akhir ' + escapeHtml(d.namaBuku), kasRp(d.saldoAkhir), d.saldoAkhir < 0 ? '#dc2626' : '#1e40af', '#eff6ff')}
-  </div><p style="font-size:11px;color:#6b7280;margin-top:6px;">${escapeHtml(d.namaBuku)} — Periode: <strong>${escapeHtml(d.label)}</strong>${d.bulan !== 'ALL' ? ` — saldo awal bulan ${kasRp(d.saldoSebelum)}` : ''}</p>`;
+  </div><p style="font-size:11px;color:#6b7280;margin-top:6px;">${escapeHtml(d.namaBuku)} — Periode: <strong>${escapeHtml(d.label)}</strong>${d.bulan !== 'ALL' ? ` — saldo awal bulan ${kasRp(d.saldoSebelum)}` : ''}</p>${kasPeringatanTanpaTanggal(d)}`;
   if (d.tampil.length === 0 && d.saldoSebelum === 0) {
     tabel.innerHTML = `<p style="color:#6b7280;font-size:13px;">Belum ada catatan ${escapeHtml(d.namaBuku)} untuk periode ini.</p>`;
   } else {
@@ -302,7 +356,7 @@ function kasEdit(key) {
   // Kategori lama yang sudah tidak ada di daftar tetap ditampilkan supaya tidak berganti diam-diam.
   const selKat = document.getElementById('kasKategori');
   if (selKat && k.kategori && Array.from(selKat.options).every(o => o.value !== k.kategori)) selKat.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(k.kategori)}">${escapeHtml(k.kategori)}</option>`);
-  set('kasKategori', k.kategori || ''); set('kasTanggal', k.tanggal || tglLokal()); set('kasUraian', k.uraian || '');
+  set('kasKategori', k.kategori || ''); /* tanpa tanggal valid: kosongkan, Admin wajib mengisi (jangan diganti hari ini diam-diam) */ set('kasTanggal', kasAdaTanggal(k.tanggal) ? k.tanggal : ''); set('kasUraian', k.uraian || '');
   set('kasNominal', k.nominal != null ? k.nominal : ''); set('kasBukti', k.buktiNo || '');
   const btn = document.getElementById('btnSimpanKas'); if (btn) btn.textContent = '💾 Simpan Perubahan';
   const batal = document.getElementById('btnBatalKas'); if (batal) batal.style.display = '';
@@ -328,20 +382,23 @@ function kasSimpan() {
   if (nominal > 1000000000) return toast('Nominal terlalu besar (> Rp 1 miliar) — periksa lagi jumlah nolnya.', true);
   const lama = kasEditingKey ? allKasUmum.find(x => x.key === kasEditingKey) : null;
   if (kasEditingKey && !lama) return toast('Catatan yang diubah sudah tidak ada — muat ulang halaman.', true);
+  // Memindah catatan ke buku lain mengubah saldo DUA buku sekaligus -- minta konfirmasi supaya tidak
+  // terjadi karena salah pilih di dropdown "Buku" saat mengubah catatan.
+  if (lama && kasBukuDari(lama) !== buku && !confirm(`Pindahkan catatan ini dari ${KAS_NAMA_BUKU[kasBukuDari(lama)]} ke ${KAS_NAMA_BUKU[buku]}?\n\n${kasTglIndo(tanggal)} • ${kategori}\n${uraian}\n${jenis === 'keluar' ? 'Pengeluaran' : 'Pemasukan'}: ${kasRp(nominal)}\n\nSaldo kedua buku akan dihitung ulang.`)) return;
   if (jenis === 'masuk' && kategori === 'Saldo Awal' && allKasUmum.some(x => x.key !== kasEditingKey && x.kategori === 'Saldo Awal' && kasBukuDari(x) === buku)) {
     if (!confirm(`${KAS_NAMA_BUKU[buku]} tahun ajaran ini sudah punya catatan "Saldo Awal". Tetap tambahkan satu lagi?\n\n(Kalau maksudnya mengoreksi, batalkan lalu ubah catatan yang lama.)`)) return;
   }
   // Peringatan (bukan blokir) kalau catatan ini membuat saldo sebuah buku jadi minus -- biasanya
   // tandanya saldo awal / pemasukan lain belum dicatat. Kalau catatan DIPINDAH antar buku, buku
   // asal juga dicek (saldonya berkurang karena catatan itu keluar dari sana).
-  const entriTujuan = kasSusunEntri(buku);
+  const entriTujuan = kasPisahTanggal(buku).valid;
   const daftarBaru = entriTujuan.filter(e => e.key !== kasEditingKey);
   daftarBaru.push({ key: kasEditingKey || '__baru__', tanggal, jenis, kategori, uraian, buktiNo, nominal, otomatis: false, urut: new Date().toISOString() });
   let minus = null;
   const sesudahMin = kasSaldoTerendah(kasUrutkan(daftarBaru));
   if (sesudahMin < 0 && kasSaldoTerendah(entriTujuan) >= 0) minus = { buku, nilai: sesudahMin };
   if (!minus && lama && kasBukuDari(lama) !== buku) {
-    const bukuAsal = kasBukuDari(lama), entriAsal = kasSusunEntri(bukuAsal);
+    const bukuAsal = kasBukuDari(lama), entriAsal = kasPisahTanggal(bukuAsal).valid;
     const minAsal = kasSaldoTerendah(entriAsal.filter(e => e.key !== kasEditingKey));
     if (minAsal < 0 && kasSaldoTerendah(entriAsal) >= 0) minus = { buku: bukuAsal, nilai: minAsal };
   }
@@ -352,6 +409,7 @@ function kasSimpan() {
     clearBusy('kasSimpan', btn);
     if (err) return toast('Gagal: ' + (err.message || err), true);
     toast(pesanOk + (buku !== kasBukuAktif ? ` (tercatat di ${KAS_NAMA_BUKU[buku]})` : '')); addLog(aksiLog, `${KAS_NAMA_BUKU[buku]} - ${jenis} - ${kategori} - ${kasRp(nominal)} - ${uraian}`);
+    kasSimpanJenisBawaan(jenis);
     kasResetForm();
     reloadDataset('kasUmum', () => renderKasUmum());
   };
@@ -384,7 +442,7 @@ async function kasExportPDF() {
   try { await ensureLib('pdf'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul PDF', e); return toast('❌ Modul PDF belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
   const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth();
   if (typeof doc.autoTable !== 'function') { console.error('[SI MAMBA] jspdf-autotable tidak tersedia setelah ensureLib("pdf")'); return toast('❌ Modul tabel PDF (autotable) belum termuat. Muat ulang halaman lalu coba lagi.', true); }
-  const [logoData, ttdKepalaData] = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf()]);
+  const logoData = await v4LoadLogoForPdf();
   // Kop (label teks biasa, tanpa emoji -- font bawaan jsPDF tidak punya glyph emoji)
   const offY = MADRASAH.nsm ? 5 : 0;
   v4TambahLogoKeKopPdf(doc, logoData, offY);
@@ -422,20 +480,18 @@ async function kasExportPDF() {
   doc.text(`Total pemasukan    : ${kasRp(d.totalMasuk)}`, 15, ySign + 5);
   doc.text(`Total pengeluaran  : ${kasRp(d.totalKeluar)}`, 15, ySign + 10);
   doc.setFont(undefined, 'bold'); doc.text(`Saldo akhir             : ${kasRp(d.saldoAkhir)}`, 15, ySign + 15); doc.setFont(undefined, 'normal');
+  if (d.tanpaTanggal.length) { doc.setFontSize(8); doc.text(`Catatan: ${d.tanpaTanggal.length} catatan tanpa tanggal valid tidak ikut dihitung.`, 15, ySign + 20); }
   ySign += 26;
   if (ySign > 235) { doc.addPage(); ySign = 20; }
   const xKiri = 50, xKanan = pageWidth - 50;
   doc.setFontSize(10);
   doc.text('Dibuat oleh,', xKiri, ySign, { align: 'center' }); doc.text('Bendahara Madrasah', xKiri, ySign + 5, { align: 'center' });
   doc.text('Mengetahui,', xKanan, ySign, { align: 'center' }); doc.text('Kepala Madrasah', xKanan, ySign + 5, { align: 'center' });
-  if (ttdKepalaData) {
-    try {
-      const ttdW = 32; const props = doc.getImageProperties(ttdKepalaData);
-      const ttdH = Math.min(16, ttdW * (props.height / props.width));
-      doc.addImage(ttdKepalaData, 'PNG', xKanan - ttdW / 2, ySign + 7, ttdW, ttdH);
-    } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Kas:', e); }
-  }
-  const yNama = ySign + 28;
+  // Tanda tangan QR / gambar (js/ttd-digital.js)
+  const metaBuku = { jenis: `Buku ${d.namaBuku}`, ket: d.label };
+  if (MADRASAH.bendahara) await TTD.tandai(doc, 'bendahara', xKiri, ySign + 7, { lebar: 32, tinggiMaks: 20, meta: Object.assign({ nama: MADRASAH.bendahara, jabatan: 'Bendahara Madrasah', nip: MADRASAH.nip_bendahara || '' }, metaBuku) });
+  await TTD.tandai(doc, 'kepala', xKanan, ySign + 7, { lebar: 32, tinggiMaks: 20, hanyaPimpinan: true, meta: Object.assign({ nama: MADRASAH.kepala_sekolah || '', jabatan: 'Kepala Madrasah', nip: MADRASAH.nip_kepala_sekolah || '' }, metaBuku) });
+  const yNama = ySign + 31;
   doc.text(MADRASAH.bendahara || '(............................)', xKiri, yNama, { align: 'center' });
   if (MADRASAH.bendahara && MADRASAH.nip_bendahara) doc.text('NIP. ' + MADRASAH.nip_bendahara, xKiri, yNama + 5, { align: 'center' });
   doc.text(MADRASAH.kepala_sekolah || '', xKanan, yNama, { align: 'center' });
@@ -455,6 +511,7 @@ async function kasExportExcel() {
   if (d.bulan !== 'ALL') aoa.push(['', '', '', 'Saldo sebelumnya', '', '', '', d.saldoSebelum]);
   d.tampil.forEach((e, i) => aoa.push([i + 1, e.tanggal, e.kategori, e.uraian + (e.otomatis ? ' (otomatis)' : ''), e.buktiNo, e.jenis === 'masuk' ? e.nominal : '', e.jenis === 'keluar' ? e.nominal : '', e.saldo]));
   aoa.push(['', '', '', 'TOTAL PERIODE', '', d.totalMasuk, d.totalKeluar, d.saldoAkhir]);
+  if (d.tanpaTanggal.length) aoa.push([], [`Catatan: ${d.tanpaTanggal.length} catatan tanpa tanggal valid tidak ikut dihitung.`]);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 26 }, { wch: 44 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, d.namaBuku);
@@ -484,6 +541,7 @@ async function kasExportExcel() {
 let allSetoranInfaq = [];
 let setoranTahunDimuat = null, setoranGen = 0, setoranTerakhirSegar = 0;
 let setoranEditingKey = null, setoranNominalManual = false;
+let setoranTenggat = setoranTenggatBawaan();   // aturan tenggat setor aktif (dimuat dari node setoran_pengaturan)
 
 // Dipanggil app.js saat logout / ganti pengguna: kosongkan semua state modul Kas supaya pengguna
 // berikutnya tidak melihat data (atau tab/mode edit) milik sesi sebelumnya sebelum data barunya
@@ -494,7 +552,7 @@ function kasResetState() {
   // sebelumnya). Perbandingan referensi di kasSusunEntri() memang membuatnya tidak dipakai lagi, tapi
   // isinya tetap tertahan di memori sampai buku itu dihitung ulang -- kosongkan di tempat (const, tak bisa diganti).
   Object.keys(_kasSusunCache).forEach(k => { delete _kasSusunCache[k]; });
-  allSetoranInfaq = []; setoranTahunDimuat = null; setoranGen++;
+  allSetoranInfaq = []; setoranTahunDimuat = null; setoranGen++; setoranTenggat = setoranTenggatBawaan();
   // Indeks iuran per kelas (setoranIndeksIuran) dibangun dari data iuran sesi sebelumnya; walau perbandingan
   // referensi array membuatnya tidak dipakai lagi, isinya tetap tertahan di memori -- kosongkan di tempat.
   _setoranIdx.ref = null; _setoranIdx.map = null;
@@ -511,6 +569,12 @@ function kasTambahHari(tgl, n) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(tgl || '');
   if (!m) return tgl;
   return tglLokal(new Date(+m[1], +m[2] - 1, +m[3] + n));
+}
+// Selisih hari (b - a) antara dua 'YYYY-MM-DD'; dihitung lewat UTC supaya tidak terpengaruh jam musim panas/zona waktu.
+function kasSelisihHari(a, b) {
+  const pa = /^(\d{4})-(\d{2})-(\d{2})$/.exec(a || ''), pb = /^(\d{4})-(\d{2})-(\d{2})$/.exec(b || '');
+  if (!pa || !pb) return 0;
+  return Math.round((Date.UTC(+pb[1], +pb[2] - 1, +pb[3]) - Date.UTC(+pa[1], +pa[2] - 1, +pa[3])) / 86400000);
 }
 function kasRentangSemester(semester, ta) {
   const thn = parseInt(String(ta || currentTahunAjaran).split('/')[0], 10) || new Date().getFullYear();
@@ -600,12 +664,251 @@ function setoranIntroTeks() {
   return awal + ' Jumlah terkumpul dihitung otomatis dari Infaq Mingguan. Setoran tidak menambah saldo Kas Infaq (infaq sudah otomatis masuk ke sana), hanya untuk mencocokkan uang terkumpul dengan yang disetor.';
 }
 
+// =====================================================
+// TENGGAT SETOR -- aturan fleksibel yang diatur Admin (node Firebase `setoran_pengaturan`)
+// =====================================================
+// Prinsip: sebuah pembayaran infaq dianggap SUDAH DISETOR kalau tanggalnya berada di dalam rentang
+// (dari-sampai) salah satu setoran kelas itu pada semester yang sama; selainnya BELUM DISETOR dan punya
+// "umur" (hari sejak infaq dicatat). Tiap pembayaran yang belum disetor punya tanggal JATUH TEMPO menurut
+// aturan; lewat dari jatuh tempo (+ toleransi) = TERLAMBAT. Empat cara menetapkan tenggat:
+//   'hari'     : maksimal N hari sejak infaq dicatat (bergulir; cocok bila tak ada jadwal tetap)
+//   'mingguan' : hari tertentu (1=Senin..7=Minggu) pada minggu BERIKUTNYA dari minggu infaq dicatat
+//   'bulanan'  : tanggal tertentu (1-31; 31 = akhir bulan) pada bulan BERIKUTNYA dari bulan infaq dicatat
+//   'tanggal'  : daftar tanggal tenggat bebas (mis. mengikuti kalender madrasah); sebuah pembayaran jatuh
+//                tempo pada tanggal tenggat pertama SETELAH tanggal pencatatannya
+// Ditambah: toleransi (hari) dan daftar kelas yang dikecualikan. Selama `aktif` = false (bawaan) tidak ada
+// yang dinilai terlambat -- tampilan lama tidak berubah; "belum disetor sejak ..." tetap tampil.
+// Catatan: pembayaran yang tercakup rentang setoran dianggap tersetor walau jumlah setorannya kurang;
+// kekurangan itu tampil sebagai "Kurang" di riwayat (selisih), bukan sebagai keterlambatan.
+const SETORAN_TENGGAT_NODE = 'setoran_pengaturan';
+const SETORAN_TENGGAT_MODE = ['hari', 'mingguan', 'bulanan', 'tanggal'];
+const SETORAN_NAMA_HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+function setoranTenggatBawaan() { return { aktif: false, mode: 'bulanan', nilai: 5, toleransi: 0, tanggalKhusus: [], kelasBebas: [], penerimaNama: '', penerimaJabatan: '', penerimaNip: '', penerimaKunci: false, penerimaKelas: [] }; }
+// Rapikan data dari Firebase / form: nilai di luar rentang dijepit, tanggal tak valid dibuang.
+function setoranTenggatNormal(raw) {
+  const b = setoranTenggatBawaan();
+  if (!raw || typeof raw !== 'object') return b;
+  const daftar = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.keys(v).map(k => v[k]) : []);
+  const mode = SETORAN_TENGGAT_MODE.includes(raw.mode) ? raw.mode : b.mode;
+  const rentang = { hari: [1, 365, 7], mingguan: [1, 7, 1], bulanan: [1, 31, 5], tanggal: [0, 0, 0] }[mode];
+  let nilai = parseInt(raw.nilai, 10); if (!isFinite(nilai)) nilai = rentang[2];
+  nilai = Math.min(rentang[1], Math.max(rentang[0], nilai));
+  let toleransi = parseInt(raw.toleransi, 10); if (!isFinite(toleransi)) toleransi = 0;
+  toleransi = Math.min(365, Math.max(0, toleransi));
+  const tgl = Array.from(new Set(daftar(raw.tanggalKhusus).map(x => String(x == null ? '' : x).trim()).filter(kasAdaTanggal))).sort();
+  const bebas = Array.from(new Set(daftar(raw.kelasBebas).map(x => String(x == null ? '' : x).trim()).filter(Boolean)));
+  const teks = (v, maks) => String(v == null ? '' : v).trim().slice(0, maks);
+  // Penerima khusus per kelas disimpan sebagai daftar {kelas, nama} (bukan peta kelas->nama) karena nama kelas
+  // bisa memuat karakter yang dilarang sebagai kunci Firebase ('.', '#', '$', '/', '[', ']').
+  const pk = daftar(raw.penerimaKelas).filter(o => o && typeof o === 'object').map(o => ({ kelas: teks(o.kelas, 60), nama: teks(o.nama, 80) })).filter(o => o.kelas && o.nama);
+  return { aktif: raw.aktif === true, mode, nilai, toleransi, tanggalKhusus: tgl, kelasBebas: bebas,
+    penerimaNama: teks(raw.penerimaNama, 80), penerimaJabatan: teks(raw.penerimaJabatan, 60), penerimaNip: teks(raw.penerimaNip, 30), penerimaKunci: raw.penerimaKunci === true, penerimaKelas: pk };
+}
+// Tanggal terakhir sebuah infaq (dicatat pada `tgl`) masih tepat waktu disetor; '' bila tak bisa ditentukan.
+function setoranJatuhTempo(tgl, cfg) {
+  cfg = cfg || setoranTenggat;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(tgl || ''); if (!m) return '';
+  const y = +m[1], mo = +m[2] - 1, dd = +m[3];
+  let due = '';
+  if (cfg.mode === 'hari') due = kasTambahHari(tgl, cfg.nilai);
+  else if (cfg.mode === 'mingguan') {
+    const hariKe = (new Date(y, mo, dd).getDay() + 6) % 7 + 1;           // 1=Senin .. 7=Minggu
+    due = kasTambahHari(tgl, (7 - hariKe) + cfg.nilai);                   // Minggu itu + N hari = hari ke-N minggu berikutnya
+  } else if (cfg.mode === 'bulanan') {
+    const akhirBulan = new Date(y, mo + 2, 0).getDate();                  // jumlah hari bulan berikutnya
+    due = tglLokal(new Date(y, mo + 1, Math.min(cfg.nilai, akhirBulan)));
+  } else if (cfg.mode === 'tanggal') {
+    due = (cfg.tanggalKhusus || []).find(t => t > tgl) || '';
+  }
+  return due ? kasTambahHari(due, cfg.toleransi || 0) : '';
+}
+function setoranTenggatRingkas(cfg) {
+  cfg = cfg || setoranTenggat;
+  if (!cfg.aktif) return 'Tenggat setor belum diaktifkan oleh Admin.';
+  let a;
+  if (cfg.mode === 'hari') a = `Infaq disetor paling lambat ${cfg.nilai} hari setelah dicatat`;
+  else if (cfg.mode === 'mingguan') a = `Infaq tiap minggu disetor paling lambat hari ${SETORAN_NAMA_HARI[cfg.nilai - 1]} minggu berikutnya`;
+  else if (cfg.mode === 'bulanan') a = cfg.nilai >= 31 ? 'Infaq tiap bulan disetor paling lambat akhir bulan berikutnya' : `Infaq tiap bulan disetor paling lambat tanggal ${cfg.nilai} bulan berikutnya`;
+  else a = cfg.tanggalKhusus.length ? `Tenggat setor: ${cfg.tanggalKhusus.slice(0, 6).map(kasTglIndo).join(', ')}${cfg.tanggalKhusus.length > 6 ? ', …' : ''}` : 'Tenggat setor: (belum ada tanggal diisi)';
+  if (cfg.toleransi > 0) a += `, toleransi ${cfg.toleransi} hari`;
+  if (cfg.kelasBebas.length) a += `. Dikecualikan: ${cfg.kelasBebas.join(', ')}`;
+  return a + '.';
+}
+// Pembayaran infaq satu kelas (dalam semester, s.d. `batas`) yang BELUM tercakup rentang setoran mana pun.
+function setoranHitungTunggakan(kelas, sem, r, batas) {
+  const cfg = setoranTenggat, hari = tglLokal();
+  const out = { aktif: !!cfg.aktif && !cfg.kelasBebas.includes(kelas), belumJumlah: 0, belumNominal: 0, tertua: '', umurHari: 0,
+    terlambatJumlah: 0, terlambatNominal: 0, terlambatSejak: '', hariTerlambat: 0, tenggatBerikut: '' };
+  const b = setoranIndeksIuran()[String(kelas == null ? '' : kelas).trim()];
+  if (!b) return out;
+  const recs = allSetoranInfaq.filter(s => kasSamaKelas(s.kelas, kelas) && s.semester === sem && kasAdaTanggal(s.dari) && kasAdaTanggal(s.sampai));
+  b.rows.forEach(row => {
+    if (row.tgl < r.dari || row.tgl > batas) return;
+    if (recs.some(s => row.tgl >= s.dari && row.tgl <= s.sampai)) return;   // sudah tercakup setoran
+    out.belumJumlah += 1; out.belumNominal += row.nom;
+    if (!out.tertua || row.tgl < out.tertua) out.tertua = row.tgl;
+    if (!out.aktif) return;
+    const due = setoranJatuhTempo(row.tgl, cfg);
+    if (!due) return;
+    if (due < hari) {
+      out.terlambatJumlah += 1; out.terlambatNominal += row.nom;
+      if (!out.terlambatSejak || due < out.terlambatSejak) out.terlambatSejak = due;
+    } else if (!out.tenggatBerikut || due < out.tenggatBerikut) out.tenggatBerikut = due;
+  });
+  if (out.tertua) out.umurHari = Math.max(0, kasSelisihHari(out.tertua, hari));
+  if (out.terlambatSejak) out.hariTerlambat = Math.max(1, kasSelisihHari(out.terlambatSejak, hari));
+  return out;
+}
+// ---- Penerima setoran ----
+// Urutan: penerima khusus kelas itu -> penerima umum yang ditunjuk Admin -> Bendahara (data madrasah).
+// `kelas` kosong = penerima umum (dipakai tanda tangan PDF "Semua Kelas").
+function setoranPenerimaInfo(kelas, cfg) {
+  cfg = cfg || setoranTenggat;
+  const o = kelas ? (cfg.penerimaKelas || []).find(x => kasSamaKelas(x.kelas, kelas)) : null;
+  if (o && o.nama) return { nama: o.nama, jabatan: cfg.penerimaJabatan || 'Penerima Setoran', nip: '', ditunjuk: true };
+  if (cfg.penerimaNama) return { nama: cfg.penerimaNama, jabatan: cfg.penerimaJabatan || 'Penerima Setoran', nip: cfg.penerimaNip || '', ditunjuk: true };
+  return { nama: (MADRASAH && MADRASAH.bendahara) || '', jabatan: 'Bendahara Madrasah', nip: (MADRASAH && MADRASAH.nip_bendahara) || '', ditunjuk: false };
+}
+function setoranPenerimaDari(kelas, cfg) { return setoranPenerimaInfo(kelas, cfg).nama; }
+// Terkunci = Admin mewajibkan nama penerima & yang mengisi bukan Admin. Dipakai di form (readOnly) dan setoranSimpan.
+function setoranPenerimaTerkunci(kelas) { return !!setoranTenggat.penerimaKunci && !isAdmin() && !!setoranPenerimaDari(kelas); }
+// Isi kolom penerima di form. paksa=true: selalu ganti (form baru / ganti kelas); paksa=false: hanya bila masih
+// kosong atau terkunci (mis. setelah aturan selesai dimuat, supaya ketikan petugas tidak tertimpa).
+function setoranTerapkanPenerima(paksa) {
+  const el = kasEl('setoranPenerima'); if (!el) return;
+  const kelas = (kasEl('setoranKelas') || {}).value, kunci = setoranPenerimaTerkunci(kelas);
+  if (paksa || kunci || !el.value) el.value = setoranPenerimaDari(kelas);
+  el.readOnly = kunci;
+}
+function setoranPenerimaRingkas(cfg) {
+  cfg = cfg || setoranTenggat;
+  const umum = cfg.penerimaNama ? `${cfg.penerimaNama}${cfg.penerimaJabatan ? ' (' + cfg.penerimaJabatan + ')' : ''}` : '';
+  const khusus = cfg.penerimaKelas.map(o => `${o.kelas}: ${o.nama}`).join(', ');
+  if (!umum && !khusus) return '';
+  return 'Penerima setoran: ' + (umum || 'Bendahara') + (khusus ? `; khusus ${khusus}` : '') + (cfg.penerimaKunci ? ' (nama dikunci)' : '') + '.';
+}
+function setoranPengaturanRingkas(cfg) { return [setoranTenggatRingkas(cfg), setoranPenerimaRingkas(cfg)].filter(Boolean).join(' '); }
+function setoranTeksSejak(x) {
+  return (x.belum > 0 && x.tg && x.tg.tertua) ? `${kasTglIndo(x.tg.tertua)} (${x.tg.umurHari} hari)` : '-';
+}
+function setoranMuatTenggat(g) {
+  try {
+    return Promise.resolve(db.ref(SETORAN_TENGGAT_NODE).once('value')).then(snap => {
+      if (g !== setoranGen) return;   // sesi/tahun sudah berganti selama menunggu
+      setoranTenggat = setoranTenggatNormal(snap && snap.val ? snap.val() : null);
+      const card = kasEl('setoranTenggatCard'); if (card) card.dataset.form = '';   // paksa form diisi ulang dengan nilai terbaru
+      if (!setoranEditingKey) setoranTerapkanPenerima(false);
+    }).catch(e => { console.warn('[SI MAMBA] Gagal memuat aturan tenggat setor (tetap memakai aturan yang ada):', e); });
+  } catch (e) { return Promise.resolve(); }
+}
+// ---- Kartu aturan tenggat (dibuat lewat JS; Admin mengubah, yang lain hanya membaca ringkasannya) ----
+function setoranRenderTenggat() {
+  const ringkas = kasEl('setoranRingkasArea'); if (!ringkas || !ringkas.parentNode) return;
+  let card = kasEl('setoranTenggatCard');
+  if (!card) { card = document.createElement('div'); card.id = 'setoranTenggatCard'; card.style.cssText = 'margin-bottom:10px;'; ringkas.parentNode.insertBefore(card, ringkas); }
+  const teks = escapeHtml(setoranPengaturanRingkas());
+  if (!isAdmin()) { card.dataset.form = ''; card.innerHTML = `<div style="font-size:12px;color:#374151;">⏰ ${teks}</div>`; return; }
+  if (card.dataset.form === '1') { const i = kasEl('setoranTgInfo'); if (i) i.textContent = '— ' + setoranPengaturanRingkas(); return; }
+  const lama = card.querySelector ? card.querySelector('details') : null, buka = !!(lama && lama.open);
+  const gaya = 'padding:6px 8px;border:1px solid #d1d5db;border-radius:8px;max-width:100%;';
+  const optMode = [['bulanan', 'Per bulan (tanggal tertentu bulan berikutnya)'], ['mingguan', 'Per minggu (hari tertentu minggu berikutnya)'], ['hari', 'Maksimal N hari setelah infaq dicatat'], ['tanggal', 'Tanggal tenggat bebas (daftar tanggal)']]
+    .map(o => `<option value="${o[0]}">${o[1]}</option>`).join('');
+  const optHari = SETORAN_NAMA_HARI.map((h, i) => `<option value="${i + 1}">${h}</option>`).join('');
+  const cbKelas = KELAS_LIST.map((k, i) => `<label style="font-size:12px;margin-right:12px;white-space:nowrap;"><input type="checkbox" id="setoranTgBebas${i}"> ${escapeHtml(k)}</label>`).join('');
+  const inpPK = KELAS_LIST.map((k, i) => `<label style="font-size:12px;display:block;margin-bottom:4px;">${escapeHtml(k)}: <input type="text" id="setoranTgPK${i}" maxlength="80" placeholder="(ikut penerima umum)" style="${gaya}width:200px;"></label>`).join('');
+  card.innerHTML = `<details${buka ? ' open' : ''} style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;">⏰ Pengaturan Setoran: Tenggat & Penerima <span id="setoranTgInfo" style="font-weight:400;font-size:12px;color:#374151;">— ${teks}</span></summary>
+    <div style="margin-top:10px;display:grid;gap:10px;font-size:13px;">
+      <label><input type="checkbox" id="setoranTgAktif" onchange="setoranTgPratinjau()"> Aktifkan tenggat setor (kelas yang lewat tenggat diberi status Terlambat)</label>
+      <label>Cara menetapkan tenggat<br><select id="setoranTgMode" onchange="setoranTgOnMode()" style="${gaya}">${optMode}</select></label>
+      <div id="setoranTgNilaiWrap"><span id="setoranTgNilaiLabel"></span><br>
+        <input type="number" id="setoranTgNilai" min="1" max="365" oninput="setoranTgPratinjau()" style="${gaya}width:110px;">
+        <select id="setoranTgHari" onchange="setoranTgPratinjau()" style="${gaya}">${optHari}</select></div>
+      <label id="setoranTgTglWrap">Tanggal tenggat (satu per baris atau pisahkan koma, format YYYY-MM-DD)<br><textarea id="setoranTgTanggal" rows="4" oninput="setoranTgPratinjau()" style="${gaya}width:100%;max-width:320px;"></textarea></label>
+      <label>Toleransi (hari) — kelonggaran setelah tenggat sebelum dinilai terlambat<br><input type="number" id="setoranTgToleransi" min="0" max="365" oninput="setoranTgPratinjau()" style="${gaya}width:110px;"></label>
+      <div>Kelas yang dikecualikan dari tenggat (centang):<br>${cbKelas}</div>
+      <div id="setoranTgPratinjau" style="font-size:12px;color:#6b7280;"></div>
+      <hr style="border:0;border-top:1px solid #e5e7eb;width:100%;">
+      <div style="font-weight:600;">Penerima setoran</div>
+      <div style="font-size:12px;color:#6b7280;">Kosongkan nama untuk memakai Bendahara dari data madrasah. Nama ini terisi otomatis di form setoran dan tertulis di tanda tangan PDF.</div>
+      <label>Nama penerima<br><input type="text" id="setoranTgPenerima" maxlength="80" style="${gaya}width:100%;max-width:320px;"></label>
+      <label>Jabatan di PDF (mis. Wali Kelas / Petugas Infaq; kosong = "Penerima Setoran")<br><input type="text" id="setoranTgJabatan" maxlength="60" style="${gaya}width:100%;max-width:320px;"></label>
+      <label>NIP (opsional)<br><input type="text" id="setoranTgNip" maxlength="30" style="${gaya}width:100%;max-width:320px;"></label>
+      <div>Penerima khusus per kelas (opsional, menggantikan penerima umum):<br>${inpPK}</div>
+      <label><input type="checkbox" id="setoranTgKunci"> Petugas kelas tidak boleh mengubah nama penerima</label>
+      <div><button class="btn btn-primary" id="btnSimpanTenggat" onclick="setoranTenggatSimpan()">💾 Simpan Aturan</button></div>
+    </div></details>`;
+  card.dataset.form = '1';
+  const c = setoranTenggat, set = (id, v) => { const el = kasEl(id); if (el) el.value = v; };
+  const ck = kasEl('setoranTgAktif'); if (ck) ck.checked = !!c.aktif;
+  set('setoranTgMode', c.mode); set('setoranTgNilai', c.mode === 'mingguan' ? '' : c.nilai);
+  set('setoranTgHari', c.mode === 'mingguan' ? c.nilai : 1);
+  set('setoranTgTanggal', c.tanggalKhusus.join('\n')); set('setoranTgToleransi', c.toleransi);
+  set('setoranTgPenerima', c.penerimaNama); set('setoranTgJabatan', c.penerimaJabatan); set('setoranTgNip', c.penerimaNip);
+  const kk = kasEl('setoranTgKunci'); if (kk) kk.checked = !!c.penerimaKunci;
+  KELAS_LIST.forEach((k, i) => { const o = c.penerimaKelas.find(x => kasSamaKelas(x.kelas, k)); set('setoranTgPK' + i, o ? o.nama : ''); });
+  KELAS_LIST.forEach((k, i) => { const el = kasEl('setoranTgBebas' + i); if (el) el.checked = c.kelasBebas.includes(k); });
+  setoranTgOnMode(true);
+}
+// Baca isi form -> { cfg (sudah dirapikan), salah: [baris tanggal tak valid] }
+function setoranTgBaca() {
+  const v = id => (kasEl(id) || {}).value, mode = SETORAN_TENGGAT_MODE.includes(v('setoranTgMode')) ? v('setoranTgMode') : 'bulanan';
+  const baris = String(v('setoranTgTanggal') || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean);
+  const salah = baris.filter(x => !kasAdaTanggal(x) || isNaN(new Date(x + 'T00:00:00').getTime()));
+  const bebas = KELAS_LIST.filter((k, i) => (kasEl('setoranTgBebas' + i) || {}).checked);
+  const cfg = setoranTenggatNormal({ aktif: !!(kasEl('setoranTgAktif') || {}).checked, mode, nilai: mode === 'mingguan' ? v('setoranTgHari') : v('setoranTgNilai'),
+    toleransi: v('setoranTgToleransi'), tanggalKhusus: baris.filter(x => salah.indexOf(x) < 0), kelasBebas: bebas,
+    penerimaNama: v('setoranTgPenerima'), penerimaJabatan: v('setoranTgJabatan'), penerimaNip: v('setoranTgNip'), penerimaKunci: !!(kasEl('setoranTgKunci') || {}).checked,
+    penerimaKelas: KELAS_LIST.map((k, i) => ({ kelas: k, nama: v('setoranTgPK' + i) })) });
+  return { cfg, salah };
+}
+function setoranTgOnMode(tanpaPratinjau) {
+  const mode = (kasEl('setoranTgMode') || {}).value;
+  const tampil = (id, ok) => { const el = kasEl(id); if (el) el.style.display = ok ? '' : 'none'; };
+  tampil('setoranTgNilaiWrap', mode !== 'tanggal'); tampil('setoranTgNilai', mode !== 'mingguan'); tampil('setoranTgHari', mode === 'mingguan'); tampil('setoranTgTglWrap', mode === 'tanggal');
+  const lbl = kasEl('setoranTgNilaiLabel');
+  if (lbl) lbl.textContent = mode === 'hari' ? 'Maksimal berapa hari setelah infaq dicatat? (1–365)'
+    : (mode === 'mingguan' ? 'Setor paling lambat hari (pada minggu berikutnya)' : 'Setor paling lambat tanggal (bulan berikutnya; 31 = akhir bulan)');
+  if (!tanpaPratinjau) {
+    // Ganti cara: isi nilai bawaan cara itu supaya tidak membawa angka dari cara lain (mis. 5 hari -> "tanggal 5").
+    const bawaan = { hari: 7, bulanan: 5 }[mode]; const n = kasEl('setoranTgNilai'); if (n && bawaan) n.value = bawaan;
+  }
+  setoranTgPratinjau();
+}
+function setoranTgPratinjau() {
+  const box = kasEl('setoranTgPratinjau'); if (!box) return;
+  const b = setoranTgBaca(), hari = tglLokal(), due = setoranJatuhTempo(hari, b.cfg);
+  box.textContent = (b.cfg.mode === 'tanggal' && !b.cfg.tanggalKhusus.length ? 'Isi minimal satu tanggal tenggat. ' : '')
+    + (due ? `Contoh: infaq yang dicatat hari ini (${kasTglIndo(hari)}) jatuh tempo ${kasTglIndo(due)}${b.cfg.toleransi ? ' (sudah termasuk toleransi)' : ''}.` : (b.cfg.mode === 'tanggal' ? 'Infaq setelah tanggal tenggat terakhir belum punya tenggat.' : ''))
+    + (b.salah.length ? ` ⚠️ Tanggal tidak valid: ${b.salah.join(', ')}` : '');
+}
+function setoranTenggatSimpan() {
+  if (!isAdmin()) return toast('Hanya Admin yang bisa mengubah pengaturan setoran!', true);
+  if (isBusy('setoranTenggat')) return toast('Sedang menyimpan...', false, 1500);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Menyimpan pengaturan butuh koneksi internet — coba lagi setelah online.', true);
+  const baca = setoranTgBaca(), cfg = baca.cfg;
+  if (baca.salah.length) return toast(`Tanggal tidak valid: ${baca.salah.join(', ')}. Gunakan format YYYY-MM-DD.`, true);
+  if (cfg.aktif && cfg.mode === 'tanggal' && !cfg.tanggalKhusus.length) return toast('Isi minimal satu tanggal tenggat.', true);
+  const btn = kasEl('btnSimpanTenggat');
+  setBusy('setoranTenggat', btn);
+  db.ref(SETORAN_TENGGAT_NODE).set(Object.assign({}, cfg, { updatedBy: currentUser.name, updatedAt: new Date().toISOString() }), err => {
+    clearBusy('setoranTenggat', btn);
+    if (err) return toast('Gagal: ' + (err.message || err), true);
+    setoranTenggat = cfg;
+    toast('✅ Pengaturan setoran disimpan!'); addLog('ubah_tenggat_setoran', setoranPengaturanRingkas(cfg));
+    const card = kasEl('setoranTenggatCard'); if (card) card.dataset.form = '';
+    if (!setoranEditingKey) setoranTerapkanPenerima(true);
+    setoranRender();
+  });
+}
+
 // ---- Data ----
 function setoranMuat(onDone) {
   if (!setoranCanView()) { if (typeof onDone === 'function') onDone(); return Promise.resolve(); }
   const g = ++setoranGen, ta = currentTahunAjaran;
   const semua = kasCanView(), kelasSaya = infaqMyKelasList();
-  return _fetchList(_byTahun('setoran_infaq'), x => semua || kelasSaya.includes(x.kelas)).then(a => {
+  return Promise.all([_fetchList(_byTahun('setoran_infaq'), x => semua || kelasSaya.includes(x.kelas)), setoranMuatTenggat(g)]).then(hasil => {
+    const a = hasil[0];
     if (a && g === setoranGen) { allSetoranInfaq = a; setoranTahunDimuat = ta; setoranTerakhirSegar = Date.now(); }
     if (typeof onDone === 'function') onDone();
   });
@@ -628,12 +931,25 @@ function setoranDataRekap() {
     const disetor = recs.reduce((a, s) => a + (parseInt(s.nominalSetor, 10) || 0), 0);
     const terakhir = recs.reduce((a, s) => ((s.tanggalSetor || '') > a ? s.tanggalSetor : a), '');
     totT += t.total; totS += disetor;
-    return { kelas, petugas: infaqPetugasNama(kelas), terkumpul: t.total, jumlahBayar: t.jumlah, tanpaTanggal: t.tanpaTanggal || 0, disetor, jumlahSetor: recs.length, belum: t.total - disetor, status: setoranStatus(t.total, disetor), terakhir };
+    const belum = t.total - disetor, tg = setoranHitungTunggakan(kelas, sem, r, batas);
+    let status = setoranStatus(t.total, disetor);
+    const terlambat = tg.aktif && belum > 0 && tg.terlambatJumlah > 0;   // hanya bila memang masih ada uang belum disetor
+    if (terlambat) status = { teks: `⚠️ Terlambat ${tg.hariTerlambat} hari`, warna: '#991b1b', bg: '#fee2e2' };
+    return { kelas, petugas: infaqPetugasNama(kelas), terkumpul: t.total, jumlahBayar: t.jumlah, tanpaTanggal: t.tanpaTanggal || 0, disetor, jumlahSetor: recs.length, belum, status, terakhir, tg, terlambat };
   });
   const riwayat = semRecs.filter(s => daftar.includes(s.kelas))
     .sort((a, b) => (b.tanggalSetor || '').localeCompare(a.tanggalSetor || '') || (b.inputAt || '').localeCompare(a.inputAt || ''));
   const slugKelas = filter === 'ALL' ? 'Semua_Kelas' : filter.replace(/[^A-Za-z0-9]+/g, '_');
   return { sem, r, batas, belumMulai, daftar, rekap, riwayat, totT, totS, totBelum: totT - totS, slug: `Setoran_Infaq_${slugKelas}_${sem}_${String(currentTahunAjaran).replace('/', '-')}`, labelKelas: filter === 'ALL' ? 'Semua Kelas' : filter };
+}
+// Baris kecil di bawah status: umur tunggakan + info tenggat (hanya bila memang masih ada yang belum disetor).
+function setoranSubStatus(x) {
+  const tg = x.tg; if (!tg || x.belum <= 0) return '';
+  const baris = [];
+  if (tg.tertua) baris.push(`Belum disetor sejak ${escapeHtml(kasTglIndo(tg.tertua))} (${tg.umurHari} hari)`);
+  if (tg.aktif && tg.terlambatJumlah > 0) baris.push(`<span style="color:#991b1b;">Lewat tenggat: ${escapeHtml(kasRp(tg.terlambatNominal))} (${tg.terlambatJumlah} pembayaran)</span>`);
+  if (tg.aktif && tg.tenggatBerikut) baris.push(`Tenggat berikutnya: ${escapeHtml(kasTglIndo(tg.tenggatBerikut))}`);
+  return baris.length ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;">${baris.join('<br>')}</div>` : '';
 }
 function setoranRender() {
   const ringkas = kasEl('setoranRingkasArea'), riwayat = kasEl('setoranRiwayatArea');
@@ -641,6 +957,7 @@ function setoranRender() {
   if (!setoranCanView()) {
     ringkas.innerHTML = '<p style="color:#dc2626;">🔒 Hanya Admin, Kepala Madrasah & petugas infaq kelas.</p>'; riwayat.innerHTML = ''; return;
   }
+  setoranRenderTenggat();
   const d = setoranDataRekap(), sem = d.sem, r = d.r, batas = d.batas, belumMulai = d.belumMulai, totT = d.totT, totS = d.totS;
   const baris = d.rekap.map(x => {
     const st = x.status, petugas = x.petugas, belum = x.belum;
@@ -650,12 +967,14 @@ function setoranRender() {
       <td style="text-align:right;white-space:nowrap;">${kasRp(x.terkumpul)}<div style="font-size:10px;color:#6b7280;">${x.jumlahBayar} pembayaran</div>${x.tanpaTanggal ? `<div style="font-size:10px;color:#b45309;">⚠️ ${x.tanpaTanggal} pembayaran tanpa tanggal tidak terhitung</div>` : ''}</td>
       <td style="text-align:right;white-space:nowrap;color:#059669;">${kasRp(x.disetor)}<div style="font-size:10px;color:#6b7280;">${x.jumlahSetor}x setor</div></td>
       <td style="text-align:right;white-space:nowrap;font-weight:600;color:${belum > 0 ? '#b45309' : (belum < 0 ? '#dc2626' : '#065f46')};">${kasRp(belum)}</td>
-      <td><span style="font-size:11px;background:${st.bg};color:${st.warna};border-radius:8px;padding:2px 8px;white-space:nowrap;">${st.teks}</span></td>
+      <td><span style="font-size:11px;background:${st.bg};color:${st.warna};border-radius:8px;padding:2px 8px;white-space:nowrap;">${st.teks}</span>${setoranSubStatus(x)}</td>
       <td style="white-space:nowrap;font-size:12px;">${x.terakhir ? escapeHtml(kasTglIndo(x.terakhir)) : '-'}</td>
     </tr>`;
   }).join('');
   const totBelum = d.totBelum;
-  ringkas.innerHTML = `<p style="font-size:11px;color:#6b7280;margin-bottom:8px;">Semester <strong>${sem}</strong> ${escapeHtml(currentTahunAjaran)} (${escapeHtml(kasTglIndo(r.dari))} – ${escapeHtml(kasTglIndo(r.sampai))})${belumMulai ? ' — semester ini belum dimulai.' : ' — terkumpul dihitung s.d. ' + escapeHtml(kasTglIndo(batas)) + '.'}</p>
+  const telat = d.rekap.filter(x => x.terlambat);
+  const banner = telat.length ? `<div style="margin-bottom:8px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:8px 12px;font-size:12px;color:#991b1b;">⚠️ ${telat.length} kelas melewati tenggat setor: ${telat.map(x => escapeHtml(x.kelas) + ' (' + x.tg.hariTerlambat + ' hari, ' + escapeHtml(kasRp(x.tg.terlambatNominal)) + ')').join(', ')}</div>` : '';
+  ringkas.innerHTML = `${banner}<p style="font-size:11px;color:#6b7280;margin-bottom:8px;">Semester <strong>${sem}</strong> ${escapeHtml(currentTahunAjaran)} (${escapeHtml(kasTglIndo(r.dari))} – ${escapeHtml(kasTglIndo(r.sampai))})${belumMulai ? ' — semester ini belum dimulai.' : ' — terkumpul dihitung s.d. ' + escapeHtml(kasTglIndo(batas)) + '.'}</p>
     <div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Petugas</th><th style="text-align:right;">Terkumpul</th><th style="text-align:right;">Disetor</th><th style="text-align:right;">Belum Disetor</th><th>Status</th><th>Setor Terakhir</th></tr></thead>
     <tbody>${baris || '<tr><td colspan="7" style="color:#6b7280;">Tidak ada kelas.</td></tr>'}</tbody>
     <tfoot><tr style="background:#f3f4f6;font-weight:700;"><th colspan="2" style="text-align:right;">TOTAL</th><th style="text-align:right;">${kasRp(totT)}</th><th style="text-align:right;color:#059669;">${kasRp(totS)}</th><th style="text-align:right;">${kasRp(totBelum)}</th><th colspan="2"></th></tr></tfoot></table></div>`;
@@ -713,16 +1032,21 @@ function setoranInitForm() {
 function setoranResetForm() {
   setoranEditingKey = null; setoranNominalManual = false;
   const set = (id, v) => { const el = kasEl(id); if (el) el.value = v; };
-  set('setoranNominal', ''); set('setoranTanggal', tglLokal()); set('setoranPenerima', (MADRASAH && MADRASAH.bendahara) || '');
-  set('setoranBukti', ''); set('setoranKet', '');
+  set('setoranNominal', ''); set('setoranTanggal', tglLokal()); set('setoranBukti', ''); set('setoranKet', '');
   const sk = kasEl('setoranKelas'); if (sk) sk.disabled = false;
   const btn = kasEl('btnSimpanSetoran'); if (btn) btn.textContent = '💾 Simpan Setoran';
   const batal = kasEl('btnBatalSetoran'); if (batal) batal.style.display = 'none';
   const judul = kasEl('setoranFormTitle'); if (judul) judul.textContent = '➕ Catat Setoran Infaq';
+  setoranTerapkanPenerima(true);
   setoranSetRentangDefault();
 }
 // Rentang bawaan: dari sehari setelah akhir setoran sebelumnya (atau awal semester) sampai
-// hari ini (atau akhir semester) -- petugas tinggal cek angkanya lalu simpan.
+// KEMARIN (atau akhir semester) -- petugas tinggal cek angkanya lalu simpan.
+// Kalau memang belum ada rentang yang boleh disetor, kolom dikosongkan beserta alasannya. Kasus: hari
+// pertama semester / semester belum mulai (batas setor jatuh sebelum awal semester) dan semua infaq
+// sampai batas sudah disetor. Dulu "sampai" dipaksa = awal semester (= hari ini) dan "dari" ditarik
+// mundur ke "sampai", sehingga bawaannya pasti ditolak setoranSimpan ("paling lambat kemarin") atau
+// menumpang di hari yang sudah disetor.
 function setoranSetRentangDefault() {
   const kelas = (kasEl('setoranKelas') || {}).value;
   const sem = setoranSemesterDipilih(), r = kasRentangSemester(sem), batas = setoranBatasSetor(sem);
@@ -732,13 +1056,24 @@ function setoranSetRentangDefault() {
   if (info) info.textContent = `Semester ${sem} ${currentTahunAjaran}: ${kasTglIndo(r.dari)} – ${kasTglIndo(r.sampai)}. Ganti semester di kartu rekap di atas.`;
   const sebelumnya = allSetoranInfaq.filter(s => s.kelas === kelas && s.semester === sem && s.key !== setoranEditingKey).map(s => s.sampai || '').filter(Boolean).sort();
   const terakhir = sebelumnya.length ? sebelumnya[sebelumnya.length - 1] : '';
-  const sampai = batas < r.dari ? r.dari : batas;
-  let dari = terakhir ? kasTambahHari(terakhir, 1) : r.dari;
-  if (dari > sampai) dari = sampai;
+  let dari = '', sampai = '', alasan = '';
+  if (batas < r.dari) {
+    alasan = tglLokal() < r.dari
+      ? `Semester ${sem} belum dimulai (mulai ${kasTglIndo(r.dari)}) — belum ada infaq yang bisa disetor.`
+      : `Semester ${sem} baru dimulai hari ini — infaq hari ini baru bisa disetor mulai besok.`;
+  } else {
+    dari = terakhir ? kasTambahHari(terakhir, 1) : r.dari;
+    if (dari > batas) {
+      dari = '';
+      alasan = `Infaq ${kelas || ''} sampai ${kasTglIndo(batas)} sudah tercatat disetor semua${batas < r.sampai ? ' — rentang berikutnya tersedia mulai besok' : ''}.`;
+    } else sampai = batas;
+  }
   dariEl.value = dari; sampaiEl.value = sampai;
+  if (alasan && !setoranNominalManual) { const nomEl = kasEl('setoranNominal'); if (nomEl) nomEl.value = ''; }
   setoranOnRentangChange();
+  if (alasan) { const hitung = kasEl('setoranHitungInfo'); if (hitung) hitung.textContent = alasan; }
 }
-function setoranOnKelasChange() { if (setoranEditingKey) return; setoranNominalManual = false; setoranSetRentangDefault(); }
+function setoranOnKelasChange() { if (setoranEditingKey) return; setoranNominalManual = false; setoranTerapkanPenerima(true); setoranSetRentangDefault(); }
 function setoranOnSemesterChange() {
   const s = kasEl('setoranSemester'); if (s) s.dataset.user = '1';
   setoranResetForm(); setoranRender();
@@ -782,7 +1117,7 @@ function setoranEdit(key) {
   if (dariEl && sampaiEl) { dariEl.min = sampaiEl.min = r.dari; dariEl.max = sampaiEl.max = r.sampai; }
   set('setoranDari', s.dari || ''); set('setoranSampai', s.sampai || '');
   set('setoranNominal', s.nominalSetor != null ? s.nominalSetor : ''); set('setoranTanggal', s.tanggalSetor || tglLokal());
-  set('setoranPenerima', s.penerima || ''); set('setoranBukti', s.buktiNo || ''); set('setoranKet', s.keterangan || '');
+  set('setoranPenerima', s.penerima || ''); { const pe = kasEl('setoranPenerima'); if (pe) pe.readOnly = setoranPenerimaTerkunci(s.kelas); } set('setoranBukti', s.buktiNo || ''); set('setoranKet', s.keterangan || '');
   const info = kasEl('setoranFormSemesterInfo');
   if (info) info.textContent = `Semester ${s.semester} ${currentTahunAjaran}: ${kasTglIndo(r.dari)} – ${kasTglIndo(r.sampai)}.`;
   const btn = kasEl('btnSimpanSetoran'); if (btn) btn.textContent = '💾 Simpan Perubahan';
@@ -799,8 +1134,11 @@ function setoranSimpan() {
   const sem = setoranSemesterDipilih(), r = kasRentangSemester(sem), hari = tglLokal();
   const dari = kasEl('setoranDari').value, sampai = kasEl('setoranSampai').value, tanggalSetor = kasEl('setoranTanggal').value;
   const nominal = Number(kasEl('setoranNominal').value);
-  const penerima = kasEl('setoranPenerima').value.trim(), buktiNo = kasEl('setoranBukti').value.trim(), keterangan = kasEl('setoranKet').value.trim();
+  let penerima = kasEl('setoranPenerima').value.trim(); const buktiNo = kasEl('setoranBukti').value.trim(), keterangan = kasEl('setoranKet').value.trim();
+  // Nama penerima dikunci Admin: setoran BARU selalu memakai penerima yang ditunjuk (setoran lama tetap apa adanya).
+  if (!setoranEditingKey && setoranPenerimaTerkunci(kelas)) penerima = setoranPenerimaDari(kelas);
   if (!kelas) return toast('Pilih kelas!', true);
+  if (!setoranEditingKey && setoranBatasSetor(sem) < r.dari) return toast(`Belum ada rentang yang bisa disetor untuk semester ${sem} — infaq hari ini baru bisa disetor mulai besok.`, true);
   if (!kasAdaTanggal(dari) || !kasAdaTanggal(sampai) || !kasAdaTanggal(tanggalSetor)) return toast('Isi semua tanggal dengan benar!', true);
   if (dari > sampai) return toast('Tanggal awal rentang tidak boleh setelah tanggal akhir.', true);
   if (dari < r.dari || sampai > r.sampai) return toast(`Rentang harus berada di dalam semester ${sem} (${kasTglIndo(r.dari)} – ${kasTglIndo(r.sampai)}).`, true);
@@ -864,7 +1202,7 @@ async function setoranExportPDF() {
   try { await ensureLib('pdf'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul PDF', e); return toast('❌ Modul PDF belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
   const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4'); const pw = doc.internal.pageSize.getWidth();
   if (typeof doc.autoTable !== 'function') { console.error('[SI MAMBA] jspdf-autotable tidak tersedia setelah ensureLib("pdf")'); return toast('❌ Modul tabel PDF (autotable) belum termuat. Muat ulang halaman lalu coba lagi.', true); }
-  const [logoData, ttdKepalaData] = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf()]);
+  const logoData = await v4LoadLogoForPdf();
   const offY = MADRASAH.nsm ? 5 : 0;
   v4TambahLogoKeKopPdf(doc, logoData, offY);
   doc.setFontSize(16); doc.text(MADRASAH.nama || '', pw / 2, 20, { align: 'center' });
@@ -882,9 +1220,9 @@ async function setoranExportPDF() {
   const teksStatus = st => st.teks.replace(/^[^A-Za-z]+/, '');   // buang emoji (font bawaan jsPDF tidak punya glyph emoji)
   doc.autoTable(Object.assign({}, gaya, {
     startY: y + 11,
-    head: [['Kelas', 'Petugas', 'Terkumpul', 'Disetor', 'Belum Disetor', 'Status', 'Setor Terakhir']],
-    body: d.rekap.map(x => [x.kelas, x.petugas || '-', kasRp(x.terkumpul), kasRp(x.disetor), kasRp(x.belum), teksStatus(x.status), x.terakhir ? kasTglIndo(x.terakhir) : '-']),
-    foot: [['TOTAL', '', kasRp(d.totT), kasRp(d.totS), kasRp(d.totBelum), '', '']],
+    head: [['Kelas', 'Petugas', 'Terkumpul', 'Disetor', 'Belum Disetor', 'Status', 'Belum Disetor Sejak', 'Setor Terakhir']],
+    body: d.rekap.map(x => [x.kelas, x.petugas || '-', kasRp(x.terkumpul), kasRp(x.disetor), kasRp(x.belum), teksStatus(x.status), setoranTeksSejak(x), x.terakhir ? kasTglIndo(x.terakhir) : '-']),
+    foot: [['TOTAL', '', kasRp(d.totT), kasRp(d.totS), kasRp(d.totBelum), '', '', '']],
     columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
   }));
   if (d.riwayat.length) {
@@ -900,20 +1238,19 @@ async function setoranExportPDF() {
     }));
   }
   let ySign = doc.lastAutoTable.finalY + 12;
-  if (ySign > 165) { doc.addPage(); ySign = 20; }
+  if (ySign > 160) { doc.addPage(); ySign = 20; }
   const xKiri = 70, xKanan = pw - 70;
+  const pen = setoranPenerimaInfo(d.daftar.length === 1 ? d.daftar[0] : '');   // satu kelas -> penerima kelas itu; semua kelas -> penerima umum
   doc.setFontSize(10);
-  doc.text('Dibuat oleh,', xKiri, ySign, { align: 'center' }); doc.text('Bendahara Madrasah', xKiri, ySign + 5, { align: 'center' });
+  doc.text('Dibuat oleh,', xKiri, ySign, { align: 'center' }); doc.text(pen.jabatan, xKiri, ySign + 5, { align: 'center' });
   doc.text('Mengetahui,', xKanan, ySign, { align: 'center' }); doc.text('Kepala Madrasah', xKanan, ySign + 5, { align: 'center' });
-  if (ttdKepalaData) {
-    try {
-      const ttdW = 32; const props = doc.getImageProperties(ttdKepalaData);
-      doc.addImage(ttdKepalaData, 'PNG', xKanan - ttdW / 2, ySign + 7, ttdW, Math.min(16, ttdW * (props.height / props.width)));
-    } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Setoran:', e); }
-  }
-  const yNama = ySign + 28;
-  doc.text(MADRASAH.bendahara || '(............................)', xKiri, yNama, { align: 'center' });
-  if (MADRASAH.bendahara && MADRASAH.nip_bendahara) doc.text('NIP. ' + MADRASAH.nip_bendahara, xKiri, yNama + 5, { align: 'center' });
+  // Tanda tangan QR / gambar (js/ttd-digital.js)
+  const metaSetoran = { jenis: 'Rekap Setoran Infaq', ket: `Semester ${d.sem} ${currentTahunAjaran} | ${d.labelKelas}` };
+  if (pen.nama) await TTD.tandai(doc, pen.nama === MADRASAH.bendahara ? 'bendahara' : 'umum', xKiri, ySign + 7, { lebar: 32, tinggiMaks: 20, meta: Object.assign({ nama: pen.nama, jabatan: pen.jabatan, nip: pen.nip || '' }, metaSetoran) });
+  await TTD.tandai(doc, 'kepala', xKanan, ySign + 7, { lebar: 32, tinggiMaks: 20, hanyaPimpinan: true, meta: Object.assign({ nama: MADRASAH.kepala_sekolah || '', jabatan: 'Kepala Madrasah', nip: MADRASAH.nip_kepala_sekolah || '' }, metaSetoran) });
+  const yNama = ySign + 31;
+  doc.text(pen.nama || '(............................)', xKiri, yNama, { align: 'center' });
+  if (pen.nama && pen.nip) doc.text('NIP. ' + pen.nip, xKiri, yNama + 5, { align: 'center' });
   doc.text(MADRASAH.kepala_sekolah || '', xKanan, yNama, { align: 'center' });
   if (MADRASAH.nip_kepala_sekolah) doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, xKanan, yNama + 5, { align: 'center' });
   doc.setFontSize(8); doc.setTextColor(120);
@@ -928,13 +1265,13 @@ async function setoranExportExcel() {
   try { await ensureLib('xlsx'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul Excel', e); return toast('❌ Modul Excel belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
   if (typeof XLSX === 'undefined' || !XLSX.utils) return toast('❌ Modul Excel belum termuat. Muat ulang halaman lalu coba lagi.', true);
   const judul = [[MADRASAH.nama || ''], ['REKAP SETORAN INFAQ PER KELAS'], [`Semester ${d.sem} Tahun Ajaran ${currentTahunAjaran} (${d.r.dari} s.d. ${d.r.sampai}) - ${d.labelKelas}`], []];
-  const aoa1 = judul.concat([['Kelas', 'Petugas', 'Terkumpul', 'Jumlah Pembayaran', 'Disetor', 'Jumlah Setoran', 'Belum Disetor', 'Status', 'Setor Terakhir']]);
-  d.rekap.forEach(x => aoa1.push([x.kelas, x.petugas || '', x.terkumpul, x.jumlahBayar, x.disetor, x.jumlahSetor, x.belum, x.status.teks.replace(/^[^A-Za-z]+/, ''), x.terakhir || '']));
-  aoa1.push(['TOTAL', '', d.totT, '', d.totS, '', d.totBelum, '', '']);
+  const aoa1 = judul.concat([['Kelas', 'Petugas', 'Terkumpul', 'Jumlah Pembayaran', 'Disetor', 'Jumlah Setoran', 'Belum Disetor', 'Status', 'Belum Disetor Sejak', 'Umur (hari)', 'Terlambat (hari)', 'Nominal Terlambat', 'Setor Terakhir']]);
+  d.rekap.forEach(x => { const lihat = x.belum > 0 && x.tg; aoa1.push([x.kelas, x.petugas || '', x.terkumpul, x.jumlahBayar, x.disetor, x.jumlahSetor, x.belum, x.status.teks.replace(/^[^A-Za-z]+/, ''), lihat ? x.tg.tertua : '', lihat ? x.tg.umurHari : '', lihat && x.terlambat ? x.tg.hariTerlambat : '', lihat && x.terlambat ? x.tg.terlambatNominal : '', x.terakhir || '']); });
+  aoa1.push(['TOTAL', '', d.totT, '', d.totS, '', d.totBelum, '', '', '', '', '', '']);
   const aoa2 = judul.concat([['No', 'Tanggal Setor', 'Kelas', 'Infaq Dari', 'Infaq Sampai', 'Terkumpul', 'Disetor', 'Selisih', 'Diterima Oleh', 'No. Bukti', 'Keterangan', 'Dicatat Oleh']]);
   d.riwayat.forEach((s, i) => aoa2.push([i + 1, s.tanggalSetor || '', s.kelas, s.dari || '', s.sampai || '', s.nominalTerkumpul, s.nominalSetor, s.selisih, s.penerima || '', s.buktiNo || '', s.keterangan || '', s.inputBy || '']));
   const ws1 = XLSX.utils.aoa_to_sheet(aoa1), ws2 = XLSX.utils.aoa_to_sheet(aoa2);
-  ws1['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 26 }, { wch: 14 }];
+  ws1['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 26 }, { wch: 18 }, { wch: 11 }, { wch: 15 }, { wch: 16 }, { wch: 14 }];
   ws2['!cols'] = [{ wch: 5 }, { wch: 13 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 34 }, { wch: 18 }];
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Rekap'); XLSX.utils.book_append_sheet(wb, ws2, 'Riwayat');
   XLSX.writeFile(wb, `${d.slug}.xlsx`); toast('📥 Excel Setoran Infaq berhasil diunduh!');
