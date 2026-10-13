@@ -1125,6 +1125,14 @@
       const t = performance.now();
       try { return fn(); } finally { console.log('[SI MAMBA perf]', 'render', label, (Math.round((performance.now() - t) * 10) / 10) + 'ms'); }
     }
+    // Bandingkan nama guru tanpa peduli huruf besar/kecil, titik, koma, dan spasi, supaya
+    // "Muhammad Imron, S.Pd." dan "Muhammad Imron, S.Pd" dianggap orang yang sama. Dipakai HANYA
+    // sebagai cadangan untuk baris Jadwal lama yang belum punya guruKey.
+    function samaNamaGuru(a, b) {
+      const norm = x => String(x || '').toLowerCase().replace(/[\s.,]+/g, '');
+      const na = norm(a), nb = norm(b);
+      return !!na && na === nb;
+    }
     function fbTimeout(promiseLike, ms, label) {
       ms = ms || FB_QUERY_TIMEOUT_MS;
       let settled = false;
@@ -2966,7 +2974,11 @@
       if (page === 'admin') { document.getElementById('koreksiAbsenGuruCard').style.display = (isAdmin() || isKepsek()) ? 'block' : 'none'; populateKoreksiAbsenGuruDropdown(); markPengumumanRead(); loadLogsFull(); renderAdminTeacherAttendance(); renderOrtuAkunAdmin(); }
       if (page === 'students') renderSiswa();
       if (page === 'surat') { loadSiswaSuratDropdown(); loadSuratRiwayat(); document.getElementById('suratPreview').innerHTML = generateKopSuratHTML() + '<p class="text-muted" style="text-align:center;padding:40px 0;">Pilih siswa dan jenis surat untuk melihat preview.</p>'; selectedSiswaSurat = null; }
-      if (page === 'jadwal') { loadJadwal(); setJadwalView('harian'); }
+      if (page === 'jadwal') {
+        // Buka halaman Jadwal langsung di HARI INI (Minggu tidak ada jadwal -> Senin), bukan selalu Senin.
+        { const selHari = document.getElementById('jadwalHariFilter'); const hIni = getHariIni(); if (selHari) selHari.value = (hIni === 'Minggu') ? 'Senin' : hIni; }
+        loadJadwal(); setJadwalView('harian');
+      }
       if (page === 'laporan') { loadReportPreview(); }
       if (page === 'user-management') { renderUserList(); }
       if (page === 'honor-slip') { const y=document.getElementById('honorSlipYear'); if(y) y.value=new Date().getFullYear(); const m=document.getElementById('honorSlipMonth'); if(m) m.value=String(new Date().getMonth()+1); renderHonorSlip(); }
@@ -3131,7 +3143,7 @@
       // bernama sama persis, guru yang isi jurnal ini bisa melihat & tanpa sadar memilih jadwal
       // milik guru lain itu sebagai "jadwal Reguler saya", atau (untuk Non-Reguler/menggantikan)
       // jadwal dirinya sendiri malah ikut muncul sebagai kandidat yang "bisa digantikan".
-      const cocokSayaSendiri = j => j.guruKey ? j.guruKey === currentUser.key : j.guru === currentUser.name;
+      const cocokSayaSendiri = j => j.guruKey ? j.guruKey === currentUser.key : samaNamaGuru(j.guru, currentUser.name);
       const kandidat = (allJadwal || []).filter(j => j.hari === hari && j.jam === jam && (type === 'Reguler' ? cocokSayaSendiri(j) : (j.guru && !cocokSayaSendiri(j))));
       if (kandidat.length === 0) {
         pilihan.innerHTML = '<option value="">-- Tidak ada di Jadwal --</option>';
@@ -4206,7 +4218,7 @@
       // nama sama persis, keduanya melihat jadwal gabungan/tertukar punya satu sama lain.
       // Sekarang cocokkan lewat guruKey (unik) kalau jadwalnya sudah punya guruKey; fallback ke
       // nama hanya untuk baris jadwal lama yang dibuat sebelum field guruKey ada.
-      let jadwalHariIni = allJadwal.filter(j => j.hari === hariIni && (j.guruKey ? j.guruKey === keyGuru : j.guru === namaGuru));
+      let jadwalHariIni = allJadwal.filter(j => j.hari === hariIni && (j.guruKey ? j.guruKey === keyGuru : samaNamaGuru(j.guru, namaGuru)));
       jadwalHariIni.sort((a, b) => (a.jam || 0) - (b.jam || 0));
 
       if (jadwalHariIni.length === 0) {
@@ -5228,7 +5240,7 @@
         // diutamakan cocok lewat guruKey (window._journalMewakiliKey, diisi saat memilih jadwal/
         // guru yang diwakili); fallback ke nama hanya kalau guruKey tidak tersedia.
         const mewakiliKey = window._journalMewakiliKey || null;
-        const jadwalGuruDiwakili = allJadwal.find(j => (mewakiliKey ? j.guruKey === mewakiliKey : j.guru === mewakili) && j.kelas === kelas && j.jam === jam_ke && j.hari === hariTanggal);
+        const jadwalGuruDiwakili = allJadwal.find(j => (mewakiliKey ? j.guruKey === mewakiliKey : samaNamaGuru(j.guru, mewakili)) && j.kelas === kelas && j.jam === jam_ke && j.hari === hariTanggal);
         if (!jadwalGuruDiwakili) {
           return toast(`⚠️ Guru "${mewakili}" tidak memiliki jadwal mengajar di ${kelas} - ${hariTanggal} jam ke-${jam_ke}!`, true);
         }
@@ -9999,7 +10011,54 @@
         if (view === 'harian') { btnH.style.color = 'white'; btnH.classList.remove('text-strong'); } else { btnH.style.color = ''; btnH.classList.add('text-strong'); } }
       { const btnM = document.getElementById('btnViewMingguan'); btnM.style.background = view === 'mingguan' ? '#2563eb' : '#e5e7eb';
         if (view === 'mingguan') { btnM.style.color = 'white'; btnM.classList.remove('text-strong'); } else { btnM.style.color = ''; btnM.classList.add('text-strong'); } }
+      { const btnP = document.getElementById('btnViewPerMapel'); if (btnP) { btnP.style.background = view === 'permapel' ? '#2563eb' : '#e5e7eb';
+        if (view === 'permapel') { btnP.style.color = 'white'; btnP.classList.remove('text-strong'); } else { btnP.style.color = ''; btnP.classList.add('text-strong'); } } }
       renderJadwal();
+    }
+    // Warna penanda per mata pelajaran (pastel + teks gelap, jadi terbaca di mode terang & gelap).
+    // Mapel yang sama SELALU berwarna sama di semua tampilan Jadwal.
+    const JADWAL_WARNA_MAPEL = [
+      ['#dbeafe','#1e3a8a'], ['#dcfce7','#14532d'], ['#fef3c7','#78350f'], ['#fce7f3','#831843'],
+      ['#ede9fe','#4c1d95'], ['#ffedd5','#7c2d12'], ['#cffafe','#164e63'], ['#fee2e2','#7f1d1d'],
+      ['#ecfccb','#365314'], ['#e0e7ff','#312e81']
+    ];
+    function warnaMapel(mapel) {
+      const s = String(mapel || '');
+      let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      return JADWAL_WARNA_MAPEL[h % JADWAL_WARNA_MAPEL.length];
+    }
+    // Tampilan "Per Mapel": semua mata pelajaran satu kelas sekaligus (hari & jam-nya), tidak
+    // terpengaruh filter Hari maupun filter Guru -- jadi tidak perlu ganti-ganti filter untuk membaca daftarnya.
+    function renderJadwalPerMapel(daftar, kelas) {
+      const container = document.getElementById('jadwalTableWrapper');
+      document.getElementById('jadwalPagination').innerHTML = '';
+      if (!daftar.length) { container.innerHTML = `<p class="text-muted" style="text-align:center;padding:20px;">Belum ada jadwal untuk kelas ${escapeHtml(kelas)}.</p>`; return; }
+      const urutHari = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+      const perMapel = new Map();
+      daftar.forEach(j => {
+        const m = j.mapel || '-';
+        if (!perMapel.has(m)) perMapel.set(m, []);
+        perMapel.get(m).push(j);
+      });
+      const baris = [...perMapel.entries()].sort((a, b) => COLLATOR_ID.compare(a[0], b[0]));
+      let html = `<p class="text-muted" style="font-size:12px;margin-bottom:8px;">📚 Semua mata pelajaran kelas <strong>${escapeHtml(kelas)}</strong> (filter Hari &amp; Guru tidak berlaku di tampilan ini).</p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead><tr style="background:#f3f4f6;"><th style="padding:10px 12px;text-align:left;">Mata Pelajaran</th><th style="padding:10px 12px;text-align:left;">Guru</th><th style="padding:10px 12px;text-align:left;">Hari &amp; Jam</th><th style="padding:10px 12px;text-align:center;">Jam/minggu</th></tr></thead><tbody>`;
+      baris.forEach(([mapel, items]) => {
+        const [bg, fg] = warnaMapel(mapel);
+        const guruUnik = [...new Set(items.map(j => j.guru || '-'))];
+        const perHari = urutHari.map(h => {
+          const jam = items.filter(j => j.hari === h).map(j => j.jam).filter(Boolean).sort((a, b) => a - b);
+          return jam.length ? `<span style="display:inline-block;margin:2px 6px 2px 0;white-space:nowrap;"><strong>${h}</strong> jam ${jam.join(', ')}</span>` : '';
+        }).join('');
+        html += `<tr style="border-top:1px solid #e5e7eb;">
+          <td style="padding:8px 12px;"><span style="display:inline-block;padding:3px 10px;border-radius:8px;font-weight:600;background:${bg};color:${fg};">${escapeHtml(mapel)}</span></td>
+          <td style="padding:8px 12px;">${guruUnik.map(g => escapeHtml(g)).join('<br>')}</td>
+          <td style="padding:8px 12px;">${perHari || '-'}</td>
+          <td style="padding:8px 12px;text-align:center;font-weight:600;">${items.length}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      container.innerHTML = html;
     }
     function renderJadwal() {
       const kelas = document.getElementById('jadwalKelasFilter').value;
@@ -10011,6 +10070,7 @@
       document.getElementById('btnTambahJadwal').style.display = isAdminUser ? 'inline-flex' : 'none';
 
       let filtered = allJadwal.filter(j => j.kelas === kelas);
+      if (jadwalView === 'permapel') { renderJadwalPerMapel(filtered, kelas); return; }
       if (filterGuru) {
         filtered = filtered.filter(j => (j.guruKey || j.guru) === filterGuru);
       }
@@ -10130,9 +10190,10 @@
         hariList.forEach(hari => {
           const jadwal = filtered.find(j => j.jam === jam && j.hari === hari);
           if (jadwal) {
-            html += `<td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;">
-              <div style="font-weight:500;">${escapeHtml(jadwal.mapel || '-')}</div>
-              <div class="text-muted" style="font-size:10px;">${escapeHtml(jadwal.guru || '-')}</div>
+            const [wBg, wFg] = warnaMapel(jadwal.mapel);
+            html += `<td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;background:${wBg};color:${wFg};min-width:120px;">
+              <div style="font-weight:700;font-size:13px;line-height:1.3;">${escapeHtml(jadwal.mapel || '-')}</div>
+              <div style="font-size:12px;margin-top:2px;opacity:.9;">${escapeHtml(jadwal.guru || '-')}</div>
             </td>`;
           } else {
             // Slot kosong: tombol ➕ per SEL (hari & jam sel itu sendiri). `filtered` bisa sudah disaring
@@ -10227,7 +10288,7 @@
       // jadwal guru A dianggap "bentrok" dengan jadwal guru B yang sebenarnya orang lain, dan
       // "Jadwal Hari Ini" di dashboard ikut mencampur jadwal keduanya. Sekarang dicocokkan lewat
       // guruKey (unik per guru); fallback ke nama hanya kalau guru itu memang tidak punya key.
-      const cocokGuruSama = j => guruKey ? j.guruKey === guruKey : (!j.guruKey && j.guru === guru);
+      const cocokGuruSama = j => guruKey ? (j.guruKey === guruKey || (!j.guruKey && samaNamaGuru(j.guru, guru))) : (!j.guruKey && samaNamaGuru(j.guru, guru));
       const bentrokGuru = allJadwal.find(j => cocokGuruSama(j) && j.hari === hari && j.jam === jam && j.key !== key && j.kelas !== kelas);
       if (bentrokGuru) return toast(`⚠️ ${guru} sudah dijadwalkan mengajar ${bentrokGuru.kelas} pada ${hari} jam ke-${jam}! Satu guru tidak bisa mengajar 2 kelas di jam yang sama.`, true);
       const data = { kelas, hari, jam, mapel, guru, guruKey: guruKey || null, updatedAt: new Date().toISOString() };
