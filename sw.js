@@ -35,10 +35,10 @@
    (css/styles.css, js/app.js, js/amalan-kegiatan.js, js/kas.js, js/administrasi-ujian.js,
    js/bacaan-shalat.js, js/menu-hub.js, js/rapat.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js,
    js/tunggakan-infaq.js, js/auto-logout.js, js/login-kode.js, js/tahfidz-grafik.js, js/monitor-petugas.js,
-   js/kredensial.js).
+   js/kredensial.js, js/ttd-digital.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.76';
+const APP_VERSION = 'v6.80';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -67,25 +67,26 @@ const PRECACHE_URLS = [
   './css/styles.css?v=21',              // samakan dengan ?v= di index.html
   './js/logo-fallback.js',
   './js/offline-db.js',
-  './js/kas.js?v=5',
-  './js/administrasi-ujian.js?v=2',
-  './js/app.js?v=61',
+  './js/kas.js?v=6',
+  './js/administrasi-ujian.js?v=3',
+  './js/app.js?v=63',
   './js/amalan-kegiatan.js?v=6',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=1',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=3',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
+  './js/ttd-digital.js?v=4',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=10',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
-  './js/rapat.js?v=5',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
+  './js/rapat.js?v=6',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-tp-mi.js?v=3',
   './js/data-soal-mi.js?v=4',
-  './js/perangkat-rpe.js?v=8',
-  './js/perangkat-prota-promes.js?v=6',
-  './js/perangkat-atp-tp.js?v=6',
+  './js/perangkat-rpe.js?v=9',
+  './js/perangkat-prota-promes.js?v=7',
+  './js/perangkat-atp-tp.js?v=7',
   './js/data-kisi-resmi-mi.js?v=3',
-  './js/perangkat-kisi.js?v=8',
-  './js/perangkat-soal.js?v=7',
-  './js/perangkat-pembelajaran.js?v=7',
-  './js/modul-ajar.js?v=12',
+  './js/perangkat-kisi.js?v=9',
+  './js/perangkat-soal.js?v=8',
+  './js/perangkat-pembelajaran.js?v=9',
+  './js/modul-ajar.js?v=14',
   './js/buku-tamu.js?v=4',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=5',
