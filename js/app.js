@@ -9679,7 +9679,8 @@
       doc.text('Kepala Madrasah', xKepala, ySignHonor + 5, { align: 'center' });
       doc.text('Bendahara', xBendahara, ySignHonor + 5, { align: 'center' });
       const yNama = ySignHonor + 27;
-      if (ttdKepalaDataHonor) {
+      const ttdHonor = await ttdKepalaPdf(doc, xKepala, ySignHonor + 7, { lebar: 30, tinggiMaks: 18, hanyaPimpinan: true, meta: { jenis: 'Rekap Honor Guru', ket: monthName + ' ' + year } });
+      if (!ttdHonor.dipakai && ttdKepalaDataHonor) {
         try {
           const ttdW = 30;
           const propsTtd = doc.getImageProperties(ttdKepalaDataHonor);
@@ -9916,7 +9917,11 @@
       if (y > 250) { doc.addPage(); y = 20; }
       y += 14;
       doc.text('Kepala ' + MADRASAH.nama, pageWidth/2, y, { align: 'center' });
-      if (ttdKepalaData) {
+      // Surat boleh dicetak Admin & Wali Kelas, jadi TANPA hanyaPimpinan; pencetak tercatat di halaman verifikasi QR.
+      const ttdSurat = await ttdKepalaPdf(doc, pageWidth/2, y + 3, { lebar: 35, tinggiMaks: 20, meta: { jenis: 'Surat ' + String(namaJenis).replace(/_/g, ' '), ket: [siswa.name, siswa.kelas, tanggal].filter(Boolean).join(' | ') } });
+      if (ttdSurat.dipakai) {
+        y += Math.max(22, ttdSurat.tinggi + 5);
+      } else if (ttdKepalaData) {
         // Tanda tangan digital ditempel di ruang antara jabatan & nama. Rasio lebar:tinggi
         // gambar asli dijaga (bukan dipaksa kotak) supaya tidak gepeng/melar.
         try {
@@ -10566,6 +10571,14 @@
       return m ? `${parseInt(m[3], 10)} ${REKAP_BULAN_ID[parseInt(m[2], 10) - 1]} ${m[1]}` : (tgl || '-');
     }
     // Kop surat + judul. Mengembalikan posisi Y untuk konten berikutnya.
+    // Tanda tangan Kepala di PDF lewat js/ttd-digital.js (QR / gambar / keduanya sesuai mode Profil Sekolah).
+    // Mengembalikan {dipakai, tinggi}: dipakai=false bila ttd-digital.js tidak termuat (pemanggil memakai gambar lama).
+    // opsi.hanyaPimpinan=true -> QR/gambar hanya bila yang mencetak Admin/Kepsek (selain itu ruang dibiarkan kosong).
+    async function ttdKepalaPdf(doc, xTengah, yAtas, opsi) {
+      if (!(window.TTD && typeof window.TTD.tandai === 'function')) return { dipakai: false, tinggi: 0 };
+      try { return { dipakai: true, tinggi: (await window.TTD.tandai(doc, 'kepala', xTengah, yAtas, opsi)) || 0 }; }
+      catch (e) { console.error('[SI MAMBA] TTD QR gagal, memakai gambar lama:', e); return { dipakai: false, tinggi: 0 }; }
+    }
     function rekapGambarKop(doc, logoData, judul, barisInfo) {
       const pw = doc.internal.pageSize.getWidth();
       const offsetY = MADRASAH.nsm ? 5 : 0;
@@ -11451,12 +11464,16 @@
       }
 
       // Tanda tangan
-      const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 20 : y + 40;
+      let finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 20 : y + 40;
       if (finalY < 260) {
+        if (finalY + 52 > 290) { doc.addPage(); finalY = 10; }   // QR butuh ruang lebih: blok Kepala pindah halaman bila tak muat
         doc.setFontSize(12);
         doc.text('Kepala ' + MADRASAH.nama, pageWidth/2, finalY + 10, { align: 'center' });
         let yNamaKepalaLap = finalY + 20;
-        if (ttdKepalaDataLap) {
+        const ttdLap = await ttdKepalaPdf(doc, pageWidth/2, finalY + 12, { lebar: 35, tinggiMaks: 20, meta: { jenis: 'Laporan ' + type, ket: [kelas, monthName + ' ' + year].filter(Boolean).join(' | ') } });
+        if (ttdLap.dipakai) {
+          yNamaKepalaLap = finalY + 12 + Math.max(ttdLap.tinggi, 18) + 4;
+        } else if (ttdKepalaDataLap) {
           try {
             const ttdW = 35;
             const propsTtd = doc.getImageProperties(ttdKepalaDataLap);

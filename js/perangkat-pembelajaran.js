@@ -41,7 +41,7 @@
   function setujuHtml(id, rec, jk, j, x, boleh) {
     if (!j.setuju) return '';
     const st = x.setuju;
-    if (st) return `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#ecfdf5;border:1px solid #6ee7b7;font-size:12px;color:#065f46;">✅ Disetujui oleh ${esc(st.oleh || '-')} · ${esc(tglPendek(st.at))}${boleh ? ` <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:6px;" data-act="cabut-setuju" data-id="${esc(id)}" data-j="${jk}">Cabut</button>` : ''}</div>`;
+    if (st) return `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#ecfdf5;border:1px solid #6ee7b7;font-size:12px;color:#065f46;">✅ Disetujui ${st.peran === 'Admin' ? 'atas nama' : 'oleh'} ${esc(st.oleh || '-')}${st.peran === 'Admin' ? ' (diinput Admin)' : ''} · ${esc(tglPendek(st.at))}${boleh ? ` <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:6px;" data-act="cabut-setuju" data-id="${esc(id)}" data-j="${jk}">Cabut</button>` : ''}</div>`;
     if (boleh) return (x.url || genAda(jk, id))
       ? `<div style="margin-bottom:8px;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="setuju" data-id="${esc(id)}" data-j="${jk}">✅ Setujui dokumen ini</button><div style="${muted}margin-top:4px;">Setelah disetujui, cetakan guru memuat QR tanda tangan Kepala. Bila guru mengubah dokumen, persetujuan otomatis gugur.</div></div>`
       : `<div style="${muted}margin-bottom:8px;">Belum bisa disetujui: guru belum mengisi tautan atau membuat dokumen.</div>`;
@@ -422,9 +422,20 @@
     if (rec.guruKey === myId()) return say('Persetujuan tidak boleh diberikan pada dokumen sendiri.', true);
     const x = (rec.docs || {})[jk] || {};
     if (!cabut && !(x.url || genAda(jk, id))) return say('Dokumen belum ada.', true);
-    if (!confirm((cabut ? 'Cabut persetujuan ' : 'Setujui ') + j.n + ' ' + (rec.guruName || '') + ' · ' + rec.mapel + ' ' + rec.kelas + '?')) return;
+    const ket = j.n + ' ' + (rec.guruName || '') + ' · ' + rec.mapel + ' ' + rec.kelas;
+    // Persetujuan SELALU atas nama Kepala. Kepsek menyetujui sendiri; bila Admin yang menekan, nama Kepala sudah terisi
+    // (boleh diganti) dan peran "Admin" tetap tercatat di keterangan QR supaya jelas siapa yang menginput.
+    const kpNama = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || '';
+    const kepsek = typeof v4IsHead === 'function' && v4IsHead();
+    let atasNama = kpNama || myName();
+    if (cabut || kepsek) { if (!confirm((cabut ? 'Cabut persetujuan ' : 'Setujui ') + ket + '?')) return; }
+    else {
+      const jawab = prompt('Setujui ' + ket + '\n\nDisetujui atas nama siapa? (Admin tetap tercatat sebagai yang menginput.)', kpNama);
+      if (jawab === null) return;
+      atasNama = String(jawab).trim() || kpNama || myName();
+    }
     const now = new Date().toISOString(), upd = {};
-    upd['docs/' + jk + '/setuju'] = cabut ? null : { oleh: myName(), peran: (typeof v4IsHead === 'function' && v4IsHead()) ? 'Kepala' : 'Admin', at: now };
+    upd['docs/' + jk + '/setuju'] = cabut ? null : { oleh: String(atasNama).slice(0, 100), peran: kepsek ? 'Kepala' : 'Admin', at: now };
     tulis('perangkat_v4/' + id, upd, () => {
       rec.docs = rec.docs || {}; rec.docs[jk] = rec.docs[jk] || {};
       if (cabut) delete rec.docs[jk].setuju; else rec.docs[jk].setuju = upd['docs/' + jk + '/setuju'];

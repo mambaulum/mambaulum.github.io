@@ -79,7 +79,7 @@
   }
   function persInfoHtml(m) {
     var st = pers(m), out = '';
-    if (st === 'disetujui') out += 'Disetujui oleh <b>' + esc(m.persetujuanOleh || '-') + '</b>' + (m.persetujuanRole ? ' (' + esc(m.persetujuanRole) + ')' : '') + ' · ' + tglIso(m.persetujuanAt);
+    if (st === 'disetujui') out += 'Disetujui ' + (m.persetujuanRole === 'Admin' ? 'atas nama' : 'oleh') + ' <b>' + esc(m.persetujuanOleh || '-') + '</b>' + (m.persetujuanRole === 'Admin' ? ' (diinput Admin)' : (m.persetujuanRole ? ' (' + esc(m.persetujuanRole) + ')' : '')) + ' · ' + tglIso(m.persetujuanAt);
     if (st === 'diajukan') out += 'Diajukan ' + tglIso(m.diajukanAt) + '. Modul dikunci sampai ditinjau Kepala Madrasah.';
     if (st === 'ditolak') out += 'Ditolak oleh <b>' + esc(m.persetujuanOleh || '-') + '</b> · ' + tglIso(m.persetujuanAt) + '. Perbaiki lalu ajukan ulang.';
     if (m.catatanKepsek && (st === 'ditolak' || st === 'disetujui')) out += '<br>💬 Catatan: ' + nl2br(m.catatanKepsek);
@@ -130,9 +130,17 @@
     if (!canApprove()) return toast('Hanya Kepala Madrasah atau Admin yang bisa menilai modul.', true);
     var role = isKepsek() ? 'Kepala Madrasah' : 'Admin';
     if (act === 'setujui') {
+      // Persetujuan atas nama Kepala. Kepsek: nama Kepala dari data madrasah. Admin: nama Kepala terisi (boleh diganti), peran Admin tetap tercatat.
+      var kpMadrasah = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || '';
+      var atasNama = kpMadrasah || currentUser.name;
+      if (!isKepsek()) {
+        var jawab = prompt('Disetujui atas nama siapa? (Admin tetap tercatat sebagai yang menginput.)', kpMadrasah);
+        if (jawab === null) return;
+        atasNama = String(jawab).trim() || kpMadrasah || currentUser.name;
+      }
       var cat = prompt('Catatan untuk guru (boleh dikosongkan):', '');
       if (cat === null) return;
-      return transisi(key, ['diajukan'], 'disetujui', { persetujuanOleh: currentUser.name, persetujuanRole: role, persetujuanAt: now, catatanKepsek: cat.trim() || null },
+      return transisi(key, ['diajukan'], 'disetujui', { persetujuanOleh: atasNama, persetujuanRole: role, persetujuanAt: now, catatanKepsek: cat.trim() || null },
         '✅ Modul disetujui', 'setujui_modul_ajar', btn);
     }
     if (act === 'tolak') {
@@ -1185,13 +1193,15 @@
     // Penyetuju sebenarnya dicatat di keterangan QR.
     var kpNama = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || kepalaNama || m.persetujuanOleh || '';
     var kpNip = (typeof MADRASAH !== 'undefined' && MADRASAH.nip_kepala_sekolah) || '';
-    var penyetuju = (m.persetujuanOleh || '') + (m.persetujuanRole ? ' (' + m.persetujuanRole + ')' : '');
+    var penyetuju = m.persetujuanRole === 'Admin'
+      ? 'atas nama ' + (m.persetujuanOleh || '') + ' (diinput Admin)'
+      : 'oleh ' + (m.persetujuanOleh || '') + (m.persetujuanRole ? ' (' + m.persetujuanRole + ')' : '');
     var blokTtd = (window.TTD && TTD.penanda)
-      ? '<div style="min-height:19mm;">' + TTD.penanda('kepala', { jenis: 'Persetujuan Modul Pembelajaran', ket: [judulModul(m), m.guru, 'disetujui ' + tglIso(m.persetujuanAt) + (penyetuju ? ' oleh ' + penyetuju : '')].filter(Boolean).join(' | '), nama: kpNama, jabatan: 'Kepala Madrasah', nip: kpNip }, { mm: 17 }) + '</div>'
+      ? '<div style="min-height:19mm;">' + TTD.penanda('kepala', { jenis: 'Persetujuan Modul Pembelajaran', ket: [judulModul(m), m.guru, 'disetujui ' + tglIso(m.persetujuanAt) + (m.persetujuanOleh ? ' ' + penyetuju : '')].filter(Boolean).join(' | '), nama: kpNama, jabatan: 'Kepala Madrasah', nip: kpNip }, { mm: 17 }) + '</div>'
       : '';
     var img = '';
     try { var b64 = (typeof MADRASAH !== 'undefined') ? (MADRASAH.ttdKepalaBase64 || '') : ''; if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
-    return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (blokTtd || img || '<br><br><br>') + '<b>' + esc(kpNama) + '</b>' + (m.persetujuanRole === 'Admin' ? '<div style="font-size:10px;color:#555;">disetujui melalui aplikasi oleh ' + esc(m.persetujuanOleh || '') + ' (Admin)</div>' : '');
+    return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (blokTtd || img || '<br><br><br>') + '<b>' + esc(kpNama) + '</b>' + (m.persetujuanRole === 'Admin' ? '<div style="font-size:10px;color:#555;">disetujui atas nama ' + esc(m.persetujuanOleh || '') + ', diinput Admin</div>' : '');
   }
   function docHtml(m) {
     var dpl = m.dpl || [], pc = m.pancaCinta || [];

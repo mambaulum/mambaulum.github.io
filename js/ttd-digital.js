@@ -335,7 +335,7 @@
       var set = null;
       try { set = (await db.ref(opsi.syarat).once('value')).val(); } catch (e) { set = null; }
       if (!set || !set.oleh) return '';
-      meta = Object.assign({}, meta, { ket: ('Disetujui ' + set.oleh + ' (' + tglId(set.at) + ')' + (meta.ket ? ' | ' + meta.ket : '')) });
+      meta = Object.assign({}, meta, { ket: ('Disetujui ' + (set.peran === 'Admin' ? 'atas nama ' + set.oleh + ' (diinput Admin)' : 'oleh ' + set.oleh) + ' (' + tglId(set.at) + ')' + (meta.ket ? ' | ' + meta.ket : '')) });
     }
     if (opsi.sidik) meta = Object.assign({}, meta, { sidik: opsi.sidik });
     var mm = opsi.mm || 18;
