@@ -6812,12 +6812,13 @@
       if (statusAbsenSiswa === false) return toast(`Absensi siswa untuk Sholat ${namaSholat} hari ini belum diisi di menu Amalan Yaumiyah. Isi dulu absensi siswanya.`, true);
       const btn = document.getElementById('btnSaveReligi');
       setBusy('saveReligi', btn);   // dikunci sejak awal: pemeriksaan petugas ke server butuh beberapa detik
+      let waktuIso = null;   // jam SERVER saat Hadir divalidasi (null = pakai jam perangkat, mis. Sakit/Izin atau Admin/Kepsek)
       const lanjutSimpan = () => {
         try {
           const existing = allReligiAttendance.find(item => item.tanggal === today && (item.guruKey ? item.guruKey === currentUser.key : item.guru === currentUser.name));
           const ref = existing ? db.ref('religi_attendance/' + existing.key) : db.ref('religi_attendance').push();
-          const data = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key || null, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };
-          data[type] = { status: status, waktu: new Date().toISOString() };
+          const data = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key || null, tahunAjaran: currentTahunAjaran, updatedAt: waktuIso || new Date().toISOString() };
+          data[type] = { status: status, waktu: waktuIso || new Date().toISOString() };
           if (existing) { const otherType = type === 'sholat_dluha' ? 'sholat_dzuhur' : 'sholat_dluha'; if (existing[otherType]) data[otherType] = existing[otherType]; }
           ref.update(data, err => {
             clearBusy('saveReligi', btn);
@@ -6833,12 +6834,24 @@
       // atau guru yang mengklaim saat PJ tidak hadir -- yaitu yang tercatat check-in QR di Amalan Yaumiyah.
       // Status selain Hadir tidak menghasilkan honor, jadi tidak diperiksa. Admin/Kepsek dikecualikan.
       if (status !== 'Hadir' || isAdmin() || isKepsek()) return lanjutSimpan();
-      v4PeriksaPetugasSholat(type, today).then(pesan => {
+      // Validasi ketat untuk status Hadir (dasar honor), semuanya terhadap JAM SERVER (bukan jam HP):
+      //   1) hari & jam sholat, 2) absensi SEMUA siswa di SEMUA kelas sudah lengkap (dibaca dari server), 3) guru ini petugas check-in hari itu.
+      const periksaWaktuServer = (typeof v4ActWaktuServer === 'function') ? v4ActWaktuServer() : Promise.resolve(Date.now());
+      periksaWaktuServer.then(ms => {
+        const sv = new Date(ms), tglServer = tglLokal(sv);
+        if (tglServer !== today) return 'Tanggal/jam HP Anda tidak sesuai dengan server (server: ' + tglServer + ' ' + String(sv.getHours()).padStart(2, '0') + ':' + String(sv.getMinutes()).padStart(2, '0') + '). Perbaiki pengaturan tanggal & jam HP, lalu coba lagi.';
+        if (!v4HariDiizinkanSholat(type, tglServer)) return type === 'sholat_dzuhur' ? 'Absen Sholat Dzuhur hanya berlaku Senin-Kamis!' : 'Hari Minggu madrasah libur, absen religi tidak bisa dicatat!';
+        const menitServer = sv.getHours() * 60 + sv.getMinutes();
+        if (menitServer < mulaiMenit || menitServer > selesaiMenit) return `Absen ${namaSholat} hanya bisa dicatat jam ${window_.mulai}-${window_.selesai} (jam server sekarang ${String(sv.getHours()).padStart(2, '0')}:${String(sv.getMinutes()).padStart(2, '0')}).`;
+        waktuIso = sv.toISOString();
+        const cek = (typeof v4ActPeriksaAbsensiLengkap === 'function') ? v4ActPeriksaAbsensiLengkap(namaSholat, today) : Promise.resolve(null);
+        return cek.then(p => p || v4PeriksaPetugasSholat(type, today));
+      }).then(pesan => {
         if (pesan) { clearBusy('saveReligi', btn); return toast(pesan, true, 9000); }
         lanjutSimpan();
       }).catch(err => {
         clearBusy('saveReligi', btn);
-        toast('Gagal memeriksa petugas ' + namaSholat + ': ' + ((err && err.message) || err) + ' Coba lagi saat sinyal membaik.', true, 6000);
+        toast('Gagal memeriksa syarat honor ' + namaSholat + ': ' + ((err && err.message) || err) + ' Coba lagi saat sinyal membaik.', true, 6000);
       });
     }
     // Hasil: null = guru ini petugas sholat hari ini (boleh mencatat Hadir); string = alasan penolakan.

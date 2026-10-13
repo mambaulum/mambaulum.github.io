@@ -34,13 +34,15 @@ let v4ActFastMode = {};        // typeKey -> true = Mode Cepat (ketuk nama untuk
 let v4SubstituteFormOpenFor = null;
 let v4RekapReligiLast = null;  // tabel rekap yang sedang tampil -- dipakai tombol ekspor
 // Filter Rekap Absensi Sholat Siswa -- terpisah dari state pengisian harian.
-let v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas' };
+let v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas', petugasMode: 'detail', alpaMin: 3 };
+let v4RekapPetugasCache = {};   // 'YYYY-MM' -> { status:'loading'|'ok'|'gagal', data, at } (check-in petugas QR sebulan)
 
 // Dipanggil dari logout() di app.js supaya state akun lama tidak bocor ke akun berikutnya.
 function amalanKegiatanResetState() {
   v4ActOpenTypeKey = null; v4ActAttendanceDraft = {}; v4ActDateSel = {}; v4ActKelasSel = {}; v4ActFastMode = {};
   v4SubstituteFormOpenFor = null; v4RekapReligiLast = null;
-  v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas' };
+  v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas', petugasMode: 'detail', alpaMin: 3 };
+  v4RekapPetugasCache = {};
   v4ActBersihkanCheckin();
 }
 
@@ -268,17 +270,15 @@ function v4RenderActivityCards() {
       const sayaPengganti = v4ActAkuCocok(sub.guruKey, sub.guruName);
       subBlock = `<div style="margin-top:7px;font-size:11px;color:#92400e;">🔄 Pengganti hari ini: <strong>${v4Safe(sub.guruName)}</strong>${sayaPengganti ? ` <button class="btn btn-soft" style="padding:2px 7px;font-size:10px;min-height:22px;margin-left:4px;" onclick="v4RemoveActivitySubstitute('${k}')">Batalkan</button>` : ''}</div>`;
     }
-    return `<div class="v4-card">
-      <h4>${v4Safe(a.name)}</h4>
-      <div class="v4-muted">${v4Safe(a.category || 'Kegiatan')} · Absensi siswa${a.rutin ? ' · 🔒 rutin' : ''}</div>
-      <div style="margin-top:7px;"><span class="v4-chip blue">👤 PJ: ${v4Safe(a.picName || 'Belum ditunjuk')}</span></div>
-      ${v4IsAdmin() ? `<div style="margin-top:7px;"><select class="field" style="font-size:11px;padding:5px;" onchange="v4ChangeActivityPic('${k}', this.value)">${picOptions}</select></div>` : ''}
+    return `<div class="v4-card amalan-card">
+      <div class="amalan-head"><h4>${v4Safe(a.name)}</h4>
+        <span class="v4-chip">${v4Safe(a.category || 'Kegiatan')}</span>${a.honorEnabled ? '\n        <span class="v4-chip orange">💰 Honor aktif</span>' : ''}
+      </div>
+      <div class="amalan-pj"><span class="v4-chip blue">👤 PJ: ${v4Safe(a.picName || 'Belum ditunjuk')}</span>
+        ${v4IsAdmin() ? `<select class="field" onchange="v4ChangeActivityPic('${k}', this.value)">${picOptions}</select>` : ''}</div>
       ${subBlock}
       ${v4ActCardExtra(a)}
-      <div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap;">
-        <span class="v4-chip ${a.honorEnabled ? 'orange' : ''}">${a.honorEnabled ? '💰 Honor aktif' : 'Tanpa honor'}</span>
-        ${v4IsAdmin() ? `<button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:30px;" onclick="v4ToggleActivityHonor('${k}')">Ubah Honor</button>${a.rutin ? '' : `<button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:30px;color:#b91c1c;" onclick="v4DeleteActivityType('${k}')">🗑️</button>`}` : ''}
-      </div>
+      ${v4IsAdmin() ? `<div class="amalan-admin"><button class="btn btn-soft" onclick="v4ToggleActivityHonor('${k}')">💰 Ubah Honor</button>${a.rutin ? '' : `<button class="btn btn-soft" style="color:#b91c1c;" onclick="v4DeleteActivityType('${k}')">🗑️ Hapus</button>`}</div>` : ''}
     </div>`;
   }).join('') : '<div class="v4-card"><h4>Belum ada jenis kegiatan</h4><div class="v4-muted">Admin dapat menambahkan amalan/kegiatan (mis. Shalat Dhuha, Shalat Dzuhur) beserta penanggung jawabnya.</div></div>';
 }
@@ -287,7 +287,7 @@ function v4RenderActivityFill() {
   const types = V4.activityTypes || [];
   const myTypes = types.filter(a => v4IsAdmin() || v4IsHead() || v4IsActivityPic(a));
   if (myTypes.length === 0) {
-    fillBox.innerHTML = types.length ? '<p class="v4-muted">Anda belum ditunjuk sebagai penanggung jawab kegiatan apa pun. Kalau PJ tetap berhalangan hadir, minta Admin/Kepala Madrasah menunjuk Anda sebagai pengganti hari ini di kartu kegiatan di atas.</p>' : '';
+    fillBox.innerHTML = types.length ? '<p class="v4-muted">Anda belum ditunjuk sebagai PJ kegiatan apa pun.</p>' : '';
     return;
   }
   fillBox.innerHTML = myTypes.map(type => {
@@ -300,7 +300,7 @@ function v4RenderActivityFill() {
     const subNote = sub ? ` · 🔄 pengganti ${v4Safe(sub.guruName)} (${v4Safe(dateVal)})` : '';
     return `<div class="v4-task" style="flex-direction:column;align-items:stretch;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-        <div class="v4-task-main"><div class="v4-task-title">🕌 ${v4Safe(type.name)}</div><div class="v4-task-meta">PJ: ${v4Safe(type.picName || 'Belum ditunjuk')} · ${countToday} siswa tercatat tgl ${v4Safe(dateVal)}${subNote}</div></div>
+        <div class="v4-task-main"><div class="v4-task-title">🕌 ${v4Safe(type.name)}</div><div class="v4-task-meta">${countToday} siswa tercatat tgl ${v4Safe(dateVal)}${subNote}</div></div>
         <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" onclick="v4ToggleActivityFill('${escapeJs(type.key)}')">${isOpen ? '✖️ Tutup' : '📋 Isi Absensi'}</button>
       </div>
       ${isOpen ? (v4ActBolehIsi(type, dateVal) ? v4RenderActivityFillPanel(type) : v4ActRenderCheckinBlock(type, dateVal)) : ''}
@@ -348,9 +348,194 @@ function v4RenderActivityFill() {
         }).catch(e => toast('Gagal memuat library PDF (butuh internet): ' + (e && e.message || e), true));
       }
     }
+    // ---- Komponen bersama tampilan rekap (tab, tabel) ----
+    function v4RekapReligiTabsHtml() {
+      const vw = v4RekapReligiState.view;
+      const b = (id, label) => `<button class="btn ${vw===id?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
+      return `<div class="amalan-tabs">
+        ${b('kelas','📅 Per Hari')}${b('siswa','🧑‍🎓 Per Siswa')}${b('pj','📋 Kepatuhan PJ')}${b('alpa','🚨 Sering Alpa')}${b('petugas','👮 Petugas QR')}
+        <span class="amalan-sp"><button class="btn btn-soft" onclick="v4ExportRekapReligi('xlsx')">📥 Excel</button><button class="btn btn-soft" onclick="v4ExportRekapReligi('pdf')">📄 PDF</button></span>
+      </div>`;
+    }
+    function v4RekapReligiTabelHtml(tabel) {
+      if (!tabel.rows.length) return `<div class="v4-card"><div class="v4-muted">${v4Safe(tabel.kosong)}</div></div>`;
+      const th = tabel.head.map(h => `<th>${v4Safe(h)}</th>`).join('');
+      const tr = tabel.rows.map(r => `<tr>${r.map(c => { const t = String(c); const merah = t.startsWith('BELUM'); return `<td${merah ? ' style="color:#b91c1c;font-weight:700;"' : ''}>${v4Safe(t)}</td>`; }).join('')}</tr>`).join('');
+      return `<div class="v4-card amalan-table"><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div><div class="v4-muted amalan-note">${v4Safe(tabel.catatan || '')}</div>`;
+    }
+
+    // ---- Rekap Petugas QR: check-in PJ / pengganti per kegiatan (node activity_checkin_v4) ----
+    // Data diambil per bulan lewat query rentang kunci '<YYYY-MM>-' (kunci = '<tanggal>_<typeKey>'), di-cache per bulan.
+    // Admin/Kepala Madrasah melihat semua petugas; guru lain hanya melihat catatannya sendiri.
+    function v4RekapPetugasMuat(thn, bln, paksa) {
+      const ym = thn + '-' + String(bln).padStart(2, '0');
+      const c = v4RekapPetugasCache[ym];
+      if (c && c.status === 'loading') return;
+      if (c && c.status === 'ok' && !paksa && (ym < v4Date().slice(0, 7) || Date.now() - c.at < 60000)) return;
+      if (typeof db === 'undefined' || !db) return;
+      v4RekapPetugasCache[ym] = { status: 'loading', data: (c && c.data) || null, at: 0 };
+      const epoch = v4ActEpoch;
+      db.ref('activity_checkin_v4').orderByKey().startAt(ym + '-').endAt(ym + '-').once('value').then(snap => {
+        if (epoch !== v4ActEpoch) return;   // logout selagi memuat
+        v4RekapPetugasCache[ym] = { status: 'ok', data: snap.val() || {}, at: Date.now() };
+      }).catch(err => {
+        if (epoch !== v4ActEpoch) return;
+        console.warn('[SI MAMBA] Gagal memuat rekap petugas QR:', err && err.message || err);
+        v4RekapPetugasCache[ym] = { status: 'gagal', data: (c && c.data) || null, at: 0, msg: (err && err.message) || String(err) };
+      }).then(() => { if (epoch === v4ActEpoch && v4RekapReligiState.view === 'petugas') v4RenderRekapReligiSiswa(); });
+    }
+    // Jadwal petugas: untuk tiap kegiatan sholat & tiap hari berlaku (s.d. hari ini) di bulan itu, apakah ada check-in.
+    // Hari dianggap "hari sekolah" bila ada absensi siswa tercatat untuk kegiatan itu pada tanggal tsb (kalender libur tidak diketahui
+    // aplikasi), atau sudah ada check-in. Hari tanpa keduanya dilewati (kemungkinan libur). Hari ini baru dinilai setelah klaim pengganti
+    // dibuka (jam mulai + toleransi).
+    function v4RekapPetugasJadwal(thn, bln, data, bolehLihat) {
+      const ym = thn + '-' + String(bln).padStart(2, '0'), hariIni = v4Date();
+      const lastDay = new Date(thn, bln, 0).getDate();
+      const out = [];
+      const types = (V4.activityTypes || []).filter(t => v4ActJenisSholat(t));
+      const absen = (V4.activityAttendance || []).filter(r => r.status && r.tanggal && r.tanggal.slice(0, 7) === ym);
+      types.forEach(t => {
+        if (!bolehLihat(t)) return;
+        const jenis = v4ActJenisSholat(t);
+        const jamBuka = v4ActMenit(v4ActJamMulai(t)) + V4_ACT_GRACE_MENIT;
+        for (let d = 1; d <= lastDay; d++) {
+          const tgl = `${ym}-${String(d).padStart(2, '0')}`;
+          if (tgl > hariIni) break;
+          if (!v4HariDiizinkanSholat(jenis, tgl)) continue;
+          const ci = data[tgl + '_' + t.key];
+          if (ci) { out.push({ tgl, type: t, ci, ada: true }); continue; }
+          const absenHari = absen.filter(r => r.activityTypeId === t.key && r.tanggal === tgl);
+          if (!absenHari.length) continue;   // tidak ada tanda hari sekolah
+          if (tgl === hariIni && v4ActMenitSekarang() < jamBuka) continue;
+          const oleh = [...new Set(absenHari.map(r => r.recordedBy).filter(Boolean))].join(', ');
+          out.push({ tgl, type: t, ci: null, ada: false, oleh });
+        }
+      });
+      return out;
+    }
+    function v4RenderRekapPetugas(host) {
+      const st = v4RekapReligiState, now = new Date();
+      if (!st.bulan) st.bulan = now.getMonth() + 1;
+      if (!st.tahun) st.tahun = now.getFullYear();
+      const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const bulanOptions = namaBulan.map((n, i) => `<option value="${i+1}" ${st.bulan===i+1?'selected':''}>${n}</option>`).join('');
+      const tSkrg = now.getFullYear();
+      const tahunOptions = [tSkrg - 1, tSkrg, tSkrg + 1].map(t => `<option value="${t}" ${st.tahun===t?'selected':''}>${t}</option>`).join('');
+      const adm = v4IsAdmin() || v4IsHead();
+      const mode = st.petugasMode === 'guru' ? 'guru' : 'detail';
+      const modeBtn = (id, label) => `<button class="btn ${mode===id?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.petugasMode='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
+      const controlsHtml = `<div class="v4-card"><div class="amalan-filters">
+        <div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
+        <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>
+        <div class="amalan-reload"><button class="btn btn-soft" onclick="v4RekapPetugasMuat(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true);v4RenderRekapReligiSiswa();">🔄 Muat ulang</button></div>
+      </div>
+      ${v4RekapReligiTabsHtml()}
+      <div class="amalan-tabs">${modeBtn('detail','🗒️ Rincian per Hari')}${modeBtn('guru','👤 Ringkasan per Guru')}</div></div>`;
+
+      const ym = st.tahun + '-' + String(st.bulan).padStart(2, '0');
+      v4RekapPetugasMuat(st.tahun, st.bulan, false);
+      const c = v4RekapPetugasCache[ym];
+      const judulBln = `${namaBulan[st.bulan - 1]} ${st.tahun}`;
+      if (!c || (c.status === 'loading' && !c.data)) { v4RekapReligiLast = null; host.innerHTML = controlsHtml + '<div class="v4-card"><div class="v4-muted">⏳ Memuat data check-in petugas...</div></div>'; return; }
+      if (c.status === 'gagal' && !c.data) {
+        v4RekapReligiLast = null;
+        const ditolak = /permission[_ ]denied/i.test(c.msg || '');
+        host.innerHTML = controlsHtml + `<div class="v4-card"><div class="v4-muted">❌ Gagal memuat data check-in petugas${ditolak ? ' (ditolak Rules Firebase, minta Admin memeriksa akses baca node activity_checkin_v4)' : ''}. Tekan "Muat ulang" untuk mencoba lagi.</div></div>`;
+        return;
+      }
+      const saya = typeof v4ActMyId === 'function' ? v4ActMyId() : '';
+      const data = c.data || {};
+      // Check-in tercatat (Admin/Kepsek: semua; guru lain: miliknya sendiri).
+      const recs = Object.keys(data).map(k => {
+        const d = data[k] || {};
+        const tgl = d.tanggal || k.slice(0, 10), typeId = d.typeId || k.slice(11);
+        const tp = v4ActTypeByKey(typeId);
+        return Object.assign({}, d, { _tgl: tgl, _kegiatan: tp ? tp.name : (typeId || '-') });
+      }).filter(r => r._tgl && r._tgl.slice(0, 7) === ym && (adm || (saya && r.guruKey === saya)));
+      // Jadwal sholat: Admin/Kepsek semua kegiatan; guru lain hanya kegiatan yang ia PJ-i.
+      const jadwal = v4RekapPetugasJadwal(st.tahun, st.bulan, data, t => adm || v4ActAkuCocok(t.picKey, t.picName));
+      const belum = jadwal.filter(j => !j.ada);
+
+      const jam = r => r.at ? new Date(r.at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':') : '-';
+      const klaimR = r => !!r.klaim || /klaim/i.test(r.peran || '');
+      const peranDasar = r => klaimR(r) ? 'Pengganti (klaim)' : (/^pengganti/i.test(r.peran || '') ? 'Pengganti' : 'PJ');
+      let tabel;
+      if (mode === 'guru') {
+        const per = {};
+        const namaDari = (key, nama) => { const g = key && (allGuru || []).find(x => x && x.key === key); return (g && g.name) || nama || key || '-'; };
+        const ambil = nama => per[nama] || (per[nama] = { n: 0, peng: 0, klaim: 0, telat: 0, menit: 0, off: 0, jadwal: 0, hadirPj: 0, ciDl: 0, ciDz: 0, hdDl: 0, hdDz: 0 });
+        recs.forEach(r => {
+          const g = ambil(namaDari(r.guruKey, r.guruName)); g.n++;
+          const p = peranDasar(r);
+          if (p === 'Pengganti') g.peng++; else if (p !== 'PJ') g.klaim++;
+          if ((r.telatMenit || 0) > 0) { g.telat++; g.menit += Number(r.telatMenit) || 0; }
+          if (r.offline) g.off++;
+          const jn = v4ActJenisSholat(v4ActTypeByKey(r.typeId || ''));
+          if (jn === 'sholat_dluha') g.ciDl++; else if (jn === 'sholat_dzuhur') g.ciDz++;
+        });
+        // Hari jadwal & kehadiran sebagai PJ: tiap hari berlaku dihitung untuk PJ kegiatan itu (hadir bila check-in-nya atas nama PJ).
+        jadwal.forEach(j => {
+          const nama = j.type.picName; if (!nama) return;
+          const g = ambil(namaDari(j.type.picKey, nama)); g.jadwal++;
+          if (j.ada && peranDasar(j.ci) === 'PJ' && v4ActSamaGuru(j.type.picKey, j.type.picName, j.ci.guruKey, j.ci.guruName)) g.hadirPj++;
+        });
+        // Pencocokan dengan Honor: honor sholat dihitung dari Absen Religi berstatus "Hadir" (bukan dari check-in).
+        // Check-in tanpa Absen Religi "Hadir" pada hari yang sama = honor belum masuk.
+        const hadirPer = {};   // nama -> { tgl -> {dl, dz} }
+        (typeof allReligiAttendance !== 'undefined' ? allReligiAttendance : []).forEach(r => {
+          if (!r || !r.tanggal || r.tanggal.slice(0, 7) !== ym) return;
+          const nm = namaDari(r.guruKey, r.guru);
+          const h = hadirPer[nm] || (hadirPer[nm] = {});
+          h[r.tanggal] = { dl: !!(r.sholat_dluha && r.sholat_dluha.status === 'Hadir'), dz: !!(r.sholat_dzuhur && r.sholat_dzuhur.status === 'Hadir') };
+        });
+        const tarif = (typeof v4GetHonorRates === 'function') ? v4GetHonorRates() : { dluha: 0, dzuhur: 0 };
+        // Hitung per HARI (bukan selisih jumlah): hari check-in yang tidak punya Absen Religi Hadir untuk sholat yang sama.
+        const belumMasuk = {};   // nama -> { dl, dz, tgl: [] }
+        recs.forEach(r => {
+          const jn = v4ActJenisSholat(v4ActTypeByKey(r.typeId || '')); if (!jn) return;
+          const nm = namaDari(r.guruKey, r.guruName);
+          const h = (hadirPer[nm] || {})[r._tgl];
+          const ada = h && (jn === 'sholat_dluha' ? h.dl : h.dz);
+          const g = ambil(nm);
+          if (ada) { if (jn === 'sholat_dluha') g.hdDl++; else g.hdDz++; return; }
+          const bm = belumMasuk[nm] || (belumMasuk[nm] = { dl: 0, dz: 0, tgl: [] });
+          if (jn === 'sholat_dluha') bm.dl++; else bm.dz++;
+          bm.tgl.push(r._tgl.slice(8) + (jn === 'sholat_dluha' ? 'Dh' : 'Dz'));
+        });
+        tabel = {
+          judul: `Rekap Petugas QR - Ringkasan per Guru - ${judulBln}`, fileTag: `PetugasQR_PerGuru_${namaBulan[st.bulan - 1]}_${st.tahun}`,
+          head: ['Nama Guru', 'Hari Jadwal PJ', 'Hadir sbg PJ', '% Hadir PJ', 'Total Bertugas', 'Pengganti (ditunjuk)', 'Pengganti (klaim)', 'Kali Telat', 'Total Telat (mnt)', 'Rata-rata Telat (mnt)', 'Via Offline', 'Check-in Dhuha', 'Check-in Dzuhur', 'Honor Masuk (hari)', 'Honor BELUM Masuk (hari)', 'Perkiraan Rp Belum Masuk', 'Tanggal Belum Masuk'],
+          rows: Object.keys(per).sort((a, b) => COLLATOR_ID.compare(a, b)).map(n => {
+            const g = per[n], bm = belumMasuk[n] || { dl: 0, dz: 0, tgl: [] };
+            const rp = bm.dl * (tarif.dluha || 0) + bm.dz * (tarif.dzuhur || 0), hari = bm.dl + bm.dz;
+            return [n, g.jadwal || '-', g.jadwal ? g.hadirPj : '-', g.jadwal ? Math.round(g.hadirPj / g.jadwal * 100) + '%' : '-', g.n, g.peng, g.klaim, g.telat, g.menit, g.telat ? Math.round(g.menit / g.telat) : 0, g.off, g.ciDl, g.ciDz, g.hdDl + g.hdDz, hari ? 'BELUM ' + hari : 0, rp, bm.tgl.join(', ') || '-'];
+          }),
+          catatan: 'BELUM = check-in tanpa Absen Religi Hadir (perkiraan Rp memakai tarif sekarang). Dh = Dhuha, Dz = Dzuhur.',
+          kosong: 'Belum ada check-in petugas pada bulan ini.'
+        };
+      } else {
+        const baris = recs.map(r => ({ tgl: r._tgl, kg: r._kegiatan, row: [r._tgl, r._kegiatan, r.guruName || r.guruKey || '-', peranDasar(r), jam(r), Number(r.telatMenit) || 0, (r.jarak == null ? '-' : r.jarak), r.offline ? 'Offline (jam perangkat)' : '-'] }));
+        belum.forEach(j => {
+          const sub = V4.activitySubstitutes && V4.activitySubstitutes[j.type.key + '_' + j.tgl];
+          baris.push({ tgl: j.tgl, kg: j.type.name, row: [j.tgl, j.type.name, 'BELUM CHECK-IN', 'PJ: ' + (j.type.picName || 'belum ditunjuk') + (sub ? ' (pengganti ditunjuk: ' + sub.guruName + ')' : ''), '-', '-', '-', j.oleh ? 'Absensi siswa diisi: ' + j.oleh : '-'] });
+        });
+        baris.sort((a, b) => (a.tgl < b.tgl ? -1 : a.tgl > b.tgl ? 1 : COLLATOR_ID.compare(a.kg, b.kg)));
+        tabel = {
+          judul: `Rekap Petugas QR - Rincian per Hari - ${judulBln}`, fileTag: `PetugasQR_Rincian_${namaBulan[st.bulan - 1]}_${st.tahun}`,
+          head: ['Tanggal', 'Kegiatan', 'Petugas', 'Peran', 'Jam Check-in', 'Telat (mnt)', 'Jarak (m)', 'Keterangan'],
+          rows: baris.map(x => x.row),
+          catatan: `Belum check-in: ${belum.length} hari-kegiatan. Telat dihitung dari jam mulai kegiatan.`,
+          kosong: 'Belum ada check-in petugas pada bulan ini.'
+        };
+      }
+      v4RekapReligiLast = tabel;
+      const info = c.status === 'loading' ? '<div class="v4-muted" style="font-size:11px;margin-top:6px;">⏳ Memperbarui data...</div>' : (c.status === 'gagal' ? '<div class="v4-muted" style="font-size:11px;margin-top:6px;color:#b91c1c;">Gagal memperbarui, menampilkan data sebelumnya.</div>' : '');
+      host.innerHTML = controlsHtml + info + v4RekapReligiTabelHtml(tabel);
+    }
     function v4RenderRekapReligiSiswa() {
       const host = document.getElementById('v4RekapReligiSiswa');
       if (!host) return;
+      if (v4RekapReligiState.view === 'petugas') { v4RenderRekapPetugas(host); return; }
       const scope = siswaScopeKelas();
       if (!scope.length) { host.innerHTML = '<div class="v4-card"><div class="v4-muted">Tidak ada kelas dalam jangkauan Anda.</div></div>'; return; }
       if (!v4RekapReligiState.kelas || !scope.includes(v4RekapReligiState.kelas)) v4RekapReligiState.kelas = scope[0];
@@ -377,18 +562,14 @@ function v4RenderActivityFill() {
       const siswaKeyKelas = new Set(siswaKelas.map(s => s.key));
       const recsBulanIni = (V4.activityAttendance || []).filter(r => inBulan(r.tanggal) && siswaKeyKelas.has(r.studentId));
 
-      const controlsHtml = `<div class="v4-card"><div class="v4-grid-3">
+      const controlsHtml = `<div class="v4-card"><div class="amalan-filters">
         <div><label class="label">Kelas</label><select class="field" onchange="v4RekapReligiState.kelas=this.value;v4RenderRekapReligiSiswa();">${kelasOptions}</select></div>
         <div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
         <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>
       </div>
-      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
-        <button class="btn ${v4RekapReligiState.view==='kelas'?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='kelas';v4RenderRekapReligiSiswa();">📅 Per Hari (Kelas)</button>
-        <button class="btn ${v4RekapReligiState.view==='siswa'?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='siswa';v4RenderRekapReligiSiswa();">🧑‍🎓 Per Siswa</button>
-        <button class="btn ${v4RekapReligiState.view==='pj'?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='pj';v4RenderRekapReligiSiswa();">📋 Kepatuhan PJ</button>
-        <button class="btn btn-soft" onclick="v4ExportRekapReligi('xlsx')">📥 Excel</button>
-        <button class="btn btn-soft" onclick="v4ExportRekapReligi('pdf')">📄 PDF</button>
-      </div></div>`;
+      ${v4RekapReligiState.view === 'alpa' ? `<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><label class="label" style="margin:0;">Alpa minimal</label><select class="field" style="max-width:110px;" onchange="v4RekapReligiState.alpaMin=Number(this.value);v4RenderRekapReligiSiswa();">${[1,2,3,4,5,7,10].map(n => `<option value="${n}" ${(v4RekapReligiState.alpaMin||3)===n?'selected':''}>${n} kali</option>`).join('')}</select></div>` : ''}
+      ${v4RekapReligiTabsHtml()}
+      </div>`;
 
       // ---- Susun tabel SEKALI (dipakai untuk tampilan layar DAN ekspor Excel/PDF) ----
       const vw = v4RekapReligiState.view;
@@ -399,10 +580,32 @@ function v4RenderActivityFill() {
       const headStatus = ['Dhuha H','Dhuha S','Dhuha I','Dhuha A','Dhuha %','Dzuhur H','Dzuhur S','Dzuhur I','Dzuhur A','Dzuhur %'];
       const dl = recs => recs.filter(r => dluhaTypes.includes(r.activityTypeId));
       const dz = recs => recs.filter(r => dzuhurTypes.includes(r.activityTypeId));
-      const catStatus = 'H = Hadir, S = Sakit, I = Izin, A = Alpa. % = persentase hadir dari yang tercatat.';
+      const catStatus = 'H Hadir · S Sakit · I Izin · A Alpa.';
       let tabel;
-      if (vw === 'siswa') {
+      if (vw === 'alpa') {
+        const min = v4RekapReligiState.alpaMin || 3;
+        const rowsA = [];
+        siswaKelas.forEach(sw => {
+          const semuaRec = recsBulanIni.filter(r => r.studentId === sw.key);
+          const rs = semuaRec.filter(r => v4NormStatusKegiatan(r.status) === 'A');
+          const aDl = dl(rs).length, aDz = dz(rs).length, tot = aDl + aDz;
+          if (tot < min) return;
+          const tglA = [...new Set(rs.map(r => r.tanggal))].sort().map(t => {
+            const rt = rs.filter(r => r.tanggal === t), d1 = dl(rt).length > 0, d2 = dz(rt).length > 0;
+            return t.slice(8) + (d1 && d2 ? ' (Dh+Dz)' : d1 ? ' (Dh)' : ' (Dz)');
+          }).join(', ');
+          rowsA.push([sw.name, aDl, aDz, tot, persen(hitung(semuaRec)), tglA]);
+        });
+        rowsA.sort((a, b) => b[3] - a[3] || COLLATOR_ID.compare(a[0], b[0]));
         tabel = {
+          judul: `Siswa Sering Alpa Sholat (minimal ${min} kali) - Kelas ${kelasTxt} - ${bulanTxt} ${tahunTxt}`, fileTag: `SeringAlpa_${kelasTxt}_${bulanTxt}_${tahunTxt}`,
+          head: ['Nama Siswa', 'Alpa Dhuha', 'Alpa Dzuhur', 'Total Alpa', '% Hadir', 'Tanggal Alpa'], rows: rowsA,
+          catatan: 'Dh = Dhuha, Dz = Dzuhur.',
+          kosong: `Tidak ada siswa dengan alpa minimal ${min} kali pada kelas dan bulan ini.`
+        };
+      } else if (vw === 'siswa') {
+        tabel = {
+
           judul: `Rekap Sholat Dhuha dan Dzuhur - Per Siswa - Kelas ${kelasTxt} - ${bulanTxt} ${tahunTxt}`, fileTag: `PerSiswa_${kelasTxt}_${bulanTxt}_${tahunTxt}`,
           head: ['Nama Siswa', ...headStatus], catatan: catStatus, kosong: 'Tidak ada siswa di kelas ini.',
           rows: siswaKelas.slice().sort((a,b)=>COLLATOR_ID.compare(a.name, b.name)).map(st => { const rs = recsBulanIni.filter(r => r.studentId === st.key); return [st.name, ...sel(hitung(dl(rs))), ...sel(hitung(dz(rs)))]; })
@@ -432,7 +635,7 @@ function v4RenderActivityFill() {
         tabel = {
           judul: `Kepatuhan PJ Absensi Siswa Sholat - Kelas ${kelasTxt} - ${bulanTxt} ${tahunTxt}`, fileTag: `KepatuhanPJ_${kelasTxt}_${bulanTxt}_${tahunTxt}`,
           head: ['Tanggal', 'Sholat Dhuha', 'Sholat Dzuhur'], rows,
-          catatan: `Hari belum diisi: Dhuha ${belum[0]}, Dzuhur ${belum[1]}. "Tidak ada data sekolah" = tidak ada satu kelas pun yang terisi pada hari itu (kemungkinan libur). Hari berlaku: Dhuha Senin-Sabtu, Dzuhur Senin-Kamis.`,
+          catatan: `Belum diisi: Dhuha ${belum[0]}, Dzuhur ${belum[1]}. "Tidak ada data sekolah" = kemungkinan libur.`,
           kosong: 'Belum ada hari sholat yang bisa dinilai pada bulan ini.'
         };
       } else {
@@ -444,14 +647,7 @@ function v4RenderActivityFill() {
         };
       }
       v4RekapReligiLast = tabel;
-      let bodyHtml;
-      if (!tabel.rows.length) {
-        bodyHtml = `<div class="v4-card"><div class="v4-muted">${v4Safe(tabel.kosong)}</div></div>`;
-      } else {
-        const th = tabel.head.map(h => `<th>${v4Safe(h)}</th>`).join('');
-        const tr = tabel.rows.map(r => `<tr>${r.map(c => { const t = String(c); const merah = t.startsWith('BELUM'); return `<td${merah ? ' style="color:#b91c1c;font-weight:700;"' : ''}>${v4Safe(t)}</td>`; }).join('')}</tr>`).join('');
-        bodyHtml = `<div class="v4-card" style="overflow-x:auto;margin-top:10px;"><table style="font-size:12px;"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table><div class="v4-muted" style="margin-top:6px;font-size:11px;">${v4Safe(tabel.catatan || '')}</div></div>`;
-      }
+      const bodyHtml = v4RekapReligiTabelHtml(tabel);
       host.innerHTML = controlsHtml + bodyHtml;
     }
 
@@ -578,7 +774,7 @@ function v4RenderActivityFillPanel(type) {
       return `<button type="button" onclick="v4CycleActivityStatus('${k}','${escapeJs(s.key)}')" style="text-align:left;min-height:46px;padding:6px 10px;border-radius:10px;border:1.5px solid ${bd};background:${bg};color:${fg};cursor:pointer;font-size:13px;line-height:1.25;"><strong>${v4Safe(s.name)}</strong><br><span style="font-size:11px;">${st ? label[st] : 'Belum diisi'}</span></button>`;
     };
     const chips = grupTampil.map(g => (semua ? `<div style="grid-column:1/-1;font-weight:700;font-size:12px;margin-top:6px;color:#3730a3;">${judulKelas(g)}</div>` : '') + g.siswa.map(chip).join('')).join('');
-    listHtml = `<div style="font-size:12px;margin-bottom:6px;color:#374151;">Ketuk nama untuk mengubah status: Hadir → Alpa → Sakit → Izin → Hadir.<br>✅ Hadir ${cnt.H} · ❌ Alpa ${cnt.A} · 🤒 Sakit ${cnt.S} · 📝 Izin ${cnt.I}${cnt.kosong ? ` · ⬜ Belum ${cnt.kosong}` : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>`;
+    listHtml = `<div style="font-size:12px;margin-bottom:6px;color:#374151;">✅ Hadir ${cnt.H} · ❌ Alpa ${cnt.A} · 🤒 Sakit ${cnt.S} · 📝 Izin ${cnt.I}${cnt.kosong ? ` · ⬜ Belum ${cnt.kosong}` : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>`;
   } else {
     listHtml = `<div style="overflow-x:auto;"><table><thead><tr><th>Nama</th><th>Kehadiran</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
@@ -1013,6 +1209,39 @@ function v4ActBindOffset() {
     db.ref('.info/serverTimeOffset').on('value', s => { v4ActServerOffset = Number(s.val()) || 0; });
   } catch (e) { console.warn('[SI MAMBA] offset server:', e); }
 }
+// Jam server (ms) yang DIBACA SEGAR dari Firebase -- untuk validasi honor sholat yang tidak boleh bergantung pada jam HP.
+function v4ActWaktuServer() {
+  return new Promise((resolve, reject) => {
+    if (typeof db === 'undefined' || !db || !navigator.onLine) return reject(new Error('Butuh koneksi internet untuk memverifikasi waktu server.'));
+    let selesai = false;
+    const tmo = setTimeout(() => { if (selesai) return; selesai = true; reject(new Error('Server belum merespons.')); }, 8000);
+    db.ref('.info/serverTimeOffset').once('value').then(s => {
+      if (selesai) return; selesai = true; clearTimeout(tmo);
+      v4ActServerOffset = Number(s.val()) || 0;
+      resolve(Date.now() + v4ActServerOffset);
+    }).catch(e => { if (selesai) return; selesai = true; clearTimeout(tmo); reject(e); });
+  });
+}
+// Absensi siswa sholat harus LENGKAP: semua siswa di semua kelas punya status (H/S/I/A) untuk tanggal itu.
+// Dibaca langsung dari server (bukan cache layar). Hasil: null = lengkap; string = alasan penolakan.
+function v4ActPeriksaAbsensiLengkap(namaSholat, tanggal) {
+  const keys = (typeof v4CariJenisKegiatanSholat === 'function' ? v4CariJenisKegiatanSholat(namaSholat) : []).map(t => t.key);
+  if (!keys.length) return Promise.resolve(null);   // jenis kegiatan belum ada: sudah ditolak validasi sebelumnya
+  if (!navigator.onLine) return Promise.reject(new Error('Butuh koneksi internet untuk memeriksa kelengkapan absensi siswa.'));
+  const sudah = new Set();
+  const bacaAbsen = Promise.all(keys.map(k => db.ref('activity_attendance_v4').orderByKey().startAt(k + '_' + tanggal + '_').endAt(k + '_' + tanggal + '_').once('value')
+    .then(snap => { snap.forEach(c => { const r = c.val() || {}; if (r.studentId && v4NormStatusKegiatan(r.status)) sudah.add(r.studentId); }); })));
+  const bacaSiswa = Promise.all(KELAS_LIST.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(snap => {
+    const arr = []; snap.forEach(c => { const s = c.val() || {}; arr.push({ key: c.key, name: s.name || c.key }); }); return { kelas: k, siswa: arr };
+  })));
+  const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 15000));
+  return Promise.race([Promise.all([bacaAbsen, bacaSiswa]), batas]).then(([, grup]) => {
+    const kurang = grup.map(g => ({ kelas: g.kelas, belum: g.siswa.filter(s => !sudah.has(s.key)), total: g.siswa.length })).filter(x => x.belum.length);
+    if (!kurang.length) return null;
+    const rinci = kurang.map(x => { const nm = x.belum.slice(0, 3).map(s => s.name).join(', '); return `${x.kelas}: ${x.belum.length}/${x.total} siswa belum (${nm}${x.belum.length > 3 ? ', dst' : ''})`; }).join('; ');
+    return `Absensi siswa Sholat ${namaSholat} hari ini belum lengkap. ${rinci}. Lengkapi dulu di Amalan Yaumiyah.`;
+  });
+}
 function v4ActNowMs() { return Date.now() + v4ActServerOffset; }
 function v4ActMenitSekarang() { const d = new Date(v4ActNowMs()); return d.getHours() * 60 + d.getMinutes(); }
 function v4ActMenit(jam) { const p = String(jam || '').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
@@ -1108,7 +1337,7 @@ function v4ActCardExtra(a) {
   const tgl = v4Date(), ci = v4ActCheckin(a.key, tgl), k = escapeJs(a.key);
   const adm = v4IsAdmin() || v4IsHead();
   const jam = v4ActJamMulai(a);
-  let h = `<div class="v4-muted" style="margin-top:7px;font-size:11px;">⏰ Mulai ${v4Safe(jam)} · klaim pengganti dibuka ${v4ActFmtMenit(v4ActMenit(jam) + V4_ACT_GRACE_MENIT)}</div>`;
+  let h = adm ? '' : `<div class="v4-muted" style="margin-top:7px;font-size:11px;">⏰ Mulai ${v4Safe(jam)} · klaim ${v4ActFmtMenit(v4ActMenit(jam) + V4_ACT_GRACE_MENIT)}</div>`;
   if (ci) {
     const jamCi = ci.at ? new Date(ci.at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
     const telat = ci.telatMenit > 0 ? ` · telat ${ci.telatMenit} mnt` : '';
@@ -1146,14 +1375,14 @@ function v4ActRenderCheckinBlock(type, tgl) {
   }
   const ci = v4ActCheckin(type.key, tgl);
   if (ci && !v4ActIsMine(ci)) {
-    return `<div style="margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;">🔒 Petugas hari ini sudah tercatat: <strong>${v4Safe(ci.guruName)}</strong> (${v4Safe(ci.peran || 'PJ')}). Absensi ${v4Safe(type.name)} hari ini diisi oleh beliau. Bila ada masalah, hubungi Admin/Kepala Madrasah untuk reset petugas.</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;">🔒 Petugas hari ini sudah tercatat: <strong>${v4Safe(ci.guruName)}</strong> (${v4Safe(ci.peran || 'PJ')}). Absensi hari ini diisi oleh beliau.</div>`;
   }
   if (ci && ci.tertunda && v4ActIsMine(ci)) {
     return `<div style="margin-top:10px;padding:10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;font-size:12px;color:#065f46;">✅ Anda petugas ${v4Safe(type.name)} hari ini. ⏳ Check-in dari mode offline tersimpan di perangkat dan dikirim otomatis saat online.</div>`;
   }
   const el = v4ActCekCheckin(type);
   if (el.ok) {
-    return `<div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;font-size:12px;">Scan QR kegiatan di lokasi untuk check-in sebagai petugas sebelum mengisi absensi.<div style="margin-top:8px;"><button class="btn btn-success" onclick="v4ActMulaiScan('${k}')">📷 Scan QR Check-in</button></div></div>`;
+    return `<div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;font-size:12px;">Check-in sebagai petugas dulu.<div style="margin-top:6px;"><button class="btn btn-success" onclick="v4ActMulaiScan('${k}')">📷 Scan QR Check-in</button></div></div>`;
   }
   return `<div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;font-size:12px;">${v4Safe(el.msg)}</div>`;
 }
