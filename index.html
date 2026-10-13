@@ -90,7 +90,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=60"></script>
+  <script defer src="js/app.js?v=61"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=6"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
@@ -1445,6 +1445,7 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn-soft" onclick="setJadwalView('harian')" id="btnViewHarian" style="padding:6px 12px;font-size:12px;background:#2563eb;color:white;">🔄 Harian</button>
               <button class="btn btn-soft" onclick="setJadwalView('mingguan')" id="btnViewMingguan" style="padding:6px 12px;font-size:12px;">📅 Mingguan</button>
+              <button class="btn btn-soft" onclick="setJadwalView('permapel')" id="btnViewPerMapel" style="padding:6px 12px;font-size:12px;">📚 Per Mapel</button>
               <button class="btn btn-primary" onclick="showTambahJadwal()" id="btnTambahJadwal" style="display:none;">➕ Tambah</button>
               <button class="btn btn-success" onclick="exportJadwalPDF()">📥 Export PDF</button>
             </div>
