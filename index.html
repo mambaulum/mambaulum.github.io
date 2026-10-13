@@ -90,9 +90,9 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=63"></script>
+  <script defer src="js/app.js?v=64"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
-  <script defer src="js/amalan-kegiatan.js?v=6"></script>
+  <script defer src="js/amalan-kegiatan.js?v=12"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=1"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
@@ -1736,9 +1736,46 @@
       <!-- ACTIVITIES -->
       <div id="page-activities-v4" class="page-content hidden">
         <div class="card">
+<style>
+/* Amalan Yaumiyah: tampilan padat (dipakai bersama js/amalan-kegiatan.js) */
+#page-activities-v4 .v4-section-title{margin:0 0 8px;}
+#page-activities-v4 hr{margin:8px 0 !important;}
+#v4ActivityConfig{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr)) !important;gap:10px;margin:0 0 8px;}
+#page-activities-v4 .v4-card{min-height:0 !important;}
+#page-activities-v4 .v4-card:hover{transform:none;box-shadow:none;}
+#v4ActivityConfig>.v4-card{margin:0;padding:10px 12px !important;}
+#v4ActivityConfig .amalan-card>div{margin-top:6px !important;}
+#v4ActivityConfig .amalan-card>.amalan-head{margin-top:0 !important;}
+.amalan-head{display:flex;align-items:center;flex-wrap:wrap;gap:5px;}
+.amalan-head h4{margin:0 auto 0 0;font-size:15px;}
+.amalan-pj{display:flex;align-items:center;flex-wrap:wrap;gap:6px;}
+.amalan-pj .field{flex:1;min-width:130px;font-size:12px;padding:4px 6px;}
+.amalan-admin{display:flex;gap:5px;flex-wrap:wrap;padding-top:6px;border-top:1px dashed rgba(128,128,128,.3);}
+.amalan-admin .btn{padding:3px 9px;font-size:11px;min-height:28px;}
+#v4ActivityFillSection .v4-task{padding:8px 10px;margin:0 0 8px;}
+#v4ActivityFillSection [style*="margin-top:10px"]{margin-top:6px !important;}
+#v4ActivityFillSection [style*="margin-bottom:8px"]{margin-bottom:5px !important;}
+#v4RekapReligiSiswa .v4-card{margin:0 0 8px;padding:8px 10px !important;}
+.amalan-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;}
+.amalan-filters>div{flex:1 1 120px;max-width:220px;}
+.amalan-filters .label{margin-bottom:2px;font-size:11px;}
+.amalan-filters .field{padding:5px 8px;}
+.amalan-filters .amalan-reload{flex:0 0 auto;}
+.amalan-filters .amalan-reload .btn{padding:6px 10px;font-size:12px;}
+.amalan-tabs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;align-items:center;}
+.amalan-tabs .btn{border-radius:999px;padding:5px 12px;font-size:12px;min-height:0;}
+.amalan-tabs .amalan-sp{margin-left:auto;display:flex;gap:5px;}
+@media (max-width:600px){.amalan-tabs .amalan-sp{margin-left:0;}.amalan-filters>div{max-width:none;}}
+#v4RekapReligiSiswa .amalan-table{padding:0;overflow:auto;max-height:65vh;margin-bottom:4px;}
+.amalan-table table{width:100%;border-collapse:separate;border-spacing:0;}
+.amalan-table th,.amalan-table td{padding:5px 8px !important;font-size:12px;}
+.amalan-table th{position:sticky;top:0;z-index:1;white-space:nowrap;background:#f3f4f6;}
+.amalan-table tbody tr:nth-child(even) td{background:rgba(128,128,128,.07);}
+body.dark-mode .amalan-table th{background:#1f2937;}
+.amalan-note{font-size:11px;margin:0 2px 6px;line-height:1.4;}
+</style>
           <div class="v4-section-title"><h3>🕌 Amalan Yaumiyah</h3><button id="v4ActivityAddBtn" class="btn btn-success" onclick="v4OpenActivityTypeForm()">➕ Tambah Jenis</button></div>
-          <div class="v4-perm-note">Jenis amalan/kegiatan bersifat tetap setiap hari (tidak perlu "mulai kegiatan"). Hanya mencatat <strong>absensi siswa</strong> — tanpa penilaian capaian. Admin menentukan satu guru penanggung jawab untuk tiap jenis kegiatan (mis. Shalat Dhuha, Shalat Dzuhur).</div>
-          <div id="v4ActivityConfig" class="v4-shell"></div>
+                    <div id="v4ActivityConfig" class="v4-shell"></div>
           <div id="v4ActivityTypeForm" class="v4-card" style="display:none;margin-bottom:16px;">
             <h4>➕ Jenis Amalan/Kegiatan Baru</h4>
             <div class="v4-grid-3">
@@ -1752,9 +1789,9 @@
               <button class="btn btn-soft" onclick="document.getElementById('v4ActivityTypeForm').style.display='none';">Batal</button>
             </div>
           </div>
-          <hr style="margin:4px 0 16px;">
+          <hr>
           <div id="v4ActivityFillSection"></div>
-          <hr style="margin:16px 0;">
+          <hr>
           <div class="v4-section-title"><h3>📊 Rekap Absensi Sholat Siswa</h3></div>
           <div id="v4RekapReligiSiswa"></div>
         </div>
