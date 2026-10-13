@@ -38,7 +38,7 @@
    js/kredensial.js, js/ttd-digital.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.86';
+const APP_VERSION = 'v6.87';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -87,7 +87,7 @@ const PRECACHE_URLS = [
   './js/perangkat-soal.js?v=8',
   './js/perangkat-pembelajaran.js?v=9',
   './js/modul-ajar.js?v=14',
-  './js/buku-tamu.js?v=4',
+  './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=5',
   './js/auto-logout.js?v=4',
@@ -133,6 +133,11 @@ const IMMUTABLE_CDN_HOSTS = [
 
 function isSameOrigin(url) {
   return url.origin === self.location.origin;
+}
+
+function isAppShellPath(url) {
+  const scope = new URL('./', self.location).pathname;   // mis. '/' atau '/app/'
+  return url.pathname === scope || url.pathname === scope + 'index.html';
 }
 
 function isNeverCacheRequest(url) {
@@ -198,9 +203,11 @@ self.addEventListener('fetch', event => {
   // Data Firebase (Auth/Storage REST, dsb) -> network only.
   if (isNeverCacheRequest(url)) return;
 
-  // Navigasi -> Network-First dengan batas waktu.
+  // Navigasi -> Network-First dengan batas waktu. HANYA untuk halaman app (/ atau /index.html):
+  // halaman lain (mis. buku-tamu.html publik) dibiarkan ke network, supaya tidak menimpa cache index.html
+  // dan tidak dibalas dengan index.html saat jaringan lambat.
   if (req.mode === 'navigate') {
-    event.respondWith(networkFirstNavigate(req, event));
+    if (isSameOrigin(url) && isAppShellPath(url)) event.respondWith(networkFirstNavigate(req, event));
     return;
   }
 
