@@ -21,9 +21,20 @@
   var live = null, liveRef = null, known = null;
   var tab = 'daftar', filt = { q: '', rentang: 'hari', kategori: '', status: '' }, root = null;
   var arsip = { sem: '', list: null, diunduh: false };
+  var qTimer = null; // debounce kotak pencarian
 
   /* ---------- util ---------- */
-  function esc(s) { return escapeHtml(String(s == null ? '' : s)); }
+  // Pembungkus defensif: pakai escapeHtml()/tglLokal() dari app.js bila ada; bila tidak, pakai cadangan lokal (tanpa ReferenceError).
+  function esc(s) {
+    s = String(s == null ? '' : s);
+    if (typeof escapeHtml === 'function') return escapeHtml(s);
+    return s.replace(/[&<>"'`]/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; });
+  }
+  function hariIni() {
+    if (typeof tglLokal === 'function') { try { var t = tglLokal(); if (t) return String(t); } catch (e) { /* pakai cadangan */ } }
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
   function $(id) { return document.getElementById(id); }
   function val(id) { var el = $(id); return el ? String(el.value || '').trim() : ''; }
   function canView() { return !!currentUser && (isAdmin() || isKepsek()); }
@@ -285,7 +296,7 @@
 
   /* ---------- ekspor & cetak ---------- */
   function csvCell(v) { var s = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; }
-  function unduhCsv() { csvDari(filtered(), 'buku-tamu-' + tglLokal()); }
+  function unduhCsv() { csvDari(filtered(), 'buku-tamu-' + hariIni()); }
   function csvDari(list, nama) {
     if (!list.length) return toast('Tidak ada data untuk diekspor.', true);
     var head = ['Waktu', 'Nama', 'WhatsApp', 'Instansi', 'Alamat', 'Kategori', 'Bertemu dengan', 'Keperluan', 'Penilaian (1-5)', 'Saran', 'Status', 'Catatan'];
@@ -294,11 +305,28 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nama + '.csv';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
+  // Buka dokumen cetak lewat Blob URL (tanpa document.write). Logo yang gagal dimuat disembunyikan lewat DOM
+  // setelah jendela termuat -- tanpa atribut onerror inline, jadi aman dari CSP yang melarang inline handler.
+  function bukaDokumen(html, fitur, tunda) {
+    var url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    var w = window.open(url, '_blank', fitur);
+    if (!w) { URL.revokeObjectURL(url); return toast('Popup diblokir browser.', true); }
+    var done = false, go = function () {
+      if (done) return; done = true;
+      try {
+        Array.prototype.forEach.call(w.document.querySelectorAll('.lg img'), function (im) {
+          if (im.complete && im.naturalWidth === 0 && im.parentNode) im.parentNode.style.display = 'none';
+        });
+        w.focus(); w.print();
+      } catch (e) { /* jendela sudah ditutup */ }
+    };
+    try { w.addEventListener('load', function () { setTimeout(go, tunda); }); } catch (e) { /* abaikan */ }
+    setTimeout(go, 2500); // cadangan bila event load tidak terpicu
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  }
   function bukaCetak(judul, isi) {
-    var w = window.open('', '_blank', 'width=900,height=700'); if (!w) return toast('Popup diblokir browser.', true);
     var css = 'body{font-family:Arial,sans-serif;padding:26px;color:#111;font-size:12.5px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}th{background:#f3f4f6}.kop{text-align:center;border-bottom:3px double #333;padding-bottom:8px;margin-bottom:12px}.kop b{font-size:16px}';
-    w.document.write('<html><head><title>' + esc(judul) + '</title><style>' + css + '</style></head><body><div class="kop"><b>' + esc(madInfo().nama || 'Madrasah') + '</b><br>' + esc(madInfo().alamat || '') + '</div>' + isi + '</body></html>');
-    w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400);
+    bukaDokumen('<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>' + esc(judul) + '</title><style>' + css + '</style></head><body><div class="kop"><b>' + esc(madInfo().nama || 'Madrasah') + '</b><br>' + esc(madInfo().alamat || '') + '</div>' + isi + '</body></html>', 'width=900,height=700', 400);
   }
   function cetakDaftar() {
     var list = filtered(); if (!list.length) return toast('Tidak ada data untuk dicetak.', true);
@@ -324,7 +352,6 @@
     var src = qrPoster(720);
     if (!src) { var img = root.querySelector('#btQr img'), cv = root.querySelector('#btQr canvas'); src = (img && img.src && img.src.indexOf('data:') === 0) ? img.src : (cv ? cv.toDataURL() : ''); }
     if (!src) return toast('QR belum siap, coba lagi.', true);
-    var w = window.open('', '_blank', 'width=900,height=1100'); if (!w) return toast('Popup diblokir browser.', true);
     var nama = madInfo().nama || 'Madrasah', alamat = madInfo().alamat || '', logo = logoPoster();
     var css = '@page{size:A4 portrait;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}' +
       'body{font-family:"Segoe UI",Arial,sans-serif;color:#064e3b;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
@@ -341,18 +368,14 @@
       '.st b{display:block;font-size:12.5pt;margin-bottom:1mm}.st span{font-size:10.5pt;color:#4b5563}' +
       '.ft{margin-top:auto;width:100%;background:#064e3b;color:#d1fae5;text-align:center;padding:7mm 10mm;font-size:10pt}.ft b{color:#fff;font-size:11pt}.ft .u{margin-top:1.5mm;font-size:9pt;opacity:.85;word-break:break-all}';
     var step = function (n, t, d) { return '<div class="st"><div class="n">' + n + '</div><b>' + t + '</b><span>' + d + '</span></div>'; };
-    w.document.write('<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Poster Buku Tamu</title><style>' + css + '</style></head><body><div class="p">' +
-      '<div class="top">' + (logo ? '<div class="lg"><img src="' + esc(logo) + '" alt="Logo" onerror="this.parentNode.style.display=\'none\'"></div>' : '') + '<div class="sm">SELAMAT DATANG DI</div><h2>' + esc(nama) + '</h2>' + (alamat ? '<div class="al">' + esc(alamat) + '</div>' : '') + '</div>' +
+    var html = ('<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Poster Buku Tamu</title><style>' + css + '</style></head><body><div class="p">' +
+      '<div class="top">' + (logo ? '<div class="lg"><img src="' + esc(logo) + '" alt="Logo"></div>' : '') + '<div class="sm">SELAMAT DATANG DI</div><h2>' + esc(nama) + '</h2>' + (alamat ? '<div class="al">' + esc(alamat) + '</div>' : '') + '</div>' +
       '<div class="card"><h1>Buku Tamu Digital</h1><p class="sub">Scan QR untuk mengisi data kunjungan Anda</p>' +
       '<div class="qr"><img src="' + src + '" alt="QR Buku Tamu"></div><div><span class="pill">📷 Arahkan kamera HP ke kode ini</span></div></div>' +
       '<div class="steps">' + step(1, 'Scan QR', 'Buka kamera HP lalu arahkan ke kode di atas') + step(2, 'Isi Data', 'Lengkapi nama, kategori, dan keperluan Anda') + step(3, 'Disambut Petugas', 'Kunjungan tercatat otomatis, petugas akan menemui Anda') + '</div>' +
       '<div class="ft"><b>Tanpa login &bull; Gratis &bull; Waktu kunjungan tercatat otomatis</b><div class="u">Atau buka: ' + esc(publicUrl()) + '</div></div>' +
       '</div></body></html>');
-    w.document.close(); w.focus();
-    // Cetak setelah logo & QR selesai dimuat (cadangan 2,5 detik bila event load tidak terpicu).
-    var done = false, go = function () { if (done) return; done = true; try { w.print(); } catch (e) {} };
-    w.addEventListener('load', function () { setTimeout(go, 200); });
-    setTimeout(go, 2500);
+    bukaDokumen(html, 'width=900,height=1100', 200);
   }
 
   /* ---------- arsip per semester ---------- */
@@ -377,7 +400,9 @@
   }
   function arsipHtml() {
     if (!canManage()) return '<p style="color:#dc2626;">🔒 Hanya admin yang dapat mengelola arsip.</p>';
-    var sems = semList(); if (!arsip.sem) arsip.sem = sems[1].id; // default: semester terakhir yang sudah berakhir
+    var sems = semList();
+    // Default / pulihkan ke semester terakhir yang sudah berakhir bila nilai kosong atau tidak lagi ada di daftar (mis. tab dibiarkan terbuka lintas semester).
+    if (!arsip.sem || !sems.some(function (s) { return s.id === arsip.sem; })) { arsip.sem = sems[1].id; arsip.list = null; arsip.diunduh = false; }
     var r = semRange(arsip.sem), selesai = r.end <= Date.now(), L = arsip.list;
     var o = sems.map(function (s) { return '<option value="' + s.id + '"' + (s.id === arsip.sem ? ' selected' : '') + '>' + esc(s.label) + '</option>'; }).join('');
     var hasil = '<p class="text-muted">Pilih semester, lalu tekan Muat data.</p>';
@@ -417,12 +442,25 @@
     if (c === null || c.trim() !== 'HAPUS') return toast('Penghapusan dibatalkan.');
     if (isBusy('arsipHapus')) return; setBusy('arsipHapus', btn);
     var jobs = [], i; for (i = 0; i < L.length; i += 200) jobs.push(L.slice(i, i + 200));
-    jobs.reduce(function (p, part) {
-      return p.then(function () { var u = {}; part.forEach(function (x) { u[x.key] = null; }); return db.ref('buku_tamu').update(u); });
-    }, Promise.resolve()).then(function () {
-      toast('🗑️ ' + L.length + ' data dihapus'); addLog('buku_tamu_hapus', r.label + ' (' + L.length + ' data)');
-      arsip.list = null; arsip.diunduh = false;
-    }).catch(function (err) { toast('Gagal menghapus: ' + (err && err.message || err), true); })
+    var firstErr = null;
+    var hapusBatch = function (part) { var u = {}; part.forEach(function (x) { u[x.key] = null; }); return db.ref('buku_tamu').update(u); };
+    // Jalankan semua batch, kumpulkan batch yang gagal (satu batch gagal tidak membatalkan batch lain).
+    var jalankan = function (parts) {
+      return Promise.allSettled(parts.map(hapusBatch)).then(function (res) {
+        var gagal = [];
+        res.forEach(function (r, n) { if (r.status === 'rejected') { gagal.push(parts[n]); firstErr = r.reason; } });
+        return gagal;
+      });
+    };
+    jalankan(jobs).then(function (gagal) { return gagal.length ? jalankan(gagal) : gagal; }) // 1x percobaan ulang untuk batch yang gagal
+      .then(function (sisa) {
+        var gagalKey = {}; sisa.forEach(function (part) { part.forEach(function (x) { gagalKey[x.key] = 1; }); });
+        var nGagal = Object.keys(gagalKey).length, nOk = L.length - nGagal;
+        if (nOk) addLog('buku_tamu_hapus', r.label + ' (' + nOk + ' data' + (nGagal ? ', ' + nGagal + ' gagal' : '') + ')');
+        if (!nGagal) { toast('🗑️ ' + nOk + ' data dihapus'); arsip.list = null; arsip.diunduh = false; return; }
+        toast('⚠️ ' + nOk + ' data terhapus, ' + nGagal + ' GAGAL dihapus' + (firstErr ? ' (' + (firstErr.message || firstErr) + ')' : '') + '. Tekan Hapus lagi untuk mengulang.', true);
+        arsip.list = L.filter(function (x) { return gagalKey[x.key]; }); // sisakan yang gagal; CSV sudah diunduh sebelumnya
+      }).catch(function (err) { toast('Gagal menghapus: ' + (err && err.message || err), true); })
       .then(function () { clearBusy('arsipHapus', btn); renderArsip(); });
   }
 
@@ -430,7 +468,7 @@
   function onInput(e) {
     var id = e.target && e.target.id;
     if (id === 'btSem') { arsip.sem = e.target.value; arsip.list = null; arsip.diunduh = false; return renderBody(); }
-    if (id === 'btQ') filt.q = e.target.value;
+    if (id === 'btQ') { filt.q = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(renderList, 200); return; }
     else if (id === 'btR') { filt.rentang = e.target.value; if (tab === 'rekap') return renderBody(); }
     else if (id === 'btK') filt.kategori = e.target.value;
     else if (id === 'btS') filt.status = e.target.value;
@@ -464,7 +502,7 @@
         var o = { nama: val('btf-nama'), wa: normWa(val('btf-wa')), instansi: val('btf-instansi'), alamat: val('btf-alamat'), kategori: val('btf-kategori'), dituju: val('btf-dituju'), keperluan: val('btf-keperluan'), rating: parseInt(val('btf-rating'), 10) || 0, saran: val('btf-saran') };
         if (o.nama.length < 2 || !o.kategori || !o.keperluan) return toast('Nama, kategori, dan keperluan wajib diisi!', true);
         if (!waValid(o.wa)) return toast('Nomor WhatsApp hanya boleh berisi angka (9-15 digit), boleh diawali +.', true);
-        simpanTamu(o, 'resepsionis', b, function () { tab = 'daftar'; render(); load(false); });
+        simpanTamu(o, 'resepsionis', b, function () { tab = 'daftar'; render(); });
         break;
     }
   }
@@ -473,7 +511,7 @@
   // Lepas listener realtime & kosongkan semua state modul supaya pengguna berikutnya tidak melihat data
   // (atau filter/tab) milik sesi sebelumnya. Aman dipanggil berulang kali, kapan saja.
   function resetState() {
-    stopLive();
+    stopLive(); clearTimeout(qTimer);
     if (root) root.innerHTML = '';
     data = []; loaded = false; loading = false; loadErr = '';
     tab = 'daftar'; filt = { q: '', rentang: 'hari', kategori: '', status: '' }; arsip = { sem: '', list: null, diunduh: false };
@@ -490,6 +528,26 @@
       if (pageAktif()) toast('Kembali online');
       try { if (canView()) { if (!live) { loadErr = ''; load(false); } } } catch (e) { console.error('[buku-tamu]', e); }
     });
+    // Aktifkan listener realtime setelah login anonim Firebase siap (authReady di app.js), supaya tidak kena
+    // 'permission denied' saat sesi tersimpan dipulihkan. Dipakai: saat modul dimuat, setelah showApp(), dan lewat hook publik.
+    function mulaiSetelahAuth() {
+      var p = (typeof authReady !== 'undefined' && authReady && typeof authReady.then === 'function') ? authReady : Promise.resolve();
+      p.then(function () { try { if (canView()) { startLive(); updateBadge(); } } catch (e) { console.error('[buku-tamu]', e); } });
+    }
+    window.bukuTamuStart = mulaiSetelahAuth;
+    mulaiSetelahAuth();
+    // app.js tidak memanggil bukuTamuResetState()/bukuTamuStart(), jadi modul ini membungkus showApp() dan logout()
+    // (logout() juga dipanggil auto-logout.js, bukan hanya tombol Keluar).
+    var origShow = window.showApp;
+    if (typeof origShow === 'function' && !origShow.__bt) {
+      var wShow = function () { var r = origShow.apply(this, arguments); mulaiSetelahAuth(); return r; };
+      wShow.__bt = true; window.showApp = wShow;
+    }
+    var origLogout = window.logout;
+    if (typeof origLogout === 'function' && !origLogout.__bt) {
+      var wLogout = function () { try { return origLogout.apply(this, arguments); } finally { try { resetState(); } catch (e) { console.error('[buku-tamu]', e); } } };
+      wLogout.__bt = true; window.logout = wLogout;
+    }
     var orig = window.navigateTo;
     if (typeof orig !== 'function') return;
     window.navigateTo = function (page) {
