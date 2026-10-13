@@ -959,6 +959,13 @@
             // selama app dibuka lama (mis. dipakai seharian tanpa ditutup).
             reg.update();
             setInterval(() => reg.update(), 60 * 60 * 1000); // tiap 1 jam
+            // Versi baru yang sudah terunduh di sesi sebelumnya dan masih menunggu TIDAK memicu 'updatefound' lagi
+            // (sw.js sengaja tidak skipWaiting) -> tawarkan sekarang, kalau tidak user tidak pernah diberi tahu.
+            if (reg.waiting && navigator.serviceWorker.controller) showUpdateAvailableToast(reg);
+            // App terpasang di HP jarang dimuat ulang: cek pembaruan juga saat kembali dibuka/difokuskan.
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') { try { reg.update().catch(() => {}); } catch (e) {} }
+            });
 
             // Ada worker baru yang sedang diunduh (kode sw.js/app shell berubah)?
             reg.addEventListener('updatefound', () => {
@@ -995,19 +1002,56 @@
       }
     }
 
+    let _updateDialogDitunda = false;
+    // Aktifkan versi baru. Bila controllerchange (reload otomatis) tak terpicu dalam 4 dtk, muat ulang manual.
+    function terapkanUpdateSW(reg) {
+      if (reg.waiting) { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); setTimeout(() => window.location.reload(), 4000); }
+      else window.location.reload();
+    }
     function showUpdateAvailableToast(reg) {
-      toast('🔄 Versi baru SI MAMBA tersedia. Klik tombol Perbarui untuk memuat ulang.', false, 15000);
+      // Tombol kecil di topbar tetap ada sebagai cadangan (mis. setelah user memilih "Nanti").
       const btn = document.getElementById('swUpdateBtn');
       if (btn) {
         btn.style.display = 'inline-flex';
-        btn.onclick = () => {
-          btn.style.display = 'none';
-          // Ada worker baru menunggu -> minta aktif (controllerchange lalu memuat ulang halaman).
-          // Tidak ada yang menunggu (sudah aktif di tab lain) -> cukup muat ulang; jangan diam saja.
-          if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          else window.location.reload();
-        };
+        btn.onclick = () => { btn.style.display = 'none'; terapkanUpdateSW(reg); };
       }
+      if (_updateDialogDitunda || document.getElementById('swUpdateDialog')) return;
+      tampilkanDialogUpdate(reg);
+    }
+    // Pop up "Versi baru tersedia". Memuat ulang bisa menghilangkan isian yang belum disimpan, jadi user yang memutuskan kapan.
+    function tampilkanDialogUpdate(reg) {
+      const gelap = document.body.classList.contains('dark-mode');
+      const ov = document.createElement('div');
+      ov.id = 'swUpdateDialog';
+      ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-labelledby', 'swUpdateJudul');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;';
+      ov.innerHTML = '<div style="width:100%;max-width:380px;box-sizing:border-box;border-radius:16px;padding:22px 20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.35);background:' + (gelap ? '#1f2937' : '#ffffff') + ';color:' + (gelap ? '#f3f4f6' : '#1c2b24') + ';font-family:inherit;">' +
+        '<div id="swUpdateJudul" style="font-size:18px;font-weight:700;margin-bottom:8px;">🔄 Versi baru tersedia</div>' +
+        '<p style="margin:0 0 16px;font-size:14px;line-height:1.5;color:' + (gelap ? '#d1d5db' : '#4b5563') + ';">Pembaruan SI MAMBA sudah siap. Simpan dulu data yang sedang diisi, lalu tekan <b>Perbarui sekarang</b>. Aplikasi akan dimuat ulang sebentar.</p>' +
+        '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">' +
+        '<button type="button" id="swUpdateNanti" style="min-height:44px;padding:0 18px;border-radius:10px;border:1px solid ' + (gelap ? '#4b5563' : '#cbd5d0') + ';background:transparent;color:inherit;font-size:14px;cursor:pointer;">Nanti</button>' +
+        '<button type="button" id="swUpdateYa" style="min-height:44px;padding:0 18px;border-radius:10px;border:0;background:#00543f;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Perbarui sekarang</button>' +
+        '</div></div>';
+      document.body.appendChild(ov);
+      const tutup = () => { document.removeEventListener('keydown', onKey); ov.remove(); };
+      const nanti = () => {
+        tutup(); _updateDialogDitunda = true;
+        toast('Tekan tombol 🔄 Perbarui di bagian atas kapan saja.', false, 5000);
+        // Tawarkan lagi 30 menit kemudian bila masih belum diperbarui.
+        setTimeout(() => { _updateDialogDitunda = false; if (reg.waiting) showUpdateAvailableToast(reg); }, 30 * 60 * 1000);
+      };
+      const onKey = e => { if (e.key === 'Escape') nanti(); };
+      document.addEventListener('keydown', onKey);
+      ov.addEventListener('click', e => { if (e.target === ov) nanti(); });
+      ov.querySelector('#swUpdateNanti').onclick = nanti;
+      const ya = ov.querySelector('#swUpdateYa');
+      ya.onclick = () => {
+        ya.disabled = true; ya.textContent = 'Memperbarui...';
+        ov.querySelector('#swUpdateNanti').disabled = true;
+        const btn = document.getElementById('swUpdateBtn'); if (btn) btn.style.display = 'none';
+        terapkanUpdateSW(reg);
+      };
+      ya.focus();
     }
 
     window.addEventListener('beforeinstallprompt', (e) => {
