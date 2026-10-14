@@ -1411,7 +1411,7 @@ function v4ActCiTundaKirim(manual) {
   keys.forEach(key => {
     const d = v4ActCiTunda[key]; let beres = false;
     const tmo = setTimeout(() => { if (beres) return; beres = true; if (manual) toast('⏳ Server belum merespons. Dicoba lagi otomatis.', true); satuSelesai(); }, 20000);
-    db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString() }); }).then(res => {
+    v4ActSiapSesiGuru().then(() => db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString() }); })).then(res => {
       clearTimeout(tmo);
       const type = v4ActTypeByKey(d.typeId), nama = type ? type.name : d.typeId;
       const cur = res.snapshot.val();
@@ -1829,7 +1829,7 @@ function v4ActProsesQr(data) {
     if (v4ActScan === s) v4ActTutupScan();
     let pesan = (err && err.message) || String(err);
     // Bedakan "ditolak server" (Rules Firebase) dari izin kamera/lokasi: dulu semuanya terbaca sebagai "denied" yang membingungkan.
-    if (/permission[_ ]denied/i.test(((err && err.code) || '') + ' ' + pesan)) pesan = 'Ditolak oleh server (Rules Firebase). Minta Admin memastikan Rules terbaru (node activity_checkin_v4) sudah dipublikasikan, lalu coba lagi.';
+    if (/permission[_ ]denied/i.test(((err && err.code) || '') + ' ' + pesan)) pesan = 'Ditolak oleh server (Rules Firebase). Minta Admin memastikan Rules terbaru (node activity_checkin_v4; check-in terikat akun guru, pastikan Migrasi kredensial sudah dijalankan) sudah dipublikasikan, lalu coba lagi.';
     toast('❌ ' + pesan, true, 8000);
     v4ActRenderUlang();
   }).catch(e => console.error('[SI MAMBA] Gagal memperbarui tampilan check-in:', e));
@@ -1858,13 +1858,17 @@ function v4ActCekLokasi() {
   });
 }
 // Satu catatan per kegiatan per hari; transaction: yang pertama menang, yang kedua mendapat pesan jelas.
+// Rules mengikat check-in ke identitas guru: sebelum menulis, sesi_guru/{uid} diisi bukti login (kredensial.js). Gagal -> ditolak jelas.
+function v4ActSiapSesiGuru() {
+  return (typeof window.kredGuruSiap === 'function') ? Promise.resolve(window.kredGuruSiap()) : Promise.resolve(true);
+}
 function v4ActTulisCheckin(type, jarak) {
   const el = v4ActCekCheckin(type);   // cek ulang: keadaan bisa berubah selama scan/GPS
   if (!el.ok) return Promise.reject(new Error(el.msg));
   const tgl = v4Date();
   const telat = Math.max(0, v4ActMenitSekarang() - v4ActMenit(v4ActJamMulai(type)));
   const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran + (el.klaim ? ' (klaim)' : ''), klaim: !!el.klaim, via: 'qr', jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString() };
-  return db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return data; }).then(res => {
+  return v4ActSiapSesiGuru().then(() => db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return data; })).then(res => {
     if (!res.committed) { const cur = res.snapshot.val(); throw new Error('Sudah ada petugas hari ini: ' + ((cur && cur.guruName) || 'guru lain') + '.'); }
     v4ActCheckins[tgl + '_' + type.key] = data;
     // Check-in sudah tercatat di server. Kegagalan log/audit tidak boleh membuatnya dilaporkan sebagai gagal.
