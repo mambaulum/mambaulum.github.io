@@ -38,7 +38,7 @@
    js/kredensial.js, js/ttd-digital.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v6.87';
+const APP_VERSION = 'v6.90';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -69,8 +69,8 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=6',
   './js/administrasi-ujian.js?v=3',
-  './js/app.js?v=64',
-  './js/amalan-kegiatan.js?v=12',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
+  './js/app.js?v=65',
+  './js/amalan-kegiatan.js?v=15',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=1',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=3',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=4',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
@@ -94,7 +94,7 @@ const PRECACHE_URLS = [
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=2',
   './js/tahfidz-grafik.js?v=4',
-  './js/monitor-petugas.js?v=4',
+  './js/monitor-petugas.js?v=5',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',

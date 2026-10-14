@@ -90,9 +90,9 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=64"></script>
+  <script defer src="js/app.js?v=65"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
-  <script defer src="js/amalan-kegiatan.js?v=12"></script>
+  <script defer src="js/amalan-kegiatan.js?v=15"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=1"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
@@ -137,7 +137,7 @@
   <script defer src="js/tahfidz-grafik.js?v=4"></script>
 
   <!-- Kartu "Petugas per Kelas" di Dashboard (Admin & Kepsek). Dimuat SESUDAH app.js; dipicu dari renderChartsNow() dan v4RenderTahfidz(). -->
-  <script defer src="js/monitor-petugas.js?v=4"></script>
+  <script defer src="js/monitor-petugas.js?v=5"></script>
 </head>
 <body>
 
@@ -323,7 +323,6 @@
           <div class="menu-group-header" onclick="toggleMenuGroup('kegiatan-v4')">Kegiatan Siswa <span class="chevron">▲</span></div>
           <div class="menu-group-items">
             <div class="menu-item" data-page="activities-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-activities-v4"/></svg></span> Amalan Yaumiyah</div>
-            <div class="menu-item" data-page="religi"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-religi"/></svg></span> Absen Religi Saya</div>
             <div class="menu-item" data-page="tahfidz-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tahfidz-v4"/></svg></span> Tahfidz</div>
             <div class="menu-item" data-page="bacaan-shalat"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tahfidz-v4"/></svg></span> Bacaan Shalat</div>
             <div class="menu-item" data-page="ekskul-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-ekskul-v4"/></svg></span> Ekstrakurikuler</div>
@@ -929,28 +928,6 @@
       </div>
 
       <!-- ============================================================
-           PAGE: RELIGI (SINGKAT - SAMA SEPERTI SEBELUMNYA)
-      ============================================================ -->
-      <div id="page-religi" class="page-content hidden">
-        <div class="card">
-          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">🙏 Absen Religi Saya</h3>
-          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Catat kehadiran pribadi Anda pada sholat Dluha dan Dzuhur (dasar perhitungan Honor).</p>
-          <p style="font-size:12px;color:#2563eb;margin-bottom:12px;">📋 Wajib: absensi <strong>siswa</strong> untuk sholat ini sudah diisi lebih dulu di menu <strong>🕌 Amalan Yaumiyah</strong> hari ini, baru Anda bisa mencatat absen pribadi di sini.</p>
-          <p style="font-size:12px;color:#d97706;margin-bottom:12px;">⚠️ Absen Dluha hanya bisa dicatat jam <strong id="jamReligiDluhaLabel">07:00-10:00</strong>, Dzuhur jam <strong id="jamReligiDzuhurLabel">12:00-13:30</strong>.</p>
-          <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-            <div style="flex:1;min-width:150px;"><label class="label">Pilih Sholat</label><select id="religiType" class="field"><option value="sholat_dluha">☀️ Sholat Dluha</option><option value="sholat_dzuhur">🕌 Sholat Dzuhur</option></select></div>
-            <div style="flex:1;min-width:150px;"><label class="label">Status</label><select id="religiStatus" class="field"><option value="Hadir">✅ Hadir</option><option value="Tidak Hadir">❌ Tidak Hadir</option></select></div>
-            <div style="display:flex;align-items:end;gap:8px;"><button id="btnSaveReligi" class="btn btn-success" onclick="saveReligi()">💾 Simpan</button><button class="btn btn-soft" onclick="loadReligi()">🔄 Refresh</button></div>
-          </div>
-          <h4 style="font-weight:700;font-size:14px;margin-bottom:8px;">📋 Riwayat Hari Ini</h4>
-          <div id="religiTodayList" style="max-height:200px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;"><p style="color:#6b7280;font-size:13px;">Memuat...</p></div>
-          <h4 style="font-weight:700;font-size:14px;margin-top:16px;margin-bottom:8px;">📅 Riwayat Bulan Ini</h4>
-          <div id="religiMonthList" style="max-height:400px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;"><p style="color:#6b7280;font-size:13px;">Memuat...</p></div>
-          <div id="religiPagination" class="pagination religi-pagination"></div>
-        </div>
-      </div>
-
-      <!-- ============================================================
            PAGE: LEMBUR & RAPAT
       ============================================================ -->
       <div id="page-events" class="page-content hidden">
@@ -1254,12 +1231,12 @@
         </div>
 
         <div class="card">
-          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">💰 Rekap Honor Guru (Gabungan + Religi)</h3>
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">💰 Rekap Honor Guru (Gabungan + Sholat)</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Hitung dan kelola honor berdasarkan sesi mengajar, guru pengganti, kegiatan, dan komponen tambahan. Tarif utama dapat diubah Admin pada <strong>⚙️ Tarif Honor Terpusat</strong>. Histori transaksi harus mempertahankan snapshot tarif saat transaksi dibuat.</p>
           <div class="grid-3" style="margin-bottom:12px;">
             <div><label class="label">Bulan</label><select id="honorMonth" class="field"><option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option><option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option><option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option></select></div>
             <div><label class="label">Tahun</label><input id="honorYear" class="field" type="number" value="2026"></div>
-            <div style="display:flex;align-items:end;gap:8px;"><button class="btn btn-primary" onclick="renderHonor()" style="width:100%;">📊 Hitung</button><button class="btn btn-success" onclick="downloadHonorPDF()" id="btnDownloadHonorPDF" style="display:none;width:100%;">📥 Download PDF</button></div>
+            <div style="display:flex;align-items:end;gap:8px;"><button class="btn btn-primary" onclick="honorSholatInvalidate();renderHonor()" style="width:100%;">📊 Hitung</button><button class="btn btn-success" onclick="downloadHonorPDF()" id="btnDownloadHonorPDF" style="display:none;width:100%;">📥 Download PDF</button></div>
           </div>
           <div id="honorResult" style="margin-top:12px;overflow-x:auto;"></div>
           <div id="honorPagination" class="pagination honor-pagination"></div>
@@ -1276,7 +1253,7 @@
           <div class="grid-3" style="margin-bottom:12px;">
             <div><label class="label">Bulan</label><select id="honorSlipMonth" class="field"><option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option><option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option><option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option></select></div>
             <div><label class="label">Tahun</label><input id="honorSlipYear" class="field" type="number" value="2026"></div>
-            <div style="display:flex;align-items:end;"><button class="btn btn-primary" style="width:100%;" onclick="renderHonorSlip()">📊 Lihat Slip</button></div>
+            <div style="display:flex;align-items:end;"><button class="btn btn-primary" style="width:100%;" onclick="honorSholatInvalidate();renderHonorSlip()">📊 Lihat Slip</button></div>
           </div>
           <div id="honorSlipResult"></div>
         </div>
