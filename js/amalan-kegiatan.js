@@ -19,6 +19,11 @@
 
    v2: check-in petugas harian lewat QR + klaim pengganti (lihat bagian "CHECK-IN PETUGAS" di bawah).
    Butuh node Firebase baru activity_checkin_v4 dan field activity_types_v4/<key>/{qrToken,jamMulai}.
+
+   v3: KELAS YANG TIDAK IKUT suatu kegiatan (mis. kelas 1 & 2 pulang lebih awal sehingga tidak ikut Sholat Dzuhur).
+   Field baru activity_types_v4/<key>/kelasTidakIkut (string, kelas dipisah '|', mis. "1|2"); diatur Admin lewat tombol
+   "Kelas Peserta" di kartu kegiatan. Kelas itu dikeluarkan dari "Semua Kelas", dari syarat kelengkapan absensi (honor sholat
+   guru) dan dari penilaian Kepatuhan PJ. Helper yang bisa dipakai file lain: v4ActKelasAktif(type), v4ActKelasTidakIkut(typeKey, kelas).
 ============================================================ */
 
 // ---------- State modul ----------
@@ -32,6 +37,7 @@ function v4ActDraftW(typeKey) { return v4ActAttendanceDraft[typeKey] || (v4ActAt
 function v4ActDraftPrune(typeKey) { const d = v4ActAttendanceDraft[typeKey]; if (d && Object.keys(d).length === 0) delete v4ActAttendanceDraft[typeKey]; }
 let v4ActFastMode = {};        // typeKey -> true = Mode Cepat (ketuk nama untuk ganti status)
 let v4SubstituteFormOpenFor = null;
+let v4ActKelasFormOpen = null;   // typeKey yang form "Kelas Peserta"-nya sedang terbuka
 let v4RekapReligiLast = null;  // tabel rekap yang sedang tampil -- dipakai tombol ekspor
 // Filter Rekap Absensi Sholat Siswa -- terpisah dari state pengisian harian.
 let v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas', petugasMode: 'detail', alpaMin: 3 };
@@ -40,7 +46,7 @@ let v4RekapPetugasCache = {};   // 'YYYY-MM' -> { status:'loading'|'ok'|'gagal',
 // Dipanggil dari logout() di app.js supaya state akun lama tidak bocor ke akun berikutnya.
 function amalanKegiatanResetState() {
   v4ActOpenTypeKey = null; v4ActAttendanceDraft = {}; v4ActDateSel = {}; v4ActKelasSel = {}; v4ActFastMode = {};
-  v4SubstituteFormOpenFor = null; v4RekapReligiLast = null;
+  v4SubstituteFormOpenFor = null; v4ActKelasFormOpen = null; v4RekapReligiLast = null;
   v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas', petugasMode: 'detail', alpaMin: 3 };
   v4RekapPetugasCache = {};
   v4ActBersihkanCheckin();
@@ -80,6 +86,53 @@ function v4ActJenisSholat(type) {
   if (v4KataKunciSholat('Dluha').some(k => n.includes(k))) return 'sholat_dluha';
   if (v4KataKunciSholat('Dzuhur').some(k => n.includes(k))) return 'sholat_dzuhur';
   return null;
+}
+
+// ---------- Kelas yang tidak ikut kegiatan ----------
+// Contoh: kelas 1 & 2 pulang sebelum Dzuhur -> tidak ikut Sholat Dzuhur. Disimpan di jenis kegiatan sebagai string 'a|b'.
+// Kelas yang tidak ikut TIDAK dianggap kurang/alpa: tidak ada status "tidak berlaku" yang dipaksakan ke siswa.
+// Bawaan: Sholat Dzuhur tidak diikuti Kelas 1 & 2 (pulang lebih awal) selama Admin belum mengatur "Kelas Peserta".
+// Sholat Dhuha: semua kelas ikut. Nilai '-' = Admin sudah menyimpan "semua kelas ikut" (menggantikan bawaan).
+const V4_ACT_DZUHUR_TIDAK_IKUT = ['Kelas 1', 'Kelas 2'];
+function v4ActKelasKecuali(type) {
+  const raw = type && type.kelasTidakIkut;
+  if (raw === '-') return [];
+  if (!raw) return (type && v4ActJenisSholat(type) === 'sholat_dzuhur') ? V4_ACT_DZUHUR_TIDAK_IKUT.filter(k => KELAS_LIST.includes(k)) : [];
+  const arr = Array.isArray(raw) ? raw : (typeof raw === 'object' ? Object.keys(raw).map(k => raw[k]) : String(raw).split('|'));
+  return arr.map(x => String(x).trim()).filter(Boolean);
+}
+function v4ActKelasTidakIkut(typeKey, kelas) {
+  const t = typeof typeKey === 'object' ? typeKey : v4ActTypeByKey(typeKey);
+  return v4ActKelasKecuali(t).includes(kelas);
+}
+// Kelas yang ikut kegiatan itu (urutan KELAS_LIST). Tanpa type -> semua kelas.
+function v4ActKelasAktif(type) {
+  const kec = v4ActKelasKecuali(type);
+  return kec.length ? KELAS_LIST.filter(k => !kec.includes(k)) : KELAS_LIST.slice();
+}
+function v4ActToggleKelasForm(typeKey) {
+  if (!v4CanAdmin()) return toast('Hanya Admin!', true);
+  v4ActKelasFormOpen = (v4ActKelasFormOpen === typeKey) ? null : typeKey;
+  v4RenderActivityCards();
+}
+function v4ActSimpanKelasPeserta(typeKey) {
+  if (!v4CanAdmin()) return toast('Hanya Admin!', true);
+  const a = v4ActTypeByKey(typeKey); if (!a) return;
+  const cbs = Array.from(document.querySelectorAll('input[data-v4kls="' + typeKey + '"]'));
+  if (!cbs.length) return toast('Form tidak ditemukan, muat ulang halaman.', true);
+  const tidakIkut = cbs.filter(cb => !cb.checked).map(cb => cb.value);
+  if (tidakIkut.length >= cbs.length) return toast('Minimal satu kelas harus ikut kegiatan ini.', true);
+  if (!v4ActButuhOnline('Mengubah kelas peserta butuh koneksi internet.')) return;
+  // '-' = semua kelas ikut (bukan null: field kosong berarti memakai bawaan, Dzuhur tanpa Kelas 1 & 2).
+  const upd = { kelasTidakIkut: tidakIkut.length ? tidakIkut.join('|') : '-', updatedAt: new Date().toISOString() };
+  db.ref('activity_types_v4/' + typeKey).update(upd).then(() => {
+    Object.assign(a, upd);
+    v4ActKelasFormOpen = null;
+    v4ActLogAman('ubah_kelas_peserta_kegiatan', a.name + ' - tidak ikut: ' + (tidakIkut.join(', ') || '(semua ikut)'));
+    toast(tidakIkut.length ? '✅ ' + a.name + ': kelas ' + tidakIkut.join(', ') + ' tidak ikut' : '✅ ' + a.name + ': semua kelas ikut');
+    v4ActPersistCache();
+    v4RenderActivities();
+  }).catch(v4ActGagal);
 }
 
 // ---------- PJ & pengganti ----------
@@ -332,7 +385,7 @@ function v4RenderActivityFill() {
         const xlsxSiap = typeof XLSX !== 'undefined' && XLSX.utils && typeof XLSX.writeFile === 'function';
         (xlsxSiap ? Promise.resolve() : ensureLib('xlsx')).then(() => {
           const ws = XLSX.utils.aoa_to_sheet([[celX(t.judul)], [], t.head.map(celX), ...t.rows.map(r => r.map(celX)), [], [celX(t.catatan)]]);
-          ws['!cols'] = t.head.map((h, i) => ({ wch: i === 0 ? 24 : Math.max(10, String(h).length + 2) }));
+          ws['!cols'] = t.head.map((h, i) => ({ wch: (t.lebar && t.lebar[i]) || (i === 0 ? 24 : Math.max(10, String(h).length + 2)) }));
           const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
           XLSX.writeFile(wb, nama + '.xlsx');
         }).catch(e => toast('Gagal memuat library Excel (butuh internet): ' + (e && e.message || e), true));
@@ -342,7 +395,7 @@ function v4RenderActivityFill() {
           const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4'); const w = doc.internal.pageSize.getWidth();
           doc.setFontSize(13); doc.text(doc.splitTextToSize(celP(t.judul), w - 28), w / 2, 14, { align: 'center' });
           doc.setFontSize(9); doc.text('Dicetak: ' + new Date().toLocaleString('id-ID'), w - 14, 24, { align: 'right' });
-          doc.autoTable({ startY: 28, head: [t.head.map(celP)], body: t.rows.map(r => r.map(celP)), theme: 'striped', styles: { fontSize: 8 }, headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } });
+          doc.autoTable({ startY: 28, head: [t.head.map(celP)], body: t.rows.map(r => r.map(celP)), theme: 'striped', styles: { fontSize: t.pdfFont || 8 }, headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } });
           if (t.catatan) { const y = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 30) + 6; doc.setFontSize(8); doc.text(doc.splitTextToSize(t.catatan, w - 28), 14, y); }
           doc.save(nama + '.pdf');
         }).catch(e => toast('Gagal memuat library PDF (butuh internet): ' + (e && e.message || e), true));
@@ -353,15 +406,16 @@ function v4RenderActivityFill() {
       const vw = v4RekapReligiState.view;
       const b = (id, label) => `<button class="btn ${vw===id?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
       return `<div class="amalan-tabs">
-        ${b('kelas','📅 Per Hari')}${b('siswa','🧑‍🎓 Per Siswa')}${b('pj','📋 Kepatuhan PJ')}${b('alpa','🚨 Sering Alpa')}${b('petugas','👮 Petugas QR')}
+        ${b('kelas','📅 Per Hari')}${b('siswa','🧑‍🎓 Per Siswa')}${b('pj','📋 Kepatuhan PJ')}${b('raport','📘 Raport')}${b('raportdesk','📝 Deskripsi Raport')}${b('alpa','🚨 Sering Alpa')}${b('petugas','👮 Petugas QR')}
         <span class="amalan-sp"><button class="btn btn-soft" onclick="v4ExportRekapReligi('xlsx')">📥 Excel</button><button class="btn btn-soft" onclick="v4ExportRekapReligi('pdf')">📄 PDF</button></span>
       </div>`;
     }
     function v4RekapReligiTabelHtml(tabel) {
-      if (!tabel.rows.length) return `<div class="v4-card"><div class="v4-muted">${v4Safe(tabel.kosong)}</div></div>`;
+      const per = tabel.peringatan ? `<div class="v4-card" style="border-left:4px solid #dc2626;color:#b91c1c;font-size:12px;">${v4Safe(tabel.peringatan)}</div>` : '';
+      if (!tabel.rows.length) return per + `<div class="v4-card"><div class="v4-muted">${v4Safe(tabel.kosong)}</div></div>`;
       const th = tabel.head.map(h => `<th>${v4Safe(h)}</th>`).join('');
       const tr = tabel.rows.map(r => `<tr>${r.map(c => { const t = String(c); const merah = t.startsWith('BELUM'); return `<td${merah ? ' style="color:#b91c1c;font-weight:700;"' : ''}>${v4Safe(t)}</td>`; }).join('')}</tr>`).join('');
-      return `<div class="v4-card amalan-table"><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div><div class="v4-muted amalan-note">${v4Safe(tabel.catatan || '')}</div>`;
+      return per + `<div class="v4-card amalan-table"><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div><div class="v4-muted amalan-note">${v4Safe(tabel.catatan || '')}</div>`;
     }
 
     // ---- Rekap Petugas QR: check-in PJ / pengganti per kegiatan (node activity_checkin_v4) ----
@@ -373,9 +427,13 @@ function v4RenderActivityFill() {
       if (c && c.status === 'loading') return;
       if (c && c.status === 'ok' && !paksa && (ym < v4Date().slice(0, 7) || Date.now() - c.at < 60000)) return;
       if (typeof db === 'undefined' || !db) return;
+      // Offline: once('value') tanpa cache tidak pernah selesai -> jangan menggantung di "Memuat...".
+      if (!navigator.onLine) { v4RekapPetugasCache[ym] = { status: 'gagal', data: (c && c.data) || null, at: 0, msg: 'offline' }; return; }
       v4RekapPetugasCache[ym] = { status: 'loading', data: (c && c.data) || null, at: 0 };
       const epoch = v4ActEpoch;
-      db.ref('activity_checkin_v4').orderByKey().startAt(ym + '-').endAt(ym + '-').once('value').then(snap => {
+      const bacaCheckin = db.ref('activity_checkin_v4').orderByKey().startAt(ym + '-').endAt(ym + '-').once('value');
+      const batasWaktu = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 15000));
+      Promise.race([bacaCheckin, batasWaktu]).then(snap => {
         if (epoch !== v4ActEpoch) return;   // logout selagi memuat
         v4RekapPetugasCache[ym] = { status: 'ok', data: snap.val() || {}, at: Date.now() };
       }).catch(err => {
@@ -440,6 +498,7 @@ function v4RenderActivityFill() {
       if (c.status === 'gagal' && !c.data) {
         v4RekapReligiLast = null;
         const ditolak = /permission[_ ]denied/i.test(c.msg || '');
+        if (c.msg === 'offline') { host.innerHTML = controlsHtml + '<div class="v4-card"><div class="v4-muted">📡 Offline: rekap petugas butuh internet. Sambungkan internet, lalu tekan "Muat ulang".</div></div>'; return; }
         host.innerHTML = controlsHtml + `<div class="v4-card"><div class="v4-muted">❌ Gagal memuat data check-in petugas${ditolak ? ' (ditolak Rules Firebase, minta Admin memeriksa akses baca node activity_checkin_v4)' : ''}. Tekan "Muat ulang" untuk mencoba lagi.</div></div>`;
         return;
       }
@@ -479,8 +538,10 @@ function v4RenderActivityFill() {
           const g = ambil(namaDari(j.type.picKey, nama)); g.jadwal++;
           if (j.ada && peranDasar(j.ci) === 'PJ' && v4ActSamaGuru(j.type.picKey, j.type.picName, j.ci.guruKey, j.ci.guruName)) g.hadirPj++;
         });
-        // Pencocokan dengan Honor: honor sholat dihitung dari Absen Religi berstatus "Hadir" (bukan dari check-in).
-        // Check-in tanpa Absen Religi "Hadir" pada hari yang sama = honor belum masuk.
+        // Pencocokan dengan Honor: sejak HONOR_SHOLAT_MULAI_CHECKIN honor sholat dihitung dari check-in ini sendiri, asalkan jam check-in
+        // dalam jendela sholat dan absensi siswa lengkap (honorSholatHitung di app.js). Tanggal sebelumnya tetap memakai Absen Religi lama.
+        const hs = (typeof honorSholatDapat === 'function') ? honorSholatDapat(st.tahun, st.bulan, () => { if (v4RekapReligiState.view === 'petugas') v4RenderRekapReligiSiswa(); }) : { siap: false, gagal: 'Fungsi honor sholat belum termuat.' };
+        if (!hs.siap) { v4RekapReligiLast = null; host.innerHTML = controlsHtml + `<div class="v4-card"><div class="v4-muted">${hs.gagal ? '❌ ' + v4Safe(hs.gagal) : '⏳ Memeriksa jam check-in dan kelengkapan absensi siswa...'}</div></div>`; return; }
         const hadirPer = {};   // nama -> { tgl -> {dl, dz} }
         (typeof allReligiAttendance !== 'undefined' ? allReligiAttendance : []).forEach(r => {
           if (!r || !r.tanggal || r.tanggal.slice(0, 7) !== ym) return;
@@ -494,8 +555,9 @@ function v4RenderActivityFill() {
         recs.forEach(r => {
           const jn = v4ActJenisSholat(v4ActTypeByKey(r.typeId || '')); if (!jn) return;
           const nm = namaDari(r.guruKey, r.guruName);
-          const h = (hadirPer[nm] || {})[r._tgl];
-          const ada = h && (jn === 'sholat_dluha' ? h.dl : h.dz);
+          let ada;
+          if (r._tgl >= HONOR_SHOLAT_MULAI_CHECKIN) { const en = hs.hasil.entri[honorSholatResolve(r.guruKey, r.guruName) + '|' + r._tgl + '|' + jn]; ada = !!(en && en.lolos); }
+          else { const h = (hadirPer[nm] || {})[r._tgl]; ada = h && (jn === 'sholat_dluha' ? h.dl : h.dz); }
           const g = ambil(nm);
           if (ada) { if (jn === 'sholat_dluha') g.hdDl++; else g.hdDz++; return; }
           const bm = belumMasuk[nm] || (belumMasuk[nm] = { dl: 0, dz: 0, tgl: [] });
@@ -510,7 +572,7 @@ function v4RenderActivityFill() {
             const rp = bm.dl * (tarif.dluha || 0) + bm.dz * (tarif.dzuhur || 0), hari = bm.dl + bm.dz;
             return [n, g.jadwal || '-', g.jadwal ? g.hadirPj : '-', g.jadwal ? Math.round(g.hadirPj / g.jadwal * 100) + '%' : '-', g.n, g.peng, g.klaim, g.telat, g.menit, g.telat ? Math.round(g.menit / g.telat) : 0, g.off, g.ciDl, g.ciDz, g.hdDl + g.hdDz, hari ? 'BELUM ' + hari : 0, rp, bm.tgl.join(', ') || '-'];
           }),
-          catatan: 'BELUM = check-in tanpa Absen Religi Hadir (perkiraan Rp memakai tarif sekarang). Dh = Dhuha, Dz = Dzuhur.',
+          catatan: 'BELUM = check-in yang tidak lolos pemeriksaan (jam di luar jendela sholat atau absensi siswa belum lengkap; alasan lengkap di halaman Honor). Sebelum ' + HONOR_SHOLAT_MULAI_CHECKIN + ' memakai Absen Religi lama. Perkiraan Rp memakai tarif sekarang. Dh = Dhuha, Dz = Dzuhur.',
           kosong: 'Belum ada check-in petugas pada bulan ini.'
         };
       } else {
@@ -531,6 +593,182 @@ function v4RenderActivityFill() {
       v4RekapReligiLast = tabel;
       const info = c.status === 'loading' ? '<div class="v4-muted" style="font-size:11px;margin-top:6px;">⏳ Memperbarui data...</div>' : (c.status === 'gagal' ? '<div class="v4-muted" style="font-size:11px;margin-top:6px;color:#b91c1c;">Gagal memperbarui, menampilkan data sebelumnya.</div>' : '');
       host.innerHTML = controlsHtml + info + v4RekapReligiTabelHtml(tabel);
+    }
+    // ---- Tab "Raport": rekap kehadiran sholat per SEMESTER per siswa, siap dipakai untuk raport ----
+    // Semester: Ganjil = Juli-Desember tahun awal tahun ajaran; Genap = Januari-Juni tahun akhir. Data = tahun ajaran aktif (yang dimuat V4.activityAttendance).
+    const V4_RAPORT_AMBANG_DEFAULT = { sb: 90, b: 80, c: 70 };   // % hadir minimal: Sangat Baik / Baik / Cukup (di bawahnya: Perlu Bimbingan)
+    // true: PREDIKAT dihitung dari H / (H+A) -- sakit & izin tidak menurunkan predikat (siswa sakit tidak dinilai "kurang"). Kolom % tetap H / (H+S+I+A).
+    // false: predikat memakai % yang sama dengan kolom %.
+    const V4_RAPORT_UDZUR_TIDAK_MERUGIKAN = true;
+    function v4RaportSemester() {
+      const s = v4RekapReligiState.semester;
+      if (s === 'Ganjil' || s === 'Genap') return s;
+      return (typeof currentSemesterAktif !== 'undefined' && currentSemesterAktif === 'Genap') ? 'Genap' : 'Ganjil';
+    }
+    function v4RaportFilterHtml() {
+      const sm = v4RaportSemester(), a = Object.assign({}, V4_RAPORT_AMBANG_DEFAULT, v4RekapReligiState.ambang || {});
+      const num = (key, label) => `<div><label class="label">${label}</label><input class="field" type="number" min="1" max="100" style="max-width:96px;" value="${a[key]}" onchange="v4RaportAmbang('${key}', this.value)"></div>`;
+      return `<div><label class="label">Semester</label><select class="field" onchange="v4RekapReligiState.semester=this.value;v4RenderRekapReligiSiswa();"><option value="Ganjil" ${sm === 'Ganjil' ? 'selected' : ''}>Ganjil (Juli-Desember)</option><option value="Genap" ${sm === 'Genap' ? 'selected' : ''}>Genap (Januari-Juni)</option></select></div>
+        <div><label class="label">Tahun Ajaran</label><div class="field" style="display:flex;align-items:center;">${v4Safe(typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : '-')}</div></div>
+        ${num('sb', 'Sangat Baik ≥ (%)')}${num('b', 'Baik ≥ (%)')}${num('c', 'Cukup ≥ (%)')}
+        ${(v4RekapReligiState.view === 'raport' && v4RaportBolehTerbit(v4RekapReligiState.kelas)) ? `<div><label class="label">&nbsp;</label><button class="btn btn-success" onclick="v4RaportTerbitkan()">📤 Terbitkan ke Portal Ortu</button></div>` : ''}`;
+    }
+    function v4RaportAmbang(key, val) {
+      const a = Object.assign({}, V4_RAPORT_AMBANG_DEFAULT, v4RekapReligiState.ambang || {});
+      const n = Math.round(Number(val));
+      const calon = Object.assign({}, a, { [key]: n });
+      if (!(n >= 1 && n <= 100) || !(calon.sb > calon.b && calon.b > calon.c)) { toast('Ambang harus 1-100 dan berurutan: Sangat Baik > Baik > Cukup.', true); v4RenderRekapReligiSiswa(); return; }
+      v4RekapReligiState.ambang = calon;   // tidak disimpan permanen: berlaku untuk tampilan & ekspor sesi ini
+      v4RenderRekapReligiSiswa();
+    }
+    // ---- Terbitkan rekap semester ke Portal Ortu ----
+    // Orang tua TIDAK membaca absensi mentah (ribuan catatan): wali kelas menerbitkan ringkasan per siswa ke node
+    // rekap_sholat_raport/<tahunAjaran>_<semester>/<siswaKey> setelah memeriksa angkanya. Boleh: Admin, Kepala Madrasah, dan wali kelas kelas itu.
+    function v4RaportBolehTerbit(kelas) {
+      if (!currentUser || !kelas) return false;
+      if (v4IsAdmin() || v4IsHead()) return true;
+      return typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned() && currentUser.waliKelasOf === kelas;
+    }
+    let v4RaportTerbitSibuk = false;
+    function v4RaportTerbitkan() {
+      const t = v4RekapReligiLast, pub = t && t.publikasi;
+      if (!pub || v4RekapReligiState.view !== 'raport') return toast('Buka tab Raport dulu.', true);
+      if (!v4RaportBolehTerbit(pub.kelas)) return toast('Hanya Admin, Kepala Madrasah, atau wali kelas ' + pub.kelas + ' yang boleh menerbitkan.', true);
+      if (!pub.items.length) return toast('Tidak ada siswa di kelas ini.', true);
+      if (!navigator.onLine) return toast('📡 Butuh koneksi internet untuk menerbitkan.', true);
+      if (v4RaportTerbitSibuk) return;
+      const adaT = pub.items.filter(it => (it.dhuha && it.dhuha.T > 0) || (it.dzuhur && it.dzuhur.T > 0)).length;
+      let pesan = `Terbitkan rekap sholat Semester ${pub.semester} ${pub.tahunAjaran} untuk ${pub.items.length} siswa kelas ${pub.kelas} ke Portal Orang Tua?\n\nOrang tua akan melihat H/S/I/A, persen hadir, dan predikat anaknya.`;
+      if (!pub.lengkap) pesan += `\n\nPERHATIAN: ada hari yang kelas ini belum tercatat (lihat banner merah). Rekap akan ditandai "masih sementara".`;
+      if (adaT) pesan += `\n\n${adaT} siswa punya hari "tidak tercatat" (tanda *).`;
+      pesan += `\n\nMenerbitkan ulang akan menimpa rekap sebelumnya untuk semester ini.`;
+      if (!confirm(pesan)) return;
+      const waktu = new Date().toISOString(), updates = {};
+      pub.items.forEach(it => {
+        updates[`rekap_sholat_raport/${pub.periode}/${it.key}`] = {
+          tahunAjaran: pub.tahunAjaran, semester: pub.semester, kelas: pub.kelas, dhuha: it.dhuha, dzuhur: it.dzuhur, deskripsi: it.deskripsi || '',
+          ambang: pub.ambang, udzur: pub.udzur, lengkap: pub.lengkap, diterbitkanOleh: currentUser.name || '', diterbitkanPada: waktu
+        };
+      });
+      v4RaportTerbitSibuk = true;
+      db.ref().update(updates).then(() => {
+        toast(`✅ Rekap ${pub.items.length} siswa kelas ${pub.kelas} (Semester ${pub.semester}) diterbitkan ke Portal Orang Tua.`);
+        try { addLog('terbit_rekap_sholat', `${pub.kelas} - ${pub.semester} ${pub.tahunAjaran} - ${pub.items.length} siswa`); } catch (e) {}
+      }).catch(e => {
+        const ditolak = e && /permission/i.test(String(e.message || e.code || e));
+        toast(ditolak ? '❌ Ditolak Firebase Rules: node "rekap_sholat_raport" belum diizinkan. Tambahkan aturannya dulu (minta Admin teknis).' : '❌ Gagal menerbitkan: ' + (e && e.message || e), true, 8000);
+      }).then(() => { v4RaportTerbitSibuk = false; });
+    }
+    // Deskripsi otomatis untuk raport, dari ringkasan angka (lihat ringkas() di v4RaportTabel). Murni faktual: jumlah hari, persen, dan
+    // kata penilaian dari predikat. SELALU perlu diperiksa wali kelas sebelum masuk raport. Sholat yang kelasnya tidak ikut dilewati.
+    function v4RaportDeskripsi(nama, dh, dz) {
+      const adj = { 'Sangat Baik': 'predikat Sangat Baik', 'Baik': 'predikat Baik', 'Cukup': 'predikat Cukup dan perlu ditingkatkan', 'Perlu Bimbingan': 'predikat Perlu Bimbingan sehingga perlu pembiasaan lebih lanjut' };
+      const kal = [], adaUdzur = [dh, dz].some(r => r && r.ada && (r.S + r.I) > 0), totT = [dh, dz].reduce((a, r) => a + ((r && r.ada) ? (r.T || 0) : 0), 0);
+      [['Dhuha', dh], ['Dzuhur', dz]].forEach(([n, r]) => {
+        if (!r || !r.ada) return;
+        const tot = r.H + r.S + r.I + r.A;
+        if (!tot) return;                                             // belum ada data siswa ini untuk sholat tsb
+        const pertama = kal.length === 0, udz = r.S + r.I;
+        if (r.pred === null || r.pred === undefined) {                // hanya sakit/izin: belum bisa dinilai
+          kal.push(`Pada Sholat ${n} berjamaah, ananda${pertama ? ' ' + nama : ''} berhalangan hadir karena sakit/izin (${udz} hari) sehingga belum dapat dinilai.`);
+          return;
+        }
+        const ekstra = [];
+        if (udz) ekstra.push(`sakit/izin ${udz} hari`);
+        if (r.A) ekstra.push(`alpa ${r.A} hari`);
+        const rinci = `hadir ${r.H} dari ${tot} hari, ${r.pct}%${ekstra.length ? '; ' + ekstra.join(', ') : ''}`;
+        kal.push(`Pada Sholat ${n} berjamaah, ananda${pertama ? ' ' + nama : ''} memperoleh ${adj[r.pred] || ('predikat ' + r.pred)} dalam kehadiran (${rinci}).`);
+      });
+      if (!kal.length) return `Belum ada data kehadiran sholat berjamaah ananda ${nama} pada semester ini.`;
+      let teks = kal.join(' ');
+      if (adaUdzur && V4_RAPORT_UDZUR_TIDAK_MERUGIKAN) teks += ' Sakit/izin tidak mengurangi penilaian.';
+      if (totT) teks += ` Catatan: ${totT} hari belum tercatat dan tidak dihitung.`;
+      return teks;
+    }
+    function v4RaportDeskTabel(kelasTxt, siswaKelas, dluhaTypes, dzuhurTypes) {
+      const t = v4RaportTabel(kelasTxt, siswaKelas, dluhaTypes, dzuhurTypes), pub = t.publikasi;
+      const desk = new Map(pub.items.map(it => [it.key, it.deskripsi]));
+      return {
+        judul: t.judul.replace('Rekap Kehadiran Sholat untuk Raport', 'Deskripsi Raport Sholat Berjamaah'), fileTag: t.fileTag.replace('Raport_', 'DeskripsiRaport_'),
+        head: ['Nama Siswa', 'Deskripsi'], lebar: [24, 120], pdfFont: 9,
+        rows: siswaKelas.slice().sort((x, y) => COLLATOR_ID.compare(x.name, y.name)).map(st => [st.name, desk.get(st.key) || '']),
+        catatan: `Deskripsi dibuat otomatis dari rekap angka tab Raport (jumlah hari hadir dan persen kehadiran). Periksa dan sesuaikan dulu sebelum dimasukkan ke raport. Predikat: Sangat Baik ≥ ${pub.ambang.sb}%, Baik ≥ ${pub.ambang.b}%, Cukup ≥ ${pub.ambang.c}%.${t.peringatan ? ' ' + t.peringatan : ''}`,
+        peringatan: t.peringatan, kosong: t.kosong
+      };
+    }
+    // -> tabel siap tampil/ekspor. Aturan hitung:
+    //  - Hari efektif kelas = hari sholat yang berlaku (v4HariDiizinkanSholat) dan kelas ini punya SETIDAKNYA satu catatan hari itu.
+    //  - H/S/I/A = status siswa pada hari efektif. T (tidak tercatat) = hari efektif tanpa status siswa itu; TIDAK dihitung ke persen.
+    //  - % Hadir = H / (H+S+I+A). Predikat dari ambang; tanda * kalau siswa itu punya hari T.
+    //  - Kelas yang tidak ikut kegiatan (kelasTidakIkut) tampil "-" dan tidak dinilai.
+    //  - Hari ada data sekolah tapi kelas ini tidak tercatat sama sekali -> PERINGATAN (lengkapi sebelum raport dicetak).
+    function v4RaportTabel(kelasTxt, siswaKelas, dluhaTypes, dzuhurTypes) {
+      const sm = v4RaportSemester(), a = Object.assign({}, V4_RAPORT_AMBANG_DEFAULT, v4RekapReligiState.ambang || {});
+      const ta = String(typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : '');
+      const mt = ta.match(/(\d{4})\D+(\d{4})/);
+      const y1 = mt ? Number(mt[1]) : new Date().getFullYear(), y2 = mt ? Number(mt[2]) : y1 + 1;
+      const awal = sm === 'Ganjil' ? `${y1}-07-01` : `${y2}-01-01`, akhir = sm === 'Ganjil' ? `${y1}-12-31` : `${y2}-06-30`;
+      const hariIni = tglLokal(), batas = hariIni < akhir ? hariIni : akhir;
+      const tanggalR = [];
+      for (let d = new Date(awal + 'T00:00:00'); tglLokal(d) <= batas; d.setDate(d.getDate() + 1)) tanggalR.push(tglLokal(d));
+      const predikat = p => p >= a.sb ? 'Sangat Baik' : p >= a.b ? 'Baik' : p >= a.c ? 'Cukup' : 'Perlu Bimbingan';
+      const keyKelas = new Set(siswaKelas.map(s => s.key));
+      const semuaRec = (V4.activityAttendance || []).filter(r => r.tanggal >= awal && r.tanggal <= batas && v4NormStatusKegiatan(r.status));
+      const liburR = (typeof monitorLiburSet === 'function') ? monitorLiburSet() : new Set();
+      const hitungJenis = (nama, keys, jenis) => {
+        if (!keys.length) return { nama, ada: false };
+        if (keys.every(tk => v4ActKelasTidakIkut(tk, kelasTxt))) return { nama, ada: false, tidakIkut: true };
+        const recJ = semuaRec.filter(r => keys.includes(r.activityTypeId));
+        const sekolahTgl = new Set(recJ.map(r => r.tanggal));
+        const statusSiswa = new Map();                       // studentId -> Map(tanggal -> H|S|I|A)
+        recJ.forEach(r => {
+          if (!keyKelas.has(r.studentId)) return;
+          let m = statusSiswa.get(r.studentId); if (!m) { m = new Map(); statusSiswa.set(r.studentId, m); }
+          m.set(r.tanggal, v4NormStatusKegiatan(r.status));
+        });
+        const kelasTgl = new Set(); statusSiswa.forEach(m => m.forEach((_, t) => kelasTgl.add(t)));
+        const berlaku = t => v4HariDiizinkanSholat(jenis, t);
+        return {
+          nama, ada: true, statusSiswa,
+          efektif: tanggalR.filter(t => berlaku(t) && kelasTgl.has(t)),
+          tidakTercatat: tanggalR.filter(t => berlaku(t) && sekolahTgl.has(t) && !kelasTgl.has(t) && !liburR.has(t))
+        };
+      };
+      const J = [hitungJenis('Dhuha', dluhaTypes, 'sholat_dluha'), hitungJenis('Dzuhur', dzuhurTypes, 'sholat_dzuhur')];
+      // Ringkasan terstruktur per siswa per sholat (dipakai tabel DAN data yang diterbitkan ke Portal Ortu).
+      const ringkas = (h, key) => {
+        if (!h.ada) return h.tidakIkut ? { ada: false, tidakIkut: true } : { ada: false };
+        const m = h.statusSiswa.get(key) || new Map(), c = { H: 0, S: 0, I: 0, A: 0 };
+        h.efektif.forEach(t => { const st = m.get(t); if (st) c[st]++; });
+        const tot = c.H + c.S + c.I + c.A, T = h.efektif.length - tot;
+        const p = tot ? Math.round(c.H / tot * 100) : null;
+        const pp = V4_RAPORT_UDZUR_TIDAK_MERUGIKAN ? ((c.H + c.A) ? Math.round(c.H / (c.H + c.A) * 100) : null) : p;
+        return { ada: true, H: c.H, S: c.S, I: c.I, A: c.A, T, efektif: h.efektif.length, pct: p, pred: pp === null ? null : predikat(pp) };
+      };
+      const sel = (h, key) => {
+        const r = ringkas(h, key);
+        if (!r.ada) return ['-', '-', '-', '-', '-', '-', '-'];
+        return [r.H, r.S, r.I, r.A, r.T, r.pct === null ? '-' : r.pct + '%', r.pred === null ? '-' : r.pred + (r.T > 0 ? '*' : '')];
+      };
+      const kolom = n => ['H', 'S', 'I', 'A', 'T', '%', 'Predikat'].map(x => `${n} ${x}`);
+      const peringatan = J.filter(h => h.ada && h.tidakTercatat.length).map(h => {
+        const contoh = h.tidakTercatat.slice(0, 5).join(', ') + (h.tidakTercatat.length > 5 ? ', dst' : '');
+        return `PERHATIAN Sholat ${h.nama}: ${h.tidakTercatat.length} hari ada absensi dari kelas lain tetapi kelas ${kelasTxt} tidak tercatat sama sekali (${contoh}). Bisa libur yang belum ada di Kalender Akademik, bisa juga belum diisi. Lengkapi dulu sebelum raport dicetak.`;
+      }).join(' ');
+      const hariTxt = J.map(h => h.ada ? `${h.nama} ${h.efektif.length} hari` : (h.tidakIkut ? `${h.nama} tidak ikut (tidak dinilai)` : `${h.nama} belum ada jenis kegiatan`)).join(', ');
+      return {
+        judul: `Rekap Kehadiran Sholat untuk Raport - Kelas ${kelasTxt} - Semester ${sm} ${ta}`.trim(), fileTag: `Raport_${kelasTxt}_${sm}_${ta}`, pdfFont: 6.5,
+        head: ['Nama Siswa', ...kolom('Dhuha'), ...kolom('Dzuhur')],
+        rows: siswaKelas.slice().sort((x, y) => COLLATOR_ID.compare(x.name, y.name)).map(st => [st.name, ...sel(J[0], st.key), ...sel(J[1], st.key)]),
+        catatan: `H Hadir · S Sakit · I Izin · A Alpa · T Tidak tercatat (hari efektif kelas yang siswa itu tidak punya status; tidak dihitung ke %). % Hadir = H dibagi (H+S+I+A). ${V4_RAPORT_UDZUR_TIDAK_MERUGIKAN ? 'Predikat dihitung dari H dibagi (H+A), jadi sakit dan izin tidak menurunkan predikat ("-" = belum ada hari hadir/alpa untuk dinilai). ' : ''}Predikat: Sangat Baik ≥ ${a.sb}%, Baik ≥ ${a.b}%, Cukup ≥ ${a.c}%, selain itu Perlu Bimbingan; tanda * = ada hari tidak tercatat. Hari efektif kelas ${kelasTxt}: ${hariTxt}.${peringatan ? ' ' + peringatan : ''}`,
+        peringatan, kosong: 'Tidak ada siswa di kelas ini.',
+        // Bahan untuk "Terbitkan ke Portal Ortu" (v4RaportTerbitkan)
+        publikasi: {
+          periode: ta.replace(/[\/.#$\[\]]/g, '-') + '_' + sm, tahunAjaran: ta, semester: sm, kelas: kelasTxt, ambang: a,
+          udzur: V4_RAPORT_UDZUR_TIDAK_MERUGIKAN, lengkap: !peringatan,
+          items: siswaKelas.map(st => { const dh = ringkas(J[0], st.key), dz = ringkas(J[1], st.key); return { key: st.key, dhuha: dh, dzuhur: dz, deskripsi: v4RaportDeskripsi(st.name, dh, dz) }; })
+        }
+      };
     }
     function v4RenderRekapReligiSiswa() {
       const host = document.getElementById('v4RekapReligiSiswa');
@@ -564,8 +802,8 @@ function v4RenderActivityFill() {
 
       const controlsHtml = `<div class="v4-card"><div class="amalan-filters">
         <div><label class="label">Kelas</label><select class="field" onchange="v4RekapReligiState.kelas=this.value;v4RenderRekapReligiSiswa();">${kelasOptions}</select></div>
-        <div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
-        <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>
+        ${(v4RekapReligiState.view === 'raport' || v4RekapReligiState.view === 'raportdesk') ? v4RaportFilterHtml() : `<div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
+        <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>`}
       </div>
       ${v4RekapReligiState.view === 'alpa' ? `<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><label class="label" style="margin:0;">Alpa minimal</label><select class="field" style="max-width:110px;" onchange="v4RekapReligiState.alpaMin=Number(this.value);v4RenderRekapReligiSiswa();">${[1,2,3,4,5,7,10].map(n => `<option value="${n}" ${(v4RekapReligiState.alpaMin||3)===n?'selected':''}>${n} kali</option>`).join('')}</select></div>` : ''}
       ${v4RekapReligiTabsHtml()}
@@ -603,6 +841,10 @@ function v4RenderActivityFill() {
           catatan: 'Dh = Dhuha, Dz = Dzuhur.',
           kosong: `Tidak ada siswa dengan alpa minimal ${min} kali pada kelas dan bulan ini.`
         };
+      } else if (vw === 'raport') {
+        tabel = v4RaportTabel(kelasTxt, siswaKelas, dluhaTypes, dzuhurTypes);
+      } else if (vw === 'raportdesk') {
+        tabel = v4RaportDeskTabel(kelasTxt, siswaKelas, dluhaTypes, dzuhurTypes);
       } else if (vw === 'siswa') {
         tabel = {
 
@@ -623,6 +865,7 @@ function v4RenderActivityFill() {
           const row = [tgl];
           jenis.forEach((j, idx) => {
             if (!j.keys.length || !v4HariDiizinkanSholat(j.jenis, tgl)) { row.push('-'); return; }
+            if (j.keys.every(tk => v4ActKelasTidakIkut(tk, kelasTxt))) { row.push('-'); return; }   // kelas ini tidak ikut kegiatan itu
             const sekolah = allMonth.filter(r => j.keys.includes(r.activityTypeId) && r.tanggal === tgl);
             if (!sekolah.length) { row.push('Tidak ada data sekolah (libur?)'); return; }
             const kls = sekolah.filter(r => siswaKeyKelas.has(r.studentId));
@@ -635,7 +878,7 @@ function v4RenderActivityFill() {
         tabel = {
           judul: `Kepatuhan PJ Absensi Siswa Sholat - Kelas ${kelasTxt} - ${bulanTxt} ${tahunTxt}`, fileTag: `KepatuhanPJ_${kelasTxt}_${bulanTxt}_${tahunTxt}`,
           head: ['Tanggal', 'Sholat Dhuha', 'Sholat Dzuhur'], rows,
-          catatan: `Belum diisi: Dhuha ${belum[0]}, Dzuhur ${belum[1]}. "Tidak ada data sekolah" = kemungkinan libur.`,
+          catatan: `Belum diisi: Dhuha ${belum[0]}, Dzuhur ${belum[1]}. "Tidak ada data sekolah" = kemungkinan libur.` + [['Dhuha', dluhaTypes], ['Dzuhur', dzuhurTypes]].filter(([, ks]) => ks.length && ks.every(tk => v4ActKelasTidakIkut(tk, kelasTxt))).map(([n]) => ` Kelas ${kelasTxt} tidak ikut Sholat ${n} (tanda "-").`).join(''),
           kosong: 'Belum ada hari sholat yang bisa dinilai pada bulan ini.'
         };
       } else {
@@ -667,7 +910,8 @@ function v4ActExistingMap(typeKey, dateVal) {
 // Pilihan kelas "Semua Kelas" (nilai '*'): siswa semua kelas ditampilkan sekaligus, dikelompokkan per kelas sesuai urutan KELAS_LIST.
 const V4_ACT_SEMUA_KELAS = '*';
 // Kembalikan { siap, muat, total, grup:[{kelas, siswa}], siswa:[...], gagal:[kelas yang gagal dimuat] }. 'siap' = semua kelas yang diminta sudah ada di cache.
-function v4ActSiswaKelas(kelasVal) {
+// 'type' (opsional): untuk "Semua Kelas", kelas yang tidak ikut kegiatan itu dilewati (lihat v4ActKelasAktif).
+function v4ActSiswaKelas(kelasVal, type) {
   const urut = arr => arr.slice().sort((a, b) => COLLATOR_ID.compare(a.name, b.name));
   if (kelasVal !== V4_ACT_SEMUA_KELAS) {
     const arr = v4PanelSiswaCache[kelasVal];
@@ -676,8 +920,9 @@ function v4ActSiswaKelas(kelasVal) {
     return { siap: true, muat: 1, total: 1, grup: [{ kelas: kelasVal, siswa: s }], siswa: s };
   }
   const grup = [], semua = [], gagal = [];
+  const kelasList = type ? v4ActKelasAktif(type) : KELAS_LIST;
   let muat = 0;
-  KELAS_LIST.forEach(k => {
+  kelasList.forEach(k => {
     const arr = v4PanelSiswaCache[k];
     // Kelas kosong (0 siswa) TETAP tercache sebagai [] oleh v4FetchSiswaByKelas; yang belum ada di cache hanya yang
     // masih memuat atau GAGAL (error/timeout, dicatat di v4PanelSiswaGagal).
@@ -687,7 +932,7 @@ function v4ActSiswaKelas(kelasVal) {
     grup.push({ kelas: k, siswa: s });
     s.forEach(st => semua.push(st));
   });
-  return { siap: muat === KELAS_LIST.length, muat, total: KELAS_LIST.length, grup, siswa: semua, gagal };
+  return { siap: muat === kelasList.length, muat, total: kelasList.length, grup, siswa: semua, gagal };
 }
 // Jumlah siswa yang statusnya di draft BERBEDA dari data tersimpan (perubahan yang benar-benar belum disimpan).
 // Biaya utamanya bukan memeriksa draft (≤ jumlah siswa kelas), tapi v4ActExistingMap yang memindai SELURUH absensi tahun ajaran.
@@ -726,14 +971,14 @@ function v4RenderActivityFillPanel(type) {
   const kelasVal = v4ActKelasSel[type.key] || '';
   const k = escapeJs(type.key);
   const kelasOptions = `<option value="${V4_ACT_SEMUA_KELAS}" ${kelasVal === V4_ACT_SEMUA_KELAS ? 'selected' : ''}>📚 Semua Kelas</option>` +
-    KELAS_LIST.map(x => `<option value="${escapeHtml(x)}" ${kelasVal === x ? 'selected' : ''}>${escapeHtml(x)}</option>`).join('');
+    KELAS_LIST.map(x => `<option value="${escapeHtml(x)}" ${kelasVal === x ? 'selected' : ''}>${escapeHtml(x)}${v4ActKelasTidakIkut(type, x) ? ' (tidak ikut)' : ''}</option>`).join('');
   if (!kelasVal) {
     return `<div class="border-muted" style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;">
       <label class="label">Pilih kelas untuk mulai mengisi</label>
       <select class="field" style="max-width:220px;" onchange="v4SetActivityKelas('${k}', this.value)"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select>
     </div>`;
   }
-  const dat = v4ActSiswaKelas(kelasVal);
+  const dat = v4ActSiswaKelas(kelasVal, type);
   const semua = kelasVal === V4_ACT_SEMUA_KELAS;
   if (!dat.siap) {
     if (semua && dat.gagal && dat.gagal.length) {
@@ -821,7 +1066,7 @@ function v4SetActivityKelas(typeKey, kelas) {
   };
   if (kelas === V4_ACT_SEMUA_KELAS) {
     // Muat semua kelas yang belum ada di cache; tiap kelas yang selesai memperbarui progres "(x/y)".
-    KELAS_LIST.forEach(k => { if (!v4PanelSiswaCache[k]) v4FetchSiswaByKelas(k, () => sesudahMuat(k)); });
+    v4ActKelasAktif(v4ActTypeByKey(typeKey)).forEach(k => { if (!v4PanelSiswaCache[k]) v4FetchSiswaByKelas(k, () => sesudahMuat(k)); });
   } else {
     v4FetchSiswaByKelas(kelas, () => sesudahMuat(kelas));
   }
@@ -844,7 +1089,7 @@ function v4CycleActivityStatus(typeKey, studentKey) {
 function v4FillAllActivityHadir(typeKey) {
   if (v4ActOpenTypeKey !== typeKey) return; // guard: hanya panel yang terbuka yang boleh mengubah draft
   const kelasVal = v4ActKelasSel[typeKey] || '', dateVal = v4ActDateSel[typeKey] || v4Date();
-  const dat = v4ActSiswaKelas(kelasVal);
+  const dat = v4ActSiswaKelas(kelasVal, v4ActTypeByKey(typeKey));
   const siswa = dat.siap ? dat.siswa : [];
   if (!siswa.length) return toast('Belum ada siswa di kelas ini.', true);
   const existing = v4ActExistingMap(typeKey, dateVal);
@@ -993,7 +1238,7 @@ function v4SaveActivityAttendance(typeKey) {
   // Offline: write Firebase baru resolve setelah server konfirmasi (promise menggantung & tombol macet), jadi saat offline
   // perubahan masuk antrean perangkat (lihat "Antrean offline") dan dikirim otomatis saat online.
   if (dateVal > v4Date()) return toast('Tanggal absensi tidak boleh di masa depan.', true);
-  const dat = v4ActSiswaKelas(kelasVal);
+  const dat = v4ActSiswaKelas(kelasVal, type);
   const siswa = dat.siap ? dat.siswa : [];
   if (siswa.length === 0) return toast('Tidak ada siswa di kelas ini.', true);
 
@@ -1010,6 +1255,8 @@ function v4SaveActivityAttendance(typeKey) {
     v4RenderActivityFill();
     return toast('Belum ada perubahan absensi untuk disimpan.', false, 2000);
   }
+  // Kelas yang ditandai tidak ikut kegiatan ini tetap boleh diisi (mis. hari khusus), tapi minta konfirmasi.
+  if (kelasVal !== V4_ACT_SEMUA_KELAS && v4ActKelasTidakIkut(type, kelasVal) && !confirm(`Kelas ${kelasVal} ditandai TIDAK ikut ${type.name} (mis. pulang lebih awal). Tetap simpan absensinya?`)) return;
   // Sholat Dhuha: Senin-Sabtu, Dzuhur: Senin-Kamis. Hari lain tetap boleh, tapi minta konfirmasi (salah tanggal itu mudah terjadi).
   const jenisSholat = v4ActJenisSholat(type);
   if (jenisSholat && !v4HariDiizinkanSholat(jenisSholat, dateVal)) {
@@ -1127,7 +1374,7 @@ function v4ActSimpanTertunda(type, jarak, el) {
   const tgl = v4Date(), key = tgl + '_' + type.key;
   const telat = Math.max(0, v4ActMenitSekarang() - v4ActMenit(v4ActJamMulai(type)));
   const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran, klaim: false, via: 'qr',
-    jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), offline: true };
+    jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), atMs: v4ActNowMs(), offline: true };
   const sebelum = Object.assign({}, v4ActCiTunda);
   v4ActCiTunda[key] = data;
   if (!v4ActCiTundaSimpan()) { v4ActCiTunda = sebelum; throw new Error('Gagal menyimpan check-in di perangkat (penyimpanan penuh atau diblokir).'); }
@@ -1175,7 +1422,7 @@ function v4ActCiTundaKirim(manual) {
   keys.forEach(key => {
     const d = v4ActCiTunda[key]; let beres = false;
     const tmo = setTimeout(() => { if (beres) return; beres = true; if (manual) toast('⏳ Server belum merespons. Dicoba lagi otomatis.', true); satuSelesai(); }, 20000);
-    db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString() }); }).then(res => {
+    db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString(), serverAt: firebase.database.ServerValue.TIMESTAMP, atMs: Number(d.atMs) || Date.parse(d.at) || Date.now() }); }).then(res => {
       clearTimeout(tmo);
       const type = v4ActTypeByKey(d.typeId), nama = type ? type.name : d.typeId;
       const cur = res.snapshot.val();
@@ -1228,10 +1475,14 @@ function v4ActPeriksaAbsensiLengkap(namaSholat, tanggal) {
   const keys = (typeof v4CariJenisKegiatanSholat === 'function' ? v4CariJenisKegiatanSholat(namaSholat) : []).map(t => t.key);
   if (!keys.length) return Promise.resolve(null);   // jenis kegiatan belum ada: sudah ditolak validasi sebelumnya
   if (!navigator.onLine) return Promise.reject(new Error('Butuh koneksi internet untuk memeriksa kelengkapan absensi siswa.'));
+  // Kelas yang wajib lengkap = kelas yang ikut minimal satu jenis kegiatan sholat tsb (kelas yang tidak ikut, mis. pulang lebih awal, dilewati).
+  const tipeSholat = (typeof v4CariJenisKegiatanSholat === 'function' ? v4CariJenisKegiatanSholat(namaSholat) : []).map(t => v4ActTypeByKey(t.key) || t);
+  const kelasWajib = KELAS_LIST.filter(k => tipeSholat.some(t => !v4ActKelasTidakIkut(t, k)));
+  if (!kelasWajib.length) return Promise.resolve(null);
   const sudah = new Set();
   const bacaAbsen = Promise.all(keys.map(k => db.ref('activity_attendance_v4').orderByKey().startAt(k + '_' + tanggal + '_').endAt(k + '_' + tanggal + '_').once('value')
     .then(snap => { snap.forEach(c => { const r = c.val() || {}; if (r.studentId && v4NormStatusKegiatan(r.status)) sudah.add(r.studentId); }); })));
-  const bacaSiswa = Promise.all(KELAS_LIST.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(snap => {
+  const bacaSiswa = Promise.all(kelasWajib.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(snap => {
     const arr = []; snap.forEach(c => { const s = c.val() || {}; arr.push({ key: c.key, name: s.name || c.key }); }); return { kelas: k, siswa: arr };
   })));
   const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 15000));
@@ -1337,7 +1588,9 @@ function v4ActCardExtra(a) {
   const tgl = v4Date(), ci = v4ActCheckin(a.key, tgl), k = escapeJs(a.key);
   const adm = v4IsAdmin() || v4IsHead();
   const jam = v4ActJamMulai(a);
-  let h = adm ? '' : `<div class="v4-muted" style="margin-top:7px;font-size:11px;">⏰ Mulai ${v4Safe(jam)} · klaim ${v4ActFmtMenit(v4ActMenit(jam) + V4_ACT_GRACE_MENIT)}</div>`;
+  const kec = v4ActKelasKecuali(a);
+  let h = kec.length ? `<div style="margin-top:7px;"><span class="v4-chip" title="Kelas ini tidak dihitung kurang/alpa pada kegiatan ini">🚸 Kelas tidak ikut: ${v4Safe(kec.join(', '))}</span></div>` : '';
+  h += adm ? '' : `<div class="v4-muted" style="margin-top:7px;font-size:11px;">⏰ Mulai ${v4Safe(jam)} · klaim ${v4ActFmtMenit(v4ActMenit(jam) + V4_ACT_GRACE_MENIT)}</div>`;
   if (ci) {
     const jamCi = ci.at ? new Date(ci.at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
     const telat = ci.telatMenit > 0 ? ` · telat ${ci.telatMenit} mnt` : '';
@@ -1357,7 +1610,16 @@ function v4ActCardExtra(a) {
       <input type="time" class="field" style="width:100px;font-size:11px;padding:3px 5px;" value="${v4Safe(jam)}" onchange="v4ActSetJam('${k}', this.value)">
       <button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:28px;" onclick="v4ActCetakQr('${k}', false)">🖨️ ${a.qrToken ? 'Cetak QR' : 'Buat & Cetak QR'}</button>
       ${a.qrToken ? `<button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:28px;" onclick="v4ActCetakQr('${k}', true)">🔑 Ganti Kode</button>` : ''}
+      <button class="btn btn-soft" style="padding:4px 8px;font-size:10px;min-height:28px;" onclick="v4ActToggleKelasForm('${k}')">👥 Kelas Peserta</button>
     </div>`;
+    if (v4ActKelasFormOpen === a.key) {
+      const boxes = KELAS_LIST.map(kl => `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;margin:0 10px 4px 0;"><input type="checkbox" data-v4kls="${v4Safe(a.key)}" value="${v4Safe(kl)}" ${kec.includes(kl) ? '' : 'checked'}> ${v4Safe(kl)}</label>`).join('');
+      h += `<div style="margin-top:7px;padding:8px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+        <div style="font-size:11px;margin-bottom:5px;color:#374151;">Centang kelas yang <strong>ikut</strong> ${v4Safe(a.name)}. Kelas yang tidak dicentang (mis. pulang lebih awal) tidak ikut tampil di "Semua Kelas", tidak dihitung kurang pada syarat honor, dan tidak dinilai "belum diisi".</div>
+        <div>${boxes}</div>
+        <button class="btn btn-success" style="padding:4px 10px;font-size:11px;margin-top:4px;" onclick="v4ActSimpanKelasPeserta('${k}')">💾 Simpan</button>
+      </div>`;
+    }
   }
   return h;
 }
@@ -1512,8 +1774,9 @@ function v4ActTulisCheckin(type, jarak) {
   if (!el.ok) return Promise.reject(new Error(el.msg));
   const tgl = v4Date();
   const telat = Math.max(0, v4ActMenitSekarang() - v4ActMenit(v4ActJamMulai(type)));
-  const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran + (el.klaim ? ' (klaim)' : ''), klaim: !!el.klaim, via: 'qr', jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString() };
-  return db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return data; }).then(res => {
+  const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran + (el.klaim ? ' (klaim)' : ''), klaim: !!el.klaim, via: 'qr', jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), atMs: v4ActNowMs() };
+  // serverAt = jam server saat tercatat: dasar pemeriksaan jam saat honor dihitung (lihat honorSholatHitung di app.js).
+  return db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return Object.assign({}, data, { serverAt: firebase.database.ServerValue.TIMESTAMP }); }).then(res => {
     if (!res.committed) { const cur = res.snapshot.val(); throw new Error('Sudah ada petugas hari ini: ' + ((cur && cur.guruName) || 'guru lain') + '.'); }
     v4ActCheckins[tgl + '_' + type.key] = data;
     // Check-in sudah tercatat di server. Kegagalan log/audit tidak boleh membuatnya dilaporkan sebagai gagal.
@@ -1598,3 +1861,162 @@ function v4ActCetakQr(typeKey, ganti) {
     tunggu();
   }).catch(err => { try { w.close(); } catch (e) {} v4ActGagal(err); });
 }
+
+// ============================================================
+// PENGINGAT BERTINGKAT untuk PJ / pengganti (Sholat Dhuha & Dzuhur)
+// Berjalan di perangkat guru yang sedang membuka aplikasi (tanpa server), sekali per tahap per hari:
+//   Tahap 1: jam mulai + V4_ACT_GRACE_MENIT (klaim pengganti terbuka)  -> "absensi belum lengkap"
+//   Tahap 2: jam mulai + V4_ACT_INGAT_BATAS_MENIT (kelas yang kurang jadi MERAH di dashboard Admin/Kepsek)
+// Yang diingatkan: petugas yang check-in hari itu; kalau belum ada yang check-in -> PJ atau pengganti yang ditunjuk Admin.
+// Kelas yang tidak ikut kegiatan (kelasTidakIkut, mis. kelas 1 & 2 untuk Dzuhur) tidak dihitung (v4ActKelasAktif).
+// Kelengkapan dibaca dari server (bukan cache layar); berhenti membaca untuk hari itu begitu sudah lengkap.
+// ============================================================
+const V4_ACT_INGAT_BATAS_MENIT = 60;     // samakan dengan MONITOR_SHOLAT_TOLERANSI_MENIT di js/monitor-petugas.js
+const V4_ACT_INGAT_AKHIR_MENIT = 240;    // lewat jam mulai + ini, tidak diingatkan lagi hari itu
+let v4ActIngatSibuk = false, v4ActKalenderDicoba = false;
+
+function v4ActIngatKunci(tgl, typeKey, tahap) { return 'v4ActIngat_' + tgl + '_' + typeKey + '_' + tahap; }
+function v4ActIngatAda(k) { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } }
+function v4ActIngatSet(k) { try { localStorage.setItem(k, '1'); } catch (e) {} }
+function v4ActIngatBersihkan(tgl) {
+  try { Object.keys(localStorage).forEach(k => { if (k.indexOf('v4ActIngat_') === 0 && k.indexOf('v4ActIngat_' + tgl + '_') !== 0) localStorage.removeItem(k); }); } catch (e) {}
+}
+
+// -> Promise<[{kelas, total, terisi}]> kelas aktif yang belum lengkap (total > 0 dan terisi < total).
+function v4ActIngatKurang(type, tgl) {
+  const awal = type.key + '_' + tgl + '_';
+  const sudah = new Set();
+  const bacaAbsen = db.ref('activity_attendance_v4').orderByKey().startAt(awal).endAt(awal + '\uf8ff').once('value')
+    .then(snap => { snap.forEach(c => { const r = c.val() || {}; if (r.studentId && v4NormStatusKegiatan(r.status)) sudah.add(r.studentId); }); });
+  const bacaSiswa = Promise.all(v4ActKelasAktif(type).map(k => {
+    const cache = (typeof v4PanelSiswaCache !== 'undefined') ? v4PanelSiswaCache[k] : null;
+    if (cache) return Promise.resolve({ kelas: k, ids: cache.map(s => s.key) });
+    return db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(snap => { const ids = []; snap.forEach(c => { ids.push(c.key); }); return { kelas: k, ids }; });
+  }));
+  return Promise.all([bacaAbsen, bacaSiswa]).then(([, grup]) =>
+    grup.map(g => ({ kelas: g.kelas, total: g.ids.length, terisi: g.ids.filter(id => sudah.has(id)).length })).filter(x => x.total && x.terisi < x.total));
+}
+
+function v4ActIngatTick() {
+  if (v4ActIngatSibuk || !currentUser || typeof db === 'undefined' || !db || !navigator.onLine || document.hidden) return;
+  if (v4IsAdmin() || v4IsHead()) return;           // Admin/Kepsek memantau lewat kartu dashboard
+  const tgl = v4Date(), now = v4ActMenitSekarang();
+  v4ActIngatBersihkan(tgl);
+  if (typeof monitorLiburSet === 'function') {
+    if (!v4ActKalenderDicoba && (!allKalenderAkademik || !allKalenderAkademik.length) && typeof reloadDataset === 'function') {
+      v4ActKalenderDicoba = true; reloadDataset('kalenderAkademik', () => {});   // Kalender Akademik dimuat malas
+    }
+    if (monitorLiburSet().has(tgl)) return;
+  }
+  const types = (V4.activityTypes || []).filter(t => v4ActJenisSholat(t));
+  for (const t of types) {
+    if (!v4HariDiizinkanSholat(v4ActJenisSholat(t), tgl)) continue;
+    const mulai = v4ActMenit(v4ActJamMulai(t));
+    const tahap = (now >= mulai + V4_ACT_INGAT_BATAS_MENIT && now < mulai + V4_ACT_INGAT_AKHIR_MENIT) ? 2
+      : (now >= mulai + V4_ACT_GRACE_MENIT && now < mulai + V4_ACT_INGAT_BATAS_MENIT) ? 1 : 0;
+    const kTahap = v4ActIngatKunci(tgl, t.key, tahap), kSelesai = v4ActIngatKunci(tgl, t.key, 'selesai');
+    if (!tahap || v4ActIngatAda(kTahap) || v4ActIngatAda(kSelesai)) continue;
+    if (v4ActCheckinSiap[tgl] === undefined) { v4ActLoadCheckins(tgl); continue; }   // data check-in belum ada; tick berikutnya
+    if (v4ActCheckinSiap[tgl] !== true && v4ActCheckinSiap[tgl] !== 'gagal') continue;  // masih memuat
+    const ci = v4ActCheckin(t.key, tgl);
+    const sub = V4.activitySubstitutes && V4.activitySubstitutes[t.key + '_' + tgl];
+    const tanggungJawab = ci ? v4ActIsMine(ci) : (v4ActAkuCocok(t.picKey, t.picName) || !!(sub && v4ActAkuCocok(sub.guruKey, sub.guruName)));
+    if (!tanggungJawab) continue;
+    v4ActIngatSibuk = true;
+    v4ActIngatKurang(t, tgl).then(kurang => {
+      if (!kurang.length) { v4ActIngatSet(kSelesai); return; }
+      v4ActIngatSet(kTahap);
+      const rinci = kurang.map(x => x.terisi === 0 ? `${x.kelas} (belum ada)` : `${x.kelas} (${x.terisi}/${x.total})`).join(', ');
+      const judul = tahap === 1 ? `⏰ ${t.name}: absensi belum lengkap` : `⚠️ ${t.name}: batas waktu terlewat`;
+      const isi = tahap === 1
+        ? `Kelas: ${rinci}. Mohon segera diisi di Amalan Yaumiyah.${ci ? '' : ' PJ belum check-in; guru lain sudah bisa klaim sebagai pengganti (scan QR).'}`
+        : `Kelas: ${rinci}. Kelas ini sekarang ditandai MERAH di dashboard Admin/Kepala Madrasah. Mohon segera dilengkapi.`;
+      toast(judul + ' ' + isi, true, 12000);
+      try { v4Notify(judul, isi, 'INFO', currentUser.key || currentUser.name).catch(() => {}); } catch (e) {}   // tersimpan di lonceng notifikasi
+    }).catch(e => console.warn('[SI MAMBA] Pengingat absensi sholat gagal:', e && e.message || e))
+      .then(() => { v4ActIngatSibuk = false; });
+    return;                                         // satu pengecekan per putaran
+  }
+}
+setTimeout(v4ActIngatTick, 20000);
+setInterval(v4ActIngatTick, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(v4ActIngatTick, 2000); });
+
+// ============================================================
+// PORTAL ORANG TUA: kartu "Sholat Dhuha & Dzuhur" (rekap semester yang diterbitkan wali kelas)
+// renderPortalOrtuDashboard (app.js) membangun halaman SEKALI lewat content.innerHTML setelah semua data terbaca, jadi fungsi itu
+// dibungkus: setelah halaman jadi, kartu disisipkan sesudah kartu "Kehadiran Bulan Ini" dan diisi dari node kecil
+// rekap_sholat_raport (2 pembacaan: Genap & Ganjil tahun ajaran aktif). Kalau gagal dibaca, kartu dibuang diam-diam.
+// ============================================================
+function v4PortalSholatPeriode(semester) { return String(currentTahunAjaran || '').replace(/[\/.#$\[\]]/g, '-') + '_' + semester; }
+function v4PortalSholatBaca(siswa) {
+  return Promise.all(['Genap', 'Ganjil'].map(sm =>
+    db.ref('rekap_sholat_raport/' + v4PortalSholatPeriode(sm) + '/' + siswa.key).once('value').then(sn => (sn.val() ? Object.assign({ semester: sm }, sn.val()) : null))
+  )).then(l => l.filter(Boolean));
+}
+function v4PortalSholatBlok(nama, r) {
+  const hdr = `<div style="font-weight:600;font-size:13px;margin:8px 0 4px;">${escapeHtml(nama)}</div>`;
+  if (!r || r.tidakIkut) return hdr + `<p class="text-muted" style="font-size:12px;">${r && r.tidakIkut ? 'Kelas ini tidak mengikuti ' + escapeHtml(nama) + ' berjamaah di madrasah.' : 'Belum ada data.'}</p>`;
+  if (r.ada === false) return hdr + '<p class="text-muted" style="font-size:12px;">Belum ada data.</p>';
+  const n = v => Number(v) || 0;
+  const kotak = (v, label, warna) => `<div><div style="font-size:18px;font-weight:800;color:${warna};">${n(v)}</div><div class="text-muted" style="font-size:11px;">${label}</div></div>`;
+  const pct = (r.pct === null || r.pct === undefined) ? '-' : n(r.pct) + '%';
+  const pred = r.pred ? escapeHtml(r.pred) + (n(r.T) > 0 ? '*' : '') : '-';
+  return hdr + `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">${kotak(r.H, 'Hadir', '#059669')}${kotak(r.S, 'Sakit', '#d97706')}${kotak(r.I, 'Izin', '#2563eb')}${kotak(r.A, 'Alfa', '#dc2626')}</div>
+    <p style="font-size:12px;margin-top:6px;">% Hadir: <strong>${pct}</strong> · Predikat: <strong>${pred}</strong></p>`;
+}
+function v4PortalSholatHtml(list) {
+  const urut = list.slice().sort((a, b) => (a.semester === b.semester ? 0 : a.semester === 'Genap' ? -1 : 1));
+  return urut.map(d => {
+    const adaT = [d.dhuha, d.dzuhur].some(r => r && Number(r.T) > 0);
+    const catatan = [];
+    if (d.udzur) catatan.push('Predikat dihitung dari kehadiran dibanding hadir + alfa; sakit dan izin tidak menurunkan predikat.');
+    if (adaT) catatan.push('* Ada hari yang belum tercatat; hari itu tidak dihitung ke persen.');
+    if (d.lengkap === false) catatan.push('Rekap ini masih sementara karena data kelas belum lengkap.');
+    return `<div style="padding:8px 0;border-top:1px solid #f1f5f9;">
+      <div style="font-size:12px;font-weight:700;">Semester ${escapeHtml(d.semester)} ${escapeHtml(d.tahunAjaran || '')}</div>
+      ${v4PortalSholatBlok('Sholat Dhuha', d.dhuha)}${v4PortalSholatBlok('Sholat Dzuhur', d.dzuhur)}
+      ${d.deskripsi ? `<p style="font-size:12px;margin-top:8px;line-height:1.5;">${escapeHtml(d.deskripsi)}</p>` : ''}
+      ${catatan.length ? `<p class="text-muted" style="font-size:11px;margin-top:8px;">${catatan.map(escapeHtml).join(' ')}</p>` : ''}
+      <p class="text-muted" style="font-size:11px;margin-top:4px;">Diterbitkan wali kelas${d.diterbitkanPada ? ' · ' + escapeHtml(String(d.diterbitkanPada).slice(0, 10)) : ''}</p></div>`;
+  }).join('');
+}
+function v4PortalSholatIsi(kartu, siswa) {
+  if (typeof db === 'undefined' || !db) { kartu.remove(); return; }
+  v4PortalSholatBaca(siswa).then(list => {
+    const judul = '<p style="font-weight:700;margin-bottom:4px;">🕌 Sholat Dhuha &amp; Dzuhur</p>';
+    kartu.innerHTML = judul + (list.length ? v4PortalSholatHtml(list) : '<p class="text-muted" style="font-size:13px;">Rekap semester belum diterbitkan oleh wali kelas.</p>');
+  }).catch(e => { console.warn('[SI MAMBA] Kartu sholat Portal Ortu gagal dimuat:', e && e.message || e); kartu.remove(); });
+}
+let v4PortalSholatObs = null;
+function v4PortalSholatPasang(siswa) {
+  const content = document.getElementById('portalOrtuContent');
+  if (!content || !siswa || !siswa.key) return;
+  if (v4PortalSholatObs) { v4PortalSholatObs.disconnect(); v4PortalSholatObs = null; }
+  const pasang = () => {
+    if (!content.querySelector('.card')) return false;                 // masih "Memuat data..."
+    if (content.querySelector('#portalOrtuSholatCard')) return true;
+    const kartu = document.createElement('div');
+    kartu.className = 'card'; kartu.id = 'portalOrtuSholatCard'; kartu.style.marginBottom = '12px';
+    kartu.innerHTML = '<p style="font-weight:700;margin-bottom:4px;">🕌 Sholat Dhuha &amp; Dzuhur</p><p class="text-muted" style="font-size:13px;">⏳ Memuat rekap...</p>';
+    const acuan = [...content.querySelectorAll('.card')].find(c => /Kehadiran Bulan Ini/.test(c.textContent));
+    if (acuan) acuan.insertAdjacentElement('afterend', kartu); else content.appendChild(kartu);
+    v4PortalSholatIsi(kartu, siswa);
+    return true;
+  };
+  if (pasang()) return;
+  const obs = v4PortalSholatObs = new MutationObserver(() => { if (pasang()) { obs.disconnect(); if (v4PortalSholatObs === obs) v4PortalSholatObs = null; } });
+  obs.observe(content, { childList: true });
+  setTimeout(() => { obs.disconnect(); if (v4PortalSholatObs === obs) v4PortalSholatObs = null; }, 60000);
+}
+(function () {
+  if (typeof renderPortalOrtuDashboard !== 'function' || renderPortalOrtuDashboard.__sholatRaport) return;
+  const asli = renderPortalOrtuDashboard;
+  const baru = function (siswa) {
+    const hasil = asli.apply(this, arguments);
+    try { v4PortalSholatPasang(siswa); } catch (e) { console.warn('[SI MAMBA] Pasang kartu sholat Portal Ortu gagal:', e); }
+    return hasil;
+  };
+  baru.__sholatRaport = true;
+  window.renderPortalOrtuDashboard = baru;
+})();

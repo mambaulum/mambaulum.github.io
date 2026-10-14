@@ -6692,7 +6692,7 @@
     // ============================================================
     // RELIGI
     // ============================================================
-    function loadReligi() { renderReligi(allReligiAttendance); }
+    function loadReligi() { if (!document.getElementById('religiTodayList')) return; renderReligi(allReligiAttendance); }   // halaman Absen Religi sudah dicabut dari index.html
     function renderReligi(data) {
       const today = tglLokal(), bulanIni = today.slice(0,7);
       // Label jam di halaman selalu mengikuti getJamReligi() supaya tidak berbeda dari aturan yang benar-benar dipakai saveReligi().
@@ -6778,102 +6778,164 @@
       // Defensif: abaikan record tanpa status (kalau ada) supaya tidak dihitung sebagai "sudah diisi".
       return (V4.activityAttendance || []).some(r => r.status && keys.includes(r.activityTypeId) && r.tanggal === tanggal);
     }
+    // ============================================================
+    // HONOR SHOLAT (Dhuha & Dzuhur) -- DIHITUNG DARI CHECK-IN PETUGAS
+    // ============================================================
+    // Aturan: honor sholat = check-in QR petugas (activity_checkin_v4) + absensi siswa LENGKAP + jam check-in dalam jendela.
+    // "Absen Religi Saya" tidak dipakai lagi (saveReligi dicabut). Check-in boleh offline, jadi honor tidak bergantung pada langkah kedua.
+    // Pemeriksaan jam & kelengkapan dilakukan SAAT REKAP DIHITUNG (data sudah di server), bukan saat guru menyimpan.
+    // Hari yang tidak lolos TIDAK dihitung dan ditandai (beserta alasannya) di Rekap Honor, Slip, dan Laporan.
+    // Jendela jam = getJamReligi(): Dhuha 06:30-09:00, Dzuhur 11:00-12:30, dinilai dari jam check-in (WIB).
+    // Tanggal < HONOR_SHOLAT_MULAI_CHECKIN tetap dihitung dari Absen Religi lama (religi_attendance) supaya honor/slip lama tidak berubah.
+    // Koreksi Admin (>= tanggal itu) disimpan di honor_koreksi_sholat, bukan mengubah check-in.
+    const HONOR_SHOLAT_MULAI_CHECKIN = '2026-10-15';
+    const HONOR_SHOLAT_TTL_MS = 5 * 60 * 1000;
+    const HONOR_SHOLAT_TOLERANSI_MS = 5 * 60 * 1000;   // jam check-in boleh "lebih maju" maksimal ini dari jam server
+    let honorSholatCache = {};   // 'YYYY-MM' -> { status:'loading'|'ok'|'gagal', at, hasil, error, tunggu:[] }
+
     function saveReligi() {
-      if (!isTeacher() && !isWaliKelas() && !isAdmin() && !isKepsek()) return toast('Hanya Guru, Wali Kelas, Admin & Kepsek!', true);
-      if (isBusy('saveReligi')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
-      const type = document.getElementById('religiType').value, status = document.getElementById('religiStatus').value, today = tglLokal();
-      if (!type || !status) return toast('Pilih sholat dan status!', true);
-      const namaSholat = type === 'sholat_dluha' ? 'Dluha' : 'Dzuhur';
-      // Validasi hari: Dzuhur cuma Senin-Kamis, Dluha semua hari kecuali Minggu (kecuali Admin/Kepsek
-      // yang perlu koreksi data lama).
-      if (!isAdmin() && !isKepsek() && !v4HariDiizinkanSholat(type, today)) {
-        const pesanHari = type === 'sholat_dzuhur' ? 'Absen Sholat Dzuhur hanya berlaku Senin-Kamis!' : 'Hari Minggu madrasah libur, absen religi tidak bisa dicatat!';
-        return toast(pesanHari, true);
-      }
-      // Validasi jendela waktu: cuma bisa dicatat pada rentang jam sholat yang sesuai (kecuali Admin/Kepsek).
-      const window_ = getJamReligi(type);
-      const now = new Date(), sekarangMenit = now.getHours()*60 + now.getMinutes();
-      const mulai = window_.mulai.split(':'), mulaiMenit = parseInt(mulai[0])*60 + parseInt(mulai[1]);
-      const selesai = window_.selesai.split(':'), selesaiMenit = parseInt(selesai[0])*60 + parseInt(selesai[1]);
-      const isDalamJendela = sekarangMenit >= mulaiMenit && sekarangMenit <= selesaiMenit;
-      if (!isDalamJendela && !isAdmin() && !isKepsek()) return toast(`Absen ${namaSholat} hanya bisa dicatat jam ${window_.mulai}-${window_.selesai}!`, true);
-      // Wajib: absensi SISWA untuk sholat ini harus sudah diisi dulu di menu Amalan Yaumiyah
-      // hari ini, baru guru boleh mencatat absen pribadinya sendiri (dasar Honor).
-      const statusAbsenSiswa = v4AbsensiSiswaSholatSudahDiisi(namaSholat, today);
-      if (statusAbsenSiswa === null) {
-        // Daftar kegiatan V4 dimuat belakangan (setelah Fase 2) dan bisa kosong karena belum selesai/timeout --
-        // jangan langsung menuduh Admin belum membuat. Muat ulang, minta coba lagi.
-        if (!(V4.activityTypes || []).length && typeof v4LoadCore === 'function') {
-          v4LoadCore();
-          return toast('⏳ Data Amalan Yaumiyah sedang dimuat/disiapkan. Coba lagi sebentar lagi.', true);
-        }
-        return toast(`Admin belum membuat jenis kegiatan "Sholat ${namaSholat}" di menu Amalan Yaumiyah!`, true);
-      }
-      if (statusAbsenSiswa === false) return toast(`Absensi siswa untuk Sholat ${namaSholat} hari ini belum diisi di menu Amalan Yaumiyah. Isi dulu absensi siswanya.`, true);
-      const btn = document.getElementById('btnSaveReligi');
-      setBusy('saveReligi', btn);   // dikunci sejak awal: pemeriksaan petugas ke server butuh beberapa detik
-      let waktuIso = null;   // jam SERVER saat Hadir divalidasi (null = pakai jam perangkat, mis. Sakit/Izin atau Admin/Kepsek)
-      const lanjutSimpan = () => {
-        try {
-          const existing = allReligiAttendance.find(item => item.tanggal === today && (item.guruKey ? item.guruKey === currentUser.key : item.guru === currentUser.name));
-          const ref = existing ? db.ref('religi_attendance/' + existing.key) : db.ref('religi_attendance').push();
-          const data = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key || null, tahunAjaran: currentTahunAjaran, updatedAt: waktuIso || new Date().toISOString() };
-          data[type] = { status: status, waktu: waktuIso || new Date().toISOString() };
-          if (existing) { const otherType = type === 'sholat_dluha' ? 'sholat_dzuhur' : 'sholat_dluha'; if (existing[otherType]) data[otherType] = existing[otherType]; }
-          ref.update(data, err => {
-            clearBusy('saveReligi', btn);
-            if (err) toast('Gagal: ' + err.message, true);
-            else { toast('✅ Absensi religi tersimpan!'); addLog('simpan_religi', type + ' - ' + status); db.ref('religi_attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { allReligiAttendance = []; snap.forEach(child => { const item = child.val(); item.key = child.key; allReligiAttendance.push(item); }); renderReligi(allReligiAttendance); }); }
-          });
-        } catch (e) {
-          clearBusy('saveReligi', btn);
-          toast('Gagal: '+(e && e.message || e), true);
-        }
-      };
-      // Honor sholat (dihitung dari status "Hadir") hanya untuk PETUGAS hari itu: PJ, pengganti yang ditunjuk Admin,
-      // atau guru yang mengklaim saat PJ tidak hadir -- yaitu yang tercatat check-in QR di Amalan Yaumiyah.
-      // Status selain Hadir tidak menghasilkan honor, jadi tidak diperiksa. Admin/Kepsek dikecualikan.
-      if (status !== 'Hadir' || isAdmin() || isKepsek()) return lanjutSimpan();
-      // Validasi ketat untuk status Hadir (dasar honor), semuanya terhadap JAM SERVER (bukan jam HP):
-      //   1) hari & jam sholat, 2) absensi SEMUA siswa di SEMUA kelas sudah lengkap (dibaca dari server), 3) guru ini petugas check-in hari itu.
-      const periksaWaktuServer = (typeof v4ActWaktuServer === 'function') ? v4ActWaktuServer() : Promise.resolve(Date.now());
-      periksaWaktuServer.then(ms => {
-        const sv = new Date(ms), tglServer = tglLokal(sv);
-        if (tglServer !== today) return 'Tanggal/jam HP Anda tidak sesuai dengan server (server: ' + tglServer + ' ' + String(sv.getHours()).padStart(2, '0') + ':' + String(sv.getMinutes()).padStart(2, '0') + '). Perbaiki pengaturan tanggal & jam HP, lalu coba lagi.';
-        if (!v4HariDiizinkanSholat(type, tglServer)) return type === 'sholat_dzuhur' ? 'Absen Sholat Dzuhur hanya berlaku Senin-Kamis!' : 'Hari Minggu madrasah libur, absen religi tidak bisa dicatat!';
-        const menitServer = sv.getHours() * 60 + sv.getMinutes();
-        if (menitServer < mulaiMenit || menitServer > selesaiMenit) return `Absen ${namaSholat} hanya bisa dicatat jam ${window_.mulai}-${window_.selesai} (jam server sekarang ${String(sv.getHours()).padStart(2, '0')}:${String(sv.getMinutes()).padStart(2, '0')}).`;
-        waktuIso = sv.toISOString();
-        const cek = (typeof v4ActPeriksaAbsensiLengkap === 'function') ? v4ActPeriksaAbsensiLengkap(namaSholat, today) : Promise.resolve(null);
-        return cek.then(p => p || v4PeriksaPetugasSholat(type, today));
-      }).then(pesan => {
-        if (pesan) { clearBusy('saveReligi', btn); return toast(pesan, true, 9000); }
-        lanjutSimpan();
-      }).catch(err => {
-        clearBusy('saveReligi', btn);
-        toast('Gagal memeriksa syarat honor ' + namaSholat + ': ' + ((err && err.message) || err) + ' Coba lagi saat sinyal membaik.', true, 6000);
-      });
+      toast('Absen Religi pribadi sudah tidak dipakai. Honor sholat dihitung dari check-in petugas (scan QR) di Amalan Yaumiyah.', true, 6000);
     }
-    // Hasil: null = guru ini petugas sholat hari ini (boleh mencatat Hadir); string = alasan penolakan.
-    // Dibaca langsung dari server (bukan cache layar Amalan Yaumiyah yang belum tentu terbuka/ter-load).
-    function v4PeriksaPetugasSholat(type, tanggal) {
-      const namaSholat = type === 'sholat_dluha' ? 'Dhuha' : 'Dzuhur';
-      const keys = v4CariJenisKegiatanSholat(type === 'sholat_dluha' ? 'Dluha' : 'Dzuhur').map(t => t.key);
-      if (!keys.length) return Promise.resolve(null);   // jenis kegiatan belum ada: sudah ditolak oleh validasi sebelumnya
-      if (!navigator.onLine) return Promise.resolve('Mencatat Hadir sholat ' + namaSholat + ' butuh koneksi internet untuk memeriksa petugas hari ini.');
-      const saya = (typeof v4ActMyId === 'function') ? v4ActMyId() : (currentUser.key || currentUser.name || '');
-      const baca = Promise.all(keys.map(k => db.ref('activity_checkin_v4/' + tanggal + '_' + k).once('value')));
-      const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 15000));
-      return Promise.race([baca, batas]).then(snaps => {
-        const daftar = snaps.map(sn => sn.val()).filter(Boolean);
-        if (daftar.some(ci => ci.guruKey && ci.guruKey === saya)) return null;
-        if (typeof v4ActCiTunda !== 'undefined' && keys.some(k => v4ActCiTunda[tanggal + '_' + k])) {
-          try { if (typeof v4ActCiTundaKirim === 'function') v4ActCiTundaKirim(false); } catch (e) { /* dicoba lagi otomatis */ }
-          return 'Check-in petugas ' + namaSholat + ' Anda belum sampai ke server. Tunggu sampai terkirim, lalu simpan lagi.';
-        }
-        if (daftar.length) return 'Honor Sholat ' + namaSholat + ' hari ini untuk petugas yang check-in: ' + (daftar[0].guruName || 'guru lain') + '. Absen ini tidak dihitung honor.';
-        return 'Belum ada check-in petugas Sholat ' + namaSholat + ' hari ini. PJ (atau pengganti yang ditunjuk Admin) scan QR di Amalan Yaumiyah dulu; bila PJ tidak hadir, guru lain bisa klaim pengganti setelah jam klaim dibuka.';
+    function honorSholatInvalidate() { honorSholatCache = {}; }
+    function honorSholatNama(jenis) { return jenis === 'sholat_dluha' ? 'Dhuha' : 'Dzuhur'; }
+    function honorSholatResolve(guruKey, nama) {
+      if (guruKey) return guruKey;
+      const g = (allGuru || []).find(x => x && x.key && x.name === nama);
+      return (g && g.key) || nama;
+    }
+    function honorSholatNamaGuru(gk, fallback) {
+      const g = (allGuru || []).find(x => x && x.key === gk);
+      return (g && g.name) || fallback || gk;
+    }
+    // Jam & tanggal WIB (UTC+7) dari epoch-ms, tidak bergantung zona waktu perangkat.
+    function honorSholatWib(ms) {
+      const d = new Date(ms + 7 * 3600 * 1000), p = n => String(n).padStart(2, '0');
+      return { tgl: d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()), menit: d.getUTCHours() * 60 + d.getUTCMinutes(), jam: p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) };
+    }
+    function honorSholatMenit(s) { const p = String(s || '').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
+    function honorSholatJenisType(typeId) {
+      const t = (typeof v4ActTypeByKey === 'function') ? v4ActTypeByKey(typeId) : null;
+      return (t && typeof v4ActJenisSholat === 'function') ? v4ActJenisSholat(t) : null;
+    }
+    // Inti perhitungan (murni, tanpa akses Firebase). c = { ym, religiLama[], checkins{}, koreksi{}, hadirSiswa{jenis:{tgl:Set}},
+    // siswaWajib{jenis:[{kelas,siswa:[{key,name}]}]}, jenisType(typeId), hariOk(jenis,tgl) }.
+    // Hasil: { perGuru:{gk:{nama,dluha,dzuhur}}, ditolak:[{gk,nama,tgl,jenis,alasan}], entri:{'gk|tgl|jenis':{...,sistemLolos,lolos,koreksi}} }
+    function honorSholatHitung(c) {
+      const hasil = { perGuru: {}, ditolak: [], entri: {} };
+      const ambil = (gk, nama) => hasil.perGuru[gk] || (hasil.perGuru[gk] = { nama: honorSholatNamaGuru(gk, nama), dluha: 0, dzuhur: 0 });
+      // 1) Sebelum aturan baru: Absen Religi lama (sama seperti rumus lama).
+      (c.religiLama || []).forEach(r => {
+        if (!r || !r.tanggal || r.tanggal.slice(0, 7) !== c.ym || r.tanggal >= HONOR_SHOLAT_MULAI_CHECKIN) return;
+        const g = ambil(honorSholatResolve(r.guruKey, r.guru), r.guru);
+        if (r.sholat_dluha && r.sholat_dluha.status === 'Hadir') g.dluha += 1;
+        if (r.sholat_dzuhur && r.sholat_dzuhur.status === 'Hadir') g.dzuhur += 1;
       });
+      // 2) Aturan baru: check-in + jam + kelengkapan absensi siswa.
+      const entri = hasil.entri;
+      Object.keys(c.checkins || {}).forEach(k => {
+        const ci = c.checkins[k]; if (!ci) return;
+        const tgl = ci.tanggal || String(k).slice(0, 10);
+        if (tgl < HONOR_SHOLAT_MULAI_CHECKIN || tgl.slice(0, 7) !== c.ym) return;
+        const jenis = c.jenisType(ci.typeId || String(k).slice(11)); if (!jenis) return;   // bukan kegiatan sholat
+        const gk = honorSholatResolve(ci.guruKey, ci.guruName), alasan = [], nm = honorSholatNama(jenis);
+        if (!c.hariOk(jenis, tgl)) alasan.push('Hari itu bukan jadwal Sholat ' + nm);
+        const ms = Number(ci.atMs) || Date.parse(ci.at);
+        if (!(ms > 0)) alasan.push('Jam check-in tidak terbaca');
+        else {
+          const w = honorSholatWib(ms), win = getJamReligi(jenis);
+          if (w.tgl !== tgl) alasan.push('Tanggal jam check-in (' + w.tgl + ') tidak sama dengan tanggal check-in');
+          else if (w.menit < honorSholatMenit(win.mulai) || w.menit > honorSholatMenit(win.selesai)) alasan.push('Check-in pukul ' + w.jam + ' di luar jam ' + win.mulai + '-' + win.selesai);
+          if (Number(ci.serverAt) > 0 && ms > Number(ci.serverAt) + HONOR_SHOLAT_TOLERANSI_MS) alasan.push('Jam check-in lebih maju dari jam server');
+        }
+        const sudah = ((c.hadirSiswa || {})[jenis] || {})[tgl] || new Set(), rinci = [];
+        ((c.siswaWajib || {})[jenis] || []).forEach(g => { const belum = g.siswa.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + g.siswa.length + ' siswa'); });
+        if (rinci.length) alasan.push('Absensi siswa belum lengkap (' + rinci.join(', ') + ')');
+        const ek = gk + '|' + tgl + '|' + jenis, lolos = alasan.length === 0, e = entri[ek];
+        if (!e) entri[ek] = { gk, nama: ci.guruName || gk, tgl, jenis, sistemLolos: lolos, alasanSistem: alasan, lolos, koreksi: null };
+        else if (lolos && !e.lolos) { e.sistemLolos = true; e.lolos = true; e.alasanSistem = []; }
+        ambil(gk, ci.guruName);
+      });
+      // 3) Koreksi Admin: 'Hadir' = dihitung walau sistem menolak / tanpa check-in; 'Tidak Hadir' = dicabut.
+      Object.keys(c.koreksi || {}).forEach(k => {
+        const kr = c.koreksi[k];
+        if (!kr || !kr.tanggal || kr.tanggal < HONOR_SHOLAT_MULAI_CHECKIN || kr.tanggal.slice(0, 7) !== c.ym) return;
+        if (kr.sholat !== 'sholat_dluha' && kr.sholat !== 'sholat_dzuhur') return;
+        const gk = honorSholatResolve(kr.guruKey, kr.guruName), ek = gk + '|' + kr.tanggal + '|' + kr.sholat;
+        const e = entri[ek] || (entri[ek] = { gk, nama: kr.guruName || gk, tgl: kr.tanggal, jenis: kr.sholat, sistemLolos: false, alasanSistem: ['Tidak ada check-in'], lolos: false, koreksi: null });
+        e.koreksi = { aksi: kr.aksi, alasan: kr.alasan || '', oleh: kr.oleh || '' };
+        e.lolos = kr.aksi === 'Hadir';
+        ambil(gk, kr.guruName);
+      });
+      Object.keys(entri).forEach(ek => {
+        const e = entri[ek], g = ambil(e.gk, e.nama);
+        if (e.lolos) { if (e.jenis === 'sholat_dluha') g.dluha += 1; else g.dzuhur += 1; }
+        else hasil.ditolak.push({ gk: e.gk, nama: g.nama, tgl: e.tgl, jenis: e.jenis, alasan: e.koreksi ? ('Dicabut Admin' + (e.koreksi.alasan ? ': ' + e.koreksi.alasan : '')) : e.alasanSistem.join('; ') });
+      });
+      hasil.ditolak.sort((a, b) => (a.tgl < b.tgl ? -1 : a.tgl > b.tgl ? 1 : COLLATOR_ID.compare(a.nama || '', b.nama || '')));
+      return hasil;
+    }
+    // Ambil data dari server untuk satu bulan lalu hitung. Hasil disimpan di honorSholatCache[ym].
+    function honorSholatMuat(ym) {
+      const entry = honorSholatCache[ym];
+      const selesai = (err, hasil) => {
+        if (honorSholatCache[ym] !== entry) return;   // cache sudah di-invalidate selama memuat
+        if (err) { entry.status = 'gagal'; entry.error = (err && err.message) || String(err); } else { entry.status = 'ok'; entry.hasil = hasil; }
+        entry.at = Date.now();
+        entry.tunggu.splice(0).forEach(cb => { try { cb(); } catch (e) { console.warn('[SI MAMBA] honorSholat callback:', e); } });
+      };
+      try {
+        const religiLama = (allReligiAttendance || []).filter(r => r && r.tanggal && r.tanggal.slice(0, 7) === ym && sesuaiTahunAjaranTermasukDataLama(r));
+        const c = { ym, religiLama, checkins: {}, koreksi: {}, hadirSiswa: {}, siswaWajib: {}, jenisType: honorSholatJenisType, hariOk: (j, t) => v4HariDiizinkanSholat(j, t) };
+        if (ym + '-31' < HONOR_SHOLAT_MULAI_CHECKIN) return selesai(null, honorSholatHitung(c));   // bulan lama: murni Absen Religi lama
+        if (typeof db === 'undefined' || !db || !navigator.onLine) return selesai(new Error('Butuh koneksi internet untuk memeriksa check-in petugas dan kelengkapan absensi siswa sholat.'));
+        if (!(V4.activityTypes || []).length) { if (typeof v4LoadCore === 'function') v4LoadCore(); return selesai(new Error('Data Amalan Yaumiyah belum termuat. Coba lagi sebentar lagi.')); }
+        const jenisList = ['sholat_dluha', 'sholat_dzuhur'], tipe = {}, kelasWajib = {};
+        jenisList.forEach(j => {
+          tipe[j] = v4CariJenisKegiatanSholat(j === 'sholat_dluha' ? 'Dluha' : 'Dzuhur').map(t => (typeof v4ActTypeByKey === 'function' && v4ActTypeByKey(t.key)) || t);
+          kelasWajib[j] = KELAS_LIST.filter(k => tipe[j].some(t => !v4ActKelasTidakIkut(t, k)));
+        });
+        const awal = ym + '-', akhir = ym + '-\uf8ff';
+        const bacaCi = db.ref('activity_checkin_v4').orderByKey().startAt(awal).endAt(akhir).once('value').then(s => { c.checkins = s.val() || {}; });
+        const bacaKor = db.ref('honor_koreksi_sholat').orderByKey().startAt(awal).endAt(akhir).once('value').then(s => { c.koreksi = s.val() || {}; });
+        const semuaKelas = Array.from(new Set([].concat(kelasWajib.sholat_dluha, kelasWajib.sholat_dzuhur)));
+        const bacaSiswa = Promise.all(semuaKelas.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(s => { const arr = []; s.forEach(ch => { const v = ch.val() || {}; arr.push({ key: ch.key, name: v.name || ch.key }); }); return [k, arr]; })))
+          .then(pasangan => { const m = {}; pasangan.forEach(p => { m[p[0]] = p[1]; }); jenisList.forEach(j => { c.siswaWajib[j] = kelasWajib[j].map(k => ({ kelas: k, siswa: m[k] || [] })); }); });
+        const bacaAbsen = Promise.all(jenisList.map(j => Promise.all(tipe[j].map(t => db.ref('activity_attendance_v4').orderByKey().startAt(t.key + '_' + awal).endAt(t.key + '_' + akhir).once('value').then(s => {
+          const peta = c.hadirSiswa[j] || (c.hadirSiswa[j] = {});
+          s.forEach(ch => {
+            const r = ch.val() || {};
+            if (!r.studentId || !(typeof v4NormStatusKegiatan === 'function' ? v4NormStatusKegiatan(r.status) : r.status)) return;
+            const tgl = r.tanggal || String(ch.key).slice(t.key.length + 1, t.key.length + 11);
+            (peta[tgl] || (peta[tgl] = new Set())).add(r.studentId);
+          });
+        })))));
+        const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 30000));
+        Promise.race([Promise.all([bacaCi, bacaKor, bacaSiswa, bacaAbsen]), batas])
+          .then(() => selesai(null, honorSholatHitung(c)))
+          .catch(err => selesai(/permission/i.test((err && err.message) || '') ? new Error('Akses baca ditolak oleh Rules Firebase (activity_checkin_v4 / honor_koreksi_sholat / activity_attendance_v4 / siswa). Minta Admin memasang Rules terbaru.') : err));
+      } catch (e) { selesai(e); }
+    }
+    // { siap:true, hasil } | { siap:false } (sedang memuat; onReady dipanggil saat selesai) | { siap:false, gagal:'pesan' }
+    function honorSholatDapat(year, month, onReady) {
+      const ym = String(year) + '-' + String(month).padStart(2, '0'), e = honorSholatCache[ym];
+      if (e && e.status === 'ok' && Date.now() - e.at < HONOR_SHOLAT_TTL_MS) return { siap: true, hasil: e.hasil };
+      if (e && e.status === 'gagal' && Date.now() - e.at < 15000) return { siap: false, gagal: e.error };
+      if (e && e.status === 'loading') { if (onReady) e.tunggu.push(onReady); return { siap: false }; }
+      honorSholatCache[ym] = { status: 'loading', at: Date.now(), tunggu: onReady ? [onReady] : [] };
+      honorSholatMuat(ym);
+      const e2 = honorSholatCache[ym];   // bulan lama selesai seketika (sinkron)
+      if (e2 && e2.status === 'ok') return { siap: true, hasil: e2.hasil };
+      if (e2 && e2.status === 'gagal') return { siap: false, gagal: e2.error };
+      return { siap: false };
+    }
+    function honorSholatStatusHtml(hs, ulang) {
+      if (hs.gagal) return `<p style="color:#b91c1c;font-size:13px;">❌ ${escapeHtml(hs.gagal)}</p><button class="btn btn-soft" onclick="honorSholatInvalidate();${ulang}">🔄 Coba lagi</button>`;
+      return '<p class="text-muted">⏳ Memeriksa check-in petugas dan kelengkapan absensi siswa sholat...</p>';
+    }
+    function honorSholatDitolakHtml(daftar, semuaGuru) {
+      if (!daftar || !daftar.length) return '';
+      const baris = daftar.map(d => `<tr>${semuaGuru ? `<td>${escapeHtml(d.nama)}</td>` : ''}<td>${escapeHtml(d.tgl)}</td><td>${honorSholatNama(d.jenis)}</td><td>${escapeHtml(d.alasan)}</td></tr>`).join('');
+      return `<details open style="margin-top:16px;background:#fffbeb;border-radius:12px;padding:12px;border:1px solid #fcd34d;"><summary style="font-weight:700;cursor:pointer;color:#92400e;">⚠️ Hari sholat tidak dihitung honor (${daftar.length})</summary><div style="margin-top:10px;overflow-x:auto;"><table><thead><tr>${semuaGuru ? '<th>Guru</th>' : ''}<th>Tanggal</th><th>Sholat</th><th>Alasan</th></tr></thead><tbody>${baris}</tbody></table></div><p class="text-muted" style="font-size:11px;margin:8px 0 0;">Honor sholat dihitung dari check-in petugas yang jamnya dalam jendela sholat dan absensi siswanya lengkap. Untuk koreksi, Admin memakai kartu "Koreksi Absen Religi Guru".</p></details>`;
     }
 
 
@@ -7329,7 +7391,10 @@
       const month = document.getElementById('honorMonth').value.padStart(2,'0'), year = document.getElementById('honorYear').value;
       const container = document.getElementById('honorResult'), btnPdf = document.getElementById('btnDownloadHonorPDF'), paginationEl = document.getElementById('honorPagination');
       const filteredJournals = allJournals.filter(j => { if (!j.tanggal) return false; const parts = j.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(j); }).filter(j => j.status !== 'ditolak');
-      const filteredReligi = allReligiAttendance.filter(r => { if (!r.tanggal) return false; const parts = r.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(r); });
+      // Honor sholat: dari check-in petugas + jam + kelengkapan absensi siswa (lihat honorSholatHitung). Absen Religi lama hanya untuk tanggal sebelum HONOR_SHOLAT_MULAI_CHECKIN.
+      const hs = honorSholatDapat(year, month, () => renderHonor());
+      if (!hs.siap) { container.innerHTML = honorSholatStatusHtml(hs, 'renderHonor()'); btnPdf.style.display = 'none'; paginationEl.innerHTML = ''; return; }
+      const filteredReligi = Object.keys(hs.hasil.perGuru);   // hanya dipakai untuk cek "ada data bulan ini"
       const filteredEvents = allEventAttendance.filter(e => { if (!e.tanggal) return false; const parts = e.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(e); });
       const filteredUjian = allUjianAttendance.filter(u => { if (!u.tanggal) return false; const parts = u.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(u); });
       const filteredEkskulPic = allEkskulPicHonor.filter(x => { if (!x.tanggal) return false; const parts = x.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(x); });
@@ -7354,8 +7419,7 @@
       const resolveGuruKey = (guruKey, namaGuru) => guruKey || namaGuruToKeyHonor[namaGuru] || namaGuru;
       const groupedJurnal = {};
       filteredJournals.forEach(j => { const gk = resolveGuruKey(j.guruKey, j.guru); if (!groupedJurnal[gk]) groupedJurnal[gk] = { nama: j.guru, reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }; if (isJamEkstra(j.jam_ke)) { groupedJurnal[gk].ekstra += 1; groupedJurnal[gk].ekstraHonor += getEkstraRate(j.subject); } else if (j.type === 'Non-Reguler') groupedJurnal[gk].nonReguler += 1; else groupedJurnal[gk].reguler += 1; });
-      const groupedReligi = {};
-      filteredReligi.forEach(r => { const gk = resolveGuruKey(r.guruKey, r.guru); if (!groupedReligi[gk]) groupedReligi[gk] = { nama: r.guru, dluha: 0, dzuhur: 0 }; if (r.sholat_dluha && r.sholat_dluha.status === 'Hadir') groupedReligi[gk].dluha += 1; if (r.sholat_dzuhur && r.sholat_dzuhur.status === 'Hadir') groupedReligi[gk].dzuhur += 1; });
+      const groupedReligi = hs.hasil.perGuru;   // { gk: { nama, dluha, dzuhur } } -- sudah lolos pemeriksaan check-in/jam/kelengkapan
       const groupedEvents = {};
       // Honor "Dinas Luar Kepala" (dicatat Admin di menu Rapat -> event_attendance, guruKey 'kepsek') TIDAK dihitung sebagai baris
       // guru; dijumlahkan ke baris tetap "Kepala Madrasah" di bawah (lihat bonusList).
@@ -7416,6 +7480,7 @@
         mewakiliList.forEach(j => { html += `<tr><td>${escapeHtml(j.tanggal)}</td><td>${escapeHtml(j.guru)}</td><td>${escapeHtml(j.mewakili)}</td><td>${escapeHtml(j.kelas)}</td><td>Jam ${escapeHtml(j.jam_ke)}</td><td>${escapeHtml(j.subject)}</td></tr>`; });
         html += `</tbody></table></div></details>`;
       }
+      html += honorSholatDitolakHtml(hs.hasil.ditolak, true);
       container.innerHTML = html; btnPdf.style.display = 'inline-block';
       paginationEl.innerHTML = `<button onclick="honorPage--; renderHonor();" ${honorPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${honorPage} / ${totalPages}</span><button onclick="honorPage++; renderHonor();" ${honorPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems} data</span>`;
       window._honorData = { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList };
@@ -7427,21 +7492,24 @@
       const month = monthSel.value.padStart(2,'0'), year = yearSel.value;
       const container = document.getElementById('honorSlipResult');
       const namaSaya = currentUser.name;
+      const hs = honorSholatDapat(year, month, () => renderHonorSlip());
+      if (!hs.siap) { container.innerHTML = honorSholatStatusHtml(hs, 'renderHonorSlip()'); return; }
+      const kunciSaya = honorSholatResolve(currentUser.key, namaSaya);
+      const sholatSaya = hs.hasil.perGuru[kunciSaya] || { dluha: 0, dzuhur: 0 };
+      const ditolakSaya = hs.hasil.ditolak.filter(x => x.gk === kunciSaya);
       // Identitas dicocokkan pakai guruKey (Firebase key unik currentUser) kalau record punya guruKey --
       // supaya slip honor tidak tertukar antar guru yang kebetulan bernama sama / namanya pernah diubah Admin.
       // Fallback ke nama dipertahankan untuk record lama yang belum punya guruKey.
       const cocokSaya = (rec) => rec.guruKey ? rec.guruKey === currentUser.key : rec.guru === namaSaya;
       const inBulan = (tgl) => { if (!tgl) return false; const p = tgl.split('-'); return p[0] === year && p[1] === month; };
       const fJournals = allJournals.filter(j => cocokSaya(j) && inBulan(j.tanggal) && sesuaiTahunAjaranTermasukDataLama(j) && j.status !== 'ditolak');
-      const fReligi = allReligiAttendance.filter(r => cocokSaya(r) && inBulan(r.tanggal) && sesuaiTahunAjaranTermasukDataLama(r));
       const fEvents = allEventAttendance.filter(e => cocokSaya(e) && inBulan(e.tanggal) && sesuaiTahunAjaranTermasukDataLama(e));
       const fUjian = allUjianAttendance.filter(u => cocokSaya(u) && inBulan(u.tanggal) && sesuaiTahunAjaranTermasukDataLama(u));
       const fEkskulPic = allEkskulPicHonor.filter(x => cocokSaya(x) && inBulan(x.tanggal) && sesuaiTahunAjaranTermasukDataLama(x));
       const rates = v4GetHonorRates();
       let reguler=0, nonReguler=0, ekstra=0, ekstraHonor=0;
       fJournals.forEach(j => { if (isJamEkstra(j.jam_ke)) { ekstra+=1; ekstraHonor+=getEkstraRate(j.subject); } else if (j.type==='Non-Reguler') nonReguler+=1; else reguler+=1; });
-      let dluha=0, dzuhur=0;
-      fReligi.forEach(r => { if (r.sholat_dluha && r.sholat_dluha.status==='Hadir') dluha+=1; if (r.sholat_dzuhur && r.sholat_dzuhur.status==='Hadir') dzuhur+=1; });
+      const dluha = sholatSaya.dluha, dzuhur = sholatSaya.dzuhur;   // dari check-in petugas yang lolos pemeriksaan
       const eventJumlah = fEvents.length, eventHonor = fEvents.reduce((s,e)=>s+(e.honor||0),0);
       const ujianJumlah = fUjian.length, ujianHonor = fUjian.reduce((s,u)=>s+(u.honor||0),0);
       // Kredit honor otomatis krn jadi PIC/pengganti ekskul yang mencatat absensi (lihat
@@ -7454,7 +7522,7 @@
       const bonusTerajin = (gt && (gt.guruKey ? gt.guruKey === currentUser.key : gt.guru === namaSaya)) ? (gt.honor||0) : 0;
       const total = v4HitungHonor({ reguler, nonReguler, ekstraHonor: ekstraHonor + ekskulPicHonorTotal, dluha, dzuhur, eventHonor, ujianHonor, tunjangan, transport }, rates) + bonusTerajin;
       const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][parseInt(month)];
-      if (fJournals.length===0 && fReligi.length===0 && fEvents.length===0 && fUjian.length===0 && fEkskulPic.length===0 && total===0) {
+      if (fJournals.length===0 && (dluha+dzuhur)===0 && ditolakSaya.length===0 && fEvents.length===0 && fUjian.length===0 && fEkskulPic.length===0 && total===0) {
         container.innerHTML = `<p class="text-muted">Belum ada data honor untuk ${namaBulan} ${year}.</p>`;
         return;
       }
@@ -7483,6 +7551,7 @@
         mewakiliListSaya.forEach(j => { mewakiliHtml += `<tr><td>${escapeHtml(j.tanggal)}</td><td>${escapeHtml(j.mewakili)}</td><td>${escapeHtml(j.kelas)}</td><td style="text-align:center;">${escapeHtml(j.jam_ke)}</td><td>${escapeHtml(j.subject)}</td></tr>`; });
         mewakiliHtml += `</tbody></table></div></details>`;
       }
+      const ditolakHtml = honorSholatDitolakHtml(ditolakSaya, false);
       container.innerHTML = `
         <div style="max-width:480px;margin:0 auto;background:#fff;border:1px dashed #94a3b8;border-radius:12px;padding:20px;">
           <div style="text-align:center;margin-bottom:12px;">
@@ -7490,7 +7559,7 @@
             <div class="text-muted" style="font-size:12px;">${escapeHtml(namaSaya)} • ${namaBulan} ${year}</div>
           </div>
           <table style="width:100%;font-size:13px;border-collapse:collapse;">${rows}</table>
-          ${mewakiliHtml}
+          ${mewakiliHtml}${ditolakHtml}
           <div style="border-top:2px dashed #94a3b8;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:800;font-size:15px;">
             <span>TOTAL</span><span style="color:#059669;">Rp ${total.toLocaleString()}</span>
           </div>
@@ -9341,7 +9410,7 @@
         card = document.createElement('div');
         card.id = 'krgCard'; card.className = 'card';
         card.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px;">🕌 Koreksi Absen Religi Guru</h3>
-          <p class="text-muted" style="font-size:12px;margin:0 0 12px;">Khusus Admin. Tidak terkena syarat jam, hari, maupun absensi siswa. Honor guru ikut berubah otomatis dan setiap koreksi dicatat di Log Aktivitas.</p>
+          <p class="text-muted" style="font-size:12px;margin:0 0 12px;">Khusus Admin. Tidak terkena syarat jam, hari, maupun absensi siswa. Honor guru ikut berubah otomatis dan setiap koreksi dicatat di Log Aktivitas. Mulai ${HONOR_SHOLAT_MULAI_CHECKIN}, koreksi memberi (Hadir) atau mencabut (Tidak Hadir) honor hari itu di atas hasil pemeriksaan check-in; pilih "Hapus catatan" untuk kembali ke hasil sistem.</p>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
             <div><label class="label">Guru</label><select id="krgGuru" class="field" onchange="krgPreview()"></select></div>
             <div><label class="label">Tanggal</label><input type="date" id="krgTanggal" class="field" onchange="krgPreview()"></div>
@@ -9364,6 +9433,7 @@
       const box = krgEl('krgPreview'); if (!box) return;
       const g = kagGuruList().find(x => x.key === krgEl('krgGuru').value), tanggal = krgEl('krgTanggal').value;
       if (!g || !tanggal) { box.innerHTML = '<span class="text-muted">Pilih guru dan tanggal untuk melihat data saat ini.</span>'; return; }
+      if (tanggal >= HONOR_SHOLAT_MULAI_CHECKIN) return krgPreviewBaru(box, g, tanggal);
       const ck = g.key + '|' + tanggal;
       if (krgCache.key === ck && krgCache.records) return krgRenderPreview(g, krgCache.records);
       const seq = ++krgSeq;
@@ -9382,6 +9452,45 @@
       const lamaTxt = h.lama ? escapeHtml(h.lama.status || '-') : '(kosong)', baruTxt = aksi === 'hapus' ? '(dihapus)' : escapeHtml(aksi);
       box.innerHTML = `<div>☀️ Dhuha: <b>${ringkas('sholat_dluha')}</b> &nbsp;·&nbsp; 🕌 Dzuhur: <b>${ringkas('sholat_dzuhur')}</b></div>
         <div>Perubahan ${KRG_SHOLAT[sholat]}: <b>${lamaTxt}</b> → <b>${baruTxt}</b> &nbsp;·&nbsp; Dampak honor: <b style="color:${h.rupiah < 0 ? '#dc2626' : h.rupiah > 0 ? '#059669' : 'inherit'};">${krgRupiah(h.rupiah)}</b></div>`;
+    }
+    // ---- Koreksi untuk tanggal >= HONOR_SHOLAT_MULAI_CHECKIN: disimpan di honor_koreksi_sholat/<tanggal>_<sholat>_<guruKey> ----
+    // aksi 'Hadir' = honor dihitung; 'Tidak Hadir' = honor dicabut; 'hapus' = hapus koreksi (kembali ke hasil pemeriksaan sistem).
+    function krgBaruHitung(hasil, g, tanggal, sholat, aksi) {
+      const e = hasil.entri[honorSholatResolve(g.key, g.name) + '|' + tanggal + '|' + sholat] || null;
+      const sekarang = !!(e && e.lolos), sistem = !!(e && e.sistemLolos), baru = aksi === 'hapus' ? sistem : aksi === 'Hadir';
+      return { e, sekarang, sistem, baru, rupiah: ((baru ? 1 : 0) - (sekarang ? 1 : 0)) * krgTarif(sholat) };
+    }
+    function krgPreviewBaru(box, g, tanggal) {
+      const sholat = krgEl('krgSholat').value, aksi = krgEl('krgStatus').value;
+      const hs = honorSholatDapat(tanggal.slice(0, 4), tanggal.slice(5, 7), () => krgPreview());
+      if (!hs.siap) { box.innerHTML = hs.gagal ? `<span style="color:#dc2626;">Gagal memuat: ${escapeHtml(hs.gagal)}</span>` : '<span class="text-muted">Memeriksa check-in dan absensi siswa...</span>'; return; }
+      const h = krgBaruHitung(hs.hasil, g, tanggal, sholat, aksi), e = h.e;
+      const sistemTxt = !e ? 'tidak ada check-in' : (e.sistemLolos ? '✅ lolos (dihitung)' : '❌ ' + escapeHtml(e.alasanSistem.join('; ')));
+      const korTxt = e && e.koreksi ? `${escapeHtml(e.koreksi.aksi)} oleh ${escapeHtml(e.koreksi.oleh || '-')}${e.koreksi.alasan ? ' (' + escapeHtml(e.koreksi.alasan) + ')' : ''}` : 'tidak ada';
+      const lbl = v => v ? 'dihitung' : 'tidak dihitung';
+      box.innerHTML = `<div>${KRG_SHOLAT[sholat]} ${escapeHtml(tanggal)} · Hasil sistem: <b>${sistemTxt}</b></div>
+        <div>Koreksi Admin saat ini: <b>${korTxt}</b></div>
+        <div>Perubahan: <b>${lbl(h.sekarang)}</b> → <b>${lbl(h.baru)}</b> &nbsp;·&nbsp; Dampak honor: <b style="color:${h.rupiah < 0 ? '#dc2626' : h.rupiah > 0 ? '#059669' : 'inherit'};">${krgRupiah(h.rupiah)}</b></div>`;
+    }
+    function krgSimpanBaru(guru, tanggal, sholat, aksi, alasan) {
+      if (krgSaving) return;
+      const hs = honorSholatDapat(tanggal.slice(0, 4), tanggal.slice(5, 7), null);
+      if (!hs.siap) return toast('⏳ Hasil pemeriksaan sistem belum siap. Tunggu sebentar, lalu simpan lagi.', true);
+      const label = KRG_SHOLAT[sholat], h = krgBaruHitung(hs.hasil, guru, tanggal, sholat, aksi), ada = h.e && h.e.koreksi;
+      if (aksi === 'hapus' && !ada) return toast(`Tidak ada koreksi ${label} untuk ${guru.name} pada ${tanggal}, jadi tidak ada yang dihapus.`, true);
+      if (aksi !== 'hapus' && ada && ada.aksi === aksi) return toast(`Tidak ada perubahan: koreksi ${label} ${guru.name} pada ${tanggal} sudah ${aksi}.`, true);
+      const tglTampil = new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+      const pesan = `Koreksi honor sholat\n\nGuru: ${guru.name}\nTanggal: ${tglTampil}\nSholat: ${label}\nHasil sistem: ${h.e ? (h.e.sistemLolos ? 'lolos' : 'tidak lolos (' + h.e.alasanSistem.join('; ') + ')') : 'tidak ada check-in'}\nPerubahan: ${h.sekarang ? 'dihitung' : 'tidak dihitung'} → ${h.baru ? 'dihitung' : 'tidak dihitung'}\nDampak honor: ${krgRupiah(h.rupiah)}\nAlasan: ${alasan}` + (tanggal > tglLokal() ? '\n\n⚠️ Tanggal ini di MASA DEPAN.' : '') + '\n\nSimpan?';
+      if (!(aksi === 'hapus' ? doubleConfirm(pesan) : confirm(pesan))) return;
+      const ref = db.ref('honor_koreksi_sholat/' + tanggal + '_' + sholat + '_' + guru.key), btn = krgEl('krgBtn');
+      krgSaving = true; if (btn) btn.disabled = true;
+      const op = adminSesi().then(() => (aksi === 'hapus' ? ref.remove() : ref.set({ tanggal, sholat, guruKey: guru.key, guruName: guru.name, aksi, alasan, oleh: currentUser.name, at: new Date().toISOString(), tahunAjaran: currentTahunAjaran })));   // Rules: honor_koreksi_sholat hanya bisa ditulis sesi Admin
+      op.then(() => {
+        toast(`✅ Koreksi tersimpan. Dampak honor ${guru.name}: ${krgRupiah(h.rupiah)}`);
+        addLog('koreksi_honor_sholat', `${guru.name} | ${tanggal} | ${label}: ${aksi} | ${h.sekarang ? 'dihitung' : 'tidak dihitung'} → ${h.baru ? 'dihitung' : 'tidak dihitung'} | honor ${krgRupiah(h.rupiah)} | alasan: ${alasan}`);
+        honorSholatInvalidate(); krgEl('krgAlasan').value = ''; krgPreview();
+      }).catch(e => toast('❌ Gagal menyimpan: ' + ((e && e.message) || e), true))
+        .finally(() => { krgSaving = false; if (btn) btn.disabled = false; });
     }
     function krgMuatUlangReligi() {
       const owner = currentUser && currentUser.key;
@@ -9403,6 +9512,7 @@
       if (!KRG_SHOLAT[sholat]) return toast('Pilih sholat!', true);
       if (aksi !== 'hapus' && !KRG_STATUS.includes(aksi)) return toast('Pilih status!', true);
       if (!alasan) return toast('Isi alasan koreksi (jejak audit honor)!', true);
+      if (tanggal >= HONOR_SHOLAT_MULAI_CHECKIN) return krgSimpanBaru(guru, tanggal, sholat, aksi, alasan);
       const btn = krgEl('krgBtn'), label = KRG_SHOLAT[sholat];
       krgSaving = true; if (btn) btn.disabled = true;
       krgFetchRecords(tanggal, guru).then(recs => {
@@ -11127,11 +11237,9 @@
         const parts = j.tanggal.split('-');
         return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(j) && j.status !== 'ditolak';
       });
-      const filteredReligi = allReligiAttendance.filter(r => {
-        if (!r.tanggal) return false;
-        const parts = r.tanggal.split('-');
-        return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(r);
-      });
+      const hs = honorSholatDapat(year, monthStr, () => { try { loadReportPreview(); } catch (e) { console.warn(e); } });
+      if (!hs.siap) return honorSholatStatusHtml(hs, 'loadReportPreview()');
+      const filteredReligi = Object.keys(hs.hasil.perGuru);   // hanya untuk cek "ada data"
       const filteredEvents = allEventAttendance.filter(e => {
         if (!e.tanggal) return false;
         const parts = e.tanggal.split('-');
@@ -11178,13 +11286,7 @@
         else groupedJurnal[gk].reguler += 1;
       });
 
-      const groupedReligi = {};
-      filteredReligi.forEach(r => {
-        const gk = resolveGuruKeyReport(r.guruKey, r.guru);
-        if (!groupedReligi[gk]) groupedReligi[gk] = { nama: r.guru, dluha: 0, dzuhur: 0 };
-        if (r.sholat_dluha && r.sholat_dluha.status === 'Hadir') groupedReligi[gk].dluha += 1;
-        if (r.sholat_dzuhur && r.sholat_dzuhur.status === 'Hadir') groupedReligi[gk].dzuhur += 1;
-      });
+      const groupedReligi = hs.hasil.perGuru;   // dari check-in petugas yang lolos pemeriksaan
 
       const groupedEvents = {};
       const dlKepalaReport = { jumlah: 0, honor: 0 };   // Dinas Luar Kepala -> digabung ke baris Kepala Madrasah (sama seperti renderHonor)
@@ -11298,6 +11400,7 @@
           Dicetak: ${new Date().toLocaleString()}
         </div>
       `;
+      html += honorSholatDitolakHtml(hs.hasil.ditolak, true);
       return html;
     }
 
