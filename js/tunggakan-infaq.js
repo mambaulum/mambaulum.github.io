@@ -499,7 +499,7 @@ async function tunggakanExportPDF() {
   const d = tgDataAktif();
   if (!d.baris.length) return toast('Tidak ada tunggakan untuk diekspor.', true);
   try { await ensureLib('pdf'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul PDF', e); return toast('❌ Modul PDF belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
-  const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const pw = doc.internal.pageSize.getWidth();
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true }); const pw = doc.internal.pageSize.getWidth();
   if (typeof doc.autoTable !== 'function') { console.error('[SI MAMBA] jspdf-autotable tidak tersedia setelah ensureLib("pdf")'); return toast('❌ Modul tabel PDF (autotable) belum termuat. Muat ulang halaman lalu coba lagi.', true); }
   const [logoData, ttdKepalaData] = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf()]);
   const offY = MADRASAH.nsm ? 5 : 0;
@@ -550,7 +550,7 @@ async function tunggakanExportPDF() {
   if (ttdKepalaData) {
     try {
       const ttdW = 32; const props = doc.getImageProperties(ttdKepalaData);
-      doc.addImage(ttdKepalaData, 'PNG', xKanan - ttdW / 2, ySign + 7, ttdW, Math.min(16, ttdW * (props.height / props.width)));
+      doc.addImage(ttdKepalaData, 'PNG', xKanan - ttdW / 2, ySign + 7, ttdW, Math.min(16, ttdW * (props.height / props.width)), undefined, 'FAST');
     } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Tunggakan:', e); }
   }
   const yNama = ySign + 28;
