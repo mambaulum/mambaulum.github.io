@@ -49,6 +49,7 @@ function amalanKegiatanResetState() {
   v4SubstituteFormOpenFor = null; v4ActKelasFormOpen = null; v4RekapReligiLast = null;
   v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas', petugasMode: 'detail', alpaMin: 3 };
   v4RekapPetugasCache = {};
+  v4HonorSholatCache = {}; v4HonorSiswaCache = {};
   v4ActBersihkanCheckin();
 }
 
@@ -485,7 +486,7 @@ function v4RenderActivityFill() {
       const controlsHtml = `<div class="v4-card"><div class="amalan-filters">
         <div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
         <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>
-        <div class="amalan-reload"><button class="btn btn-soft" onclick="v4RekapPetugasMuat(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true);v4RenderRekapReligiSiswa();">🔄 Muat ulang</button></div>
+        <div class="amalan-reload"><button class="btn btn-soft" onclick="v4RekapPetugasMuat(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true);v4HonorSholatSiapkan(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true).then(() => v4RenderRekapReligiSiswa());v4RenderRekapReligiSiswa();">🔄 Muat ulang</button></div>
       </div>
       ${v4RekapReligiTabsHtml()}
       <div class="amalan-tabs">${modeBtn('detail','🗒️ Rincian per Hari')}${modeBtn('guru','👤 Ringkasan per Guru')}</div></div>`;
@@ -538,41 +539,29 @@ function v4RenderActivityFill() {
           const g = ambil(namaDari(j.type.picKey, nama)); g.jadwal++;
           if (j.ada && peranDasar(j.ci) === 'PJ' && v4ActSamaGuru(j.type.picKey, j.type.picName, j.ci.guruKey, j.ci.guruName)) g.hadirPj++;
         });
-        // Pencocokan dengan Honor: sejak HONOR_SHOLAT_MULAI_CHECKIN honor sholat dihitung dari check-in ini sendiri, asalkan jam check-in
-        // dalam jendela sholat dan absensi siswa lengkap (honorSholatHitung di app.js). Tanggal sebelumnya tetap memakai Absen Religi lama.
-        const hs = (typeof honorSholatDapat === 'function') ? honorSholatDapat(st.tahun, st.bulan, () => { if (v4RekapReligiState.view === 'petugas') v4RenderRekapReligiSiswa(); }) : { siap: false, gagal: 'Fungsi honor sholat belum termuat.' };
-        if (!hs.siap) { v4RekapReligiLast = null; host.innerHTML = controlsHtml + `<div class="v4-card"><div class="v4-muted">${hs.gagal ? '❌ ' + v4Safe(hs.gagal) : '⏳ Memeriksa jam check-in dan kelengkapan absensi siswa...'}</div></div>`; return; }
-        const hadirPer = {};   // nama -> { tgl -> {dl, dz} }
-        (typeof allReligiAttendance !== 'undefined' ? allReligiAttendance : []).forEach(r => {
-          if (!r || !r.tanggal || r.tanggal.slice(0, 7) !== ym) return;
-          const nm = namaDari(r.guruKey, r.guru);
-          const h = hadirPer[nm] || (hadirPer[nm] = {});
-          h[r.tanggal] = { dl: !!(r.sholat_dluha && r.sholat_dluha.status === 'Hadir'), dz: !!(r.sholat_dzuhur && r.sholat_dzuhur.status === 'Hadir') };
-        });
+        // Honor sholat = hari check-in dengan absensi siswa LENGKAP (lihat v4HonorSholatSiapkan). Ditampilkan per guru.
+        const chH = v4HonorSholatCache[v4HonorSholatYm(st.tahun, st.bulan)];
+        if (!chH || (chH.status !== 'siap' && chH.status !== 'gagal')) v4HonorSholatSiapkan(st.tahun, st.bulan).then(() => { if (v4RekapReligiState.view === 'petugas') v4RenderRekapReligiSiswa(); });
+        const hariHonor = v4HonorSholatHari(st.tahun, st.bulan).filter(h => adm || v4ActAkuCocok(h.guruKey, h.guruName));
         const tarif = (typeof v4GetHonorRates === 'function') ? v4GetHonorRates() : { dluha: 0, dzuhur: 0 };
-        // Hitung per HARI (bukan selisih jumlah): hari check-in yang tidak punya Absen Religi Hadir untuk sholat yang sama.
-        const belumMasuk = {};   // nama -> { dl, dz, tgl: [] }
-        recs.forEach(r => {
-          const jn = v4ActJenisSholat(v4ActTypeByKey(r.typeId || '')); if (!jn) return;
-          const nm = namaDari(r.guruKey, r.guruName);
-          let ada;
-          if (r._tgl >= HONOR_SHOLAT_MULAI_CHECKIN) { const en = hs.hasil.entri[honorSholatResolve(r.guruKey, r.guruName) + '|' + r._tgl + '|' + jn]; ada = !!(en && en.lolos); }
-          else { const h = (hadirPer[nm] || {})[r._tgl]; ada = h && (jn === 'sholat_dluha' ? h.dl : h.dz); }
-          const g = ambil(nm);
-          if (ada) { if (jn === 'sholat_dluha') g.hdDl++; else g.hdDz++; return; }
-          const bm = belumMasuk[nm] || (belumMasuk[nm] = { dl: 0, dz: 0, tgl: [] });
-          if (jn === 'sholat_dluha') bm.dl++; else bm.dz++;
-          bm.tgl.push(r._tgl.slice(8) + (jn === 'sholat_dluha' ? 'Dh' : 'Dz'));
+        const honorPer = {};   // nama -> { ok, belum, rp, alasan: [] }
+        hariHonor.forEach(h => {
+          const nm = namaDari(h.guruKey, h.guruName);
+          const g = honorPer[nm] || (honorPer[nm] = { ok: 0, belum: 0, rp: 0, alasan: [] });
+          const jn = h.jenis === 'sholat_dluha' ? 'Dh' : 'Dz';
+          if (h.ok) { g.ok++; return; }
+          g.belum++; g.rp += (h.jenis === 'sholat_dluha' ? tarif.dluha : tarif.dzuhur) || 0;
+          g.alasan.push(h.tgl.slice(8) + jn + ': ' + (h.kurang.length ? h.kurang.map(x => x.kelas + ' ' + x.belum + ' siswa').join(', ') : h.alasan));
         });
+        Object.keys(honorPer).forEach(nm => ambil(nm));
         tabel = {
           judul: `Rekap Petugas QR - Ringkasan per Guru - ${judulBln}`, fileTag: `PetugasQR_PerGuru_${namaBulan[st.bulan - 1]}_${st.tahun}`,
-          head: ['Nama Guru', 'Hari Jadwal PJ', 'Hadir sbg PJ', '% Hadir PJ', 'Total Bertugas', 'Pengganti (ditunjuk)', 'Pengganti (klaim)', 'Kali Telat', 'Total Telat (mnt)', 'Rata-rata Telat (mnt)', 'Via Offline', 'Check-in Dhuha', 'Check-in Dzuhur', 'Honor Masuk (hari)', 'Honor BELUM Masuk (hari)', 'Perkiraan Rp Belum Masuk', 'Tanggal Belum Masuk'],
+          head: ['Nama Guru', 'Hari Jadwal PJ', 'Hadir sbg PJ', '% Hadir PJ', 'Total Bertugas', 'Pengganti (ditunjuk)', 'Pengganti (klaim)', 'Kali Telat', 'Total Telat (mnt)', 'Rata-rata Telat (mnt)', 'Via Offline', 'Check-in Dhuha', 'Check-in Dzuhur', 'Honor Masuk (hari)', 'Honor BELUM Masuk (hari)', 'Perkiraan Rp Belum Masuk', 'Alasan Belum Masuk'],
           rows: Object.keys(per).sort((a, b) => COLLATOR_ID.compare(a, b)).map(n => {
-            const g = per[n], bm = belumMasuk[n] || { dl: 0, dz: 0, tgl: [] };
-            const rp = bm.dl * (tarif.dluha || 0) + bm.dz * (tarif.dzuhur || 0), hari = bm.dl + bm.dz;
-            return [n, g.jadwal || '-', g.jadwal ? g.hadirPj : '-', g.jadwal ? Math.round(g.hadirPj / g.jadwal * 100) + '%' : '-', g.n, g.peng, g.klaim, g.telat, g.menit, g.telat ? Math.round(g.menit / g.telat) : 0, g.off, g.ciDl, g.ciDz, g.hdDl + g.hdDz, hari ? 'BELUM ' + hari : 0, rp, bm.tgl.join(', ') || '-'];
+            const g = per[n], hp = honorPer[n] || { ok: 0, belum: 0, rp: 0, alasan: [] };
+            return [n, g.jadwal || '-', g.jadwal ? g.hadirPj : '-', g.jadwal ? Math.round(g.hadirPj / g.jadwal * 100) + '%' : '-', g.n, g.peng, g.klaim, g.telat, g.menit, g.telat ? Math.round(g.menit / g.telat) : 0, g.off, g.ciDl, g.ciDz, hp.ok, hp.belum ? 'BELUM ' + hp.belum : 0, hp.rp, hp.alasan.join('; ') || '-'];
           }),
-          catatan: 'BELUM = check-in yang tidak lolos pemeriksaan (jam di luar jendela sholat atau absensi siswa belum lengkap; alasan lengkap di halaman Honor). Sebelum ' + HONOR_SHOLAT_MULAI_CHECKIN + ' memakai Absen Religi lama. Perkiraan Rp memakai tarif sekarang. Dh = Dhuha, Dz = Dzuhur.',
+          catatan: 'Honor sholat dihitung dari check-in + absensi siswa lengkap (berlaku mulai ' + V4_HONOR_SHOLAT_CHECKIN_MULAI + '). Dh = Dhuha, Dz = Dzuhur. Rp = perkiraan dari tarif sekarang.',
           kosong: 'Belum ada check-in petugas pada bulan ini.'
         };
       } else {
@@ -1374,7 +1363,7 @@ function v4ActSimpanTertunda(type, jarak, el) {
   const tgl = v4Date(), key = tgl + '_' + type.key;
   const telat = Math.max(0, v4ActMenitSekarang() - v4ActMenit(v4ActJamMulai(type)));
   const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran, klaim: false, via: 'qr',
-    jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), atMs: v4ActNowMs(), offline: true };
+    jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), offline: true };
   const sebelum = Object.assign({}, v4ActCiTunda);
   v4ActCiTunda[key] = data;
   if (!v4ActCiTundaSimpan()) { v4ActCiTunda = sebelum; throw new Error('Gagal menyimpan check-in di perangkat (penyimpanan penuh atau diblokir).'); }
@@ -1422,7 +1411,7 @@ function v4ActCiTundaKirim(manual) {
   keys.forEach(key => {
     const d = v4ActCiTunda[key]; let beres = false;
     const tmo = setTimeout(() => { if (beres) return; beres = true; if (manual) toast('⏳ Server belum merespons. Dicoba lagi otomatis.', true); satuSelesai(); }, 20000);
-    db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString(), serverAt: firebase.database.ServerValue.TIMESTAMP, atMs: Number(d.atMs) || Date.parse(d.at) || Date.now() }); }).then(res => {
+    db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString() }); }).then(res => {
       clearTimeout(tmo);
       const type = v4ActTypeByKey(d.typeId), nama = type ? type.name : d.typeId;
       const cur = res.snapshot.val();
@@ -1456,6 +1445,106 @@ function v4ActBindOffset() {
     db.ref('.info/serverTimeOffset').on('value', s => { v4ActServerOffset = Number(s.val()) || 0; });
   } catch (e) { console.warn('[SI MAMBA] offset server:', e); }
 }
+// ============================================================
+//  HONOR SHOLAT DARI CHECK-IN PETUGAS (menggantikan Absen Religi "Hadir" sebagai dasar honor)
+//  Satu hari sholat dihitung 1x honor untuk guru yang CHECK-IN QR hari itu (PJ / pengganti ditunjuk / pengganti klaim) bila:
+//    1) hari itu hari sholat yang berlaku (Dhuha Senin-Sabtu, Dzuhur Senin-Kamis), dan
+//    2) absensi siswa untuk sholat itu LENGKAP: semua siswa di semua kelas yang ikut (lihat v4ActKelasAktif) punya status H/S/I/A.
+//  Check-in dan absensi siswa keduanya bisa dibuat offline, jadi honor tetap tercatat walau wifi mati. Pemeriksaan dilakukan
+//  saat honor dihitung (data sudah di server), bukan saat guru menyimpan. Hari yang tidak lolos tidak dihitung dan alasannya
+//  ditampilkan di Rekap Petugas QR (Ringkasan per Guru).
+//  Transisi: tanggal sebelum V4_HONOR_SHOLAT_CHECKIN_MULAI tetap dihitung dari Absen Religi "Hadir" seperti sebelumnya.
+//  Catatan: daftar siswa yang dipakai adalah daftar SAAT INI (bukan riwayat per tanggal).
+// ============================================================
+const V4_HONOR_SHOLAT_CHECKIN_MULAI = '2026-10-15';   // ubah bila tanggal mulai berlaku berbeda (format YYYY-MM-DD)
+let v4HonorSholatCache = {};   // 'YYYY-MM' -> { status: 'memuat'|'siap'|'gagal', hari: [...], at, msg, promise }
+let v4HonorSiswaCache = {};    // kelas -> { arr: [{key,name}], at }
+function v4HonorSholatSebelumMulai(tgl) { return !tgl || tgl < V4_HONOR_SHOLAT_CHECKIN_MULAI; }
+function v4HonorSholatYm(thn, bln) { return String(thn) + '-' + String(bln).padStart(2, '0'); }
+// Bulan itu memuat tanggal yang dihitung dengan cara check-in?
+function v4HonorSholatPakai(thn, bln) { return v4HonorSholatYm(thn, bln) + '-31' >= V4_HONOR_SHOLAT_CHECKIN_MULAI; }
+function v4HonorSholatPerluSiap(thn, bln) {
+  if (!v4HonorSholatPakai(thn, bln)) return false;
+  const c = v4HonorSholatCache[v4HonorSholatYm(thn, bln)];
+  return !(c && (c.status === 'siap' || c.status === 'gagal'));
+}
+function v4HonorSholatHari(thn, bln) { const c = v4HonorSholatCache[v4HonorSholatYm(thn, bln)]; return (c && c.hari) || []; }
+// Hari yang menghasilkan honor (hanya tanggal >= mulai).
+function v4HonorSholatHariOk(thn, bln) { return v4HonorSholatHari(thn, bln).filter(h => h.ok && !v4HonorSholatSebelumMulai(h.tgl)); }
+function v4HonorAmbilSiswa(kelas) {
+  const c = v4HonorSiswaCache[kelas];
+  if (c && Date.now() - c.at < 600000) return Promise.resolve(c.arr);
+  return db.ref('siswa').orderByChild('kelas').equalTo(kelas).once('value').then(snap => {
+    const arr = []; snap.forEach(ch => { const s = ch.val() || {}; arr.push({ key: ch.key, name: s.name || ch.key }); });
+    v4HonorSiswaCache[kelas] = { arr, at: Date.now() };
+    return arr;
+  });
+}
+// Selalu resolve (tidak pernah reject): hasil ada di v4HonorSholatCache; status 'gagal' bila data tak bisa dimuat.
+function v4HonorSholatSiapkan(thn, bln, paksa) {
+  const ym = v4HonorSholatYm(thn, bln), c = v4HonorSholatCache[ym];
+  if (c && c.promise) return c.promise;
+  if (c && c.status === 'siap' && !paksa) return Promise.resolve(c);
+  const epoch = v4ActEpoch;
+  const entri = { status: 'memuat', hari: (c && c.hari) || [], at: 0, msg: '', promise: null };
+  const selesai = (status, msg) => { entri.status = status; entri.msg = msg || ''; entri.at = Date.now(); entri.promise = null; return entri; };
+  const kerja = (async () => {
+    if (typeof db === 'undefined' || !db) throw new Error('Database belum siap.');
+    if (!navigator.onLine) throw new Error('offline');
+    const tipe = (V4.activityTypes || []).filter(t => v4ActJenisSholat(t));
+    const byKey = {}; tipe.forEach(t => { byKey[t.key] = t; });
+    const bacaCi = db.ref('activity_checkin_v4').orderByKey().startAt(ym + '-').endAt(ym + '-').once('value');
+    const bacaAbsen = Promise.all(tipe.map(t => db.ref('activity_attendance_v4').orderByKey().startAt(t.key + '_' + ym + '-').endAt(t.key + '_' + ym + '-').once('value').then(snap => ({ key: t.key, snap }))));
+    const kelasButuh = new Set(); tipe.forEach(t => v4ActKelasAktif(t).forEach(k => kelasButuh.add(k)));
+    const bacaSiswa = Promise.all([...kelasButuh].map(k => v4HonorAmbilSiswa(k)));
+    const [ciSnap, absenArr] = await Promise.all([bacaCi, bacaAbsen, bacaSiswa]);
+    const sudah = {};   // typeKey -> tanggal -> Set(studentId yang punya status valid)
+    absenArr.forEach(({ key, snap }) => snap.forEach(ch => {
+      const r = ch.val() || {};
+      if (r.activityTypeId !== key || !r.studentId || !r.tanggal || !v4NormStatusKegiatan(r.status)) return;
+      const peta = sudah[key] || (sudah[key] = {});
+      (peta[r.tanggal] || (peta[r.tanggal] = new Set())).add(r.studentId);
+    }));
+    const hari = [];
+    ciSnap.forEach(ch => {
+      const d = ch.val() || {};
+      const tgl = d.tanggal || ch.key.slice(0, 10), typeId = d.typeId || ch.key.slice(11);
+      const t = byKey[typeId]; if (!t || !tgl || tgl.slice(0, 7) !== ym) return;
+      const jenis = v4ActJenisSholat(t);
+      const item = { tgl, typeKey: typeId, typeName: t.name, jenis, guruKey: d.guruKey || '', guruName: d.guruName || d.guruKey || '-', peran: d.peran || 'PJ', telatMenit: Number(d.telatMenit) || 0, ok: false, kurang: [], alasan: '' };
+      if (!v4HariDiizinkanSholat(jenis, tgl)) { item.alasan = 'Bukan hari sholat yang berlaku'; hari.push(item); return; }
+      let totalSiswa = 0;
+      v4ActKelasAktif(t).forEach(k => {
+        const siswa = (v4HonorSiswaCache[k] && v4HonorSiswaCache[k].arr) || [];
+        totalSiswa += siswa.length;
+        const ada = (sudah[typeId] && sudah[typeId][tgl]) || new Set();
+        const belum = siswa.filter(s => !ada.has(s.key));
+        if (belum.length) item.kurang.push({ kelas: k, belum: belum.length, total: siswa.length, contoh: belum.slice(0, 3).map(s => s.name) });
+      });
+      if (!totalSiswa) item.alasan = 'Data siswa tidak termuat';
+      else if (item.kurang.length) item.alasan = 'Absensi siswa belum lengkap: ' + item.kurang.map(x => x.kelas + ' (' + x.belum + '/' + x.total + ')').join(', ');
+      else item.ok = true;
+      hari.push(item);
+    });
+    hari.sort((a, b) => (a.tgl < b.tgl ? -1 : a.tgl > b.tgl ? 1 : COLLATOR_ID.compare(a.typeName, b.typeName)));
+    return hari;
+  })();
+  const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 25000));
+  entri.promise = Promise.race([kerja, batas]).then(hari => {
+    if (epoch !== v4ActEpoch) return selesai('gagal', 'sesi berganti');
+    entri.hari = hari; v4HonorSholatCache[ym] = entri; return selesai('siap');
+  }).catch(err => {
+    if (epoch !== v4ActEpoch) return selesai('gagal', 'sesi berganti');
+    const pesan = (err && err.message) || String(err);
+    console.warn('[SI MAMBA] Gagal menghitung honor sholat dari check-in:', pesan);
+    v4HonorSholatCache[ym] = entri;
+    try { toast(pesan === 'offline' ? '📡 Offline: honor sholat dari check-in tidak bisa dihitung. Sambungkan internet lalu muat ulang.' : '⚠️ Honor sholat dari check-in gagal dihitung (' + pesan + '). Angka honor sholat bulan ini belum lengkap.', true, 8000); } catch (e) { /* toast opsional */ }
+    return selesai('gagal', pesan);
+  });
+  v4HonorSholatCache[ym] = entri;
+  return entri.promise;
+}
+
 // Jam server (ms) yang DIBACA SEGAR dari Firebase -- untuk validasi honor sholat yang tidak boleh bergantung pada jam HP.
 function v4ActWaktuServer() {
   return new Promise((resolve, reject) => {
@@ -1774,9 +1863,8 @@ function v4ActTulisCheckin(type, jarak) {
   if (!el.ok) return Promise.reject(new Error(el.msg));
   const tgl = v4Date();
   const telat = Math.max(0, v4ActMenitSekarang() - v4ActMenit(v4ActJamMulai(type)));
-  const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran + (el.klaim ? ' (klaim)' : ''), klaim: !!el.klaim, via: 'qr', jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), atMs: v4ActNowMs() };
-  // serverAt = jam server saat tercatat: dasar pemeriksaan jam saat honor dihitung (lihat honorSholatHitung di app.js).
-  return db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return Object.assign({}, data, { serverAt: firebase.database.ServerValue.TIMESTAMP }); }).then(res => {
+  const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran + (el.klaim ? ' (klaim)' : ''), klaim: !!el.klaim, via: 'qr', jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString() };
+  return db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return data; }).then(res => {
     if (!res.committed) { const cur = res.snapshot.val(); throw new Error('Sudah ada petugas hari ini: ' + ((cur && cur.guruName) || 'guru lain') + '.'); }
     v4ActCheckins[tgl + '_' + type.key] = data;
     // Check-in sudah tercatat di server. Kegagalan log/audit tidak boleh membuatnya dilaporkan sebagai gagal.
