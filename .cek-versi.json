@@ -1,6 +1,6 @@
 {
-  "appVersion": "v6.98",
-  "disimpan": "2026-10-15T12:25:10.402Z",
+  "appVersion": "v6.99",
+  "disimpan": "2026-10-15T12:47:25.626Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -43,8 +43,8 @@
       "hash": "929631093175eed9c99eb7b583ad96ace8243a92"
     },
     "js/kas.js": {
-      "v": "v=6",
-      "hash": "78ba38c645dafa23e7b224a9be90c925e32e118e"
+      "v": "v=7",
+      "hash": "75baf712d0695da6b11bab5f232a0c4e7cf0ad80"
     },
     "js/administrasi-ujian.js": {
       "v": "v=3",
@@ -131,8 +131,8 @@
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
     },
     "js/tunggakan-infaq.js": {
-      "v": "v=5",
-      "hash": "2d5431eced9d03cf6d1746fb65767ba6d9ff6a1d"
+      "v": "v=6",
+      "hash": "203effb80da1969ff22b6476908b7023cb527be8"
     },
     "js/auto-logout.js": {
       "v": "v=4",
