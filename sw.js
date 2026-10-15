@@ -38,7 +38,7 @@
    js/kredensial.js, js/ttd-digital.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.00';
+const APP_VERSION = 'v7.01';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -67,7 +67,7 @@ const PRECACHE_URLS = [
   './css/styles.css?v=21',              // samakan dengan ?v= di index.html
   './js/logo-fallback.js',
   './js/offline-db.js',
-  './js/kas.js?v=7',
+  './js/kas.js?v=8',
   './js/administrasi-ujian.js?v=3',
   './js/app.js?v=70',
   './js/amalan-kegiatan.js?v=21',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
@@ -89,7 +89,7 @@ const PRECACHE_URLS = [
   './js/modul-ajar.js?v=14',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
-  './js/tunggakan-infaq.js?v=6',
+  './js/tunggakan-infaq.js?v=7',
   './js/auto-logout.js?v=4',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=2',
