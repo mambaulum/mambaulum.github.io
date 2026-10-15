@@ -523,13 +523,12 @@ function v4RenderActivityFill() {
       if (mode === 'guru') {
         const per = {};
         const namaDari = (key, nama) => { const g = key && (allGuru || []).find(x => x && x.key === key); return (g && g.name) || nama || key || '-'; };
-        const ambil = nama => per[nama] || (per[nama] = { n: 0, peng: 0, klaim: 0, telat: 0, menit: 0, off: 0, jadwal: 0, hadirPj: 0, ciDl: 0, ciDz: 0, hdDl: 0, hdDz: 0 });
+        const ambil = nama => per[nama] || (per[nama] = { n: 0, peng: 0, klaim: 0, off: 0, jadwal: 0, hadirPj: 0, ciDl: 0, ciDz: 0, hdDl: 0, hdDz: 0 });
         recs.forEach(r => {
           const g = ambil(namaDari(r.guruKey, r.guruName)); g.n++;
           const p = peranDasar(r);
           if (p === 'Pengganti') g.peng++; else if (p !== 'PJ') g.klaim++;
-          if ((r.telatMenit || 0) > 0) { g.telat++; g.menit += Number(r.telatMenit) || 0; }
-          if (r.offline) g.off++;
+                    if (r.offline) g.off++;
           const jn = v4ActJenisSholat(v4ActTypeByKey(r.typeId || ''));
           if (jn === 'sholat_dluha') g.ciDl++; else if (jn === 'sholat_dzuhur') g.ciDz++;
         });
@@ -556,18 +555,18 @@ function v4RenderActivityFill() {
         Object.keys(honorPer).forEach(nm => ambil(nm));
         tabel = {
           judul: `Rekap Petugas QR - Ringkasan per Guru - ${judulBln}`, fileTag: `PetugasQR_PerGuru_${namaBulan[st.bulan - 1]}_${st.tahun}`,
-          head: ['Nama Guru', 'Hari Jadwal PJ', 'Hadir sbg PJ', '% Hadir PJ', 'Total Bertugas', 'Pengganti (ditunjuk)', 'Pengganti (klaim)', 'Kali Telat', 'Total Telat (mnt)', 'Rata-rata Telat (mnt)', 'Via Offline', 'Check-in Dhuha', 'Check-in Dzuhur', 'Honor Masuk (hari)', 'Honor BELUM Masuk (hari)', 'Perkiraan Rp Belum Masuk', 'Alasan Belum Masuk'],
+          head: ['Nama Guru', 'Hari Jadwal PJ', 'Hadir sbg PJ', '% Hadir PJ', 'Total Bertugas', 'Pengganti (ditunjuk)', 'Pengganti (klaim)', 'Via Offline', 'Check-in Dhuha', 'Check-in Dzuhur', 'Honor Masuk (hari)', 'Honor BELUM Masuk (hari)', 'Perkiraan Rp Belum Masuk', 'Alasan Belum Masuk'],
           rows: Object.keys(per).sort((a, b) => COLLATOR_ID.compare(a, b)).map(n => {
             const g = per[n], hp = honorPer[n] || { ok: 0, belum: 0, rp: 0, alasan: [] };
-            return [n, g.jadwal || '-', g.jadwal ? g.hadirPj : '-', g.jadwal ? Math.round(g.hadirPj / g.jadwal * 100) + '%' : '-', g.n, g.peng, g.klaim, g.telat, g.menit, g.telat ? Math.round(g.menit / g.telat) : 0, g.off, g.ciDl, g.ciDz, hp.ok, hp.belum ? 'BELUM ' + hp.belum : 0, hp.rp, hp.alasan.join('; ') || '-'];
+            return [n, g.jadwal || '-', g.jadwal ? g.hadirPj : '-', g.jadwal ? Math.round(g.hadirPj / g.jadwal * 100) + '%' : '-', g.n, g.peng, g.klaim, g.off, g.ciDl, g.ciDz, hp.ok, hp.belum ? 'BELUM ' + hp.belum : 0, hp.rp, hp.alasan.join('; ') || '-'];
           }),
           catatan: 'Honor sholat dihitung dari check-in + absensi siswa lengkap (berlaku mulai ' + V4_HONOR_SHOLAT_CHECKIN_MULAI + '). Dh = Dhuha, Dz = Dzuhur. Rp = perkiraan dari tarif sekarang.',
           kosong: 'Belum ada check-in petugas pada bulan ini.'
         };
       } else {
         const chR = v4HonorSholatCache[v4HonorSholatYm(st.tahun, st.bulan)];
-        if (adm && (!chR || (chR.status !== 'siap' && chR.status !== 'gagal'))) v4HonorSholatSiapkan(st.tahun, st.bulan).then(() => { if (v4RekapReligiState.view === 'petugas') v4RenderRekapReligiSiswa(); });
-        const baris = recs.map(r => ({ tgl: r._tgl, kg: r._kegiatan, row: [r._tgl, r._kegiatan, r.guruName || r.guruKey || '-', peranDasar(r), jam(r), Number(r.telatMenit) || 0, (r.jarak == null ? '-' : r.jarak), [r.offline ? 'Offline (jam perangkat)' : '', v4HonorPengisiLain(r)].filter(Boolean).join('; ') || '-'] }));
+        if (!chR || (chR.status !== 'siap' && chR.status !== 'gagal')) v4HonorSholatSiapkan(st.tahun, st.bulan).then(() => { if (v4RekapReligiState.view === 'petugas') v4RenderRekapReligiSiswa(); });
+        const baris = recs.map(r => { const sh = v4HonorStatusHari(r); return { tgl: r._tgl, kg: r._kegiatan, row: [r._tgl, r._kegiatan, r.guruName || r.guruKey || '-', peranDasar(r), jam(r) + (sh.luarJam ? ' ⚠ di luar jam' : ''), (r.jarak == null ? '-' : r.jarak), sh.teks, [r.offline ? 'Offline (jam perangkat)' : '', v4HonorPengisiLain(r)].filter(Boolean).join('; ') || '-'] }; });
         belum.forEach(j => {
           const sub = V4.activitySubstitutes && V4.activitySubstitutes[j.type.key + '_' + j.tgl];
           baris.push({ tgl: j.tgl, kg: j.type.name, row: [j.tgl, j.type.name, 'BELUM CHECK-IN', 'PJ: ' + (j.type.picName || 'belum ditunjuk') + (sub ? ' (pengganti ditunjuk: ' + sub.guruName + ')' : ''), '-', '-', '-', j.oleh ? 'Absensi siswa diisi: ' + j.oleh : '-'] });
@@ -575,9 +574,9 @@ function v4RenderActivityFill() {
         baris.sort((a, b) => (a.tgl < b.tgl ? -1 : a.tgl > b.tgl ? 1 : COLLATOR_ID.compare(a.kg, b.kg)));
         tabel = {
           judul: `Rekap Petugas QR - Rincian per Hari - ${judulBln}`, fileTag: `PetugasQR_Rincian_${namaBulan[st.bulan - 1]}_${st.tahun}`,
-          head: ['Tanggal', 'Kegiatan', 'Petugas', 'Peran', 'Jam Check-in', 'Telat (mnt)', 'Jarak (m)', 'Keterangan'],
+          head: ['Tanggal', 'Kegiatan', 'Petugas', 'Peran', 'Jam Check-in', 'Jarak (m)', 'Status Honor', 'Keterangan'],
           rows: baris.map(x => x.row),
-          catatan: `Belum check-in: ${belum.length} hari-kegiatan. Telat dihitung dari jam mulai kegiatan.`,
+          catatan: `Belum check-in: ${belum.length} hari-kegiatan.`,
           kosong: 'Belum ada check-in petugas pada bulan ini.'
         };
       }
@@ -1007,10 +1006,10 @@ function v4RenderActivityFillPanel(type) {
       const st = v4NormStatusKegiatan((v4ActDraftOf(type.key)[s.key] || existingMap[s.key] || {}).status);
       const c = warna[st]; if (c) cnt[st]++; else cnt.kosong++;
       const [bg, bd, fg] = c || ['#f3f4f6', '#d1d5db', '#374151'];
-      return `<button type="button" onclick="v4CycleActivityStatus('${k}','${escapeJs(s.key)}')" style="text-align:left;min-height:46px;padding:6px 10px;border-radius:10px;border:1.5px solid ${bd};background:${bg};color:${fg};cursor:pointer;font-size:13px;line-height:1.25;"><strong>${v4Safe(s.name)}</strong><br><span style="font-size:11px;">${st ? label[st] : 'Belum diisi'}</span></button>`;
+      return `<button type="button" onclick="v4CycleActivityStatus('${k}','${escapeJs(s.key)}')" style="display:flex;align-items:center;justify-content:space-between;gap:6px;text-align:left;min-height:34px;padding:3px 8px;border-radius:8px;border:1.5px solid ${bd};background:${bg};color:${fg};cursor:pointer;font-size:12px;line-height:1.2;"><strong style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v4Safe(s.name)}</strong><span style="font-size:11px;font-weight:700;flex:none;">${st ? st : '·'}</span></button>`;
     };
     const chips = grupTampil.map(g => (semua ? `<div style="grid-column:1/-1;font-weight:700;font-size:12px;margin-top:6px;color:#3730a3;">${judulKelas(g)}</div>` : '') + g.siswa.map(chip).join('')).join('');
-    listHtml = `<div style="font-size:12px;margin-bottom:6px;color:#374151;">✅ Hadir ${cnt.H} · ❌ Alpa ${cnt.A} · 🤒 Sakit ${cnt.S} · 📝 Izin ${cnt.I}${cnt.kosong ? ` · ⬜ Belum ${cnt.kosong}` : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>`;
+    listHtml = `<div class="amalan-isi-ringkas" style="font-size:12px;margin-bottom:6px;color:#374151;">✅ Hadir ${cnt.H} · ❌ Alpa ${cnt.A} · 🤒 Sakit ${cnt.S} · 📝 Izin ${cnt.I}${cnt.kosong ? ` · ⬜ Belum ${cnt.kosong}` : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;">${chips}</div>`;
   } else {
     listHtml = `<div style="overflow-x:auto;"><table><thead><tr><th>Nama</th><th>Kehadiran</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
@@ -1487,6 +1486,19 @@ function v4HonorPengisiLain(ci) {
   const lain = h.pengisi.filter(n => !v4ActSamaGuru(ci.guruKey, ci.guruName, '', n) && n !== ci.guruName);
   return lain.length ? '⚠ Absensi siswa diisi: ' + lain.join(', ') : '';
 }
+// Status honor satu check-in untuk Rincian per Hari: terhitung / belum (+alasan), dan penanda check-in di luar jendela jam.
+function v4HonorStatusHari(ci) {
+  const tgl = ci._tgl || ci.tanggal;
+  if (!tgl || v4HonorSholatSebelumMulai(tgl)) return { teks: '-', luarJam: false };
+  const jenis = v4HonorSholatJenisDari(ci.typeId); if (!jenis) return { teks: '-', luarJam: false };
+  const c = v4HonorSholatCache[String(tgl).slice(0, 7)];
+  if (!c) return { teks: '⏳ memuat...', luarJam: false };
+  if (c.status === 'gagal') return { teks: '? (gagal dimuat)', luarJam: false };
+  const gk = (typeof honorSholatResolve === 'function') ? honorSholatResolve(ci.guruKey, ci.guruName) : (ci.guruKey || ci.guruName);
+  const h = c.hari.find(x => x.tgl === tgl && x.jenis === jenis && x.guruKey === gk);
+  if (!h) return { teks: '-', luarJam: false };
+  return { teks: h.ok ? '✅ Terhitung' : '⛔ Belum: ' + (h.alasan || 'tidak lolos'), luarJam: /di luar jam/.test(h.alasan || '') };
+}
 function v4HonorSholatTerapkan(ym, hs) {
   const entri = { status: 'gagal', hari: (v4HonorSholatCache[ym] && v4HonorSholatCache[ym].hari) || [], at: Date.now(), msg: '' };
   if (hs && hs.siap && hs.hasil) {
@@ -1653,8 +1665,7 @@ function v4ActCardExtra(a) {
   h += adm ? '' : `<div class="v4-muted" style="margin-top:7px;font-size:11px;">⏰ Mulai ${v4Safe(jam)} · klaim ${v4ActFmtMenit(v4ActMenit(jam) + V4_ACT_GRACE_MENIT)}</div>`;
   if (ci) {
     const jamCi = ci.at ? new Date(ci.at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
-    const telat = ci.telatMenit > 0 ? ` · telat ${ci.telatMenit} mnt` : '';
-    h += `<div style="margin-top:7px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 8px;font-size:11px;color:#065f46;">✅ Petugas hari ini: <strong>${v4Safe(ci.guruName)}</strong> (${v4Safe(ci.peran || 'PJ')})${jamCi ? ' · check-in ' + v4Safe(jamCi) : ''}${telat}${ci.tertunda ? ' · ⏳ menunggu dikirim ke server' : (ci.offline ? ' · 📡 offline' : '')}${adm ? ` <button class="btn btn-soft" style="padding:2px 7px;font-size:10px;min-height:22px;margin-left:4px;" onclick="v4ActResetCheckin('${k}')">Reset</button>` : ''}</div>`;
+    h += `<div style="margin-top:7px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 8px;font-size:11px;color:#065f46;">✅ Petugas hari ini: <strong>${v4Safe(ci.guruName)}</strong> (${v4Safe(ci.peran || 'PJ')})${jamCi ? ' · check-in ' + v4Safe(jamCi) : ''}${ci.tertunda ? ' · ⏳ menunggu dikirim ke server' : (ci.offline ? ' · 📡 offline' : '')}${adm ? ` <button class="btn btn-soft" style="padding:2px 7px;font-size:10px;min-height:22px;margin-left:4px;" onclick="v4ActResetCheckin('${k}')">Reset</button>` : ''}</div>`;
   } else if (!adm) {
     const el = v4ActCekCheckin(a);
     if (el.ok) {
