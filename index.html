@@ -79,7 +79,7 @@
 
   <!-- Menu Kas Madrasah (Kas Umum, Kas Infaq, Setoran Infaq) -- dimuat SEBELUM app.js supaya
        fungsinya (setupKasUmumPage, kasCanOpenMenu) sudah ada saat app.js berjalan. -->
-  <script defer src="js/kas.js?v=6"></script>
+  <script defer src="js/kas.js?v=7"></script>
 
   <!-- Menu Administrasi Ujian (Daftar Hadir, Tata Tertib, Denah, Berita Acara) -- juga dimuat SEBELUM app.js
        supaya setupAdministrasiUjianPage() & aujCanOpenMenu() sudah ada saat app.js berjalan. -->
@@ -125,7 +125,7 @@
   <!-- Tunggakan Infaq per siswa + pengingat WA + unduh PDF/Excel (kartu di halaman Infaq Mingguan) dan
        logout otomatis saat tidak aktif. Dimuat SESUDAH app.js karena memakai fungsi/variabel milik app.js
        (infaqCanAccess, allSiswa, kirimWA, logout, dst.) dan dipicu dari renderIuranRekap(). -->
-  <script defer src="js/tunggakan-infaq.js?v=5"></script>
+  <script defer src="js/tunggakan-infaq.js?v=6"></script>
   <script defer src="js/auto-logout.js?v=4"></script>
 
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
