@@ -437,7 +437,18 @@ function kasHapus(key) {
     reloadDataset('kasUmum', () => renderKasUmum());
   });
 }
-async function kasExportPDF() {
+// Teks kop surat PDF: dipusatkan di area KANAN logo (logo 22 mm di x=15..37) supaya tidak tumpang tindih;
+// font dikecilkan otomatis (min 7pt) bila terlalu lebar, dan baru dibungkus baris bila masih tak muat.
+function kopTeksPdf(doc, teks, y, ukuran, pw, tebal) {
+  teks = String(teks || ''); if (!teks) return;
+  const x0 = 40, x1 = pw - 15, lebar = x1 - x0;
+  doc.setFont(undefined, tebal ? 'bold' : 'normal');
+  let u = ukuran; doc.setFontSize(u);
+  while (u > 7 && doc.getTextWidth(teks) > lebar) { u -= 0.5; doc.setFontSize(u); }
+  doc.text(teks, (x0 + x1) / 2, y, { align: 'center', maxWidth: lebar });
+  doc.setFont(undefined, 'normal'); doc.setFontSize(ukuran);
+}
+async function kasExportPDFInti() {
   if (!kasCanView()) return toast('Tidak diizinkan!', true);
   const d = kasDataPeriode();
   if (d.tampil.length === 0 && d.saldoSebelum === 0) return toast(`Belum ada data ${d.namaBuku} untuk periode ini.`, true);
@@ -448,12 +459,12 @@ async function kasExportPDF() {
   // Kop (label teks biasa, tanpa emoji -- font bawaan jsPDF tidak punya glyph emoji)
   const offY = MADRASAH.nsm ? 5 : 0;
   v4TambahLogoKeKopPdf(doc, logoData, offY);
-  doc.setFontSize(16); doc.text(MADRASAH.nama || '', pageWidth / 2, 20, { align: 'center' });
+  kopTeksPdf(doc, MADRASAH.nama, 20, 16, pageWidth);
   doc.setFontSize(10);
-  if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text(`NSM: ${MADRASAH.nsm}`, pageWidth / 2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-  doc.text(MADRASAH.alamat || '', pageWidth / 2, 27 + offY, { align: 'center' });
+  if (MADRASAH.nsm) kopTeksPdf(doc, `NSM: ${MADRASAH.nsm}`, 25, 10, pageWidth, true);
+  kopTeksPdf(doc, MADRASAH.alamat, 27 + offY, 10, pageWidth);
   const kontak = [MADRASAH.telp ? 'Telp. ' + MADRASAH.telp : '', MADRASAH.email || '', MADRASAH.website || ''].filter(Boolean).join(' | ');
-  if (kontak) doc.text(kontak, pageWidth / 2, 33 + offY, { align: 'center' });
+  if (kontak) kopTeksPdf(doc, kontak, 33 + offY, 10, pageWidth);
   doc.setDrawColor(0); doc.setLineWidth(0.5);
   doc.line(15, 38 + offY, pageWidth - 15, 38 + offY); doc.line(15, 40 + offY, pageWidth - 15, 40 + offY);
   let y = 49 + offY;
@@ -502,7 +513,7 @@ async function kasExportPDF() {
   doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 15, doc.internal.pageSize.getHeight() - 10);
   doc.save(`Buku_${d.namaBuku.replace(' ', '_')}_${d.slug}.pdf`); toast(`📥 PDF Buku ${d.namaBuku} berhasil diunduh!`);
 }
-async function kasExportExcel() {
+async function kasExportExcelInti() {
   if (!kasCanView()) return toast('Tidak diizinkan!', true);
   const d = kasDataPeriode();
   if (d.tampil.length === 0 && d.saldoSebelum === 0) return toast(`Belum ada data ${d.namaBuku} untuk periode ini.`, true);
@@ -518,6 +529,17 @@ async function kasExportExcel() {
   ws['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 26 }, { wch: 44 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, d.namaBuku);
   XLSX.writeFile(wb, `Buku_${d.namaBuku.replace(' ', '_')}_${d.slug}.xlsx`); toast(`📥 Excel Buku ${d.namaBuku} berhasil diunduh!`);
+}
+
+// Pembungkus: error di tengah proses ekspor (mis. data buku infaq bermasalah) dulu hilang diam-diam
+// (fungsi async -> promise ditolak tanpa pesan). Sekarang tampil sebagai toast + tercatat di console.
+async function kasExportPDF() {
+  try { await kasExportPDFInti(); }
+  catch (e) { console.error('[SI MAMBA] Ekspor PDF buku kas gagal:', e); toast('❌ Gagal membuat PDF: ' + (e && e.message ? e.message : e), true, 7000); }
+}
+async function kasExportExcel() {
+  try { await kasExportExcelInti(); }
+  catch (e) { console.error('[SI MAMBA] Ekspor Excel buku kas gagal:', e); toast('❌ Gagal membuat Excel: ' + (e && e.message ? e.message : e), true, 7000); }
 }
 
 // ============================================================
@@ -1207,12 +1229,12 @@ async function setoranExportPDF() {
   const logoData = await v4LoadLogoForPdf();
   const offY = MADRASAH.nsm ? 5 : 0;
   v4TambahLogoKeKopPdf(doc, logoData, offY);
-  doc.setFontSize(16); doc.text(MADRASAH.nama || '', pw / 2, 20, { align: 'center' });
+  kopTeksPdf(doc, MADRASAH.nama, 20, 16, pw);
   doc.setFontSize(10);
-  if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text(`NSM: ${MADRASAH.nsm}`, pw / 2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-  doc.text(MADRASAH.alamat || '', pw / 2, 27 + offY, { align: 'center' });
+  if (MADRASAH.nsm) kopTeksPdf(doc, `NSM: ${MADRASAH.nsm}`, 25, 10, pw, true);
+  kopTeksPdf(doc, MADRASAH.alamat, 27 + offY, 10, pw);
   const kontak = [MADRASAH.telp ? 'Telp. ' + MADRASAH.telp : '', MADRASAH.email || '', MADRASAH.website || ''].filter(Boolean).join(' | ');
-  if (kontak) doc.text(kontak, pw / 2, 33 + offY, { align: 'center' });
+  if (kontak) kopTeksPdf(doc, kontak, 33 + offY, 10, pw);
   doc.setDrawColor(0); doc.setLineWidth(0.5);
   doc.line(15, 38 + offY, pw - 15, 38 + offY); doc.line(15, 40 + offY, pw - 15, 40 + offY);
   let y = 49 + offY;

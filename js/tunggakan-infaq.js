@@ -495,6 +495,17 @@ function tunggakanAntreanLewati() { const a = _tgAntrean; if (!a) return; a.i++;
 function tunggakanAntreanTutup() { _tgAntrean = null; tunggakanRender(); }
 
 // ---- Ekspor rekap tunggakan (mengikuti filter yang sedang dipilih; tanpa nomor WA) ----
+// Teks kop surat PDF: dipusatkan di area KANAN logo (logo 22 mm di x=15..37) supaya tidak tumpang tindih;
+// font dikecilkan otomatis (min 7pt) bila terlalu lebar, dan baru dibungkus baris bila masih tak muat.
+function kopTeksPdf(doc, teks, y, ukuran, pw, tebal) {
+  teks = String(teks || ''); if (!teks) return;
+  const x0 = 40, x1 = pw - 15, lebar = x1 - x0;
+  doc.setFont(undefined, tebal ? 'bold' : 'normal');
+  let u = ukuran; doc.setFontSize(u);
+  while (u > 7 && doc.getTextWidth(teks) > lebar) { u -= 0.5; doc.setFontSize(u); }
+  doc.text(teks, (x0 + x1) / 2, y, { align: 'center', maxWidth: lebar });
+  doc.setFont(undefined, 'normal'); doc.setFontSize(ukuran);
+}
 async function tunggakanExportPDF() {
   if (!tunggakanCanView()) return toast('Tidak diizinkan!', true);
   const d = tgDataAktif();
@@ -505,12 +516,12 @@ async function tunggakanExportPDF() {
   const [logoData, ttdKepalaData] = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf()]);
   const offY = MADRASAH.nsm ? 5 : 0;
   v4TambahLogoKeKopPdf(doc, logoData, offY);
-  doc.setFontSize(16); doc.text(MADRASAH.nama || '', pw / 2, 20, { align: 'center' });
+  kopTeksPdf(doc, MADRASAH.nama, 20, 16, pw);
   doc.setFontSize(10);
-  if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text(`NSM: ${MADRASAH.nsm}`, pw / 2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-  doc.text(MADRASAH.alamat || '', pw / 2, 27 + offY, { align: 'center' });
+  if (MADRASAH.nsm) kopTeksPdf(doc, `NSM: ${MADRASAH.nsm}`, 25, 10, pw, true);
+  kopTeksPdf(doc, MADRASAH.alamat, 27 + offY, 10, pw);
   const kontak = [MADRASAH.telp ? 'Telp. ' + MADRASAH.telp : '', MADRASAH.email || '', MADRASAH.website || ''].filter(Boolean).join(' | ');
-  if (kontak) doc.text(kontak, pw / 2, 33 + offY, { align: 'center' });
+  if (kontak) kopTeksPdf(doc, kontak, 33 + offY, 10, pw);
   doc.setDrawColor(0); doc.setLineWidth(0.5);
   doc.line(15, 38 + offY, pw - 15, 38 + offY); doc.line(15, 40 + offY, pw - 15, 40 + offY);
   let y = 49 + offY;
