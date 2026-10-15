@@ -92,7 +92,7 @@
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
   <script defer src="js/app.js?v=66"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
-  <script defer src="js/amalan-kegiatan.js?v=18"></script>
+  <script defer src="js/amalan-kegiatan.js?v=20"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=1"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
@@ -1773,6 +1773,12 @@
 .amalan-table tbody tr:nth-child(even) td{background:rgba(128,128,128,.07);}
 body.dark-mode .amalan-table th{background:#1f2937;}
 .amalan-note{font-size:11px;margin:0 2px 6px;line-height:1.4;}
+/* Absensi siswa: baris dipadatkan, ringkasan & tombol Simpan tetap terlihat saat menggulir */
+#v4ActivityFillSection table th,#v4ActivityFillSection table td{padding:3px 6px !important;font-size:12px;}
+#v4ActivityFillSection .status-choice{min-height:30px !important;padding:2px 9px !important;font-size:12px !important;}
+.amalan-isi-ringkas{position:sticky;top:0;z-index:2;background:#fff;padding:4px 0;}
+body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
+#v4ActivityFillSection [id^="btnSaveV4Act_"]{position:sticky;bottom:8px;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.25);}
 </style>
           <div class="v4-section-title"><h3>🕌 Amalan Yaumiyah</h3><button id="v4ActivityAddBtn" class="btn btn-success" onclick="v4OpenActivityTypeForm()">➕ Tambah Jenis</button></div>
                     <div id="v4ActivityConfig" class="v4-shell"></div>
