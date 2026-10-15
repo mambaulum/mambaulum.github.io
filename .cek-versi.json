@@ -1,0 +1,158 @@
+{
+  "appVersion": "v6.98",
+  "disimpan": "2026-10-15T12:25:10.402Z",
+  "assets": {
+    "css/styles.css": {
+      "v": "v=21",
+      "hash": "d968e42b9a4962f67a0a57f15b40db61d0a3d461"
+    },
+    "js/logo-fallback.js": {
+      "v": "",
+      "hash": "49a9b5fb114012a76b779ca080e52b30eae0113e"
+    },
+    "vendor/firebase-app-compat.js": {
+      "v": "v=10.12.0",
+      "hash": "5695f4b28793d28fff82d15949de5dcb645d5d2c"
+    },
+    "vendor/firebase-database-compat.js": {
+      "v": "v=10.12.0",
+      "hash": "ef91840821db12ee5ccb26acf3710991b2d10e8c"
+    },
+    "vendor/firebase-auth-compat.js": {
+      "v": "v=10.12.0",
+      "hash": "95b1605706bc338cded93552279f35d5493727e0"
+    },
+    "vendor/lucide.min.js": {
+      "v": "v=0.263.0",
+      "hash": "cb53cf14fb401f0515d9dbd63d59860331821726"
+    },
+    "vendor/crypto-js.min.js": {
+      "v": "v=4.2.0",
+      "hash": "6596050516dd12af52d9b0e7b18ed837f1d81300"
+    },
+    "vendor/jsQR.js": {
+      "v": "v=1.4.0",
+      "hash": "ae81b7cf49a4006a3c34d2a6f703927929bba8be"
+    },
+    "vendor/qrcode.min.js": {
+      "v": "v=1.0.0",
+      "hash": "2d06c1f823f34c19981c6ae0b0eb0f5861c5e14b"
+    },
+    "js/offline-db.js": {
+      "v": "",
+      "hash": "929631093175eed9c99eb7b583ad96ace8243a92"
+    },
+    "js/kas.js": {
+      "v": "v=6",
+      "hash": "78ba38c645dafa23e7b224a9be90c925e32e118e"
+    },
+    "js/administrasi-ujian.js": {
+      "v": "v=3",
+      "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
+    },
+    "js/app.js": {
+      "v": "v=69",
+      "hash": "2e62a742b8518baebc5c345628a6c408a1b3dbb4"
+    },
+    "js/amalan-kegiatan.js": {
+      "v": "v=21",
+      "hash": "08e81c3b1ab7e8f9563de659060a015b09b01530"
+    },
+    "js/bacaan-shalat.js": {
+      "v": "v=1",
+      "hash": "aba26d157f53c8bb7aa12d9565cb382dd2a4effe"
+    },
+    "js/kredensial.js": {
+      "v": "v=3",
+      "hash": "e348e56ec7cf67530ad502a2c720d140e394c18a"
+    },
+    "js/ttd-digital.js": {
+      "v": "v=4",
+      "hash": "5fd82a9a74f8b31fda095d1dc04048434517b94b"
+    },
+    "js/menu-hub.js": {
+      "v": "v=10",
+      "hash": "edd5d7600e7f47dbdea2d3210ec3641748f01100"
+    },
+    "js/rekap-jurnal.js": {
+      "v": "v=1",
+      "hash": "07ceda334e272a630ce6c34912582630af6001d2"
+    },
+    "js/rapat.js": {
+      "v": "v=6",
+      "hash": "eb208086e3d12622d72c7379df80fbd5bf62ca4f"
+    },
+    "js/data-tp-mi.js": {
+      "v": "v=3",
+      "hash": "70d59bb8eba12e6a2329378c5d3c8e92ed11e497"
+    },
+    "js/data-soal-mi.js": {
+      "v": "v=4",
+      "hash": "945c26afb3545b4f784afae4618851bc8a887884"
+    },
+    "js/perangkat-rpe.js": {
+      "v": "v=9",
+      "hash": "941708724ca01bb76742473281b1d37932b49cc5"
+    },
+    "js/perangkat-prota-promes.js": {
+      "v": "v=7",
+      "hash": "c66de437154dedac1b70169640da55fdfecad0a8"
+    },
+    "js/perangkat-atp-tp.js": {
+      "v": "v=7",
+      "hash": "5f5261e92162af3284006d29d36cb024f54f11c7"
+    },
+    "js/data-kisi-resmi-mi.js": {
+      "v": "v=3",
+      "hash": "5ed5a2388cdd7ff2fd90d00225916961ebfd1501"
+    },
+    "js/perangkat-kisi.js": {
+      "v": "v=9",
+      "hash": "fe9c146fad3521759c52fa9bdd1bca8bb961704e"
+    },
+    "js/perangkat-soal.js": {
+      "v": "v=8",
+      "hash": "fc683898fdd66e74ecaf1c232a184e8e66abf61f"
+    },
+    "js/perangkat-pembelajaran.js": {
+      "v": "v=9",
+      "hash": "32bdd97155653d07f4189eec3e99eaf683d4b5da"
+    },
+    "js/modul-ajar.js": {
+      "v": "v=14",
+      "hash": "027cdd9a9a9d59e732c6b90c8e8fb51fd51f3ebf"
+    },
+    "js/buku-tamu.js": {
+      "v": "v=5",
+      "hash": "08d29809809368900420dba2030ae5e86b37088c"
+    },
+    "js/fitur-pelengkap.js": {
+      "v": "v=3",
+      "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
+    },
+    "js/tunggakan-infaq.js": {
+      "v": "v=5",
+      "hash": "2d5431eced9d03cf6d1746fb65767ba6d9ff6a1d"
+    },
+    "js/auto-logout.js": {
+      "v": "v=4",
+      "hash": "9edb7e62484f0f7d2ec53414204ad6b702019bc6"
+    },
+    "js/login-kode.js": {
+      "v": "v=12",
+      "hash": "e77b36f51dc5010e98a8b43e03060b09bd79b20f"
+    },
+    "js/impersonate.js": {
+      "v": "v=2",
+      "hash": "c1f693b9bd9baa9366be0eb4e7df5e2691e50a6a"
+    },
+    "js/tahfidz-grafik.js": {
+      "v": "v=4",
+      "hash": "4b5d4ff458afe81fabb8ab23b183da353f725891"
+    },
+    "js/monitor-petugas.js": {
+      "v": "v=5",
+      "hash": "6e8111e6ed90a06cc475fd1780708198b1c412a6"
+    }
+  }
+}
