@@ -224,6 +224,7 @@
     let allGuru = [], allSiswa = [], allAttendance = [], allGrades = [], allJournals = [], allTeacherAttendance = [], allTeacherAttendanceToday = [], allEarlyLeaveRequests = [], allEvents = [], allEventAttendance = [], ekskulRates = {}, allUjian = [], allUjianAttendance = [], allInfaqSiswa = [], allKasUmum = [], allInfaqPetugas = {}, allEkskulPicHonor = [], allKedisiplinan = [], allKedisiplinanKategori = { pelanggaran: [], prestasi: [] }, allBukuPenghubung = [], allMateri = [], allTugas = [], allTugasSubmission = [], allKalenderAkademik = [], allSaranKritik = [];
     let allReligiAttendance = [], allPengumuman = [], allLogs = [], allSurat = [], allJadwal = [];
     let attendanceDraft = {};
+    let attFastMode = true;   // Absensi harian: DEFAULT Mode Cepat (ketuk nama ganti status H->A->S->I); false = Mode Tabel (tombol H/S/I/A per siswa)
     let jamSettings = {};
     let cameraStream = null;
     let editingGuruKey = null, editingSiswaKey = null, editingJadwalKey = null;
@@ -4461,7 +4462,9 @@
       const disabled = canEdit() && !isKepsek() ? '' : 'disabled';
       const jamPertama = jamSettings[1] || { mulai: '07:30', selesai: '08:15' };
       let html = `<div class="attendance-warning">ℹ️ Klik status di bawah untuk mengisi absensi siswa.<br><span style="font-weight:600;">H</span> = Hadir, <span style="font-weight:600;">S</span> = Sakit, <span style="font-weight:600;">I</span> = Izin, <span style="font-weight:600;">A</span> = Alfa<br><strong>⚠️ Disarankan mengisi di jam pertama (${jamPertama.mulai} - ${jamPertama.selesai}).</strong><br><span style="color:#2563eb;">💡 Jika di luar jam pertama, Anda tetap bisa mengisi dengan konfirmasi.</span></div>`;
-      siswa.forEach(s => {
+      html += attModeBarHtml();
+      if (attFastMode) html += attFastHtml(siswa, disabled);
+      else siswa.forEach(s => {
         const status = attendanceDraft[s.key] || '', hasStatus = status !== '', bgColor = hasStatus ? '#eff6ff' : '#f9fafb';
         html += `<div data-skey="${escapeHtml(s.key)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bgColor};border-radius:8px;margin-bottom:4px;border:1px solid ${hasStatus ? '#e5e7eb' : '#f3f4f6'};flex-wrap:wrap;gap:4px;">
           <span><strong>${escapeHtml(s.name)}</strong> (${escapeHtml(s.kelas)})</span>
@@ -4472,6 +4475,56 @@
         html += `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-soft" style="padding:4px 12px;font-size:12px;" onclick="fillAllAttendance('H')">✅ Isi Semua Hadir</button><button class="btn btn-soft" style="padding:4px 12px;font-size:12px;" onclick="fillAllAttendance('S')">🤒 Isi Semua Sakit</button><button class="btn btn-soft" style="padding:4px 12px;font-size:12px;" onclick="fillAllAttendance('I')">📝 Isi Semua Izin</button><button class="btn btn-soft" style="padding:4px 12px;font-size:12px;" onclick="fillAllAttendance('A')">❌ Isi Semua Alfa</button><button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" onclick="clearAllAttendance()">🗑️ Kosongkan Semua</button></div>`;
       }
       list.innerHTML = html;
+    }
+    // ---- Mode Cepat absensi harian: ketuk nama = ganti status H -> A -> S -> I -> H ----
+    const ATT_FAST_WARNA = { H: ['#dcfce7', '#86efac', '#166534'], A: ['#fee2e2', '#fca5a5', '#991b1b'], S: ['#fef9c3', '#fde047', '#854d0e'], I: ['#dbeafe', '#93c5fd', '#1e40af'] };
+    const ATT_FAST_LABEL = { H: 'Hadir', A: 'Alfa', S: 'Sakit', I: 'Izin' };
+    function attModeBarHtml(fn) {
+      return `<div style="margin:8px 0;"><button type="button" class="btn ${attFastMode ? 'btn-success' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="${fn || 'toggleAttendanceFast'}()">${attFastMode ? '⚡ Mode Cepat (aktif) · ketuk untuk ganti ke Tabel' : '📋 Mode Tabel · ketuk untuk ganti ke Mode Cepat'}</button></div>`;
+    }
+    function attFastChipStyle(status, disabled) {
+      const c = ATT_FAST_WARNA[status] || ['#f3f4f6', '#d1d5db', '#374151'];
+      return `display:flex;align-items:center;justify-content:space-between;gap:6px;text-align:left;min-height:38px;padding:4px 8px;border-radius:8px;border:1.5px solid ${c[1]};background:${c[0]};color:${c[2]};cursor:${disabled ? 'default' : 'pointer'};font-size:12px;line-height:1.2;`;
+    }
+    function attFastSummaryHtml(siswa, draft) {
+      draft = draft || attendanceDraft;
+      const cnt = { H: 0, A: 0, S: 0, I: 0, kosong: 0 };
+      siswa.forEach(s => { const st = draft[s.key]; if (cnt[st] !== undefined && st !== 'kosong') cnt[st]++; else cnt.kosong++; });
+      return `✅ Hadir ${cnt.H} · ❌ Alfa ${cnt.A} · 🤒 Sakit ${cnt.S} · 📝 Izin ${cnt.I}${cnt.kosong ? ` · ⬜ Belum ${cnt.kosong}` : ''}`;
+    }
+    function attFastChipInner(s, draft) {
+      const st = (draft || attendanceDraft)[s.key] || '';
+      return `<strong style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.name)}</strong><span style="font-weight:700;flex-shrink:0;">${st ? escapeHtml(ATT_FAST_LABEL[st] || st) : '—'}</span>`;
+    }
+    // o (opsional) = { draft, fn, gid, sid } supaya dipakai juga oleh absensi guru pengganti (mewakili).
+    function attFastHtml(siswa, disabled, o) {
+      o = o || {};
+      const draft = o.draft || attendanceDraft, fn = o.fn || 'cycleAttendance', gid = o.gid || 'attFastGrid', sid = o.sid || 'attFastSummary';
+      const chips = siswa.map(s => `<button type="button" data-skey="${escapeHtml(s.key)}" ${disabled} onclick="${fn}('${escapeJs(s.key)}')" style="${attFastChipStyle(draft[s.key] || '', disabled)}">${attFastChipInner(s, draft)}</button>`).join('');
+      return `<div id="${sid}" style="font-size:12px;margin-bottom:6px;color:#374151;">${attFastSummaryHtml(siswa, draft)}</div><div id="${gid}" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;">${chips}</div>`;
+    }
+    function toggleAttendanceFast() {
+      attFastMode = !attFastMode;
+      const el = document.getElementById('attendanceClassFilter');
+      renderAttendance([(el && el.value) || selectedAttendanceClass]);
+    }
+    function cycleAttendance(studentKey) {
+      if (!canEdit() || isKepsek()) return toast('Tidak bisa mengubah!', true);
+      const el = document.getElementById('attendanceClassFilter');
+      const kelasAktif = (el && el.value) || selectedAttendanceClass;
+      if (!kelasAktif) return;
+      selectedAttendanceClass = kelasAktif;
+      const sk = allSiswa.find(x => x.key === studentKey);
+      if (!sk || sk.kelas !== kelasAktif) return;   // daftar basi: abaikan ketukan
+      attendanceDraft[studentKey] = { H: 'A', A: 'S', S: 'I', I: 'H' }[attendanceDraft[studentKey] || ''] || 'H';
+      // Perbarui SATU kotak + ringkasan di tempat (posisi scroll terjaga); kalau tidak ketemu -> render penuh.
+      const grid = document.getElementById('attFastGrid');
+      const chip = grid && grid.querySelector('[data-skey="' + CSS.escape(studentKey) + '"]');
+      if (!chip) return renderAttendance([kelasAktif]);
+      chip.setAttribute('style', attFastChipStyle(attendanceDraft[studentKey], false));
+      chip.innerHTML = attFastChipInner(sk);
+      const sum = document.getElementById('attFastSummary');
+      if (sum) sum.innerHTML = attFastSummaryHtml(allSiswa.filter(s => s.kelas === kelasAktif));
     }
     // Update SATU baris siswa di tempat (tanpa membangun ulang seluruh daftar): fokus tombol & posisi scroll
     // tetap terjaga. Return false kalau barisnya tidak ada di DOM -> pemanggil jatuh ke renderAttendance() penuh.
@@ -4797,8 +4850,9 @@
       const list = document.getElementById('mewakiliAbsensiList');
       if (!list) return;
       if (mewakiliAttendanceSiswa.length === 0) { list.innerHTML = `<p class="text-muted" style="text-align:center;padding:12px;">Tidak ada siswa terdaftar di kelas ${escapeHtml(mewakiliAttendanceKelas || '')}.</p>`; return; }
-      let html = '';
-      mewakiliAttendanceSiswa.forEach(s => {
+      let html = attModeBarHtml('toggleMewakiliFast');
+      if (attFastMode) html += attFastHtml(mewakiliAttendanceSiswa, '', { draft: mewakiliAttendanceDraft, fn: 'cycleMewakili', gid: 'mewFastGrid', sid: 'mewFastSummary' });
+      else mewakiliAttendanceSiswa.forEach(s => {
         const status = mewakiliAttendanceDraft[s.key] || '', hasStatus = status !== '', bgColor = hasStatus ? '#eff6ff' : '#f9fafb';
         html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bgColor};border-radius:8px;margin-bottom:4px;border:1px solid ${hasStatus ? '#e5e7eb' : '#f3f4f6'};flex-wrap:wrap;gap:4px;">
           <span><strong>${escapeHtml(s.name)}</strong></span>
@@ -4807,6 +4861,20 @@
       });
       html += `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-soft" style="padding:4px 12px;font-size:12px;" onclick="fillAllMewakiliAbsensi('H')">✅ Isi Semua Hadir</button></div>`;
       list.innerHTML = html;
+    }
+    function toggleMewakiliFast() { attFastMode = !attFastMode; renderMewakiliAbsensi(); }
+    // Mode Cepat guru pengganti: ketuk nama = ganti status H -> A -> S -> I -> H (kotak & ringkasan diperbarui di tempat).
+    function cycleMewakili(studentKey) {
+      const sk = mewakiliAttendanceSiswa.find(x => x.key === studentKey);
+      if (!sk) return;
+      mewakiliAttendanceDraft[studentKey] = { H: 'A', A: 'S', S: 'I', I: 'H' }[mewakiliAttendanceDraft[studentKey] || ''] || 'H';
+      const grid = document.getElementById('mewFastGrid');
+      const chip = grid && grid.querySelector('[data-skey="' + CSS.escape(studentKey) + '"]');
+      if (!chip) return renderMewakiliAbsensi();
+      chip.setAttribute('style', attFastChipStyle(mewakiliAttendanceDraft[studentKey], ''));
+      chip.innerHTML = attFastChipInner(sk, mewakiliAttendanceDraft);
+      const sum = document.getElementById('mewFastSummary');
+      if (sum) sum.innerHTML = attFastSummaryHtml(mewakiliAttendanceSiswa, mewakiliAttendanceDraft);
     }
     function setMewakiliAbsensi(studentKey, status) {
       if (mewakiliAttendanceDraft[studentKey] === status) delete mewakiliAttendanceDraft[studentKey];
@@ -12964,7 +13032,7 @@
       });
       return Object.values(grouped);
     }
-    function v4RenderReportPreview(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent'),el=document.getElementById('v4ReportPreview');if(!c||!s||!el)return;const st=(allSiswa||[]).find(x=>x.key===s.value);if(!st){el.innerHTML='<p class="v4-muted">Pilih siswa.</p>';return;}
+    function v4RenderReportPreview(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent'),el=document.getElementById('v4ReportPreview');if(!c||!s||!el)return;const st=(allSiswa||[]).find(x=>x.key===s.value);if(!st){el.innerHTML='<p class="v4-muted">Pilih siswa.</p>';return;}if(!v4ActSiap(v4ActBulanTahunAjaran())){el.innerHTML='<p class="v4-muted">⏳ Memuat absensi sholat satu tahun ajaran...</p>';v4ActPastikan(v4ActBulanTahunAjaran()).then(()=>v4RenderReportPreview());return;}
       // FIX: filter nilai sebelumnya cek field x.siswa/x.studentId/x.nama/x.name -- field itu TIDAK
       // PERNAH ada di record 'grades' (skema aslinya: siswaKey, kelas, subject, semester, data:{h1,h2,
       // h3,mid,pas} -- lihat saveGrades()/renderRekapPerSiswa()). Akibatnya filter ini selalu kosong
@@ -12985,7 +13053,7 @@
       const rincian = items.length ? items.sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,10).map(d => `<p class="v4-muted">${d.jenis==='prestasi'?'🌟':'⚠️'} ${v4Safe(d.kategori||'-')} (${d.poin||0} poin) — ${v4Safe(d.tanggal||'-')}</p>`).join('') : '<p class="v4-muted">Belum ada catatan sikap.</p>';
       return `<h4 style="margin:12px 0 6px;">🌟 Sikap &amp; Kedisiplinan</h4><p>Predikat: <strong style="color:${warna};">${predikat}</strong> (Poin pelanggaran: ${totalPelanggaran}, Poin prestasi: ${totalPrestasi})</p>${rincian}`;
     }
-    function v4FinalizeReport(){const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);if(!st)return toast('Pilih siswa!',true);
+    function v4FinalizeReport(){const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);if(!st)return toast('Pilih siswa!',true);if(!v4ActSiap(v4ActBulanTahunAjaran())){toast('Memuat absensi sholat satu tahun ajaran, mohon tunggu...',false,4000);v4ActPastikan(v4ActBulanTahunAjaran()).then(ok=>{if(ok)v4FinalizeReport();else toast('Gagal memuat absensi sholat setahun. Periksa koneksi lalu coba lagi.',true);});return;}
       // Wali Kelas hanya boleh finalisasi raport siswa DI KELAS YANG DIA AMPU -- sebelumnya
       // cek cuma "apakah dia wali kelas di kelas mana pun" (isWaliKelasAssigned()), sehingga
       // wali kelas 1A misalnya bisa mengunci raport siswa 6B kalau tahu cara memanggil fungsi
@@ -13018,7 +13086,48 @@
     // dipanggil terpisah (mis. saat buka halaman Approval). Nomor juga dinaikkan saat logout supaya
     // load milik akun sebelumnya tidak mengisi V4 untuk akun berikutnya.
     let v4CoreSeq = 0, v4NotifSeq = 0, v4ApprSeq = 0;
-    function v4InvalidateLoads(){ v4CoreSeq++; v4NotifSeq++; v4ApprSeq++; }
+    function v4InvalidateLoads(){ v4CoreSeq++; v4NotifSeq++; v4ApprSeq++; v4ActBulanMuat = {}; v4ActGagalMuat = {}; }
+    // ---- Absensi kegiatan (activity_attendance_v4) dimuat PER BULAN, bukan setahun penuh ----
+    // v4LoadCore() hanya memuat BULAN BERJALAN (satu query berindeks 'tanggal'). Bulan lain dimuat saat dibutuhkan
+    // (rekap, tanggal lampau di form absensi, raport) lewat v4ActPastikan() lalu digabung ke V4.activityAttendance
+    // (record yang sudah ada -- termasuk perubahan antrean offline -- tidak ditimpa).
+    let v4ActBulanMuat = {};   // 'YYYY-MM' -> true (sudah termuat) | Promise (sedang dimuat)
+    let v4ActGagalMuat = {};   // 'YYYY-MM' -> waktu gagal terakhir (dicoba lagi setelah 60 detik; mencegah render berulang)
+    function v4ActBulanIni() { return v4Date().slice(0, 7); }
+    // 12 bulan tahun ajaran aktif (Juli tahun awal s.d. Juni tahun akhir).
+    function v4ActBulanTahunAjaran() {
+      const m = String(typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : '').match(/(\d{4})\D+(\d{4})/);
+      if (!m) return [v4ActBulanIni()];
+      const out = [];
+      for (let b = 7; b <= 12; b++) out.push(m[1] + '-' + String(b).padStart(2, '0'));
+      for (let b = 1; b <= 6; b++) out.push(m[2] + '-' + String(b).padStart(2, '0'));
+      return out;
+    }
+    // true = semua bulan sudah termuat (atau sedang offline / baru gagal dimuat -> pakai data lokal apa adanya).
+    function v4ActSiap(daftar) {
+      if (!navigator.onLine) return true;
+      return daftar.every(ym => v4ActBulanMuat[ym] === true || (v4ActGagalMuat[ym] && Date.now() - v4ActGagalMuat[ym] < 60000));
+    }
+    function v4ActMuatBulan(ym) {
+      const cur = v4ActBulanMuat[ym];
+      if (cur === true) return Promise.resolve(true);
+      if (cur) return cur;
+      if (!db || !navigator.onLine) return Promise.resolve(false);
+      const seq = v4CoreSeq;
+      const p = fbTimeout(db.ref('activity_attendance_v4').orderByChild('tanggal').startAt(ym + '-01').endAt(ym + '-31').once('value'), 15000, 'activity_attendance_v4 ' + ym).then(s => {
+        if (seq !== v4CoreSeq) { delete v4ActBulanMuat[ym]; return false; }   // v4LoadCore() baru sudah mengganti datanya
+        if (!s) { delete v4ActBulanMuat[ym]; v4ActGagalMuat[ym] = Date.now(); return false; }   // timeout / ditolak Rules
+        if (!Array.isArray(V4.activityAttendance)) V4.activityAttendance = [];
+        const ada = new Set(V4.activityAttendance.map(r => r.key));
+        s.forEach(c => { if (!ada.has(c.key)) { const x = c.val() || {}; x.key = c.key; V4.activityAttendance.push(x); } });
+        v4ActBulanMuat[ym] = true; delete v4ActGagalMuat[ym];
+        return true;
+      });
+      v4ActBulanMuat[ym] = p;
+      return p;
+    }
+    // -> Promise<boolean>: true kalau SEMUA bulan berhasil dimuat.
+    function v4ActPastikan(daftar) { return Promise.all(daftar.map(v4ActMuatBulan)).then(r => r.every(Boolean)); }
     const V4_CACHE_FIELDS = ['activityTypes','activityAttendance','activitySubstitutes','ekskulSubstitutes','tahfidz','tahfidzPic','ekskuls','ekskulAttendance','pramukaPic','pramukaSku','rates','notifications','approvals'];
     function v4CacheKey(){ const pre = (typeof offlineCachePrefix === 'function') ? offlineCachePrefix() : null; return pre ? pre + 'v4Core' : null; }
     function v4CacheCore(){
@@ -13055,7 +13164,7 @@
       v4CoreFresh=0;
       return Promise.all([
       v4LoadList('activity_types_v4',a=>V4.activityTypes=a,seq),
-      fbTimeout(db.ref('activity_attendance_v4').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value').then(s=>{if(seq!==v4CoreSeq)return;const arr=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;arr.push(x)});V4.activityAttendance=arr;}), 7000, 'activity_attendance_v4'),
+      fbTimeout(db.ref('activity_attendance_v4').orderByChild('tanggal').startAt(v4ActBulanIni()+'-01').endAt(v4ActBulanIni()+'-31').once('value').then(s=>{if(seq!==v4CoreSeq)return;const arr=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;arr.push(x)});V4.activityAttendance=arr;v4ActBulanMuat={};v4ActGagalMuat={};v4ActBulanMuat[v4ActBulanIni()]=true;}), 7000, 'activity_attendance_v4'),
       fbTimeout(db.ref('activity_substitute_v4').once('value').then(s=>{if(seq!==v4CoreSeq)return;V4.activitySubstitutes=s.val()||{};}), 7000, 'activity_substitute_v4'),
       fbTimeout(db.ref('ekskul_pic_substitute_v4').once('value').then(s=>{if(seq!==v4CoreSeq)return;V4.ekskulSubstitutes=s.val()||{};}), 7000, 'ekskul_pic_substitute_v4'),
       v4LoadList('tahfidz_v4',a=>V4.tahfidz=a,seq),

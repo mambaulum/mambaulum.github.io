@@ -35,7 +35,7 @@ function v4ActDraftOf(typeKey) { return v4ActAttendanceDraft[typeKey] || {}; }  
 function v4ActDraftW(typeKey) { return v4ActAttendanceDraft[typeKey] || (v4ActAttendanceDraft[typeKey] = {}); } // tulis
 // Buang wadah draft yang sudah kosong (mis. setelah simpan menghapus semua entrinya) supaya state tidak menumpuk sisa.
 function v4ActDraftPrune(typeKey) { const d = v4ActAttendanceDraft[typeKey]; if (d && Object.keys(d).length === 0) delete v4ActAttendanceDraft[typeKey]; }
-let v4ActFastMode = {};        // typeKey -> true = Mode Cepat (ketuk nama untuk ganti status)
+let v4ActFastMode = {};        // typeKey -> false = Mode Tabel; selain itu (default) = Mode Cepat (ketuk nama untuk ganti status)
 let v4SubstituteFormOpenFor = null;
 let v4ActKelasFormOpen = null;   // typeKey yang form "Kelas Peserta"-nya sedang terbuka
 let v4RekapReligiLast = null;  // tabel rekap yang sedang tampil -- dipakai tombol ekspor
@@ -274,8 +274,9 @@ function v4DeleteActivityType(key) {
   // FIX: jenis rutin (Sholat Dhuha/Dzuhur) dibuat otomatis oleh sistem & dipakai validasi absen sholat guru;
   // kalau dihapus, muncul lagi di login berikutnya (v4SeedJenisSholatRutin) dan data lama jadi yatim.
   if (a.rutin) return toast('Jenis kegiatan rutin (' + a.name + ') tidak bisa dihapus.', true);
+  // Absensi dimuat per bulan, jadi hitungan ini hanya mencakup bulan yang sudah termuat (bukan seluruh tahun).
   const jml = (V4.activityAttendance || []).filter(r => r.activityTypeId === key).length;
-  const info = jml ? `\n\nAda ${jml} catatan absensi tahun ajaran ini yang terkait. Catatan itu TIDAK ikut terhapus, tapi tidak akan tampil lagi di rekap.` : '';
+  const info = `\n\nCatatan absensi lama${jml ? ` (minimal ${jml} di bulan yang sudah termuat)` : ' (kalau ada)'} yang terkait TIDAK ikut terhapus, tapi tidak akan tampil lagi di rekap.`;
   if (!confirm(`Hapus jenis kegiatan "${a.name}"?${info}`)) return;
   if (!v4ActButuhOnline('Menghapus jenis kegiatan butuh koneksi internet.')) return;
   db.ref('activity_types_v4/' + key).remove().then(() => {
@@ -419,6 +420,17 @@ function v4RenderActivityFill() {
       return per + `<div class="v4-card amalan-table"><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div><div class="v4-muted amalan-note">${v4Safe(tabel.catatan || '')}</div>`;
     }
 
+    // Absensi kegiatan dimuat per bulan (lihat v4ActPastikan di app.js). Dipakai semua tampilan rekap: true = data bulan
+    // sudah siap ditampilkan; false = host diisi "memuat" lalu rekap dirender ulang otomatis setelah data datang.
+    function v4ActButuhBulan(daftar, host) {
+      if (v4ActSiap(daftar)) return true;
+      host.innerHTML = '<div class="v4-card"><div class="v4-muted">⏳ Memuat data absensi bulan terkait...</div></div>';
+      v4ActPastikan(daftar).then(ok => {
+        if (!ok && navigator.onLine) toast('Sebagian data absensi gagal dimuat, rekap bisa belum lengkap. Coba segarkan.', true);
+        try { v4RenderRekapReligiSiswa(); } catch (e) { /* halaman sudah ditinggalkan */ }
+      });
+      return false;
+    }
     // ---- Rekap Petugas QR: check-in PJ / pengganti per kegiatan (node activity_checkin_v4) ----
     // Data diambil per bulan lewat query rentang kunci '<YYYY-MM>-' (kunci = '<tanggal>_<typeKey>'), di-cache per bulan.
     // Admin/Kepala Madrasah melihat semua petugas; guru lain hanya melihat catatannya sendiri.
@@ -476,6 +488,7 @@ function v4RenderActivityFill() {
       const st = v4RekapReligiState, now = new Date();
       if (!st.bulan) st.bulan = now.getMonth() + 1;
       if (!st.tahun) st.tahun = now.getFullYear();
+      if (!v4ActButuhBulan([st.tahun + '-' + String(st.bulan).padStart(2, '0')], host)) return;
       const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
       const bulanOptions = namaBulan.map((n, i) => `<option value="${i+1}" ${st.bulan===i+1?'selected':''}>${n}</option>`).join('');
       const tSkrg = now.getFullYear();
@@ -585,7 +598,7 @@ function v4RenderActivityFill() {
       host.innerHTML = controlsHtml + info + v4RekapReligiTabelHtml(tabel);
     }
     // ---- Tab "Raport": rekap kehadiran sholat per SEMESTER per siswa, siap dipakai untuk raport ----
-    // Semester: Ganjil = Juli-Desember tahun awal tahun ajaran; Genap = Januari-Juni tahun akhir. Data = tahun ajaran aktif (yang dimuat V4.activityAttendance).
+    // Semester: Ganjil = Juli-Desember tahun awal tahun ajaran; Genap = Januari-Juni tahun akhir. Data = tahun ajaran aktif; bulan semester dimuat sesuai kebutuhan lewat v4ActPastikan() (V4.activityAttendance hanya berisi bulan yang sudah dimuat).
     const V4_RAPORT_AMBANG_DEFAULT = { sb: 90, b: 80, c: 70 };   // % hadir minimal: Sangat Baik / Baik / Cukup (di bawahnya: Perlu Bimbingan)
     // true: PREDIKAT dihitung dari H / (H+A) -- sakit & izin tidak menurunkan predikat (siswa sakit tidak dinilai "kurang"). Kolom % tetap H / (H+S+I+A).
     // false: predikat memakai % yang sama dengan kolom %.
@@ -770,6 +783,20 @@ function v4RenderActivityFill() {
       const now = new Date();
       if (!v4RekapReligiState.bulan) v4RekapReligiState.bulan = now.getMonth() + 1;
       if (!v4RekapReligiState.tahun) v4RekapReligiState.tahun = now.getFullYear();
+      {
+        // Bulan yang dibutuhkan tampilan ini: raport = seluruh bulan semester (sampai bulan ini), lainnya = bulan terpilih.
+        const vwPerlu = v4RekapReligiState.view;
+        let bulanPerlu;
+        if (vwPerlu === 'raport' || vwPerlu === 'raportdesk') {
+          const smP = v4RaportSemester(), mtP = String(typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : '').match(/(\d{4})\D+(\d{4})/);
+          const y1P = mtP ? mtP[1] : String(now.getFullYear()), y2P = mtP ? mtP[2] : String(now.getFullYear() + 1);
+          const bl = smP === 'Ganjil' ? [7, 8, 9, 10, 11, 12].map(b => y1P + '-' + String(b).padStart(2, '0')) : [1, 2, 3, 4, 5, 6].map(b => y2P + '-' + String(b).padStart(2, '0'));
+          bulanPerlu = bl.filter(ym => ym <= v4ActBulanIni());
+        } else {
+          bulanPerlu = [v4RekapReligiState.tahun + '-' + String(v4RekapReligiState.bulan).padStart(2, '0')];
+        }
+        if (bulanPerlu.length && !v4ActButuhBulan(bulanPerlu, host)) return;
+      }
 
       const dluhaTypes = v4CariJenisKegiatanSholat('Dluha').map(t => t.key);
       const dzuhurTypes = v4CariJenisKegiatanSholat('Dzuhur').map(t => t.key);
@@ -996,7 +1023,7 @@ function v4RenderActivityFillPanel(type) {
   let rows = grupTampil.map(g => (semua ? `<tr><td colspan="2" style="background:#eef2ff;font-weight:700;font-size:12px;padding:6px 8px;">${judulKelas(g)}</td></tr>` : '') + g.siswa.map(barisSiswa).join('')).join('');
   if (siswa.length === 0) rows = `<tr><td colspan="2" class="text-muted" style="text-align:center;padding:12px;">Belum ada siswa di kelas ini.</td></tr>`;
   // MODE CEPAT: ketuk nama = ganti status H -> A -> S -> I -> H. Cocok untuk kelas yang hampir semuanya hadir.
-  const fast = !!v4ActFastMode[type.key] && siswa.length > 0;
+  const fast = v4ActFastMode[type.key] !== false && siswa.length > 0; // DEFAULT Mode Cepat; Mode Tabel hanya bila dipilih manual
   let listHtml;
   if (fast) {
     const warna = { H: ['#dcfce7', '#86efac', '#166534'], A: ['#fee2e2', '#fca5a5', '#991b1b'], S: ['#fef9c3', '#fde047', '#854d0e'], I: ['#dbeafe', '#93c5fd', '#1e40af'] };
@@ -1025,7 +1052,7 @@ function v4RenderActivityFillPanel(type) {
       <select class="field" style="max-width:170px;" onchange="v4SetActivityKelas('${k}', this.value)"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select>
       <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" title="Muat ulang data dari server (lihat isian guru lain)" onclick="v4LoadCore()">🔄 Segarkan</button>
     </div>
-    ${siswa.length > 0 ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;"><button class="btn ${fast ? 'btn-success' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="v4ToggleActivityFast('${k}')">⚡ Mode Cepat: Ketuk Nama${fast ? ' (aktif)' : ''}</button>${fast ? '' : `<button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="v4FillAllActivityHadir('${k}')">✅ Isi Semua Hadir (yang belum diisi)</button>`}</div>` : ''}
+    ${siswa.length > 0 ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;"><button class="btn ${fast ? 'btn-success' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="v4ToggleActivityFast('${k}')">${fast ? '⚡ Mode Cepat (aktif) · ketuk untuk ganti ke Tabel' : '📋 Mode Tabel · ketuk untuk ganti ke Mode Cepat'}</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="v4FillAllActivityHadir('${k}')">✅ Isi Semua Hadir (yang belum diisi)</button></div>` : ''}
     ${listHtml}
     ${siswa.length > 0 ? `<button id="btnSaveV4Act_${v4Safe(type.key)}" class="btn btn-success" style="margin-top:10px;" onclick="v4SaveActivityAttendance('${k}')">💾 Simpan${offline ? ' Offline' : ''} Absensi (${semua ? 'Semua Kelas' : v4Safe(kelasVal)})${dirty ? ` · ${dirty} perubahan` : ''}</button>` : ''}
   </div>`;
@@ -1038,6 +1065,8 @@ function v4SetActivityDate(typeKey, date) {
   v4ActDateSel[typeKey] = baru;
   delete v4ActAttendanceDraft[typeKey];
   if (baru !== v4Date()) v4ActLoadCheckins(baru);
+  // Absensi dimuat per bulan: tanggal di bulan lain perlu dimuat dulu supaya isian yang sudah ada tampil.
+  if (!v4ActSiap([baru.slice(0, 7)])) v4ActPastikan([baru.slice(0, 7)]).then(() => { if (v4ActDateSel[typeKey] === baru) v4RenderActivityFill(); });
   v4RenderActivityFill();
 }
 function v4SetActivityKelas(typeKey, kelas) {
@@ -1062,10 +1091,11 @@ function v4SetActivityKelas(typeKey, kelas) {
   }
   v4RenderActivityFill();
 }
-// Mode Cepat: siswa yang belum punya status otomatis ditandai Hadir (yang sudah diisi TIDAK ditimpa).
+// Ganti tampilan Mode Cepat <-> Mode Tabel. Mode Cepat adalah DEFAULT. Beralih mode TIDAK mengubah isian apa pun;
+// tombol "Isi Semua Hadir" (v4FillAllActivityHadir) yang menandai siswa belum terisi sebagai Hadir.
 function v4ToggleActivityFast(typeKey) {
-  v4ActFastMode[typeKey] = !v4ActFastMode[typeKey];
-  if (v4ActFastMode[typeKey]) v4FillAllActivityHadir(typeKey); else v4RenderActivityFill();
+  v4ActFastMode[typeKey] = (v4ActFastMode[typeKey] === false);
+  v4RenderActivityFill();
 }
 function v4CycleActivityStatus(typeKey, studentKey) {
   if (v4ActOpenTypeKey !== typeKey) return; // guard: hanya panel yang terbuka yang boleh mengubah draft
