@@ -6854,7 +6854,7 @@
         ((c.siswaWajib || {})[jenis] || []).forEach(g => { const belum = g.siswa.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + g.siswa.length + ' siswa'); });
         if (rinci.length) alasan.push('Absensi siswa belum lengkap (' + rinci.join(', ') + ')');
         const ek = gk + '|' + tgl + '|' + jenis, lolos = alasan.length === 0, e = entri[ek];
-        if (!e) entri[ek] = { gk, nama: ci.guruName || gk, tgl, jenis, sistemLolos: lolos, alasanSistem: alasan, lolos, koreksi: null };
+        if (!e) entri[ek] = { gk, nama: ci.guruName || gk, tgl, jenis, sistemLolos: lolos, alasanSistem: alasan, lolos, koreksi: null, pengisi: [...((((c.pengisi || {})[jenis] || {})[tgl]) || [])] };
         else if (lolos && !e.lolos) { e.sistemLolos = true; e.lolos = true; e.alasanSistem = []; }
         ambil(gk, ci.guruName);
       });
@@ -6888,7 +6888,7 @@
       };
       try {
         const religiLama = (allReligiAttendance || []).filter(r => r && r.tanggal && r.tanggal.slice(0, 7) === ym && sesuaiTahunAjaranTermasukDataLama(r));
-        const c = { ym, religiLama, checkins: {}, koreksi: {}, hadirSiswa: {}, siswaWajib: {}, jenisType: honorSholatJenisType, hariOk: (j, t) => v4HariDiizinkanSholat(j, t) };
+        const c = { ym, religiLama, checkins: {}, koreksi: {}, hadirSiswa: {}, pengisi: {}, siswaWajib: {}, jenisType: honorSholatJenisType, hariOk: (j, t) => v4HariDiizinkanSholat(j, t) };
         if (ym + '-31' < HONOR_SHOLAT_MULAI_CHECKIN) return selesai(null, honorSholatHitung(c));   // bulan lama: murni Absen Religi lama
         if (typeof db === 'undefined' || !db || !navigator.onLine) return selesai(new Error('Butuh koneksi internet untuk memeriksa check-in petugas dan kelengkapan absensi siswa sholat.'));
         if (!(V4.activityTypes || []).length) { if (typeof v4LoadCore === 'function') v4LoadCore(); return selesai(new Error('Data Amalan Yaumiyah belum termuat. Coba lagi sebentar lagi.')); }
@@ -6910,6 +6910,7 @@
             if (!r.studentId || !(typeof v4NormStatusKegiatan === 'function' ? v4NormStatusKegiatan(r.status) : r.status)) return;
             const tgl = r.tanggal || String(ch.key).slice(t.key.length + 1, t.key.length + 11);
             (peta[tgl] || (peta[tgl] = new Set())).add(r.studentId);
+            if (r.recordedBy) { const pj = c.pengisi[j] || (c.pengisi[j] = {}); (pj[tgl] || (pj[tgl] = new Set())).add(String(r.recordedBy)); }   // penanda untuk Admin (Rekap Petugas QR)
           });
         })))));
         const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 30000));
