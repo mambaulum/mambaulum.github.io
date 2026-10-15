@@ -7670,7 +7670,7 @@
       const sudahLunasKey = new Set(
         allInfaqSiswa.filter(it => it.minggu === mingguIni).map(it => it.siswaKey)
       );
-      const adaBelumLunas = allSiswa.some(s => kelasRelevan.includes(s.kelas) && !sudahLunasKey.has(s.key));
+      const adaBelumLunas = allSiswa.some(s => kelasRelevan.includes(s.kelas) && !iuranGratis(s) && !sudahLunasKey.has(s.key));
       dot.classList.toggle('show', adaBelumLunas);
     }
     function infaqPetugasNama(kelas) { const p = allInfaqPetugas && allInfaqPetugas[kelas]; return p ? p.name : null; }
@@ -7732,6 +7732,9 @@
       return khusus !== null ? khusus : iuranNominalStandar();
     }
     function iuranRp(n) { return n === null ? '—' : 'Rp ' + n.toLocaleString('id-ID'); }
+    // Siswa yang dibebaskan (nominal khusus Rp 0, atau nominal standar madrasah Rp 0) tidak ditagih:
+    // tidak masuk daftar belum lunas/pengingat WA, titik notifikasi, maupun pembagi "siswa lunas".
+    function iuranGratis(s) { return iuranNominalSiswa(s) === 0; }
     function renderIuranNominalArea() {
       const box = document.getElementById('infaqTargetArea'); if (!box) return;
       // FIX: nominal 0 dulu jatuh ke '' (input) dan ke pesan "belum diatur" (non-admin) karena
@@ -7833,13 +7836,14 @@
         // supaya petugas tidak bingung kenapa nominalnya beda dari siswa lain.
         const punyaNominalKhusus = iuranAngka(s.nominalIuranKhusus) !== null; // 0 (gratis) juga "khusus"
         const nominalDipakai = iuranNominalSiswa(s); // null = nominal standar belum diatur
+        const gratis = nominalDipakai === 0;          // dibebaskan: tampil "Gratis", bukan "Belum Lunas"
         const badgeKhusus = punyaNominalKhusus ? `<span style="background:#ede9fe;color:#6d28d9;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px;">✨ ${iuranRp(nominalDipakai)}</span>` : '';
         const labelKunci = terkunci ? ` <span class="text-muted" title="Sudah lebih dari 24 jam sejak dicatat, hanya Admin yang bisa mengubah">🔒</span>` : '';
         return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;">
         <span style="flex:1;font-size:13px;">${escapeHtml(s.name)}${badgeKhusus}</span>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;${terkunci?'':'cursor:pointer;'}color:${lunas?'#059669':'#dc2626'};">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;${terkunci?'':'cursor:pointer;'}color:${lunas?'#059669':(gratis?'#6b7280':'#dc2626')};">
           <input type="checkbox" class="infaq-lunas-checkbox" data-siswa-key="${s.key}" data-siswa-nama="${escapeHtml(s.name)}" data-nominal="${nominalDipakai === null ? '' : nominalDipakai}" ${lunas?'checked':''} ${terkunci?'disabled':''} onchange="toggleLunasSatuSiswa(this,'${escapeJs(kelas)}','${mingguKey}')" style="width:16px;height:16px;">
-          ${lunas?'✅ Lunas':'⏳ Belum Lunas'}${labelKunci}
+          ${lunas?'✅ Lunas':(gratis?'🆓 Gratis':'⏳ Belum Lunas')}${labelKunci}
         </label>
       </div>`;
       }).join('');
@@ -7881,11 +7885,13 @@
     // perlu ditagih, bukan cuma melihat angka "X dari Y siswa".
     function renderIuranBelumLunas(kelas, siswaKelas, existingMap, mingguKey) {
       const box = document.getElementById('infaqBelumSetorArea'); if (!box) return;
-      const belum = siswaKelas.filter(s => !existingMap.has(s.key));
-      if (belum.length === 0) { box.innerHTML = `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:12px;color:#065f46;">🎉 Semua siswa ${escapeHtml(kelas)} sudah lunas iuran minggu ini!</div>`; return; }
+      const belum = siswaKelas.filter(s => !existingMap.has(s.key) && !iuranGratis(s));
+      const jmlGratis = siswaKelas.filter(s => !existingMap.has(s.key) && iuranGratis(s)).length;
+      const infoGratis = jmlGratis ? ` <span style="color:#6b7280;">(${jmlGratis} siswa gratis tidak dihitung)</span>` : '';
+      if (belum.length === 0) { box.innerHTML = `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:12px;color:#065f46;">🎉 Semua siswa ${escapeHtml(kelas)} sudah lunas iuran minggu ini!${infoGratis}</div>`; return; }
       const namaMinggu = mingguLabel(mingguKey);
       box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 12px;">
-        <div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:6px;">⏳ Belum Lunas Minggu Ini (${belum.length} siswa) — wajib ditagih:</div>
+        <div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:6px;">⏳ Belum Lunas Minggu Ini (${belum.length} siswa) — wajib ditagih:${infoGratis}</div>
         <div style="display:flex;flex-direction:column;gap:6px;">${belum.map(s => {
           const pesan = `Assalamu'alaikum, Bapak/Ibu wali dari ananda *${s.name}* (Kelas ${s.kelas}).\n\nKami informasikan bahwa infaq mingguan untuk minggu *${namaMinggu}* belum tercatat lunas. Mohon kesediaannya untuk melunasi secepatnya. Terima kasih.\n\n- ${MADRASAH.nama}`;
           return `<div style="display:flex;align-items:center;gap:8px;background:#fee2e2;border-radius:20px;padding:3px 6px 3px 10px;">
@@ -7912,6 +7918,7 @@
       }).join('');
       return `<div style="margin-top:18px;">
         <p style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:6px;">✨ Siswa dengan Nominal Infaq Khusus (${siswaKhusus.length})</p>
+        ${siswaKhusus.some(s => iuranAngka(s.nominalIuranKhusus) === 0) ? '<p class="text-muted" style="font-size:11px;margin-bottom:6px;">Siswa bernominal Rp 0 (gratis) tidak dihitung dalam "siswa lunas", daftar belum lunas, dan pengingat WA.</p>' : ''}
         <div style="overflow-x:auto;"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Nominal</th><th>Selisih dari standar</th></tr></thead><tbody>${rows}</tbody></table></div>
       </div>`;
     }
@@ -7926,7 +7933,7 @@
       daftarKelas.forEach(kelas => {
         const siswaKelas = allSiswa.filter(s => s.kelas === kelas);
         const sudahLunasSet = new Set(allInfaqSiswa.filter(it => it.kelas === kelas && it.minggu === mingguKey).map(it => it.siswaKey));
-        const belum = siswaKelas.filter(s => !sudahLunasSet.has(s.key));
+        const belum = siswaKelas.filter(s => !sudahLunasSet.has(s.key) && !iuranGratis(s));
         belum.forEach(s => {
           const pesan = `Assalamu'alaikum, Bapak/Ibu wali dari ananda *${s.name}* (Kelas ${s.kelas}).\n\nKami informasikan bahwa infaq mingguan untuk minggu *${namaMinggu}* belum tercatat lunas. Mohon kesediaannya untuk melunasi secepatnya. Terima kasih.\n\n- ${MADRASAH.nama}`;
           rows += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
@@ -7957,10 +7964,12 @@
         let rows = KELAS_LIST.map(k => {
           const items = allInfaqSiswa.filter(it => it.kelas === k && it.minggu === mingguKey);
           const total = items.reduce((s,it) => s + (it.nominal||0), 0);
-          const jumlahSiswaKelas = allSiswa.filter(s => s.kelas === k).length;
-          totalMadrasah += total; totalLunasMadrasah += items.length; totalSiswaMadrasah += jumlahSiswaKelas;
-          const kurang = jumlahSiswaKelas > 0 && items.length < jumlahSiswaKelas;
-          return `<tr ${kurang?'style="background:#fffbeb;"':''}><td>${escapeHtml(k)}</td><td>${items.length} / ${jumlahSiswaKelas} siswa lunas</td><td style="text-align:right;">Rp ${total.toLocaleString('id-ID')}</td></tr>`;
+          const wajibKeys = new Set(allSiswa.filter(s => s.kelas === k && !iuranGratis(s)).map(s => s.key));   // siswa gratis tidak dihitung
+          const jumlahSiswaKelas = wajibKeys.size;
+          const jumlahLunas = items.filter(it => wajibKeys.has(it.siswaKey)).length;
+          totalMadrasah += total; totalLunasMadrasah += jumlahLunas; totalSiswaMadrasah += jumlahSiswaKelas;
+          const kurang = jumlahSiswaKelas > 0 && jumlahLunas < jumlahSiswaKelas;
+          return `<tr ${kurang?'style="background:#fffbeb;"':''}><td>${escapeHtml(k)}</td><td>${jumlahLunas} / ${jumlahSiswaKelas} siswa lunas</td><td style="text-align:right;">Rp ${total.toLocaleString('id-ID')}</td></tr>`;
         }).join('');
         setHtml(`${nominalInfo}<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Rekap minggu: <strong>${escapeHtml(mingguLabel(mingguKey))}</strong> — Kepatuhan madrasah: <strong>${totalSiswaMadrasah>0?Math.round((totalLunasMadrasah/totalSiswaMadrasah)*100):0}%</strong></p><div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Status Lunas</th><th>Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th style="text-align:left;">TOTAL MADRASAH</th><th style="text-align:left;">${totalLunasMadrasah} / ${totalSiswaMadrasah} siswa lunas</th><th style="text-align:right;color:#059669;">Rp ${totalMadrasah.toLocaleString('id-ID')}</th></tr></tfoot></table></div>${daftarNominalKhususHtml([])}${daftarBelumLunasRekapHtml([], mingguKey)}${iuranTtdBendahara()}`);
         return;
@@ -7971,9 +7980,10 @@
       // kelihatan siswa mana yang menunggak berminggu-minggu -- bukan cuma status minggu berjalan.
       let totalKeseluruhan = 0, totalLunasSemua = 0, totalSlotSemua = 0, rowsGabungan = '';
       kelasList.forEach(kelas => {
-        const jumlahSiswaKelas = allSiswa.filter(s => s.kelas === kelas).length;
+        const wajibKeys = new Set(allSiswa.filter(s => s.kelas === kelas && !iuranGratis(s)).map(s => s.key));   // siswa gratis tidak dihitung
+        const jumlahSiswaKelas = wajibKeys.size;
         const byMinggu = {};
-        allInfaqSiswa.filter(it => it.kelas === kelas).forEach(it => { if (!byMinggu[it.minggu]) byMinggu[it.minggu] = { total: 0, jumlah: 0 }; byMinggu[it.minggu].total += (it.nominal||0); byMinggu[it.minggu].jumlah += 1; });
+        allInfaqSiswa.filter(it => it.kelas === kelas).forEach(it => { if (!byMinggu[it.minggu]) byMinggu[it.minggu] = { total: 0, jumlah: 0 }; byMinggu[it.minggu].total += (it.nominal||0); if (wajibKeys.has(it.siswaKey)) byMinggu[it.minggu].jumlah += 1; });
         const mingguList = Object.keys(byMinggu).sort().reverse();
         if (mingguList.length === 0) { rowsGabungan += `<tr><td colspan="4" class="text-muted">Belum ada riwayat infaq untuk kelas ${escapeHtml(kelas)}.</td></tr>`; return; }
         mingguList.forEach(mg => {
