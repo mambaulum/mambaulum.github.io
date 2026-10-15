@@ -384,6 +384,7 @@ function kelunasanGanti(v) { _tgTrenJumlah = parseInt(v, 10) || 0; kelunasanRend
 function tunggakanRender() {
   tgResetBilaGantiUser();
   const area = tgEnsureArea(); if (!area) return;
+  try { migEnsureKartu(area); } catch (e) { /* kartu perbaikan data opsional */ }
   if (typeof tunggakanCanView !== 'function' || !tunggakanCanView()) { area.innerHTML = ''; return; }
   // Kalender akademik dimuat malas (baru terisi kalau halamannya pernah dibuka) -- muat dulu supaya minggu libur terdeteksi.
   if (!_tgKalenderDicoba && (!allKalenderAkademik || allKalenderAkademik.length === 0) && typeof reloadDataset === 'function') {
@@ -584,4 +585,123 @@ async function tunggakanExportExcel() {
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Per Siswa'); XLSX.utils.book_append_sheet(wb, ws2, 'Per Kelas');
   XLSX.writeFile(wb, `${tgSlug()}.xlsx`); toast('📥 Excel Tunggakan Infaq berhasil diunduh!');
   try { addLog('unduh_tunggakan_infaq', `Excel - ${tgLabelKelas()} - ${d.baris.length} siswa`); } catch (e) { /* log best-effort */ }
+}
+
+// ============================================================
+// PERBAIKAN DATA SEKALI JALAN (hanya Admin): isi nominal PERMANEN pada catatan iuran lama yang tidak punya `nominal`.
+//  - siswa bernominal khusus (mis. keringanan bersaudara, diatur di Edit Siswa) -> nominal khususnya
+//  - selain itu -> Rp 2.000
+//  - catatan yang sudah punya nominal (termasuk 0) TIDAK disentuh; nominal bertipe teks hanya dilaporkan.
+// Kartu muncul (lipat) di bawah rekap halaman Infaq, khusus Admin. Alur: Periksa (simulasi) -> Terapkan (cadangan diunduh dulu).
+// ============================================================
+const MIG_NOMINAL_STANDAR = 2000, MIG_TANDA = 'migrasi-2026-10-15', MIG_BATCH = 300;
+let _migHasil = null, _migSibuk = false;
+
+function migKosong(v) { return v === undefined || v === null || String(v).trim() === ''; }
+function migTampil(html) { const el = document.getElementById('migHasil'); if (el) el.innerHTML = html; }
+function migTombol(aktif) { ['migBtnPeriksa', 'migBtnTerapkan'].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = !aktif; }); }
+
+function migEnsureKartu(area) {
+  let el = document.getElementById('infaqMigrasiNominalArea');
+  if (typeof isAdmin !== 'function' || !isAdmin()) { if (el) el.remove(); return; }   // jangan tertinggal bila akun diganti
+  if (el) return;
+  el = document.createElement('details'); el.id = 'infaqMigrasiNominalArea';
+  el.style.cssText = 'margin-top:14px;border:1px dashed #d1d5db;border-radius:10px;padding:10px 12px;';
+  el.innerHTML = `<summary style="cursor:pointer;font-size:13px;font-weight:600;color:#374151;">🛠️ Perbaikan data: isi nominal catatan infaq lama (sekali jalan, Admin)</summary>
+    <div style="margin-top:10px;font-size:12px;color:#4b5563;line-height:1.5;">
+      Catatan lunas lama yang tidak punya nominal akan diisi <strong>Rp ${MIG_NOMINAL_STANDAR.toLocaleString('id-ID')}</strong>; siswa bernominal khusus (mis. bersaudara) memakai nominal khususnya. Catatan yang sudah punya nominal tidak diubah.
+      Langkah: <strong>Periksa</strong> dulu (tidak mengubah data), cek daftar siswa bernominal khusus, baru <strong>Terapkan</strong> (cadangan otomatis diunduh).
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;"><button id="migBtnPeriksa" class="btn" style="padding:8px 14px;font-size:12px;" onclick="migPeriksa()">🔍 1. Periksa (simulasi)</button></div>
+      <div id="migHasil"></div>
+    </div>`;
+  area.insertAdjacentElement('afterend', el);
+}
+
+// Hitung (tanpa menulis). Melempar Error bila data tak bisa dibaca.
+async function migHitung() {
+  if (typeof db === 'undefined' || !db) throw new Error('Database belum siap.');
+  if (!navigator.onLine) throw new Error('Perangkat sedang offline.');
+  const baca = Promise.all([db.ref('iuran_siswa').once('value'), db.ref('siswa').once('value')]);
+  const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons (25 detik).')), 25000));
+  const [snapIur, snapSiswa] = await Promise.race([baca, batas]);
+  const siswa = snapSiswa.val() || {};
+  const lap = { total: 0, sudah: 0, bukanAngka: 0, standar: 0, khusus: 0, siswaHilang: 0 };
+  const ubah = {}, cadangan = {}, khusus = {};
+  snapIur.forEach(ch => {
+    const r = ch.val() || {};
+    lap.total++;
+    if (!migKosong(r.nominal)) { if (typeof r.nominal === 'number') lap.sudah++; else lap.bukanAngka++; return; }
+    const s = siswa[r.siswaKey];
+    let nilai = MIG_NOMINAL_STANDAR, pakaiKhusus = false;
+    if (!s) lap.siswaHilang++;
+    else if (!migKosong(s.nominalIuranKhusus) && Number.isFinite(Number(s.nominalIuranKhusus)) && Number(s.nominalIuranKhusus) >= 0) {
+      nilai = Number(s.nominalIuranKhusus); pakaiKhusus = true;
+      const k = khusus[r.siswaKey] || (khusus[r.siswaKey] = { nama: s.name || r.siswaNama || r.siswaKey, kelas: s.kelas || r.kelas || '', nominal: nilai, jumlah: 0 });
+      k.jumlah++;
+    }
+    if (pakaiKhusus) lap.khusus++; else lap.standar++;
+    ubah[ch.key + '/nominal'] = nilai;
+    ubah[ch.key + '/nominalDiisi'] = MIG_TANDA;
+    cadangan[ch.key] = r;
+  });
+  return { lap, ubah, cadangan, khusus, jumlah: Object.keys(cadangan).length };
+}
+
+async function migPeriksa() {
+  if (_migSibuk) return;
+  if (typeof isAdmin !== 'function' || !isAdmin()) return toast('Hanya Admin.', true);
+  _migSibuk = true; migTombol(false); migTampil('<p class="text-muted">⏳ Membaca data dari server...</p>');
+  try {
+    const h = await migHitung(); _migHasil = h;
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (x => String(x));
+    const baris = (a, b) => `<tr><td>${a}</td><td style="text-align:right;font-weight:700;">${b}</td></tr>`;
+    const daftarKhusus = Object.values(h.khusus).sort((a, b) => (a.kelas + a.nama).localeCompare(b.kelas + b.nama, 'id'));
+    migTampil(`<div style="overflow-x:auto;"><table><tbody>
+        ${baris('Total catatan iuran di database', h.lap.total)}
+        ${baris('Sudah punya nominal (tidak diubah)', h.lap.sudah)}
+        ${h.lap.bukanAngka ? baris('Nominal bertipe teks (tidak diubah)', h.lap.bukanAngka) : ''}
+        ${baris('Akan diisi Rp ' + MIG_NOMINAL_STANDAR.toLocaleString('id-ID'), h.lap.standar)}
+        ${baris('Akan diisi nominal khusus siswa', h.lap.khusus)}
+        ${h.lap.siswaHilang ? baris('Siswa sudah tidak ada di data (diisi standar)', h.lap.siswaHilang) : ''}
+      </tbody></table></div>
+      ${daftarKhusus.length ? `<p style="margin:10px 0 4px;font-weight:600;">Siswa bernominal khusus — pastikan ini memang yang bersaudara:</p>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Siswa</th><th>Kelas</th><th>Nominal</th><th>Catatan</th></tr></thead><tbody>${daftarKhusus.map(k => `<tr><td>${esc(k.nama)}</td><td>${esc(k.kelas)}</td><td style="text-align:right;">Rp ${k.nominal.toLocaleString('id-ID')}</td><td style="text-align:right;">${k.jumlah}</td></tr>`).join('')}</tbody></table></div>` : '<p style="margin:10px 0 4px;">Tidak ada siswa bernominal khusus yang punya catatan lama tanpa nominal.</p>'}
+      ${h.jumlah ? `<button id="migBtnTerapkan" class="btn btn-success" style="margin-top:10px;padding:8px 14px;font-size:12px;" onclick="migTerapkan()">✅ 2. Terapkan ke ${h.jumlah} catatan (unduh cadangan dulu)</button>` : '<p style="margin-top:10px;color:#059669;font-weight:600;">✅ Tidak ada catatan yang perlu diisi.</p>'}`);
+  } catch (e) {
+    migTampil(`<p style="color:#dc2626;">❌ Gagal memeriksa: ${(typeof escapeHtml === 'function' ? escapeHtml(e.message || String(e)) : (e.message || e))}</p>`);
+  } finally { _migSibuk = false; migTombol(true); }
+}
+
+async function migTerapkan() {
+  if (_migSibuk) return;
+  if (typeof isAdmin !== 'function' || !isAdmin()) return toast('Hanya Admin.', true);
+  if (!_migHasil || !_migHasil.jumlah) return toast('Jalankan "Periksa" dulu.', true);
+  if (!confirm('Isi nominal permanen pada ' + _migHasil.jumlah + ' catatan iuran lama?\n\nBerkas cadangan akan diunduh lebih dulu. Simpan berkas itu.')) return;
+  _migSibuk = true; migTombol(false); migTampil('<p class="text-muted">⏳ Menghitung ulang dari server...</p>');
+  try {
+    const h = await migHitung();   // hitung ulang dari data terbaru
+    if (h.jumlah !== _migHasil.jumlah) { _migHasil = h; migTampil('<p style="color:#b45309;">⚠️ Data berubah sejak pemeriksaan (' + h.jumlah + ' catatan sekarang). Tidak ada yang ditulis; tekan "Periksa" lagi.</p>'); return; }
+    // 1) cadangan: gagal = batal
+    try {
+      const blob = new Blob([JSON.stringify({ dibuat: new Date().toISOString(), tanda: MIG_TANDA, catatanAsli: h.cadangan }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cadangan_iuran_sebelum_isi_nominal.json';
+      document.body.appendChild(a); a.click(); a.remove();
+    } catch (e) { migTampil('<p style="color:#dc2626;">❌ Gagal membuat cadangan, dibatalkan. Tidak ada data yang diubah.</p>'); return; }
+    // 2) tulis per kelompok
+    const path = Object.keys(h.ubah); let tertulis = 0;
+    for (let i = 0; i < path.length; i += MIG_BATCH * 2) {
+      const bagian = {}; path.slice(i, i + MIG_BATCH * 2).forEach(p => { bagian[p] = h.ubah[p]; });
+      await db.ref('iuran_siswa').update(bagian);
+      tertulis += Object.keys(bagian).length / 2;
+      migTampil('<p class="text-muted">⏳ Menulis ' + Math.min(Math.round(tertulis), h.jumlah) + ' / ' + h.jumlah + '...</p>');
+    }
+    // 3) verifikasi dari server
+    const sisa = (await migHitung()).jumlah;
+    try { if (typeof addLog === 'function') addLog('migrasi_nominal_iuran', h.jumlah + ' catatan diisi nominal'); } catch (e) { /* log opsional */ }
+    _migHasil = null;
+    migTampil('<p style="color:#059669;font-weight:700;">✅ Selesai: ' + h.jumlah + ' catatan diisi nominal. Sisa tanpa nominal: ' + sisa + '.</p><p class="text-muted">Simpan berkas cadangan yang baru diunduh.</p>');
+    try { if (typeof reloadDataset === 'function') reloadDataset('infaqSiswa', () => { if (typeof renderIuranRekap === 'function') renderIuranRekap(); }); } catch (e) { /* tampilan menyusul */ }
+  } catch (e) {
+    migTampil(`<p style="color:#dc2626;">❌ Gagal menulis: ${(typeof escapeHtml === 'function' ? escapeHtml(e.message || String(e)) : (e.message || e))}. Sebagian catatan mungkin sudah terisi; tekan "Periksa" lagi untuk melihat sisanya.</p>`);
+  } finally { _migSibuk = false; migTombol(true); }
 }

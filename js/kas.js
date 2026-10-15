@@ -115,6 +115,8 @@ function kasTanggalIuran(it) {
 //  - awalan "Rp" dan spasi: "Rp 5.000"
 // Dipakai baris otomatis Kas Infaq DAN setoranIndeksIuran supaya kedua angka tetap sejalan.
 function kasNominalIuran(it) {
+  // Catatan lama tanpa nominal tersimpan: pakai nominal efektif (standar berlaku pada minggu itu), bukan 0. Lihat iuranNominalEfektif (app.js).
+  if (it && (it.nominal === undefined || it.nominal === null || String(it.nominal).trim() === '') && typeof iuranNominalEfektif === 'function') return iuranNominalEfektif(it);
   const v = it ? it.nominal : 0;
   if (typeof v === 'number') return isFinite(v) ? Math.round(v) : 0;
   const s = String(v == null ? '' : v).trim().replace(/^Rp\.?\s*/i, '').replace(/\s+/g, '');
@@ -440,7 +442,7 @@ async function kasExportPDF() {
   const d = kasDataPeriode();
   if (d.tampil.length === 0 && d.saldoSebelum === 0) return toast(`Belum ada data ${d.namaBuku} untuk periode ini.`, true);
   try { await ensureLib('pdf'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul PDF', e); return toast('❌ Modul PDF belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
-  const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth();
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true }); const pageWidth = doc.internal.pageSize.getWidth();
   if (typeof doc.autoTable !== 'function') { console.error('[SI MAMBA] jspdf-autotable tidak tersedia setelah ensureLib("pdf")'); return toast('❌ Modul tabel PDF (autotable) belum termuat. Muat ulang halaman lalu coba lagi.', true); }
   const logoData = await v4LoadLogoForPdf();
   // Kop (label teks biasa, tanpa emoji -- font bawaan jsPDF tidak punya glyph emoji)
@@ -1200,7 +1202,7 @@ async function setoranExportPDF() {
   if (d.rekap.length === 0) return toast('Tidak ada kelas untuk diekspor.', true);
   if (d.belumMulai && d.riwayat.length === 0) return toast(`Semester ${d.sem} belum dimulai dan belum ada setoran.`, true);
   try { await ensureLib('pdf'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul PDF', e); return toast('❌ Modul PDF belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
-  const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4'); const pw = doc.internal.pageSize.getWidth();
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4', compress: true }); const pw = doc.internal.pageSize.getWidth();
   if (typeof doc.autoTable !== 'function') { console.error('[SI MAMBA] jspdf-autotable tidak tersedia setelah ensureLib("pdf")'); return toast('❌ Modul tabel PDF (autotable) belum termuat. Muat ulang halaman lalu coba lagi.', true); }
   const logoData = await v4LoadLogoForPdf();
   const offY = MADRASAH.nsm ? 5 : 0;
