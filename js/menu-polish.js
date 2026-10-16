@@ -617,11 +617,17 @@
     tampil.forEach(function (p) {
       var pr = LABEL[p.prioritas] ? p.prioritas : 'umum';
       var ortu = typeof pengumumanUntukOrtu === 'function' && pengumumanUntukOrtu(p);
-      var c = el('div', 'mp-ann-card mp-ann-' + pr,
+      var panjang = (p.teks || '').length > 90;
+      var c = el('div', 'mp-ann-card mp-ann-' + pr + (panjang ? ' mp-ann-clamp' : ''),
         '<div class="mp-ann-top"><span class="mp-ann-badge">' + LABEL[pr] + '</span>' +
         (ortu ? '<span class="mp-ann-ortu" title="Tampil juga untuk orang tua">👨‍👩‍👧</span>' : '') +
         '<span class="mp-ann-date">' + escapeHtml(annDate(p)) + '</span></div>' +
         '<div class="mp-ann-text">' + escapeHtml(p.teks || '-') + '</div>');
+      if (panjang) { // teks panjang: tampil 2 baris + "Selengkapnya" supaya tombol di bawahnya tidak terdorong keluar layar
+        var tg = el('button', 'mp-ann-toggle', 'Selengkapnya'); tg.type = 'button'; tg.setAttribute('aria-expanded', 'false');
+        tg.addEventListener('click', function () { var buka = c.classList.toggle('mp-ann-clamp') === false; tg.textContent = buka ? 'Ringkas' : 'Selengkapnya'; tg.setAttribute('aria-expanded', buka ? 'true' : 'false'); });
+        c.appendChild(tg);
+      }
       annHost.appendChild(c);
     });
     if (urut.length > ANN_MAX) {
@@ -768,6 +774,28 @@
     };
   }
 
+  /* ---------------- 11b. Rapikan profil Dashboard ----------------
+     Teks diisi app.js; di sini hanya dinormalkan di DOM (tanpa mengubah data/logika app.js). */
+  (function () {
+    var kelasEl = document.getElementById('bioKelas'), busy = false;
+    function ringkasKelas() {
+      if (!kelasEl || busy) return;
+      var t = kelasEl.textContent || '';
+      if (/^\d+–\d+$/.test(t.trim())) return; // sudah rapi (hindari memproses ulang hasil sendiri)
+      var nums = (t.match(/\d+/g) || []).map(Number);
+      if (!nums.length) return;
+      // hanya bila isinya sekadar daftar nomor ("Kelas 1, Kelas 2, ..."); nama kelas lain ("1A") tidak diubah
+      if (!/^[\s\d,&\-–]*$/.test(t.replace(/kelas/gi, ''))) return;
+      var uniq = nums.filter(function (n, i) { return nums.indexOf(n) === i; }).sort(function (a, b) { return a - b; });
+      var rapat = uniq.length >= 3 && uniq.every(function (n, i) { return !i || n === uniq[i - 1] + 1; });
+      // "Kelas" sudah ada di depan elemen ini; 3+ kelas berurutan -> "1–6"
+      var baru = rapat ? uniq[0] + '–' + uniq[uniq.length - 1] : uniq.join(', ');
+      if (baru === t) return;
+      busy = true; kelasEl.textContent = baru; busy = false;
+    }
+    if (kelasEl) { new MutationObserver(ringkasKelas).observe(kelasEl, { childList: true, characterData: true, subtree: true }); ringkasKelas(); }
+  })();
+
   /* ---------------- 12. Waktu shalat di Dashboard ----------------
      Dihitung di perangkat (tanpa internet, tanpa API luar), mengikuti parameter Kemenag RI:
      Subuh 20°, Isya 18°, Ashar mazhab Syafi'i, ihtiyat +2 menit (Terbit -2 menit). Lokasi: koordinat madrasah
@@ -835,7 +863,13 @@
   function prayLoc() {
     try {
       var q = (typeof V4 !== 'undefined' && V4 && V4.absenQr) || null;
-      if (q && isFinite(parseFloat(q.lat)) && isFinite(parseFloat(q.lng))) return { lat: parseFloat(q.lat), lng: parseFloat(q.lng), label: 'Lokasi madrasah' };
+      if (q && isFinite(parseFloat(q.lat)) && isFinite(parseFloat(q.lng))) {
+        var la = parseFloat(q.lat), ln = parseFloat(q.lng);
+        // nama daerah: dari pengaturan bila ada; selain itu "Jember" bila koordinat dalam ±50 km dari pusat Jember; selain itu teks umum
+        var dekat = Math.hypot((la - PRAY_DEFAULT.lat) * 111, (ln - PRAY_DEFAULT.lng) * 111 * Math.cos(PRAY_DEFAULT.lat * D2R)) <= 50;
+        var nama = String(q.kota || q.daerah || q.kabupaten || '').trim();
+        return { lat: la, lng: ln, label: nama || (dekat ? PRAY_DEFAULT.label : 'Lokasi madrasah') };
+      }
     } catch (e) { /* V4 belum siap: pakai lokasi bawaan */ }
     return PRAY_DEFAULT;
   }
@@ -848,7 +882,7 @@
     var now = new Date(Date.now() + tz * 3600000);            // "jam dinding" di zona lokasi, dibaca lewat getUTC*
     var y = now.getUTCFullYear(), mo = now.getUTCMonth() + 1, d = now.getUTCDate();
     var menitNow = now.getUTCHours() * 60 + now.getUTCMinutes();
-    var hari = prayerTimes(y, mo, d, loc.lat, loc.lng, tz);
+    var hari = prayerTimes(y, mo, d, loc.lat, loc.lng, tz), besokMode = false, tglTampil = now;
     if (PRAY_URUT.some(function (k) { return hari[k] == null; })) { hosts.forEach(function (h) { h.hidden = true; }); return; }
     hosts.forEach(function (h) { h.hidden = false; });
     // berikutnya = shalat fardhu (tanpa Terbit) pertama yang belum lewat; lewat Isya -> Subuh besok
@@ -857,17 +891,19 @@
     if (!nextKey) {
       var besok = new Date(Date.UTC(y, mo - 1, d + 1));
       var tb = prayerTimes(besok.getUTCFullYear(), besok.getUTCMonth() + 1, besok.getUTCDate(), loc.lat, loc.lng, tz);
+      // lewat Isya: seluruh kartu menampilkan jadwal BESOK (judul & kotak Subuh memakai waktu yang sama) + penanda "besok"
+      if (!PRAY_URUT.some(function (k) { return tb[k] == null; })) { hari = tb; besokMode = true; tglTampil = besok; }
       nextKey = 'subuh'; nextMin = tb.subuh + 1440;
     }
     var sisa = nextMin - menitNow, jamSisa = Math.floor(sisa / 60), mntSisa = sisa % 60;
     var zona = tz === 7 ? 'WIB' : (tz === 8 ? 'WITA' : 'WIT');
     var cells = PRAY_URUT.map(function (k) {
-      var cls = 'mp-pray-cell' + (k === nextKey ? ' mp-pray-next' : '') + (hari[k] <= menitNow && k !== nextKey ? ' mp-pray-past' : '') + (k === 'terbit' ? ' mp-pray-info' : '');
+      var cls = 'mp-pray-cell' + (k === nextKey ? ' mp-pray-next' : '') + (!besokMode && hari[k] <= menitNow && k !== nextKey ? ' mp-pray-past' : '') + (k === 'terbit' ? ' mp-pray-info' : '');
       return '<div class="' + cls + '"><span>' + PRAY_NAMA[k] + '</span><b>' + jam(hari[k]) + '</b></div>';
     }).join('');
     var sisaPendek = (jamSisa ? jamSisa + ' j ' : '') + mntSisa + ' m';
-    function bangun(denganCuaca) { return '<div class="mp-pray-top"><div class="mp-pray-next-line">🕌 <b>' + PRAY_NAMA[nextKey] + ' ' + jam(nextMin % 1440) + '</b><span> · ' + sisaPendek + ' lagi</span></div>' +
-      '<div class="mp-pray-sub">' + escapeHtml(loc.label) + ' · ' + PRAY_HARI[now.getUTCDay()] + ', ' + d + ' ' + PRAY_BULAN[mo - 1] + ' · ' + zona +
+    function bangun(denganCuaca) { return '<div class="mp-pray-top"><div class="mp-pray-next-line">🕌 <b>' + PRAY_NAMA[nextKey] + ' ' + jam(nextMin % 1440) + (besokMode ? ' <small class="mp-pray-besok">besok</small>' : '') + '</b><span> · ' + sisaPendek + ' lagi</span></div>' +
+      '<div class="mp-pray-sub">' + escapeHtml(loc.label) + ' · ' + PRAY_HARI[tglTampil.getUTCDay()] + ', ' + tglTampil.getUTCDate() + ' ' + PRAY_BULAN[tglTampil.getUTCMonth()] + (besokMode ? ' (besok)' : '') + ' · ' + zona +
         (denganCuaca ? wxChip() : '') + '</div></div>' +
       '<div class="mp-pray-grid">' + cells + '</div>'; }
     var catatan = 'Waktu shalat: metode Kemenag RI, perkiraan ±2 menit; rujuk jadwal resmi setempat bila perlu.';
