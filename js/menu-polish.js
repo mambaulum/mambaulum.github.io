@@ -539,10 +539,13 @@
      sama diulang sekali dengan confirm() menjawab true. Panggilan confirm() di luar klik (timer, async)
      tetap memakai kotak bawaan. */
   var nativeConfirm = window.confirm.bind(window);
-  var clickEl = null, approved = [], replaying = false, cmodal = null;
+  var clickEl = null, approved = [], replaying = false, cmodal = null, promptedInClick = false;
+  var nativePrompt = window.prompt.bind(window);
+  // prompt() lebih dulu dari confirm() (mis. catatan panjar honor): mengulang klik akan menanyakan prompt dua kali -> pakai kotak bawaan
+  window.prompt = function () { if (clickEl) promptedInClick = true; return nativePrompt.apply(window, arguments); };
   document.addEventListener('click', function (e) {
     if (cmodal && cmodal.ov.contains(e.target)) return;
-    if (e.isTrusted) { approved = []; clickEl = e.target; setTimeout(function () { clickEl = null; }, 0); }
+    if (e.isTrusted) { approved = []; promptedInClick = false; clickEl = e.target; setTimeout(function () { clickEl = null; }, 0); }
     else if (replaying) { clickEl = e.target; setTimeout(function () { clickEl = null; }, 0); } // ulangan klik: jawaban lama tetap berlaku
   }, true);
   function ensureConfirmModal() {
@@ -573,7 +576,7 @@
   window.confirm = function (msg) {
     var key = String(msg == null ? '' : msg);
     if (approved.indexOf(key) !== -1) return true;
-    if (!clickEl || !document.contains(clickEl)) return nativeConfirm(msg);
+    if (!clickEl || promptedInClick || !document.contains(clickEl)) return nativeConfirm(msg);
     var target = clickEl.closest('button, a, [onclick], .btn, input[type=button], input[type=submit]') || clickEl;
     var c = ensureConfirmModal();
     c.target = target; c.asked = key;
