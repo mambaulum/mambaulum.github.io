@@ -38,7 +38,7 @@
    js/kredensial.js, js/ttd-digital.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.17';
+const APP_VERSION = 'v7.22';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -65,7 +65,7 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './css/styles.css?v=21',
-  './css/menu-polish.css?v=11',              // samakan dengan ?v= di index.html
+  './css/menu-polish.css?v=16',              // samakan dengan ?v= di index.html
   './js/logo-fallback.js',
   './js/offline-db.js',
   './js/kas.js?v=8',
@@ -76,7 +76,7 @@ const PRECACHE_URLS = [
   './js/kredensial.js?v=3',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=4',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=10',
-  './js/menu-polish.js?v=11',
+  './js/menu-polish.js?v=16',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=6',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-tp-mi.js?v=3',
