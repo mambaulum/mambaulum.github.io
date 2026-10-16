@@ -401,10 +401,12 @@
       fms.forEach(function (m) { if (isShown(m.form)) m.close(); });
       var r = navPrev.apply(this, arguments);
       try {
-        if (page === 'dashboard') renderDashCards();
+        if (page === 'dashboard') { renderDashCards(); renderPrayer(); }
         setTimeout(function () {
           var pg = document.getElementById('page-' + page);
           if (pg) { watchPage(pg.id); decorate(pg); if (CARD_TABLE_PAGES.indexOf(pg.id) !== -1) cardifyTables(pg); }
+          // Jadwal: tampilan awal Mingguan (sekali per pemuatan aplikasi; pilihan Harian/Per Mapel sesudahnya tetap dihormati)
+          if (page === 'jadwal' && !jadwalDefaulted && typeof window.setJadwalView === 'function') { jadwalDefaulted = true; window.setJadwalView('mingguan'); }
         }, 0);
       } catch (e) { /* bagian 5-7 dimuat di bawah */ }
       return r;
@@ -527,7 +529,7 @@
     new MutationObserver(function () {
       clearTimeout(obsTimers[id]);
       obsTimers[id] = setTimeout(function () {
-        try { decorate(pg); if (CARD_TABLE_PAGES.indexOf(id) !== -1) cardifyTables(pg); } catch (e) { console.error('[menu-polish]', e); }
+        try { decorate(pg); if (CARD_TABLE_PAGES.indexOf(id) !== -1) cardifyTables(pg); if (id === 'page-jadwal') jadwalPortrait(); if (id === 'page-grades') gradeInputsSiap(); } catch (e) { console.error('[menu-polish]', e); }
       }, 80);
     }).observe(pg, { childList: true, subtree: true, characterData: true });
   }
@@ -638,5 +640,240 @@
     };
     try { renderAnnounceCards(); } catch (e) { /* data pengumuman belum dimuat: renderMarquee() berikutnya yang menggambar */ }
   }
+
+
+  /* ---------------- 10. Input Nilai: validasi, rapor langsung, tanpa catatan kosong ---------------- */
+  var NILAI_KOLOM = ['h1', 'h2', 'h3', 'mid', 'pas'];
+  function nilaiParse(v) { return String(v == null ? '' : v).trim().replace(',', '.'); }
+  function nilaiValid(v) { if (v === '') return true; var n = Number(v); return isFinite(n) && n >= 0 && n <= 100; }
+  function gradeInputsSiap() {
+    Array.prototype.forEach.call(document.querySelectorAll('#gradesContainer .grade-input:not([inputmode])'), function (i) { i.setAttribute('inputmode', 'decimal'); i.setAttribute('autocomplete', 'off'); });
+  }
+  // rapor ikut berubah saat mengetik (rumus tetap satu sumber: calculateRapor milik app.js)
+  document.addEventListener('input', function (e) {
+    var inp = e.target;
+    if (!inp || !inp.classList || !inp.classList.contains('grade-input')) return;
+    var v = nilaiParse(inp.value);
+    inp.classList.toggle('mp-bad', !nilaiValid(v));
+    var tr = inp.closest('tr'); if (!tr || typeof window.calculateRapor !== 'function') return;
+    var data = {};
+    Array.prototype.forEach.call(tr.querySelectorAll('.grade-input'), function (i) { var x = nilaiParse(i.value); data[i.dataset.key] = nilaiValid(x) ? x : ''; });
+    var cell = tr.lastElementChild; if (cell) cell.textContent = window.calculateRapor(data);
+  });
+  if (typeof window.saveGrades === 'function') {
+    var saveGradesPrev = window.saveGrades;
+    window.saveGrades = function () {
+      var inputs = Array.prototype.slice.call(document.querySelectorAll('#gradesContainer .grade-input'));
+      if (!inputs.length) return saveGradesPrev.apply(this, arguments);
+      var salah = [], perSiswa = {};
+      inputs.forEach(function (inp) {
+        var v = nilaiParse(inp.value);
+        if (!nilaiValid(v)) { inp.classList.add('mp-bad'); salah.push(inp); return; }
+        inp.classList.remove('mp-bad');
+        if (v !== '') inp.value = String(Number(v)); // "85,5" -> 85.5 ; "085" -> 85
+        else inp.value = '';
+        var k = inp.dataset.siswa; (perSiswa[k] = perSiswa[k] || []).push(inp);
+      });
+      if (salah.length) {
+        salah[0].focus();
+        return window.toast('⚠️ ' + salah.length + ' nilai tidak valid. Isi angka 0–100 (boleh desimal, koma atau titik). Kolom bertanda merah belum diperbaiki.', true, 6000);
+      }
+      // siswa yang SEMUA kolomnya kosong dan belum punya catatan nilai tidak ikut disimpan (tidak membuat catatan 0)
+      var lewati = [];
+      Object.keys(perSiswa).forEach(function (k) {
+        var row = perSiswa[k];
+        var kosong = row.every(function (i) { return i.value === ''; });
+        var barangAda = row.some(function (i) { return i.dataset.gradekey; });
+        if (kosong && !barangAda) row.forEach(function (i) { lewati.push(i); });
+      });
+      if (lewati.length === inputs.length) return window.toast('Belum ada nilai yang diisi.', true);
+      lewati.forEach(function (i) { i.classList.remove('grade-input'); });
+      try { return saveGradesPrev.apply(this, arguments); }
+      finally { lewati.forEach(function (i) { i.classList.add('grade-input'); }); } // saveGrades membaca input secara sinkron di awal
+    };
+  }
+
+  /* ---------------- 11. Jadwal: default Mingguan + tampilan HP (potret) + PDF potret ---------------- */
+  var jadwalDefaulted = false;
+  // Di layar sempit grid 7 kolom tidak muat: dibuat salinan "kartu per hari" dari grid yang sama
+  // (isi sel disalin apa adanya, termasuk tombol ➕ Admin); CSS memilih mana yang tampil.
+  function jadwalPortrait() {
+    var wrap = document.getElementById('jadwalTableWrapper'); if (!wrap) return;
+    var tb = wrap.querySelector('table'); if (!tb || tb.getAttribute('data-mp-jd')) return;
+    var heads = Array.prototype.map.call(tb.querySelectorAll('thead th'), function (th) { return th.textContent.trim(); });
+    if (heads.length < 3 || !/^Jam/i.test(heads[0]) || !/^(Senin|Selasa|Rabu|Kamis|Jumat|Sabtu)$/.test(heads[1])) return; // bukan grid mingguan
+    tb.setAttribute('data-mp-jd', '1');
+    var src = tb.parentNode; src.classList.add('mp-jd-src');
+    var old = wrap.querySelector('.mp-jd-days'); if (old) old.remove();
+    var host = el('div', 'mp-jd-days');
+    var rows = tb.querySelectorAll('tbody tr');
+    for (var c = 1; c < heads.length; c++) {
+      var card = el('section', 'mp-jd-day', '<h4 class="mp-jd-h">' + escapeHtml(heads[c]) + '</h4>'), n = 0;
+      Array.prototype.forEach.call(rows, function (tr) {
+        var cell = tr.children[c], jamTd = tr.children[0]; if (!cell || !jamTd) return;
+        var kosong = cell.textContent.trim() === '-' && !cell.querySelector('button');
+        if (kosong) return; // slot kosong tanpa aksi tidak ditampilkan
+        var waktuEl = jamTd.querySelector('span');
+        var jamNo = (jamTd.firstChild && jamTd.firstChild.textContent || '').trim();
+        var row = el('div', 'mp-jd-row' + (cell.querySelector('button') ? ' mp-jd-slot' : ''),
+          '<div class="mp-jd-jam"><b>' + escapeHtml(jamNo) + '</b><small>' + escapeHtml(waktuEl ? waktuEl.textContent : '') + '</small></div>' +
+          '<div class="mp-jd-body">' + cell.innerHTML + '</div>');
+        if (cell.style.backgroundColor) { row.style.backgroundColor = cell.style.backgroundColor; row.style.color = cell.style.color; }
+        card.appendChild(row); n++;
+      });
+      if (n) host.appendChild(card);
+    }
+    src.parentNode.insertBefore(host, src.nextSibling);
+  }
+  function hexRgb(h) { h = String(h).replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+  if (typeof window.exportJadwalPDF === 'function') {
+    var exportJadwalPrev = window.exportJadwalPDF;
+    window.exportJadwalPDF = function () {
+      // Tampilan Mingguan -> PDF grid seminggu, A4 potret. Tampilan lain tetap memakai PDF harian bawaan.
+      if (typeof jadwalView === 'undefined' || jadwalView !== 'mingguan') return exportJadwalPrev.apply(this, arguments);
+      var kelas = document.getElementById('jadwalKelasFilter').value;
+      var gSel = document.getElementById('jadwalGuruFilter'), gVal = gSel ? gSel.value : '';
+      var gNama = gSel && gSel.selectedIndex > 0 ? gSel.options[gSel.selectedIndex].textContent : '';
+      var data = allJadwal.filter(function (j) { return j.kelas === kelas && (!gVal || (j.guruKey || j.guru) === gVal); });
+      if (!data.length) return toast('Tidak ada jadwal untuk ' + kelas + (gNama ? ' (guru ' + gNama + ')' : ''), true);
+      var urutan = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      var hariList = urutan.filter(function (h) { return data.some(function (j) { return j.hari === h; }); });
+      var jamList = Array.from(new Set(data.map(function (j) { return j.jam; }).filter(Boolean))).sort(function (a, b) { return a - b; });
+      var sel = {};
+      var body = jamList.map(function (jam, r) {
+        var w = jamSettings[jam] ? jamSettings[jam].mulai + '-' + jamSettings[jam].selesai : '';
+        return ['Jam ' + jam + (w ? '\n' + w : '')].concat(hariList.map(function (h, c) {
+          var j = data.find(function (x) { return x.jam === jam && x.hari === h; });
+          if (j) sel[r + ':' + (c + 1)] = warnaMapel(j.mapel);
+          return j ? (j.mapel || '-') + '\n' + (j.guru || '-') : '';
+        }));
+      });
+      var jsPDF = window.jspdf.jsPDF, doc = new jsPDF('p', 'mm', 'a4'), W = doc.internal.pageSize.getWidth();
+      doc.setFontSize(16); doc.text('JADWAL PELAJARAN', W / 2, 16, { align: 'center' });
+      doc.setFontSize(12); doc.text('Kelas ' + kelas + (gNama ? ' - Guru ' + gNama : ''), W / 2, 23, { align: 'center' });
+      doc.setFontSize(8); doc.text('Dicetak: ' + new Date().toLocaleString('id-ID'), W - 10, 29, { align: 'right' });
+      doc.autoTable({
+        startY: 33, head: [['Jam'].concat(hariList)], body: body, theme: 'grid', margin: { left: 10, right: 10 },
+        styles: { fontSize: 8, cellPadding: 2, halign: 'center', valign: 'middle', lineColor: [209, 213, 219], lineWidth: 0.2 },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: { 0: { cellWidth: 20, fontStyle: 'bold', fillColor: [243, 244, 246] } },
+        didParseCell: function (d) {
+          if (d.section !== 'body') return;
+          var c = sel[d.row.index + ':' + d.column.index];
+          if (c) { d.cell.styles.fillColor = hexRgb(c[0]); d.cell.styles.textColor = hexRgb(c[1]); }
+        }
+      });
+      doc.save('Jadwal_Mingguan_' + kelas.replace(/\s+/g, '_') + '.pdf');
+      toast('📥 Jadwal mingguan berhasil diunduh!');
+    };
+  }
+
+  /* ---------------- 12. Waktu shalat di Dashboard ----------------
+     Dihitung di perangkat (tanpa internet, tanpa API luar), mengikuti parameter Kemenag RI:
+     Subuh 20°, Isya 18°, Ashar mazhab Syafi'i, ihtiyat +2 menit (Terbit -2 menit). Lokasi: koordinat madrasah
+     dari Pengaturan Absen QR bila ada, selain itu Jember. Hasilnya perkiraan (selisih ±1-2 menit dari jadwal resmi). */
+  var PRAY_DEFAULT = { lat: -8.1724, lng: 113.6995, label: 'Jember' };
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+  function dsin(x) { return Math.sin(x * D2R); }
+  function dcos(x) { return Math.cos(x * D2R); }
+  function fixN(a, b) { a = a - b * Math.floor(a / b); return a < 0 ? a + b : a; }
+  function julianDay(y, m, d) { if (m <= 2) { y -= 1; m += 12; } var A = Math.floor(y / 100), B = 2 - A + Math.floor(A / 4); return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5; }
+  function sunPos(jd) {
+    var D = jd - 2451545.0, g = fixN(357.529 + 0.98560028 * D, 360), q = fixN(280.459 + 0.98564736 * D, 360);
+    var L = fixN(q + 1.915 * dsin(g) + 0.020 * dsin(2 * g), 360), e = 23.439 - 0.00000036 * D;
+    var RA = fixN(Math.atan2(dcos(e) * dsin(L), dcos(L)) * R2D / 15, 24);
+    return { decl: Math.asin(dsin(e) * dsin(L)) * R2D, eq: q / 15 - RA };
+  }
+  function prayerTimes(y, m, d, lat, lng, tz) {
+    var jd = julianDay(y, m, d) - lng / 360;
+    function mid(t) { return fixN(12 - sunPos(jd + t).eq, 24); }
+    function angle(a, t, ccw) {
+      var dec = sunPos(jd + t).decl, v = (-dsin(a) - dsin(dec) * dsin(lat)) / (dcos(dec) * dcos(lat));
+      if (v < -1 || v > 1) return NaN;
+      var h = Math.acos(v) * R2D / 15; return mid(t) + (ccw ? -h : h);
+    }
+    function asr(t) { var dec = sunPos(jd + t).decl; return angle(-Math.atan(1 / (1 + Math.tan(Math.abs(lat - dec) * D2R))) * R2D, t, false); }
+    var adj = tz - lng / 15;
+    var t = {
+      subuh: angle(20, 5 / 24, true), terbit: angle(0.833, 6 / 24, true), dzuhur: mid(12 / 24),
+      ashar: asr(13 / 24), maghrib: angle(0.833, 18 / 24, false), isya: angle(18, 18 / 24, false)
+    };
+    var IHTIYAT = { subuh: 2, terbit: -2, dzuhur: 2, ashar: 2, maghrib: 2, isya: 2 };
+    var out = {};
+    Object.keys(t).forEach(function (k) {
+      if (!isFinite(t[k])) { out[k] = null; return; }
+      var mnt = (t[k] + adj) * 60 + IHTIYAT[k];
+      out[k] = fixN(k === 'terbit' ? Math.floor(mnt) : Math.ceil(mnt), 1440); // menit sejak tengah malam (terbit dibulatkan turun, lainnya naik)
+    });
+    return out;
+  }
+
+  var PRAY_HARI = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  var PRAY_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  var PRAY_NAMA = { subuh: 'Subuh', terbit: 'Terbit', dzuhur: 'Dzuhur', ashar: 'Ashar', maghrib: 'Maghrib', isya: 'Isya' };
+  var PRAY_URUT = ['subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'isya'];
+  var prayHost = null, prayLogin = null;
+  function prayHosts() {
+    var hs = [];
+    var anchor = document.getElementById('dashQuickActions');
+    if (anchor && dashPage) {
+      if (!prayHost) { prayHost = el('div', 'mp-pray'); prayHost.id = 'mpPrayer'; anchor.parentNode.insertBefore(prayHost, anchor); }
+      hs.push(prayHost);
+    }
+    var chooser = document.getElementById('loginChooser'), quote = document.getElementById('cxQuote');
+    if (chooser) {
+      if (!prayLogin) {
+        prayLogin = el('div', 'mp-pray mp-pray-login'); prayLogin.id = 'mpPrayerLogin';
+        var card = chooser.querySelector('.auth-choice');
+        if (card && card.nextSibling) chooser.insertBefore(prayLogin, card.nextSibling); else if (quote) chooser.insertBefore(prayLogin, quote); else chooser.appendChild(prayLogin);
+      }
+      hs.push(prayLogin);
+    }
+    return hs;
+  }
+  function prayVisible() { return (dashPage && dashPage.offsetParent !== null) || (prayLogin && prayLogin.offsetParent !== null); }
+  function prayLoc() {
+    try {
+      var q = (typeof V4 !== 'undefined' && V4 && V4.absenQr) || null;
+      if (q && isFinite(parseFloat(q.lat)) && isFinite(parseFloat(q.lng))) return { lat: parseFloat(q.lat), lng: parseFloat(q.lng), label: 'Lokasi madrasah' };
+    } catch (e) { /* V4 belum siap: pakai lokasi bawaan */ }
+    return PRAY_DEFAULT;
+  }
+  function jam(m) { return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); }
+  function renderPrayer() {
+    var hosts = prayHosts();
+    if (!hosts.length) return;
+    var loc = prayLoc();
+    var tz = loc.lng >= 127 ? 9 : (loc.lng >= 115 ? 8 : 7); // WIT / WITA / WIB menurut bujur
+    var now = new Date(Date.now() + tz * 3600000);            // "jam dinding" di zona lokasi, dibaca lewat getUTC*
+    var y = now.getUTCFullYear(), mo = now.getUTCMonth() + 1, d = now.getUTCDate();
+    var menitNow = now.getUTCHours() * 60 + now.getUTCMinutes();
+    var hari = prayerTimes(y, mo, d, loc.lat, loc.lng, tz);
+    if (PRAY_URUT.some(function (k) { return hari[k] == null; })) { hosts.forEach(function (h) { h.hidden = true; }); return; }
+    hosts.forEach(function (h) { h.hidden = false; });
+    // berikutnya = shalat fardhu (tanpa Terbit) pertama yang belum lewat; lewat Isya -> Subuh besok
+    var wajib = ['subuh', 'dzuhur', 'ashar', 'maghrib', 'isya'], nextKey = null, nextMin = 0;
+    for (var i = 0; i < wajib.length; i++) { if (hari[wajib[i]] > menitNow) { nextKey = wajib[i]; nextMin = hari[nextKey]; break; } }
+    if (!nextKey) {
+      var besok = new Date(Date.UTC(y, mo - 1, d + 1));
+      var tb = prayerTimes(besok.getUTCFullYear(), besok.getUTCMonth() + 1, besok.getUTCDate(), loc.lat, loc.lng, tz);
+      nextKey = 'subuh'; nextMin = tb.subuh + 1440;
+    }
+    var sisa = nextMin - menitNow, jamSisa = Math.floor(sisa / 60), mntSisa = sisa % 60;
+    var zona = tz === 7 ? 'WIB' : (tz === 8 ? 'WITA' : 'WIT');
+    var cells = PRAY_URUT.map(function (k) {
+      var cls = 'mp-pray-cell' + (k === nextKey ? ' mp-pray-next' : '') + (hari[k] <= menitNow && k !== nextKey ? ' mp-pray-past' : '') + (k === 'terbit' ? ' mp-pray-info' : '');
+      return '<div class="' + cls + '"><span>' + PRAY_NAMA[k] + '</span><b>' + jam(hari[k]) + '</b></div>';
+    }).join('');
+    var sisaPendek = (jamSisa ? jamSisa + ' j ' : '') + mntSisa + ' m';
+    var html =
+      '<div class="mp-pray-top"><div class="mp-pray-next-line">🕌 <b>' + PRAY_NAMA[nextKey] + ' ' + jam(nextMin % 1440) + '</b><span> · ' + sisaPendek + ' lagi</span></div>' +
+      '<div class="mp-pray-sub">' + escapeHtml(loc.label) + ' · ' + PRAY_HARI[now.getUTCDay()] + ', ' + d + ' ' + PRAY_BULAN[mo - 1] + ' · ' + zona + '</div></div>' +
+      '<div class="mp-pray-grid">' + cells + '</div>';
+    hosts.forEach(function (h) { h.title = 'Perhitungan metode Kemenag RI, perkiraan ±2 menit. Rujuk jadwal resmi setempat bila perlu.'; h.innerHTML = html; });
+  }
+  try { renderPrayer(); } catch (e) { console.error('[menu-polish] waktu shalat', e); }
+  setInterval(function () { if (prayVisible() && !document.hidden) { try { renderPrayer(); } catch (e) { /* diabaikan */ } } }, 30000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && prayVisible()) { try { renderPrayer(); } catch (e) { /* diabaikan */ } } });
 
 })();
