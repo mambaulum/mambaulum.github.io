@@ -1,13 +1,13 @@
 {
-  "appVersion": "v7.12",
-  "disimpan": "2026-10-16T03:06:38.184Z",
+  "appVersion": "v7.13",
+  "disimpan": "2026-10-16T05:18:23.201Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
       "hash": "d968e42b9a4962f67a0a57f15b40db61d0a3d461"
     },
     "css/menu-polish.css": {
-      "v": "v=6",
+      "v": "v=7",
       "hash": "af642a1cef945917a60580655e231dfab5870d9c"
     },
     "js/logo-fallback.js": {
@@ -79,7 +79,7 @@
       "hash": "edd5d7600e7f47dbdea2d3210ec3641748f01100"
     },
     "js/menu-polish.js": {
-      "v": "v=6",
+      "v": "v=7",
       "hash": "071bd2097d94e1be21dd667b1adf0bcdb445cfc1"
     },
     "js/rekap-jurnal.js": {
