@@ -372,3 +372,39 @@ body.dark-mode .mp-pray-next-line b { color: var(--c-emerald-400, #34d399); }
 .mp-pray-login .mp-pray-cell { background: #fff; border-color: #e5e7eb; color: #1f2937; }
 .mp-pray-login .mp-pray-next-line b { color: #006b4f; }
 .mp-pray-login .mp-pray-cell.mp-pray-next { background: #006b4f; border-color: #006b4f; color: #fff; }
+
+.mp-wx { white-space: nowrap; font-weight: 600; color: var(--mp-text, inherit); }
+
+
+/* ---------- 14. Header Dashboard: logo di kiri, teks di sebelah kanannya ---------- */
+#page-dashboard .dashboard-header { display: flex !important; flex-direction: row !important; align-items: center !important;
+  justify-content: flex-start !important; gap: 14px; text-align: left !important; margin: 0 0 14px; }
+#page-dashboard .dashboard-logo { flex: 0 0 auto; display: flex; align-items: center; margin: 0; }
+#page-dashboard .dashboard-logo-img { display: block; width: 56px; height: 56px; object-fit: contain; margin: 0; }
+#page-dashboard .dashboard-title { flex: 1 1 auto; min-width: 0; text-align: left !important; }
+#page-dashboard .dashboard-title h2 { margin: 0; font-size: 20px; line-height: 1.2; }
+#page-dashboard .dashboard-title .subtitle { margin: 2px 0 0; font-size: 13px; color: var(--mp-sub); }
+@media (max-width: 480px) {
+  #page-dashboard .dashboard-logo-img { width: 48px; height: 48px; }
+  #page-dashboard .dashboard-title h2 { font-size: 17px; }
+}
+/* Pengumuman kini di paling atas: beri jarak ke header di bawahnya */
+#page-dashboard #mpAnnounce { margin-bottom: 14px; }
+#page-dashboard .status-item[hidden] { display: none !important; }
+
+
+/* ---------- 15. Pintasan Dashboard: rapi & seragam ---------- */
+#page-dashboard .dash-quick-actions:empty { display: none; }
+#page-dashboard .mp-dash-cards { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin: 12px 0 14px; }
+#page-dashboard .mp-dash-card { min-height: 78px; padding: 10px 6px; gap: 6px; font-size: 12.5px; line-height: 1.25; }
+#page-dashboard .mp-dash-card .icon { width: 36px; height: 36px; }
+#page-dashboard .mp-dash-card .lbl { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+@media (min-width: 900px) { #page-dashboard .mp-dash-cards { grid-template-columns: repeat(auto-fit, minmax(120px, 160px)); } }
+
+
+/* ---------- 16. Dashboard: profil di header, status bar 2 item, atribut hidden pada tombol menu aksi ---------- */
+#page-dashboard .dash-profile { margin: 4px 0 0; font-size: 13px; font-weight: 600; }
+#page-dashboard .dash-lastupdate { margin: 2px 0 0; font-size: 11px; color: var(--mp-sub); }
+#page-dashboard .dash-lastupdate:empty { display: none; }
+#page-dashboard .status-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mp-more-panel .btn[hidden] { display: none !important; } /* Debug hanya Admin: pastikan benar-benar tersembunyi */
