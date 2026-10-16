@@ -1,6 +1,6 @@
 {
-  "appVersion": "v7.01",
-  "disimpan": "2026-10-15T14:13:34.420Z",
+  "appVersion": "v7.08",
+  "disimpan": "2026-10-16T01:32:00.658Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -51,8 +51,8 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=70",
-      "hash": "f126d6fdcd0e9f8e8c84a33e7302dea37b85ffbc"
+      "v": "v=77",
+      "hash": "fb7c409cb91a9604ce36ef8870b81ed2f472c33c"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=21",
