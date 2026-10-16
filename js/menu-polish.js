@@ -418,8 +418,8 @@
      pernah dilonggarkan: halaman yang tak boleh dibuka peran itu otomatis tidak muncul. */
   var DASH_PICKS = {
     admin: ['students', 'honor', 'laporan', 'kas-umum', 'rekap', 'user-management'],
-    kepsek: ['rekap', 'laporan', 'rekap-jurnal', 'teacher-attendance', 'honor', 'kalender-akademik'],
-    guru: ['attendance', 'journal', 'grades', 'teacher-attendance', 'jadwal', 'activities-v4']
+    kepsek: ['rekap', 'laporan', 'rekap-jurnal', 'honor', 'kalender-akademik'],
+    guru: ['grades', 'jadwal', 'activities-v4'] // Absensi, Jurnal & Absen Guru tidak diulang sebagai kartu (sudah ada di navbar/menu)
   };
   var dashPage = document.getElementById('page-dashboard');
   var dashHost = null;
@@ -594,7 +594,7 @@
   /* ---------------- 9. Pengumuman Dashboard -> kartu ----------------
      renderMarquee() milik app.js tetap dijalankan (teks berjalan disembunyikan lewat CSS); setelah itu kartu
      dibuat dari allPengumuman yang sama, dengan aturan yang sama (hanya yang aktif !== false). */
-  var annHost = null, annAll = false, ANN_MAX = 3;
+  var annHost = null, annAll = false, ANN_MAX = 1;
   function annDate(p) { try { return p.tanggal ? new Date(p.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; } catch (e) { return ''; } }
   function renderAnnounceCards() {
     var box = document.getElementById('pengumumanContainer');
@@ -866,11 +866,58 @@
       return '<div class="' + cls + '"><span>' + PRAY_NAMA[k] + '</span><b>' + jam(hari[k]) + '</b></div>';
     }).join('');
     var sisaPendek = (jamSisa ? jamSisa + ' j ' : '') + mntSisa + ' m';
-    var html =
-      '<div class="mp-pray-top"><div class="mp-pray-next-line">🕌 <b>' + PRAY_NAMA[nextKey] + ' ' + jam(nextMin % 1440) + '</b><span> · ' + sisaPendek + ' lagi</span></div>' +
-      '<div class="mp-pray-sub">' + escapeHtml(loc.label) + ' · ' + PRAY_HARI[now.getUTCDay()] + ', ' + d + ' ' + PRAY_BULAN[mo - 1] + ' · ' + zona + '</div></div>' +
-      '<div class="mp-pray-grid">' + cells + '</div>';
-    hosts.forEach(function (h) { h.title = 'Perhitungan metode Kemenag RI, perkiraan ±2 menit. Rujuk jadwal resmi setempat bila perlu.'; h.innerHTML = html; });
+    function bangun(denganCuaca) { return '<div class="mp-pray-top"><div class="mp-pray-next-line">🕌 <b>' + PRAY_NAMA[nextKey] + ' ' + jam(nextMin % 1440) + '</b><span> · ' + sisaPendek + ' lagi</span></div>' +
+      '<div class="mp-pray-sub">' + escapeHtml(loc.label) + ' · ' + PRAY_HARI[now.getUTCDay()] + ', ' + d + ' ' + PRAY_BULAN[mo - 1] + ' · ' + zona +
+        (denganCuaca ? wxChip() : '') + '</div></div>' +
+      '<div class="mp-pray-grid">' + cells + '</div>'; }
+    var catatan = 'Waktu shalat: metode Kemenag RI, perkiraan ±2 menit; rujuk jadwal resmi setempat bila perlu.';
+    hosts.forEach(function (h) {
+      var dash = h === prayHost;
+      h.title = catatan + (dash && wxData ? ' Cuaca: Open-Meteo.com (CC BY 4.0).' : '');
+      h.innerHTML = bangun(dash);
+    });
+    if (prayHost && prayHost.offsetParent !== null) wxEnsure(loc); // cuaca hanya untuk Dashboard (setelah login)
+  }
+
+  /* ---- Chip cuaca (Dashboard saja) ----
+     Open-Meteo (gratis, tanpa kunci). Disimpan 30 menit di perangkat; gagal/offline -> chip tidak tampil, tanpa pesan galat.
+     Yang dikirim hanya koordinat lokasi (tanpa data pribadi). */
+  var wxData = null, wxBusy = false, wxLastTry = 0, WX_KEY = 'mp_cuaca_v1', WX_TTL = 30 * 60 * 1000;
+  function wxLabel(c) {
+    if (c === 0) return ['☀️', 'Cerah'];
+    if (c === 1 || c === 2) return ['⛅', 'Cerah berawan'];
+    if (c === 3) return ['☁️', 'Berawan'];
+    if (c === 45 || c === 48) return ['🌫️', 'Berkabut'];
+    if (c >= 51 && c <= 57) return ['🌦️', 'Gerimis'];
+    if ((c >= 61 && c <= 67) || (c >= 80 && c <= 82)) return ['🌧️', c >= 65 || c === 82 ? 'Hujan lebat' : 'Hujan'];
+    if (c >= 95) return ['⛈️', 'Badai petir'];
+    return ['🌡️', 'Cuaca'];
+  }
+  function wxChip() {
+    if (!wxData) return '';
+    var ic = wxLabel(wxData.code);
+    return ' · <span class="mp-wx" title="' + escapeHtml(ic[1] + ', hujan ' + wxData.rain + '% hari ini') + '">' + ic[0] + ' ' + Math.round(wxData.temp) + '°' +
+      (wxData.rain >= 10 ? ' 💧' + wxData.rain + '%' : '') + '</span>';
+  }
+  function wxEnsure(loc) {
+    var kunci = loc.lat.toFixed(2) + ',' + loc.lng.toFixed(2);
+    if (!wxData) { try { var c = JSON.parse(localStorage.getItem(WX_KEY) || 'null'); if (c && c.k === kunci && Date.now() - c.t < WX_TTL) wxData = c.d; } catch (e) { /* cache rusak: abaikan */ } if (wxData) { try { renderPrayer(); } catch (e) { /* diabaikan */ } return; } }
+    var segar = wxData && wxData.k === kunci && Date.now() - wxData.t < WX_TTL;
+    if (segar || wxBusy || navigator.onLine === false || Date.now() - wxLastTry < 5 * 60 * 1000) return;
+    wxBusy = true; wxLastTry = Date.now();
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, to = setTimeout(function () { if (ctl) ctl.abort(); }, 7000);
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=' + loc.lat.toFixed(4) + '&longitude=' + loc.lng.toFixed(4) +
+      '&current=temperature_2m,weather_code&daily=precipitation_probability_max&timezone=auto&forecast_days=1', ctl ? { signal: ctl.signal } : undefined)
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        var cur = j && j.current, rain = j && j.daily && j.daily.precipitation_probability_max && j.daily.precipitation_probability_max[0];
+        if (!cur || !isFinite(cur.temperature_2m) || !isFinite(cur.weather_code)) throw new Error('format');
+        wxData = { temp: cur.temperature_2m, code: cur.weather_code, rain: isFinite(rain) ? Math.round(rain) : 0, k: kunci, t: Date.now() };
+        try { localStorage.setItem(WX_KEY, JSON.stringify({ k: kunci, t: wxData.t, d: wxData })); } catch (e) { /* penyimpanan penuh/diblokir: tidak masalah */ }
+        renderPrayer();
+      })
+      .catch(function () { /* diam: chip cuaca opsional */ })
+      .then(function () { clearTimeout(to); wxBusy = false; });
   }
   try { renderPrayer(); } catch (e) { console.error('[menu-polish] waktu shalat', e); }
   setInterval(function () { if (prayVisible() && !document.hidden) { try { renderPrayer(); } catch (e) { /* diabaikan */ } } }, 30000);
