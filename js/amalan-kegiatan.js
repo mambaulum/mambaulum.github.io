@@ -89,6 +89,16 @@ function v4ActJenisSholat(type) {
   return null;
 }
 
+// Ejaan baku untuk TAMPILAN nama kegiatan: Sholat, Dhuha, Dzuhur. Nama di data tidak diubah
+// (pencocokan jenis sholat tetap lewat v4KataKunciSholat, jadi ejaan lama di data tetap dikenali).
+function v4NamaEja(nama) {
+  const besar = m => /^[A-Z]/.test(m);
+  return String(nama == null ? '' : nama)
+    .replace(/\bshalat\b/gi, m => besar(m) ? 'Sholat' : 'sholat')
+    .replace(/\b(?:dluha|duha)\b/gi, m => besar(m) ? 'Dhuha' : 'dhuha')
+    .replace(/\b(?:dluhur|dhuhur|duhur|zuhur)\b/gi, m => /^[A-Z]/.test(m) ? 'Dzuhur' : 'dzuhur');
+}
+
 // ---------- Kelas yang tidak ikut kegiatan ----------
 // Contoh: kelas 1 & 2 pulang sebelum Dzuhur -> tidak ikut Sholat Dzuhur. Disimpan di jenis kegiatan sebagai string 'a|b'.
 // Kelas yang tidak ikut TIDAK dianggap kurang/alpa: tidak ada status "tidak berlaku" yang dipaksakan ke siswa.
@@ -326,7 +336,7 @@ function v4RenderActivityCards() {
       subBlock = `<div style="margin-top:7px;font-size:11px;color:#92400e;">🔄 Pengganti hari ini: <strong>${v4Safe(sub.guruName)}</strong>${sayaPengganti ? ` <button class="btn btn-soft" style="padding:2px 7px;font-size:10px;min-height:22px;margin-left:4px;" onclick="v4RemoveActivitySubstitute('${k}')">Batalkan</button>` : ''}</div>`;
     }
     return `<div class="v4-card amalan-card">
-      <div class="amalan-head"><h4>${v4Safe(a.name)}</h4>
+      <div class="amalan-head"><h4>${v4Safe(v4NamaEja(a.name))}</h4>
         <span class="v4-chip">${v4Safe(a.category || 'Kegiatan')}</span>${a.honorEnabled ? '\n        <span class="v4-chip orange">💰 Honor aktif</span>' : ''}
       </div>
       <div class="amalan-pj"><span class="v4-chip blue">👤 PJ: ${v4Safe(a.picName || 'Belum ditunjuk')}</span>
@@ -335,7 +345,7 @@ function v4RenderActivityCards() {
       ${v4ActCardExtra(a)}
       ${v4IsAdmin() ? `<div class="amalan-admin"><button class="btn btn-soft" onclick="v4ToggleActivityHonor('${k}')">💰 Ubah Honor</button>${a.rutin ? '' : `<button class="btn btn-soft" style="color:#b91c1c;" onclick="v4DeleteActivityType('${k}')">🗑️ Hapus</button>`}</div>` : ''}
     </div>`;
-  }).join('') : '<div class="v4-card"><h4>Belum ada jenis kegiatan</h4><div class="v4-muted">Admin dapat menambahkan amalan/kegiatan (mis. Shalat Dhuha, Shalat Dzuhur) beserta penanggung jawabnya.</div></div>';
+  }).join('') : '<div class="v4-card"><h4>Belum ada jenis kegiatan</h4><div class="v4-muted">Admin dapat menambahkan amalan/kegiatan (mis. Sholat Dhuha, Sholat Dzuhur) beserta penanggung jawabnya.</div></div>';
 }
 function v4RenderActivityFill() {
   const fillBox = document.getElementById('v4ActivityFillSection'); if (!fillBox) return;
@@ -355,7 +365,7 @@ function v4RenderActivityFill() {
     const subNote = sub ? ` · 🔄 pengganti ${v4Safe(sub.guruName)} (${v4Safe(dateVal)})` : '';
     return `<div class="v4-task" style="flex-direction:column;align-items:stretch;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-        <div class="v4-task-main"><div class="v4-task-title">🕌 ${v4Safe(type.name)}</div><div class="v4-task-meta">${countToday} siswa tercatat tgl ${v4Safe(dateVal)}${subNote}</div></div>
+        <div class="v4-task-main"><div class="v4-task-title">🕌 ${v4Safe(v4NamaEja(type.name))}</div><div class="v4-task-meta">${countToday} siswa tercatat tgl ${v4Safe(dateVal)}${subNote}</div></div>
         <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" onclick="v4ToggleActivityFill('${escapeJs(type.key)}')">${isOpen ? '✖️ Tutup' : '📋 Isi Absensi'}</button>
       </div>
       ${isOpen ? (v4ActBolehIsi(type, dateVal) ? v4RenderActivityFillPanel(type) : v4ActRenderCheckinBlock(type, dateVal)) : ''}
@@ -1716,7 +1726,7 @@ function v4ActCardExtra(a) {
     if (v4ActKelasFormOpen === a.key) {
       const boxes = KELAS_LIST.map(kl => `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;margin:0 10px 4px 0;"><input type="checkbox" data-v4kls="${v4Safe(a.key)}" value="${v4Safe(kl)}" ${kec.includes(kl) ? '' : 'checked'}> ${v4Safe(kl)}</label>`).join('');
       h += `<div style="margin-top:7px;padding:8px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
-        <div style="font-size:11px;margin-bottom:5px;color:#374151;">Centang kelas yang <strong>ikut</strong> ${v4Safe(a.name)}. Kelas yang tidak dicentang (mis. pulang lebih awal) tidak ikut tampil di "Semua Kelas", tidak dihitung kurang pada syarat honor, dan tidak dinilai "belum diisi".</div>
+        <div style="font-size:11px;margin-bottom:5px;color:#374151;">Centang kelas yang <strong>ikut</strong> ${v4Safe(v4NamaEja(a.name))}. Kelas yang tidak dicentang (mis. pulang lebih awal) tidak ikut tampil di "Semua Kelas", tidak dihitung kurang pada syarat honor, dan tidak dinilai "belum diisi".</div>
         <div>${boxes}</div>
         <button class="btn btn-success" style="padding:4px 10px;font-size:11px;margin-top:4px;" onclick="v4ActSimpanKelasPeserta('${k}')">💾 Simpan</button>
       </div>`;
@@ -1741,7 +1751,7 @@ function v4ActRenderCheckinBlock(type, tgl) {
     return `<div style="margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;">🔒 Petugas hari ini sudah tercatat: <strong>${v4Safe(ci.guruName)}</strong> (${v4Safe(ci.peran || 'PJ')}). Absensi hari ini diisi oleh beliau.</div>`;
   }
   if (ci && ci.tertunda && v4ActIsMine(ci)) {
-    return `<div style="margin-top:10px;padding:10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;font-size:12px;color:#065f46;">✅ Anda petugas ${v4Safe(type.name)} hari ini. ⏳ Check-in dari mode offline tersimpan di perangkat dan dikirim otomatis saat online.</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;font-size:12px;color:#065f46;">✅ Anda petugas ${v4Safe(v4NamaEja(type.name))} hari ini. ⏳ Check-in dari mode offline tersimpan di perangkat dan dikirim otomatis saat online.</div>`;
   }
   const el = v4ActCekCheckin(type);
   if (el.ok) {
@@ -1774,7 +1784,7 @@ function v4ActMulaiScan(typeKey) {
   const ov = document.createElement('div');
   ov.id = 'v4ActScanOverlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px;';
-  ov.innerHTML = `<div style="color:#fff;font-weight:700;font-size:15px;text-align:center;">📷 Scan QR ${escapeHtml(type.name)}</div>
+  ov.innerHTML = `<div style="color:#fff;font-weight:700;font-size:15px;text-align:center;">📷 Scan QR ${escapeHtml(v4NamaEja(type.name))}</div>
     <video id="v4ActScanVideo" playsinline muted style="width:100%;max-width:360px;border-radius:12px;background:#000;"></video>
     <div id="v4ActScanStatus" style="color:#fff;font-size:13px;text-align:center;max-width:360px;">${navigator.onLine ? 'Arahkan kamera ke QR di lokasi kegiatan...' : '📡 Offline: check-in disimpan di perangkat lalu dikirim otomatis saat online. Arahkan kamera ke QR...'}</div>
     <button class="btn btn-soft" onclick="v4ActTutupScan()">✖️ Batal</button>`;
@@ -1947,7 +1957,7 @@ function v4ActCetakQr(typeKey, ganti) {
       if (tmp.parentNode) tmp.parentNode.removeChild(tmp);
       if (!url) { try { w.close(); } catch (e) {} return toast('❌ Gagal membuat gambar QR.', true); }
       if (w.closed) return toast('Jendela cetak QR sudah ditutup. Tekan Cetak QR lagi.', true);
-      const nama = escapeHtml(type.name);
+      const nama = escapeHtml(v4NamaEja(type.name));
       try {
         w.document.write(`<html><head><title>QR ${nama} - SI MAMBA</title><style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;color:#111}img{width:320px;height:320px;border:1px solid #ddd;padding:12px;border-radius:12px}h1{font-size:26px;margin-bottom:4px}p{color:#555;font-size:14px}.k{font-size:12px;color:#999;margin-top:24px}</style></head><body><h1>QR Check-in Petugas</h1><h2>${nama}</h2><img src="${url}"><p>Petugas scan QR ini di lokasi kegiatan lewat aplikasi SI MAMBA<br>(menu Amalan Yaumiyah) sebelum mengisi absensi siswa.</p><p class="k">Jangan difoto atau dibagikan. Bila bocor, Admin dapat menekan "Ganti Kode".</p><script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>`);
         w.document.close();

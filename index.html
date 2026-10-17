@@ -23,7 +23,7 @@
        sesegera mungkin (mengurangi flash-of-unstyled-content), lebih dulu dari semua script. -->
   <link rel="stylesheet" href="css/styles.css?v=21">
   <!-- Lapisan tampilan tambahan (kartu, topbar, tab, tombol). WAJIB setelah styles.css. -->
-  <link rel="stylesheet" href="css/menu-polish.css?v=21">
+  <link rel="stylesheet" href="css/menu-polish.css?v=28">
   <!-- [PATCH JARINGAN LEMAH] Google Fonts dimuat NON-blocking (media="print" lalu diganti "all" saat selesai).
        Sebelumnya <link rel="stylesheet"> ini RENDER-BLOCKING: di sinyal lemah, layar tetap kosong sampai CSS font
        dari server Google selesai/gagal. Sekarang halaman tampil dulu dengan font sistem, Inter menyusul. -->
@@ -92,18 +92,18 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=77"></script>
+  <script defer src="js/app.js?v=80"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
-  <script defer src="js/amalan-kegiatan.js?v=21"></script>
+  <script defer src="js/amalan-kegiatan.js?v=22"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
-  <script defer src="js/bacaan-shalat.js?v=1"></script>
+  <script defer src="js/bacaan-shalat.js?v=3"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=3"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
   <script defer src="js/ttd-digital.js?v=4"></script>
   <script defer src="js/menu-hub.js?v=10"></script>
   <!-- Cari menu (Ctrl+K) + menu aksi topbar. WAJIB sesudah app.js & menu-hub.js. -->
-  <script defer src="js/menu-polish.js?v=21"></script>
+  <script defer src="js/menu-polish.js?v=28"></script>
   <!-- Rekap Jurnal Mengajar (menu Pembelajaran, Admin & Kepsek). WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rekap-jurnal.js?v=1"></script>
   <!-- Menu Rapat (daftar hadir guru, pimpinan pengganti, notulen, cetak). Halaman dibuat sendiri oleh JS; WAJIB sesudah app.js & menu-hub.js. -->
@@ -329,7 +329,7 @@
             <div class="menu-item" data-page="activities-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-activities-v4"/></svg></span> Amalan Yaumiyah</div>
             <div class="menu-item" data-page="religi"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-religi"/></svg></span> Absen Religi Saya</div>
             <div class="menu-item" data-page="tahfidz-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tahfidz-v4"/></svg></span> Tahfidz</div>
-            <div class="menu-item" data-page="bacaan-shalat"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tahfidz-v4"/></svg></span> Bacaan Shalat</div>
+            <div class="menu-item" data-page="bacaan-shalat"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tahfidz-v4"/></svg></span> Bacaan Sholat</div>
             <div class="menu-item" data-page="ekskul-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-ekskul-v4"/></svg></span> Ekstrakurikuler</div>
             <div class="menu-item" data-page="pramuka-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pramuka-v4"/></svg></span> Pramuka (SKU)</div>
           </div>
@@ -935,11 +935,11 @@
       <div id="page-religi" class="page-content hidden">
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">🙏 Absen Religi Saya</h3>
-          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Catat kehadiran pribadi Anda pada sholat Dluha dan Dzuhur (honor sholat dihitung otomatis dari check-in petugas QR + absensi siswa lengkap).</p>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Catat kehadiran pribadi Anda pada sholat Dhuha dan Dzuhur (honor sholat dihitung otomatis dari check-in petugas QR + absensi siswa lengkap).</p>
           <p style="font-size:12px;color:#2563eb;margin-bottom:12px;">📋 Wajib: absensi <strong>siswa</strong> untuk sholat ini sudah diisi lebih dulu di menu <strong>🕌 Amalan Yaumiyah</strong> hari ini, baru Anda bisa mencatat absen pribadi di sini.</p>
-          <p style="font-size:12px;color:#d97706;margin-bottom:12px;">⚠️ Absen Dluha hanya bisa dicatat jam <strong id="jamReligiDluhaLabel">07:00-10:00</strong>, Dzuhur jam <strong id="jamReligiDzuhurLabel">12:00-13:30</strong>.</p>
+          <p style="font-size:12px;color:#d97706;margin-bottom:12px;">⚠️ Absen Dhuha hanya bisa dicatat jam <strong id="jamReligiDluhaLabel">07:00-10:00</strong>, Dzuhur jam <strong id="jamReligiDzuhurLabel">12:00-13:30</strong>.</p>
           <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-            <div style="flex:1;min-width:150px;"><label class="label">Pilih Sholat</label><select id="religiType" class="field"><option value="sholat_dluha">☀️ Sholat Dluha</option><option value="sholat_dzuhur">🕌 Sholat Dzuhur</option></select></div>
+            <div style="flex:1;min-width:150px;"><label class="label">Pilih Sholat</label><select id="religiType" class="field"><option value="sholat_dluha">☀️ Sholat Dhuha</option><option value="sholat_dzuhur">🕌 Sholat Dzuhur</option></select></div>
             <div style="flex:1;min-width:150px;"><label class="label">Status</label><select id="religiStatus" class="field"><option value="Hadir">✅ Hadir</option><option value="Tidak Hadir">❌ Tidak Hadir</option></select></div>
             <div style="display:flex;align-items:end;gap:8px;"><button id="btnSaveReligi" class="btn btn-success" onclick="saveReligi()">💾 Simpan</button><button class="btn btn-soft" onclick="loadReligi()">🔄 Refresh</button></div>
           </div>
@@ -1046,7 +1046,7 @@
       ============================================================ -->
       <div id="page-bacaan-shalat" class="page-content hidden">
         <div class="card">
-          <div class="v4-section-title"><h3>🕌 Bacaan Shalat</h3><span class="v4-chip blue">Target • Penilaian • Grafik</span></div>
+          <div class="v4-section-title"><h3>🕌 Bacaan Sholat</h3><span class="v4-chip blue">Target • Penilaian • Grafik</span></div>
           <div id="bsRoot"></div>
         </div>
       </div>
@@ -1786,7 +1786,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
           <div id="v4ActivityTypeForm" class="v4-card" style="display:none;margin-bottom:16px;">
             <h4>➕ Jenis Amalan/Kegiatan Baru</h4>
             <div class="v4-grid-3">
-              <div><label class="label">Nama Kegiatan</label><input id="v4NewActName" class="field" placeholder="Contoh: Shalat Dhuha"></div>
+              <div><label class="label">Nama Kegiatan</label><input id="v4NewActName" class="field" placeholder="Contoh: Sholat Dhuha"></div>
               <div><label class="label">Kategori</label><select id="v4NewActCategory" class="field"><option value="Amalan">Amalan</option><option value="Kegiatan">Kegiatan</option></select></div>
               <div><label class="label">Penanggung Jawab</label><select id="v4NewActPic" class="field"></select></div>
             </div>

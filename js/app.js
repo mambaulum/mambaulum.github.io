@@ -1552,7 +1552,11 @@
     }
     function updateTahunAjaranBadge() {
       const badge = document.getElementById('tahunAjaranBadge');
-      if (badge) badge.textContent = `📅 ${currentTahunAjaran} · ${currentSemesterAktif}`;
+      if (badge) {
+        // bentuk pendek (26/27) dipakai CSS di layar HP supaya topbar tidak melebar
+        const ta = String(currentTahunAjaran || ''), taPendek = ta.replace(/^\d{2}(\d{2})\/\d{2}(\d{2})$/, '$1/$2');
+        badge.innerHTML = `📅 <span class="ta-full">${escapeHtml(ta)}</span><span class="ta-short">${escapeHtml(taPendek)}</span> · ${escapeHtml(String(currentSemesterAktif || ''))}`;
+      }
     }
     // Mirror sinkron (localStorage) dari pengaturan sekolah terakhir yang diketahui di perangkat ini, supaya
     // boot bisa mulai memuat data SEKETIKA dengan tebakan terbaik (bukan nunggu school_settings ~ratusan ms
@@ -3007,7 +3011,7 @@
       document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
       const bottomItem = document.querySelector(`.bottom-nav-item[data-bottom-page="${page}"]`);
       if (bottomItem) bottomItem.classList.add('active');
-      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Shalat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Madrasah', rekap:'Ringkasan Sekolah', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan Resmi', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Iuran Mingguan', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
+      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Sholat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Madrasah', rekap:'Ringkasan Sekolah', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan Resmi', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Iuran Mingguan', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
       document.getElementById('pageTitle').innerHTML = titleMap[page] || 'Dashboard';
       if (window.innerWidth <= 768) { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
       flushRenderTertunda(page); // render yang ditunda saat halaman ini tersembunyi (lihat renderAll)
@@ -6784,7 +6788,7 @@
       const todayList = filtered.filter(item => item.tanggal === today);
       const todayContainer = document.getElementById('religiTodayList');
       if (todayList.length === 0) { todayContainer.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada absensi religi hari ini.</p>'; }
-      else { let html = ''; todayList.forEach(item => { const dluha = item.sholat_dluha || { status: '-', waktu: '-' }; const dzuhur = item.sholat_dzuhur || { status: '-', waktu: '-' }; html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;flex-wrap:wrap;gap:4px;"><span><strong>${escapeHtml(item.guru)}</strong></span><span>☀️ Dluha: ${escapeHtml(dluha.status)} ${dluha.waktu ? new Date(dluha.waktu).toLocaleTimeString() : ''}</span><span>🕌 Dzuhur: ${escapeHtml(dzuhur.status)} ${dzuhur.waktu ? new Date(dzuhur.waktu).toLocaleTimeString() : ''}</span></div>`; }); todayContainer.innerHTML = html; }
+      else { let html = ''; todayList.forEach(item => { const dluha = item.sholat_dluha || { status: '-', waktu: '-' }; const dzuhur = item.sholat_dzuhur || { status: '-', waktu: '-' }; html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;flex-wrap:wrap;gap:4px;"><span><strong>${escapeHtml(item.guru)}</strong></span><span>☀️ Dhuha: ${escapeHtml(dluha.status)} ${dluha.waktu ? new Date(dluha.waktu).toLocaleTimeString() : ''}</span><span>🕌 Dzuhur: ${escapeHtml(dzuhur.status)} ${dzuhur.waktu ? new Date(dzuhur.waktu).toLocaleTimeString() : ''}</span></div>`; }); todayContainer.innerHTML = html; }
       const monthList = filtered.filter(item => item.tanggal && item.tanggal.startsWith(bulanIni));
       const monthContainer = document.getElementById('religiMonthList'), paginationEl = document.getElementById('religiPagination');
       if (monthList.length === 0) { monthContainer.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada absensi religi bulan ini.</p>'; paginationEl.innerHTML = ''; return; }
@@ -7545,7 +7549,7 @@
       const hpAdm = honorPanjarDapat(ymHonor, null, () => renderHonor());
       const panjarDari = it => (it.gkey ? honorPanjarTotal(hpAdm.data[it.gkey]) : 0);
       let totalPanjar = 0; tableData.forEach(it => { totalPanjar += panjarDari(it); });
-      let html = `<div style="overflow-x:auto;"><table><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dluha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
+      let html = `<div style="overflow-x:auto;"><table><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
       let no = start + 1;
       for (const item of pageItems) {
         const isBonus = item.isBonus || false, bgStyle = isBonus ? 'style="background:#fef3c7;font-weight:600;"' : '';
@@ -7920,7 +7924,7 @@
             <div style="font-weight:800;font-size:16px;">🧾 SLIP HONOR</div>
             <div class="text-muted" style="font-size:12px;">${escapeHtml(namaSaya)} • ${namaBulan} ${year}</div>
           </div>
-          <table style="width:100%;font-size:13px;border-collapse:collapse;">${rows}</table>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;"><tr><th style="text-align:left;">Rincian</th><th style="text-align:center;">Jumlah</th><th style="text-align:right;">Honor</th></tr>${rows}</table>
           ${mewakiliHtml}${ditolakHtml}
           <div style="border-top:2px dashed #94a3b8;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:800;font-size:15px;">
             <span>TOTAL</span><span style="color:#059669;">Rp ${total.toLocaleString()}</span>
@@ -10212,7 +10216,7 @@
       const ruangTabel = pageHeight - 116;   // tinggi halaman - (awal tabel 38 + judul kolom 8 + baris TOTAL 10 + jarak 10 + blok TTD 40 + margin bawah 10)
       const tinggiBaris = Math.max(8, Math.min(12, ruangTabel / Math.max(rows.length, 1)));
       const ukuranFont = tinggiBaris >= 9 ? 9 : 8;
-      doc.autoTable({ startY: 38, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dluha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Panjar', 'Sisa Dibayar', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, totalPanjarPdf > 0 ? `Rp ${totalPanjarPdf.toLocaleString()}` : '-', `Rp ${(totalHonor - totalPanjarEfektifPdf).toLocaleString()}`, '']], theme: 'grid', styles: { fontSize: ukuranFont, valign: 'middle', cellPadding: 1.8, lineWidth: 0.15, lineColor: [203, 213, 225], textColor: [30, 41, 59] }, alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' }, 8: { halign: 'center' }, 9: { halign: 'center' }, 10: { halign: 'right', fontStyle: 'bold' }, 11: { halign: 'right' }, 12: { halign: 'right', fontStyle: 'bold' }, 13: { cellWidth: 42 } }, headStyles: { fillColor: BIRU, textColor: [255, 255, 255], fontSize: ukuranFont, fontStyle: 'bold', lineColor: BIRU }, footStyles: { fillColor: [226, 232, 240], textColor: NAVY, fontStyle: 'bold', fontSize: 9.5 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = tinggiBaris; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [255,247,214]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
+      doc.autoTable({ startY: 38, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dhuha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Panjar', 'Sisa Dibayar', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, totalPanjarPdf > 0 ? `Rp ${totalPanjarPdf.toLocaleString()}` : '-', `Rp ${(totalHonor - totalPanjarEfektifPdf).toLocaleString()}`, '']], theme: 'grid', styles: { fontSize: ukuranFont, valign: 'middle', cellPadding: 1.8, lineWidth: 0.15, lineColor: [203, 213, 225], textColor: [30, 41, 59] }, alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' }, 8: { halign: 'center' }, 9: { halign: 'center' }, 10: { halign: 'right', fontStyle: 'bold' }, 11: { halign: 'right' }, 12: { halign: 'right', fontStyle: 'bold' }, 13: { cellWidth: 42 } }, headStyles: { fillColor: BIRU, textColor: [255, 255, 255], fontSize: ukuranFont, fontStyle: 'bold', lineColor: BIRU }, footStyles: { fillColor: [226, 232, 240], textColor: NAVY, fontStyle: 'bold', fontSize: 9.5 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = tinggiBaris; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [255,247,214]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
       const finalY = doc.lastAutoTable.finalY;
       const ttdKepalaDataHonor = await kecilkanGambar(await v4LoadTtdKepalaForPdf(), 360);
       let ySignHonor = finalY + 10;
@@ -11359,7 +11363,7 @@
       absenSiswa.forEach(a => { if (a.data) { Object.entries(a.data).forEach(([siswaKey, status]) => { const siswa = allSiswa.find(s => s.key === siswaKey); const namaSiswa = siswa ? siswa.name : siswaKey; csv += `${a.tanggal},${a.kelas},${a.guru},${namaSiswa},${status}\n`; }); } });
       csv += '\n=== ABSENSI GURU ===\nTanggal,Guru,Kelas,Waktu,Type,Ke,Metode,Jam\n';
       absenGuru.forEach(a => { const kelasStr = Array.isArray(a.kelas) ? a.kelas.join('; ') : a.kelas || '-'; const waktu = a.waktu ? new Date(a.waktu).toLocaleString() : '-'; csv += `${a.tanggal},${a.guru},${kelasStr},${waktu},${a.type||'Reguler'},${a.ke||1},${a.metode||'manual'},${a.jam_ke||'-'}\n`; });
-      csv += '\n=== ABSENSI RELIGI ===\nTanggal,Guru,Dluha,Dzuhur\n';
+      csv += '\n=== ABSENSI RELIGI ===\nTanggal,Guru,Dhuha,Dzuhur\n';
       // FIX: seksi ini sebelumnya SELALU memuat semua guru, tidak ikut kena filterGuru --
       // padahal semua seksi lain di atas (jurnal, absenGuru, dst) sudah taat pada filter yang
       // dipilih Admin/Kepsek di halaman Rekap. Sekarang dicocokkan sama seperti jurnal/absenGuru:
@@ -11712,7 +11716,7 @@
               <th>Reguler</th>
               <th>Non-Reg</th>
               <th>Ekstra</th>
-              <th>Dluha</th>
+              <th>Dhuha</th>
               <th>Dzuhur</th>
               <th>Lembur/Rapat</th>
               <th>Ujian</th>
@@ -11772,7 +11776,7 @@
         </table>
         <div class="text-muted" style="margin-top:8px;font-size:10px;">
           * Reguler: Rp ${rates.reguler}/jam | Non-Reguler: Rp ${rates.nonReguler}/jam | Ekstra: sesuai rate per kegiatan<br>
-          * Dluha: Rp ${rates.dluha}/hadir | Dzuhur: Rp ${rates.dzuhur}/hadir | Lembur/Rapat & Ujian: sesuai honor per sesi | Tunjangan & Transport: sesuai pengaturan per guru
+          * Dhuha: Rp ${rates.dluha}/hadir | Dzuhur: Rp ${rates.dzuhur}/hadir | Lembur/Rapat & Ujian: sesuai honor per sesi | Tunjangan & Transport: sesuai pengaturan per guru
         </div>
         <div class="text-muted" style="margin-top:16px;font-size:10px;text-align:right;">
           Dicetak: ${new Date().toLocaleString()}
@@ -13232,7 +13236,8 @@
 
     // -------- Notifications / tasks / approval --------
     function v4LoadNotifications(){if(!currentUser)return Promise.resolve();const seq=++v4NotifSeq;return fbTimeout(db.ref('notifications_v4').once('value').then(s=>{if(seq!==v4NotifSeq)return;V4.notifications=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;if(x.userKey===currentUser.key||x.userKey===currentUser.name||x.userKey==='system'||v4IsAdmin()||v4IsHead())V4.notifications.push(x)});v4RenderNotifications();}), 7000, 'notifications_v4');}
-    function v4RenderNotifications(){const el=document.getElementById('v4NotificationList');if(!el)return;const unread=V4.notifications.filter(x=>!x.isRead).length;document.getElementById('v4NotifDot')?.classList.toggle('show',unread>0);el.innerHTML=V4.notifications.slice().sort((a,b)=>COLLATOR_ID.compare(String(b.createdAt), String(a.createdAt))).slice(0,100).map(x=>`<div class="v4-notif ${x.isRead?'':'unread'}"><div class="v4-notif-icon">${x.type==='ACTION'?'🚨':x.type==='SUCCESS'?'✅':x.type==='ALERT'?'⚠️':x.type==='REMINDER'?'⏰':'🔔'}</div><div style="flex:1"><div style="font-weight:800;font-size:13px;">${v4Safe(x.title)}</div><div style="font-size:12px;margin-top:3px;line-height:1.45;">${v4Safe(x.message)}</div><div class="v4-muted" style="margin-top:4px;">${x.createdAt?new Date(x.createdAt).toLocaleString('id-ID'):''}</div></div></div>`).join('')||'<p class="v4-muted">Belum ada notifikasi.</p>';}
+    function v4RenderNotifications(){const el=document.getElementById('v4NotificationList');if(!el)return;const milikku=x=>!!currentUser&&(x.userKey===currentUser.key||x.userKey===currentUser.name);const unread=V4.notifications.filter(x=>milikku(x)&&!x.isRead).length;document.getElementById('v4NotifDot')?.classList.toggle('show',unread>0);el.innerHTML=V4.notifications.slice().sort((a,b)=>COLLATOR_ID.compare(String(b.createdAt), String(a.createdAt))).slice(0,100).map(x=>`<div class="v4-notif ${(milikku(x)&&!x.isRead)?'unread':''}" ${(milikku(x)&&!x.isRead)?`onclick="v4MarkNotifRead('${escapeJs(x.key)}')" title="Ketuk untuk menandai dibaca"`:''}><div class="v4-notif-icon">${x.type==='ACTION'?'🚨':x.type==='SUCCESS'?'✅':x.type==='ALERT'?'⚠️':x.type==='REMINDER'?'⏰':'🔔'}</div><div style="flex:1"><div style="font-weight:800;font-size:13px;">${v4Safe(x.title)}</div><div style="font-size:12px;margin-top:3px;line-height:1.45;">${v4Safe(x.message)}</div><div class="v4-muted" style="margin-top:4px;">${x.createdAt?new Date(x.createdAt).toLocaleString('id-ID'):''}</div></div></div>`).join('')||'<p class="v4-muted">Belum ada notifikasi.</p>';}
+    function v4MarkNotifRead(key){if(!currentUser||!key)return;const x=V4.notifications.find(n=>n.key===key);if(!x||x.isRead)return;if(!(x.userKey===currentUser.key||x.userKey===currentUser.name))return;x.isRead=true;v4RenderNotifications();db.ref('notifications_v4').update({[key+'/isRead']:true}).then(()=>{v4NotifSeq++;}).catch(err=>{x.isRead=false;v4RenderNotifications();console.error('[SI MAMBA] Gagal simpan:',err);toast('❌ Gagal menyimpan: '+(err&&err.message||err),true);});}
     function v4MarkAllNotificationsRead(){if(!currentUser)return;const updates={};V4.notifications.filter(x=>!x.isRead && (x.userKey===currentUser.key||x.userKey===currentUser.name)).forEach(x=>updates[x.key+'/isRead']=true);if(Object.keys(updates).length)db.ref('notifications_v4').update(updates).then(()=>{v4NotifSeq++;V4.notifications.forEach(x=>x.isRead=true);v4RenderNotifications();toast('✓ Semua notifikasi dibaca');}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });}
     function v4LoadApprovals(){const seq=++v4ApprSeq;return fbTimeout(db.ref('approval_requests_v4').once('value').then(s=>{if(seq!==v4ApprSeq)return;V4.approvals=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;if(v4CanHead()||x.requestedByKey===currentUser?.key)V4.approvals.push(x)});v4RenderApprovals();}), 7000, 'approval_requests_v4');}
     // Pusat Approval: gabungan permintaan yang menunggu -- Jurnal Susulan, Pulang Duluan, Koreksi Raport.
@@ -13490,7 +13495,7 @@
     const v4OriginalNavigate=window.navigateTo;
     window.navigateTo=function(page){
       v4OriginalNavigate(page);
-      const titleMap={'profile-v4':'Profil Saya','activities-v4':'Amalan Yaumiyah','tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Shalat','ekskul-v4':'Ekstrakurikuler','pramuka-v4':'Pramuka (SKU)','approval-v4':'Approval','notifications-v4':'Notifikasi','tasks-v4':'Task Center','raport-v4':'Raport'};
+      const titleMap={'profile-v4':'Profil Saya','activities-v4':'Amalan Yaumiyah','tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Sholat','ekskul-v4':'Ekstrakurikuler','pramuka-v4':'Pramuka (SKU)','approval-v4':'Approval','notifications-v4':'Notifikasi','tasks-v4':'Task Center','raport-v4':'Raport'};
       if(titleMap[page]) document.getElementById('pageTitle').innerHTML=titleMap[page];
       if(page==='profile-v4') v4ApplyMode();
       if(page==='activities-v4' && typeof v4RenderActivities==='function') v4RenderActivities();

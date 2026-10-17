@@ -500,7 +500,7 @@
      Hanya untuk halaman di CARD_TABLE_PAGES dan tabel dengan 1 baris header tanpa colspan/rowspan.
      Memberi data-label per sel; CSS (@media <=640px) yang mengubah tampilannya. Tabel lain tidak disentuh. */
   var CARD_TABLE_PAGES = ['page-students', 'page-user-management', 'page-events', 'page-ujian', 'page-kas-umum',
-    'page-honor', 'page-rekap-jurnal', 'page-info-ortu', 'page-surat', 'page-rapat'];
+    'page-honor', 'page-rekap-jurnal', 'page-info-ortu', 'page-surat', 'page-rapat', 'page-bacaan-shalat'];
   function cardifyTables(root) {
     Array.prototype.forEach.call(root.querySelectorAll('table:not([data-mp-nocards])'), function (tb) {
       var heads = tb.querySelectorAll('thead tr'), hr = heads[0], noThead = false;
@@ -521,6 +521,13 @@
     });
   }
 
+  /* ---------------- 7b. Amalan Yaumiyah: tombol Klaim Petugas selebar kartu (v26) ---------------- */
+  function amalanRapi(pg) {
+    Array.prototype.forEach.call(pg.querySelectorAll('button'), function (b) {
+      if (/klaim petugas/i.test(b.textContent) && !b.classList.contains('mp-claim-btn')) b.classList.add('mp-claim-btn');
+    });
+  }
+
   var obsTimers = {};
   function watchPage(id) {
     var pg = document.getElementById(id);
@@ -529,7 +536,7 @@
     new MutationObserver(function () {
       clearTimeout(obsTimers[id]);
       obsTimers[id] = setTimeout(function () {
-        try { decorate(pg); if (CARD_TABLE_PAGES.indexOf(id) !== -1) cardifyTables(pg); if (id === 'page-jadwal') jadwalPortrait(); if (id === 'page-grades') gradeInputsSiap(); } catch (e) { console.error('[menu-polish]', e); }
+        try { decorate(pg); if (CARD_TABLE_PAGES.indexOf(id) !== -1) cardifyTables(pg); if (id === 'page-jadwal') jadwalPortrait(); if (id === 'page-grades') gradeInputsSiap(); if (id === 'page-activities-v4') amalanRapi(pg); } catch (e) { console.error('[menu-polish]', e); }
       }, 80);
     }).observe(pg, { childList: true, subtree: true, characterData: true });
   }
@@ -631,10 +638,17 @@
       annHost.appendChild(c);
     });
     if (urut.length > ANN_MAX) {
-      var more = el('button', 'btn btn-soft mp-ann-more', annAll ? 'Tampilkan lebih sedikit' : 'Lihat semua (' + urut.length + ')');
+      var more = el('button', 'mp-ann-more', annAll ? 'Tampilkan lebih sedikit' : 'Lihat semua (' + urut.length + ')');
       more.type = 'button';
       more.addEventListener('click', function () { annAll = !annAll; renderAnnounceCards(); });
-      annHost.appendChild(more);
+      // tautan ditaruh di baris bawah kartu terakhir (sebaris dengan "Selengkapnya") agar tidak memakan satu baris sendiri
+      var last = annHost.lastElementChild, foot = last && last.querySelector('.mp-ann-foot');
+      if (last && !foot) {
+        foot = el('div', 'mp-ann-foot');
+        var tg2 = last.querySelector('.mp-ann-toggle'); if (tg2) foot.appendChild(tg2);
+        last.appendChild(foot);
+      }
+      if (foot) foot.appendChild(more); else annHost.appendChild(more);
     }
   }
   if (typeof window.renderMarquee === 'function') {
@@ -796,6 +810,63 @@
     if (kelasEl) { new MutationObserver(ringkasKelas).observe(kelasEl, { childList: true, characterData: true, subtree: true }); ringkasKelas(); }
   })();
 
+  /* ---------------- 11c. Jurnal: tombol simpan menempel, kunci saat tak ada jadwal, status absensi ----------------
+     Hanya lapisan tampilan: validasi & penyimpanan tetap sepenuhnya milik app.js (saveJournal). */
+  (function () {
+    var form = document.getElementById('journalForm');
+    if (!form) return;
+
+    // 1. Tombol Simpan / Batal Edit dibungkus satu wadah agar bisa menempel di atas navbar bawah (CSS: .mp-jr-actions)
+    var save = document.getElementById('btnSaveJournal'), cancel = document.getElementById('btnCancelEditJournal');
+    if (save && save.parentNode === form) {
+      var bar = document.createElement('div'); bar.className = 'mp-jr-actions';
+      form.insertBefore(bar, save); bar.appendChild(save); if (cancel) bar.appendChild(cancel);
+    }
+
+    // 2. Tidak ada di Jadwal -> kolom Kegiatan & tombol Simpan diredupkan (app.js tetap menolak simpan; ini hanya petunjuk visual)
+    var kosong = document.getElementById('jadwalKosongWarning');
+    function editing() { return !!(cancel && cancel.style.display && cancel.style.display !== 'none'); }
+    function cekKunci() {
+      var kunci = !!(kosong && kosong.style.display !== 'none' && getComputedStyle(kosong).display !== 'none') && !editing();
+      form.classList.toggle('mp-jr-locked', kunci);
+      var act = document.getElementById('journalActivity');
+      if (act) { if (kunci) act.setAttribute('aria-disabled', 'true'); else act.removeAttribute('aria-disabled'); }
+      if (save) { save.title = kunci ? 'Tidak ada jadwal untuk tanggal & jam ini' : ''; }
+    }
+    if (kosong) new MutationObserver(cekKunci).observe(kosong, { attributes: true, attributeFilter: ['style'] });
+    if (cancel) new MutationObserver(cekKunci).observe(cancel, { attributes: true, attributeFilter: ['style'] });
+
+    // 3. Kotak ajakan absensi -> lencana hijau "sudah diisi" bila absensi kelas & tanggal itu sudah ada (cek yang sama dengan validasi D di app.js)
+    var box = form.querySelector('div[style*="background:#f0fdf4"]'), okMsg = null;
+    function cekAbsensi() {
+      if (!box || typeof allAttendance === 'undefined' || !Array.isArray(allAttendance)) return;
+      var kelas = (document.getElementById('journalClass') || {}).value, tgl = (document.getElementById('journalDate') || {}).value, sudah = false;
+      if (kelas && tgl) sudah = allAttendance.some(function (a) { return a.tanggal === tgl && a.kelas === kelas; });
+      box.classList.toggle('mp-abs-ok', sudah);
+      if (sudah) {
+        if (!okMsg) { okMsg = document.createElement('p'); okMsg.className = 'mp-abs-ok-msg'; box.appendChild(okMsg); }
+        okMsg.textContent = '✅ Absensi siswa kelas ' + kelas + ' pada tanggal ini sudah diisi.';
+      }
+    }
+    ['lookupJadwalUntukJurnal', 'terapkanJadwalPilihan'].forEach(function (nm) {
+      var f = window[nm]; if (typeof f !== 'function') return;
+      window[nm] = function () { var r = f.apply(this, arguments); try { cekKunci(); cekAbsensi(); } catch (e) { /* tampilan saja */ } return r; };
+    });
+    setInterval(function () { var pg = document.getElementById('page-journal'); if (pg && pg.offsetParent !== null && !document.hidden) { try { cekKunci(); cekAbsensi(); } catch (e) { /* diabaikan */ } } }, 3000);
+    cekKunci();
+  })();
+
+  /* ---------------- 11d. Absensi Siswa: tombol Simpan dipindah ke bawah daftar & menempel di atas navbar ----------------
+     Elemen & onclick aslinya tidak diubah (hanya dipindah posisinya di DOM), jadi saveAttendance() jalan seperti biasa. */
+  (function () {
+    var btn = document.getElementById('btnSaveAttendance'), list = document.getElementById('attendanceList');
+    if (!btn || !list || !list.parentNode) return;
+    var wrap = btn.parentNode, row = wrap.parentNode;
+    wrap.classList.add('mp-att-save');
+    list.parentNode.insertBefore(wrap, list.nextSibling);
+    if (row && !row.children.length) row.remove();
+  })();
+
   /* ---------------- 12. Waktu shalat di Dashboard ----------------
      Dihitung di perangkat (tanpa internet, tanpa API luar), mengikuti parameter Kemenag RI:
      Subuh 20°, Isya 18°, Ashar mazhab Syafi'i, ihtiyat +2 menit (Terbit -2 menit). Lokasi: koordinat madrasah
@@ -906,7 +977,7 @@
       '<div class="mp-pray-sub">' + escapeHtml(loc.label) + ' · ' + PRAY_HARI[tglTampil.getUTCDay()] + ', ' + tglTampil.getUTCDate() + ' ' + PRAY_BULAN[tglTampil.getUTCMonth()] + (besokMode ? ' (besok)' : '') + ' · ' + zona +
         (denganCuaca ? wxChip() : '') + '</div></div>' +
       '<div class="mp-pray-grid">' + cells + '</div>'; }
-    var catatan = 'Waktu shalat: metode Kemenag RI, perkiraan ±2 menit; rujuk jadwal resmi setempat bila perlu.';
+    var catatan = 'Waktu sholat: metode Kemenag RI, perkiraan ±2 menit; rujuk jadwal resmi setempat bila perlu.';
     hosts.forEach(function (h) {
       var dash = h === prayHost;
       h.title = catatan + (dash && wxData ? ' Cuaca: Open-Meteo.com (CC BY 4.0).' : '');

@@ -1,18 +1,18 @@
 /* ============================================================
    SI MAMBA - js/bacaan-shalat.js (v1)
-   Menu "Bacaan Shalat" -- hafalan bacaan shalat + amalan harian di rumah + gamifikasi.
+   Menu "Bacaan Sholat" -- hafalan bacaan sholat + amalan harian di rumah + gamifikasi.
 
    TIGA AKSES:
-   1) GURU / ADMIN (menu sidebar "Bacaan Shalat", halaman #page-bacaan-shalat -> #bsRoot)
+   1) GURU / ADMIN (menu sidebar "Bacaan Sholat", halaman #page-bacaan-shalat -> #bsRoot)
       - Tab Target    : buat daftar target bacaan (harian / mingguan), per kelas atau semua kelas.
       - Tab Penilaian : uji setoran syafahi -> status Lulus / Remedial / Belum Setor (+ nilai & catatan).
       - Tab Grafik    : perkembangan klasikal (per target, per pekan, per siswa) dan individu
                         (grafik hafalan, poin & lencana, ringkasan amalan di rumah).
    2) ORANG TUA (Portal Orang Tua, disambung lewat bsOrtuRender() dari app.js)
-      - Checklist amalan harian anak di rumah (shalat 5 waktu, mengaji, dst).
-      - Laporan progres setoran bacaan shalat yang dinilai guru.
+      - Checklist amalan harian anak di rumah (sholat 5 waktu, mengaji, dst).
+      - Laporan progres setoran bacaan sholat yang dinilai guru.
    3) SISWA ("Mode Anak" di dalam Portal Orang Tua -- anak belum punya akun sendiri)
-      - Target bacaan berikutnya, poin, level, dan lencana digital (mis. "Bintang Shalat Subuh").
+      - Target bacaan berikutnya, poin, level, dan lencana digital (mis. "Bintang Sholat Subuh").
         Hanya-baca: poin & lencana dihitung dari data guru + checklist orang tua.
 
    DATA FIREBASE (aturan ada di rule.txt):
@@ -29,15 +29,15 @@ const BS_STATUS_WARNA = { 'Lulus': '#059669', 'Remedial': '#d97706', 'Belum Seto
 const BS_STATUS_BG = { 'Lulus': '#d1fae5', 'Remedial': '#fef3c7', 'Belum Setor': '#f3f4f6' };
 const BS_STATUS_IKON = { 'Lulus': '✅', 'Remedial': '🔁', 'Belum Setor': '⏳' };
 
-// Checklist amalan harian di rumah. `wajib` = shalat 5 waktu (dasar lencana "Bintang Shalat ...").
+// Checklist amalan harian di rumah. `wajib` = sholat 5 waktu (dasar lencana "Bintang Sholat ...").
 const BS_AMALAN = [
-  { k: 'subuh',    nama: 'Subuh',    t: 'Shalat Subuh',    e: '🌅', poin: 10, wajib: true },
-  { k: 'dzuhur',   nama: 'Dzuhur',   t: 'Shalat Dzuhur',   e: '🌞', poin: 10, wajib: true },
-  { k: 'ashar',    nama: 'Ashar',    t: 'Shalat Ashar',    e: '🌤️', poin: 10, wajib: true },
-  { k: 'maghrib',  nama: 'Maghrib',  t: 'Shalat Maghrib',  e: '🌇', poin: 10, wajib: true },
-  { k: 'isya',     nama: 'Isya',     t: 'Shalat Isya',     e: '🌙', poin: 10, wajib: true },
+  { k: 'subuh',    nama: 'Subuh',    t: 'Sholat Subuh',    e: '🌅', poin: 10, wajib: true },
+  { k: 'dzuhur',   nama: 'Dzuhur',   t: 'Sholat Dzuhur',   e: '🌞', poin: 10, wajib: true },
+  { k: 'ashar',    nama: 'Ashar',    t: 'Sholat Ashar',    e: '🌤️', poin: 10, wajib: true },
+  { k: 'maghrib',  nama: 'Maghrib',  t: 'Sholat Maghrib',  e: '🌇', poin: 10, wajib: true },
+  { k: 'isya',     nama: 'Isya',     t: 'Sholat Isya',     e: '🌙', poin: 10, wajib: true },
   { k: 'mengaji',  nama: 'Mengaji',  t: 'Mengaji / Membaca Al-Qur\'an', e: '📖', poin: 10 },
-  { k: 'dhuha',    nama: 'Dhuha',    t: 'Shalat Dhuha',    e: '☀️', poin: 5 },
+  { k: 'dhuha',    nama: 'Dhuha',    t: 'Sholat Dhuha',    e: '☀️', poin: 5 },
   { k: 'berbakti', nama: 'Berbakti', t: 'Membantu Orang Tua', e: '🤝', poin: 5 }
 ];
 const BS_LEVEL = [
@@ -46,13 +46,13 @@ const BS_LEVEL = [
   { min: 400,  nama: 'Teladan',         e: '🏅' },
   { min: 800,  nama: 'Bintang',         e: '🌠' },
   { min: 1500, nama: 'Juara',           e: '🏆' },
-  { min: 2500, nama: 'Pahlawan Shalat', e: '👑' }
+  { min: 2500, nama: 'Pahlawan Sholat', e: '👑' }
 ];
 const BS_POIN_LULUS = 50, BS_POIN_LULUS_PERTAMA = 10, BS_STREAK_BINTANG = 7;
 const BS_HARI_ISI_MUNDUR = 2;   // orang tua boleh mengisi hari ini + 2 hari ke belakang
-const BS_CONTOH_TARGET = ['Niat Shalat', 'Takbiratul Ihram', 'Doa Iftitah', 'Surat Al-Fatihah', 'Surat Al-Ikhlas',
+const BS_CONTOH_TARGET = ['Niat Sholat', 'Takbiratul Ihram', 'Doa Iftitah', 'Surat Al-Fatihah', 'Surat Al-Ikhlas',
   'Bacaan Ruku', 'Bacaan I\'tidal', 'Bacaan Sujud', 'Doa Duduk di Antara Dua Sujud', 'Tasyahud Awal',
-  'Tasyahud Akhir', 'Salam', 'Doa Setelah Shalat'];
+  'Tasyahud Akhir', 'Salam', 'Doa Setelah Sholat'];
 
 // ---------- utilitas umum ----------
 function bsEsc(s) {
@@ -166,15 +166,15 @@ function bsHitungGame(targets, setoranByTarget, amalanList, hariIni) {
   const badges = [];
   const tambah = (id, e, n, d, now, need) => badges.push({ id, e, n, d, now, need, got: now >= need });
   BS_AMALAN.filter(a => a.wajib).forEach(a =>
-    tambah('shalat_' + a.k, '⭐', 'Bintang Shalat ' + a.nama, 'Shalat ' + a.nama + ' ' + BS_STREAK_BINTANG + ' hari berturut-turut', rentetan(it => it[a.k] === true), BS_STREAK_BINTANG));
-  tambah('lima_waktu', '🌈', 'Pejuang Lima Waktu', 'Shalat 5 waktu lengkap 5 hari berturut-turut', rentetan(semuaWajib), 5);
+    tambah('shalat_' + a.k, '⭐', 'Bintang Sholat ' + a.nama, 'Sholat ' + a.nama + ' ' + BS_STREAK_BINTANG + ' hari berturut-turut', rentetan(it => it[a.k] === true), BS_STREAK_BINTANG));
+  tambah('lima_waktu', '🌈', 'Pejuang Lima Waktu', 'Sholat 5 waktu lengkap 5 hari berturut-turut', rentetan(semuaWajib), 5);
   tambah('mengaji', '📖', 'Sahabat Al-Qur\'an', 'Mengaji ' + BS_STREAK_BINTANG + ' hari berturut-turut', rentetan(it => it.mengaji === true), BS_STREAK_BINTANG);
   tambah('rajin', '📅', 'Anak Rajin', 'Checklist amalan terisi 30 hari', tanggals.filter(tg => Object.keys(harian[tg]).some(k => harian[tg][k] === true)).length, 30);
   tambah('lulus_1', '🎯', 'Langkah Pertama', 'Lulus 1 target bacaan', lulus, 1);
   tambah('lulus_5', '🕌', 'Hafidz Cilik', 'Lulus 5 target bacaan', lulus, 5);
   tambah('sekali_jalan', '⚡', 'Sekali Jalan', 'Lulus 3 target di percobaan pertama', lulusPertama, 3);
   const nTarget = (targets || []).length;
-  if (nTarget >= 3) tambah('juara', '🏆', 'Juara Bacaan Shalat', 'Lulus semua target bacaan', lulus, nTarget);
+  if (nTarget >= 3) tambah('juara', '🏆', 'Juara Bacaan Sholat', 'Lulus semua target bacaan', lulus, nTarget);
   return { poin, level: bsLevelDari(poin), lulus, nTarget, lulusPertama, badges, rentetanLimaWaktu: berjalan, hariTercatat: tanggals.length };
 }
 function bsHtmlLencana(badges, ringkas) {
@@ -235,6 +235,7 @@ function bsStateBaru() {
   };
 }
 let bsState = bsStateBaru();
+function bsNamaKelas(k) { const s = String(k == null ? '' : k); return /^kelas\b/i.test(s) ? s : 'Kelas ' + s; }
 function bacaanShalatResetState() {
   bsState = bsStateBaru();
   const r = bsEl('bsRoot'); if (r) r.innerHTML = '';
@@ -308,7 +309,7 @@ function bsRender() {
   const root = bsEl('bsRoot'); if (!root || !bsCanOpenMenu()) return;
   const pil = bsKelasPilihan();
   const tabs = [['target', '🎯 Target'], ['nilai', '📝 Penilaian'], ['grafik', '📊 Grafik']];
-  const opsiKelas = pil.map(k => `<option value="${bsEsc(k)}" ${k === bsState.kelas ? 'selected' : ''}>Kelas ${bsEsc(k)}</option>`).join('');
+  const opsiKelas = pil.map(k => `<option value="${bsEsc(k)}" ${k === bsState.kelas ? 'selected' : ''}>${bsEsc(bsNamaKelas(k))}</option>`).join('');
   let body = '';
   if (bsState.memuat) body = '<p class="text-muted" style="padding:14px;">⏳ Memuat data...</p>';
   else if (bsState.tab === 'target') body = bsBodyTarget();
@@ -334,7 +335,7 @@ function bsBodyTarget() {
   const edit = bsState.editId ? (bsState.targets || []).find(t => t.key === bsState.editId) : null;
   const pilKelasForm = [];
   if (bsIsAdmin()) pilKelasForm.push(['*', 'Semua kelas']);
-  bsKelasPilihan().forEach(k => { if (bsCanTarget(k)) pilKelasForm.push([k, 'Kelas ' + k]); });
+  bsKelasPilihan().forEach(k => { if (bsCanTarget(k)) pilKelasForm.push([k, bsNamaKelas(k)]); });
   const nextUrutan = (targets.reduce((m, t) => Math.max(m, t.urutan || 0), 0)) + 1;
   const v = edit || { nama: '', jenis: 'mingguan', tanggal: bsHariIni(), kelas: pilKelasForm[0] ? pilKelasForm[0][0] : '', urutan: nextUrutan, teks: '' };
   const form = bsPunyaAksesTarget() ? `
@@ -357,7 +358,7 @@ function bsBodyTarget() {
       </div>
     </div>` : '';
   const kosong = !targets.length;
-  const contoh = (bsIsAdmin() && kosong) ? `<div style="padding:12px;border:1px dashed #9ca3af;border-radius:10px;margin-bottom:12px;font-size:13px;">Belum ada target. Untuk mulai cepat, isi daftar contoh (${BS_CONTOH_TARGET.length} bacaan shalat, satu per pekan mulai pekan ini, berlaku semua kelas) lalu ubah sesuai kebutuhan. <button class="btn btn-primary" style="margin-left:6px;padding:6px 12px;" onclick="bsIsiContoh()">✨ Isi contoh daftar</button></div>` : '';
+  const contoh = (bsIsAdmin() && kosong) ? `<div style="padding:12px;border:1px dashed #9ca3af;border-radius:10px;margin-bottom:12px;font-size:13px;">Belum ada target. Untuk mulai cepat, isi daftar contoh (${BS_CONTOH_TARGET.length} bacaan sholat, satu per pekan mulai pekan ini, berlaku semua kelas) lalu ubah sesuai kebutuhan. <button class="btn btn-primary" style="margin-left:6px;padding:6px 12px;" onclick="bsIsiContoh()">✨ Isi contoh daftar</button></div>` : '';
   const baris = targets.map(t => {
     const bisa = bsCanTarget(t.kelas);
     const aktif = t.aktif !== false;
@@ -540,7 +541,7 @@ function bsBodyNilai() {
 function bsSimpanNilai() {
   const k = bsState.kelas;
   if (!bsCanNilai(k)) return toast('Anda tidak punya izin menilai kelas ini.', true);
-  if (!bsOnline()) return toast('📡 Sedang offline. Penilaian bacaan shalat butuh koneksi internet.', true);
+  if (!bsOnline()) return toast('📡 Sedang offline. Penilaian bacaan sholat butuh koneksi internet.', true);
   if (isBusy('bsSimpanNilai')) return;
   const tgl = bsState.tglNilai || bsHariIni();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl)) return toast('⚠️ Tanggal penilaian belum diisi.', true);
@@ -652,7 +653,7 @@ function bsGrafikIndividu(k, targets, siswa) {
   }
   return `<div style="max-width:420px;margin-bottom:12px;"><label class="label">Siswa</label><select class="field" onchange="bsPilihSiswaGrafik(this.value)">${opsi}</select></div>
     <div class="card" style="border:1px solid #e5e7eb;margin-bottom:12px;">
-      <p style="font-weight:700;">${bsEsc(s.name)} <span class="text-muted" style="font-weight:400;font-size:12px;">· Kelas ${bsEsc(k)}</span></p>
+      <p style="font-weight:700;">${bsEsc(s.name)} <span class="text-muted" style="font-weight:400;font-size:12px;">· ${bsEsc(bsNamaKelas(k))}</span></p>
       <p style="font-size:13px;margin:6px 0;">${game.level.e} Level ${game.level.no} — <strong>${bsEsc(game.level.nama)}</strong> · ⭐ ${game.poin} poin · 🎯 ${game.lulus}/${game.nTarget} target lulus</p>
       ${bsBarProgres(game.nTarget ? game.lulus / game.nTarget * 100 : 0)}</div>
     <div class="card" style="border:1px solid #e5e7eb;margin-bottom:12px;"><p style="font-weight:700;margin-bottom:8px;">📈 Perkembangan hafalan (jumlah target lulus)</p>${bsSvgGaris(garis, { maks: targets.length, judul: 'Perkembangan hafalan siswa' })}</div>
@@ -678,7 +679,7 @@ function bsOrtuRender(siswa) {
 }
 function bsOrtuMuat(siswa) {
   const my = ++bsOrtu.token, ta = bsTA(), box = bsEl('bsOrtuBox');
-  if (box) box.innerHTML = '<div class="card" style="margin-bottom:12px;"><p class="text-muted" style="text-align:center;padding:10px;">⏳ Memuat amalan &amp; bacaan shalat...</p></div>';
+  if (box) box.innerHTML = '<div class="card" style="margin-bottom:12px;"><p class="text-muted" style="text-align:center;padding:10px;">⏳ Memuat amalan &amp; bacaan sholat...</p></div>';
   Promise.all([
     db.ref('bs_target').orderByChild('tahunAjaran').equalTo(ta).once('value'),
     db.ref('bs_setoran').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
@@ -694,7 +695,7 @@ function bsOrtuMuat(siswa) {
   }).catch(err => {
     if (my !== bsOrtu.token) return;
     const b = bsEl('bsOrtuBox');
-    if (b) b.innerHTML = `<div class="card" style="margin-bottom:12px;"><p style="color:#dc2626;font-size:13px;">Gagal memuat Bacaan Shalat: ${bsEsc((err && err.message) || err)}</p></div>`;
+    if (b) b.innerHTML = `<div class="card" style="margin-bottom:12px;"><p style="color:#dc2626;font-size:13px;">Gagal memuat Bacaan Sholat: ${bsEsc((err && err.message) || err)}</p></div>`;
   });
 }
 function bsOrtuDaftarAmalan() { return Object.keys(bsOrtu.amalan).map(tg => ({ tanggal: tg, items: bsOrtu.amalan[tg] })); }
@@ -720,7 +721,7 @@ function bsOrtuGambar() {
   box.innerHTML = `
     <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,#ecfdf5,#fef9c3);border:1px solid #a7f3d0;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div><p style="font-weight:700;">🕌 Bacaan Shalat &amp; Amalan</p>
+        <div><p style="font-weight:700;">🕌 Bacaan Sholat &amp; Amalan</p>
           <p style="font-size:13px;margin-top:2px;">${game.level.e} Level ${game.level.no} · <strong>${bsEsc(game.level.nama)}</strong> · ⭐ ${game.poin} poin</p></div>
         <button class="btn btn-primary" style="padding:8px 14px;" onclick="bsAnakBuka()">👧 Mode Anak</button>
       </div></div>
@@ -728,14 +729,14 @@ function bsOrtuGambar() {
       <p style="font-weight:700;margin-bottom:6px;">🏡 Amalan Harian di Rumah</p>
       <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Centang amalan yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis. Bisa mengisi hari ini sampai ${BS_HARI_ISI_MUNDUR} hari ke belakang.</p>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${tglOps}</div>
-      <p style="font-size:13px;margin-bottom:8px;"><strong>${nCek}</strong> dari ${BS_AMALAN.length} amalan terisi untuk ${bsEsc(bsFmtTgl(o.tgl))} ${game.rentetanLimaWaktu >= 2 ? ' · 🔥 ' + game.rentetanLimaWaktu + ' hari shalat 5 waktu lengkap berturut-turut' : ''}</p>
+      <p style="font-size:13px;margin-bottom:8px;"><strong>${nCek}</strong> dari ${BS_AMALAN.length} amalan terisi untuk ${bsEsc(bsFmtTgl(o.tgl))} ${game.rentetanLimaWaktu >= 2 ? ' · 🔥 ' + game.rentetanLimaWaktu + ' hari sholat 5 waktu lengkap berturut-turut' : ''}</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;">${cek}</div>
     </div>
     <div class="card" style="margin-bottom:12px;">
-      <p style="font-weight:700;margin-bottom:6px;">📿 Progres Setoran Bacaan Shalat</p>
+      <p style="font-weight:700;margin-bottom:6px;">📿 Progres Setoran Bacaan Sholat</p>
       ${o.targets.length ? `<p style="font-size:13px;margin-bottom:6px;">${game.lulus} dari ${game.nTarget} target lulus (${persen}%)</p>${bsBarProgres(persen)}
         ${berikut ? `<p style="font-size:13px;margin:10px 0 4px;">🎯 Target berikutnya: <strong>${bsEsc(berikut.nama)}</strong> <span class="text-muted" style="font-size:11px;">(${bsEsc(bsLabelTarget(berikut))})</span></p>` : '<p style="font-size:13px;margin:10px 0 4px;color:#059669;font-weight:700;">🎉 Semua target bacaan sudah lulus!</p>'}
-        <div style="margin-top:6px;">${baris}</div>` : '<p class="text-muted" style="font-size:13px;">Guru belum membuat target bacaan shalat untuk kelas ini.</p>'}
+        <div style="margin-top:6px;">${baris}</div>` : '<p class="text-muted" style="font-size:13px;">Guru belum membuat target bacaan sholat untuk kelas ini.</p>'}
     </div>`;
 }
 function bsOrtuPilihTgl(tg) { bsOrtu.tgl = tg; bsOrtuGambar(); }
@@ -793,7 +794,7 @@ function bsAnakBuka() {
     <div style="background:#fff;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);">
       <p style="font-weight:800;font-size:15px;margin-bottom:8px;">🏡 Amalanku Hari Ini</p>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:#ecfdf5;border-radius:12px;padding:8px;">${hariIni}</div>
-      ${game.rentetanLimaWaktu >= 1 ? `<p style="font-size:13px;text-align:center;margin-top:8px;">🔥 ${game.rentetanLimaWaktu} hari shalat 5 waktu lengkap berturut-turut!</p>` : '<p class="text-muted" style="font-size:12px;text-align:center;margin-top:8px;">Minta Ayah/Bunda mencentang amalanmu ya!</p>'}
+      ${game.rentetanLimaWaktu >= 1 ? `<p style="font-size:13px;text-align:center;margin-top:8px;">🔥 ${game.rentetanLimaWaktu} hari sholat 5 waktu lengkap berturut-turut!</p>` : '<p class="text-muted" style="font-size:12px;text-align:center;margin-top:8px;">Minta Ayah/Bunda mencentang amalanmu ya!</p>'}
     </div>
     <div style="background:#fff;border-radius:16px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.08);">
       <p style="font-weight:800;font-size:15px;margin-bottom:4px;">🏅 Lencanaku</p>${bsHtmlLencana(game.badges, false)}

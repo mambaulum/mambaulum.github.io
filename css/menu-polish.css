@@ -441,3 +441,217 @@ body.dark-mode #page-dashboard .mp-ann-more { color: var(--c-emerald-400, #34d39
 #page-dashboard .dash-lastupdate:not(:empty)::before { content: ""; flex: 0 0 auto; width: 12px; height: 12px; opacity: .8; background: currentColor;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 0 1-15.5 6.2L3 16'/%3E%3Cpath d='M3 12a9 9 0 0 1 15.5-6.2L21 8'/%3E%3Cpath d='M21 3v5h-5M3 21v-5h5'/%3E%3C/svg%3E") center / contain no-repeat;
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 0 1-15.5 6.2L3 16'/%3E%3Cpath d='M3 12a9 9 0 0 1 15.5-6.2L21 8'/%3E%3Cpath d='M21 3v5h-5M3 21v-5h5'/%3E%3C/svg%3E") center / contain no-repeat; }
+
+/* ---------- 17. Rapatkan jarak atas header madrasah (v21) ---------- */
+.mp-ann-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
+.mp-ann-foot .mp-ann-toggle { margin: 0; }
+.mp-ann-foot .mp-ann-more { margin-left: auto; }
+#page-dashboard #mpAnnounce { margin-bottom: 8px; }
+#page-dashboard #pengumumanContainer, #page-dashboard #pengumumanAdmin[style*="display:none"], #page-dashboard #pengumumanAdmin[style*="display: none"] { margin: 0 !important; }
+#page-dashboard .dashboard-header { margin-top: 0 !important; padding-top: 0 !important; min-height: 0 !important; }
+#page-dashboard .dashboard-title { padding-top: 0 !important; }
+#page-dashboard .dashboard-title h2 { padding: 0 !important; line-height: 1.15; }
+
+/* ---------- 18. Halaman Jurnal + topbar HP (v22) ---------- */
+@media (max-width: 768px) {
+  /* topbar: bila judul panjang dan lencana pindah baris, rapatkan jarak antarbaris */
+  .topbar { row-gap: 6px !important; }
+}
+
+/* Jurnal: catatan wajib absensi jadi satu kotak peringatan yang rapi */
+#page-journal > .card > h3:first-child + p {
+  max-width: none; margin-bottom: 14px !important; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid rgba(217, 119, 6, .28); border-left: 4px solid #d97706; background: rgba(217, 119, 6, .07);
+  font-size: 12.5px !important; line-height: 1.55;
+}
+#page-journal > .card > h3:first-child + p span { font-weight: 700; }
+#journalForm .label { font-size: 12px !important; font-weight: 700; margin-bottom: 5px; }
+#journalForm .field { border-radius: 12px; }
+#journalForm select.field, #journalForm input.field { min-height: 46px; }
+#journalForm .field[readonly] { background: rgba(0, 107, 79, .05) !important; }
+#jamTimeDisplay { margin-top: 6px !important; }
+/* kotak status jadwal: seragam (garis kiri tebal, tepi tipis, huruf judul 14px) */
+#jadwalKosongWarning, #bentrokWarning, #bentrokSuccess, #journalLateWarning {
+  border-width: 1px !important; border-left-width: 4px !important; border-radius: 12px !important; padding: 10px 12px !important; margin-bottom: 12px !important; }
+#jadwalKosongWarning, #bentrokWarning { background: rgba(220, 38, 38, .07) !important; }
+#bentrokSuccess { background: rgba(5, 150, 105, .08) !important; }
+#journalLateWarning { background: rgba(217, 119, 6, .08) !important; }
+#jadwalKosongWarning > p:first-child, #bentrokWarning > p:first-child, #bentrokSuccess > p:first-child, #journalLateWarning > p:first-child { font-size: 14px; margin: 0 0 2px; }
+#jadwalKosongWarning p, #bentrokWarning p, #bentrokSuccess p { line-height: 1.5; }
+/* ajakan isi absensi: satu nada dengan kartu waktu shalat & pengumuman */
+#journalForm > div[style*="background:#f0fdf4"] { padding: 10px 12px !important; border-radius: 12px !important; border: 1px solid var(--mp-line) !important;
+  background: linear-gradient(135deg, rgba(0, 107, 79, .10), rgba(0, 107, 79, .02)) !important; }
+#journalForm > div[style*="background:#f0fdf4"] p { line-height: 1.6; }
+@media (max-width: 768px) {
+  #journalForm > div[style*="background:#f0fdf4"] .btn { display: flex; width: 100%; margin-top: 8px; min-height: 44px; }
+  #btnSaveJournal { width: 100%; min-height: 48px; font-size: 15px !important; }
+  #btnCancelEditJournal { width: 100%; margin: 8px 0 0 !important; }
+}
+
+/* ---------- 19. Jurnal: tombol menempel, kunci tanpa jadwal, status absensi (v23) ---------- */
+#journalActivityCounter { font-size: 12px !important; margin-top: 4px !important; }
+.mp-jr-actions { margin-top: 4px; }
+@media (max-width: 768px) {
+  /* menempel tepat di atas navbar bawah (tinggi 64px + area aman) selama formulir masih di layar */
+  .mp-jr-actions { position: sticky; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); z-index: 50; margin: 10px -4px 0; padding: 10px 4px 8px;
+    background: linear-gradient(to top, var(--mp-surface, #fff) 70%, rgba(255, 255, 255, 0)); }
+  body.dark-mode .mp-jr-actions { background: linear-gradient(to top, var(--mp-surface, #1e293b) 70%, rgba(30, 41, 59, 0)); }
+}
+/* tidak ada di Jadwal: kolom kegiatan & tombol simpan diredupkan */
+.mp-jr-locked #journalActivity, .mp-jr-locked #btnSaveJournal { opacity: .45; pointer-events: none; }
+.mp-jr-locked #journalActivity { background: rgba(0, 0, 0, .03) !important; }
+/* absensi sudah diisi: ajakan diganti pesan hijau ringkas */
+.mp-abs-ok > p:not(.mp-abs-ok-msg) { display: none; }
+.mp-abs-ok .mp-abs-ok-msg { display: block; margin: 0; font-size: 13px; font-weight: 700; color: #047857; }
+body.dark-mode .mp-abs-ok .mp-abs-ok-msg { color: var(--c-emerald-400, #34d399); }
+.mp-abs-ok-msg { display: none; }
+
+/* ---------- 20. Riwayat Jurnal (v24) ---------- */
+/* penyaring "Jurnal Saya" / "Semua Guru": dua tombol sama lebar, seperti tab */
+#journalList > div[style*="margin-bottom:14px"][style*="display:flex"] { display: flex !important; gap: 8px !important; flex-wrap: nowrap !important; }
+#journalList > div[style*="margin-bottom:14px"][style*="display:flex"] .btn { flex: 1 1 0; min-width: 0; min-height: 42px; padding: 6px 8px !important; font-size: 12.5px !important; line-height: 1.25; text-align: center; }
+/* kartu jurnal: sudut & latar seragam dengan kartu lain; milik sendiri = hijau satu nada, milik guru lain = netral */
+#journalList > div[style*="border-left:4px solid"] { padding: 11px 13px !important; border-radius: 12px !important; margin-bottom: 8px !important; border-top: 1px solid var(--mp-line); border-right: 1px solid var(--mp-line); border-bottom: 1px solid var(--mp-line); }
+#journalList > div[style*="background:#f0fdf4"] { background: linear-gradient(135deg, rgba(0, 107, 79, .10), rgba(0, 107, 79, .02)) !important; }
+#journalList > div[style*="background:#f9fafb"] { background: rgba(100, 116, 139, .06) !important; }
+#journalList .badge-tahfidz { display: inline-block; vertical-align: 1px; white-space: nowrap; }
+@media (max-width: 768px) {
+  /* judul memakai lebar penuh; lencana ("Guru Lain", Menunggu, tombol edit) turun ke baris sendiri di bawahnya */
+  #journalList > div[style*="border-left:4px solid"] > div { gap: 8px !important; }
+  #journalList > div[style*="border-left:4px solid"] > div > div:first-child { min-width: 0 !important; flex: 1 1 100% !important; }
+  #journalList > div[style*="border-left:4px solid"] > div > div:first-child > div:first-child { line-height: 1.4; }
+  #journalList > div[style*="border-left:4px solid"] > div > div:last-child { flex: 1 1 100%; padding-top: 8px; border-top: 1px dashed var(--mp-line); }
+  #journalList > div[style*="border-left:4px solid"] > div > div:last-child:empty { display: none; }
+  #journalList > div[style*="border-left:4px solid"] > div > div:last-child .btn { margin-left: 0; min-height: 36px !important; min-width: 44px; padding: 4px 12px !important; }
+  #journalList > div[style*="border-left:4px solid"] > div > div:last-child .btn-edit { margin-left: auto; }
+}
+
+/* ---------- 21. Menu samping, Nilai, Absensi (v25) ---------- */
+/* --- menu samping: panah grup = tertutup ▶, terbuka ▼ (sebelumnya tertutup ◀ dan terbuka ▲) --- */
+.sidebar-menu .menu-group-header .chevron { transform: rotate(180deg); }
+.sidebar-menu .menu-group.collapsed .menu-group-header .chevron { transform: rotate(90deg); }
+/* footer ringkas: Ganti PIN & Keluar berdampingan supaya "Keluar" tidak terpotong di layar pendek */
+.sidebar-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sidebar-footer > .user-info, .sidebar-footer > div[style] { grid-column: 1 / -1; }
+.sidebar-footer .ganti-pin-btn, .sidebar-footer .logout-btn { margin-top: 0 !important; min-height: 42px; padding: 8px 10px; font-size: 13px; background: rgba(255, 255, 255, .10); color: rgba(255, 255, 255, .9); }
+.sidebar-footer > div[style] { margin-top: 0 !important; }
+
+/* --- tab hub (mis. Nilai | Sikap Siswa): lebar dibagi rata --- */
+.hub-tabs.show .hub-tab { flex: 1 0 auto; text-align: center; justify-content: center; }
+
+/* --- Nilai --- */
+@media (max-width: 768px) {
+  /* Kelas | Semester sebaris, Mata Pelajaran selebar penuh (nama mapel panjang tidak terpotong) */
+  #page-grades .card > div[style*="flex-wrap:wrap"] { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px !important; }
+  #page-grades .card > div[style*="flex-wrap:wrap"] > div { min-width: 0 !important; }
+  #page-grades .card > div[style*="flex-wrap:wrap"] > div:nth-child(2) { grid-column: 1 / -1; order: 3; }
+  #page-grades .card > div[style*="flex-wrap:wrap"] > div:nth-child(3) { order: 2; }
+  /* tabel nilai: kolom Nama menempel di kiri, kotak isian lebih sempit supaya NH1-MID terlihat tanpa geser */
+  #gradesContainer table { border-collapse: separate; border-spacing: 0; }
+  #gradesContainer th, #gradesContainer td { padding: 6px 3px !important; text-align: center; }
+  #gradesContainer th:first-child, #gradesContainer td:first-child { position: sticky; left: 0; z-index: 2; width: 104px; min-width: 104px; max-width: 104px; text-align: left;
+    padding: 6px 8px 6px 4px !important; font-size: 11.5px !important; line-height: 1.3; white-space: normal !important; overflow-wrap: anywhere; box-sizing: border-box;
+    background: var(--mp-surface, #fff); box-shadow: 2px 0 0 var(--mp-line); }
+  #gradesContainer td:first-child { overflow: hidden; }
+  #gradesContainer th:first-child { background: var(--mp-surface, #fff); }
+  #gradesContainer .grade-input { width: 48px !important; min-height: 40px !important; padding: 4px 2px !important; text-align: center; font-size: 15px !important; border-radius: 10px; }
+  #btnSaveGrades { position: sticky; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); z-index: 50; display: flex; width: 100%; min-height: 48px; font-size: 15px !important; box-shadow: 0 6px 18px rgba(0, 107, 79, .28); }
+}
+
+/* --- Absensi --- */
+@media (max-width: 768px) {
+  /* Kelas | Tanggal sebaris (Simpan sudah dipindah ke bawah daftar) */
+  #page-attendance .card > div[style*="flex-wrap:wrap"] { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px !important; }
+  #page-attendance .card > div[style*="flex-wrap:wrap"] > div { min-width: 0 !important; }
+}
+#page-attendance .attendance-warning { padding: 10px 12px !important; margin-bottom: 10px; border-radius: 12px !important; border: 1px solid rgba(217, 119, 6, .28) !important;
+  border-left: 4px solid #d97706 !important; background: rgba(217, 119, 6, .07) !important; font-size: 12.5px !important; line-height: 1.6; color: inherit !important; }
+#page-attendance .attendance-warning * { color: inherit !important; }
+#page-attendance .attendance-warning strong { color: #b45309 !important; }
+body.dark-mode #page-attendance .attendance-warning strong { color: #fbbf24 !important; }
+/* tombol ganti mode: bukan tombol hijau besar lagi, cukup satu baris pilihan yang tenang */
+#page-attendance .card > div[style*="margin:8px 0"] > button { display: flex; width: 100%; justify-content: flex-start; line-height: 1.3; min-height: 40px !important; padding: 8px 12px !important; border-radius: 12px;
+  background: rgba(0, 107, 79, .08) !important; color: var(--mi-green, #006b4f) !important; border: 1px solid rgba(0, 107, 79, .22) !important; box-shadow: none !important; font-size: 12.5px !important; text-align: left; }
+body.dark-mode #page-attendance .card > div[style*="margin:8px 0"] > button { color: var(--c-emerald-400, #34d399) !important; }
+#attFastSummary { margin: 10px 0 8px !important; padding: 7px 10px; border-radius: 10px; background: rgba(100, 116, 139, .08); font-size: 12.5px !important; line-height: 1.5; }
+/* kotak siswa: nama boleh turun 2 baris (tidak dipotong "..."), tinggi seragam */
+#attFastGrid { gap: 6px !important; }
+#attFastGrid > button { min-height: 48px !important; padding: 6px 10px !important; border-radius: 12px !important; font-size: 12px !important; }
+#attFastGrid > button > strong { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; line-height: 1.25; }
+/* tombol "Isi Semua ...": rata 2 kolom */
+#attendanceList > div[style*="margin-top:12px"][style*="display:flex"] { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; margin-top: 14px !important; }
+#attendanceList > div[style*="margin-top:12px"][style*="display:flex"] > .btn { width: 100%; min-height: 42px !important; padding: 6px 8px !important; font-size: 12.5px !important; }
+#attendanceList > div[style*="margin-top:12px"][style*="display:flex"] > .btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+/* Simpan: di bawah daftar, menempel di atas navbar bawah (dipindah oleh menu-polish.js) */
+.mp-att-save { margin-top: 12px; }
+.mp-att-save .btn { width: 100%; min-height: 48px !important; font-size: 15px !important; }
+@media (max-width: 768px) {
+  .mp-att-save { position: sticky; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); z-index: 50; padding: 10px 0 8px;
+    background: linear-gradient(to top, var(--mp-surface, #fff) 70%, rgba(255, 255, 255, 0)); }
+  body.dark-mode .mp-att-save { background: linear-gradient(to top, var(--mp-surface, #1e293b) 70%, rgba(30, 41, 59, 0)); }
+}
+
+/* ---------- 22. Perapian tampilan HP: topbar, Amalan, Sikap, Slip Honor (v26) ---------- */
+/* chip tahun ajaran: bentuk pendek (26/27) di HP supaya topbar tetap satu baris */
+.status-badge .ta-short { display: none; }
+@media (max-width: 768px) {
+  .status-badge .ta-full { display: none; }
+  .status-badge .ta-short { display: inline; }
+  /* topbar: selalu SATU baris. Judul mengecil/dipotong "..." bila terlalu panjang, bukan lencana yang turun baris */
+  .topbar { flex-wrap: nowrap !important; align-items: center; gap: 8px; }
+  .topbar > div:first-child { flex: 1 1 auto; min-width: 0; gap: 8px !important; }
+  .topbar > div:first-child > div { min-width: 0; }
+  .topbar .page-title { font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .topbar-right { flex: 0 0 auto; gap: 6px; flex-wrap: nowrap; }
+  .topbar #tahunAjaranBadge { padding: 4px 9px; font-size: 11.5px; white-space: nowrap; }
+}
+
+/* kartu: garis aksen judul ikut setinggi judul bila judul turun 2 baris */
+.page-content > .card > h3:first-child::before { align-self: stretch; height: auto; min-height: 1.1em; }
+
+@media (max-width: 768px) {
+  /* judul halaman sudah ada di topbar -> jangan diulang di dalam kartu (Amalan & Slip Honor) */
+  #page-honor-slip > .card > h3:first-child { display: none; }
+  #page-activities-v4 .card > style + .v4-section-title { justify-content: flex-end; }
+  #page-activities-v4 .card > style + .v4-section-title h3 { display: none; }
+}
+
+/* Amalan: nama jenis berhuruf kapital di awal kata; tombol Klaim Petugas selebar kartu */
+.amalan-head h4 { text-transform: capitalize; }
+.mp-claim-btn { display: flex !important; width: 100% !important; justify-content: center; align-items: center; min-height: 44px; margin-top: 8px; }
+
+/* Sikap Siswa: tabel rekap muat layar HP (tanpa geser), baris kosong di kartu pertama dibuang */
+#sikapRekapArea > div[style*="overflow-x"] { overflow-x: visible !important; }
+#sikapRekapArea table { display: table !important; width: 100% !important; min-width: 0 !important; table-layout: auto; }
+#sikapRekapArea th, #sikapRekapArea td { padding: 7px 6px; font-size: 12.5px; overflow-wrap: anywhere; }
+#sikapRekapArea th { font-size: 11.5px; white-space: normal; }
+#sikapRekapArea th:not(:first-child), #sikapRekapArea td:not(:first-child) { text-align: center; white-space: nowrap; }
+#sikapFormArea:empty, #sikapRiwayatArea:empty { display: none; }
+#page-sikap-siswa .grid-3 > div:has(> #sikapTotalBadge:empty) { display: none; }
+#page-sikap-siswa #sikapRiwayatArea { margin-top: 10px !important; }
+
+/* Slip Honor: rincian selebar slip, nominal rata kanan, Bulan | Tahun sebaris */
+#honorSlipResult table { display: table !important; width: 100% !important; }
+#honorSlipResult table th { padding: 0 0 5px; font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--mp-sub); background: none !important; border-bottom: 1px solid var(--mp-line); }
+@media (max-width: 768px) {
+  #page-honor-slip .grid-3 { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px; }
+  #page-honor-slip .grid-3 > div:last-child { grid-column: 1 / -1; }
+}
+
+/* Rekap Absensi Sholat Siswa (Amalan): Kelas | Bulan | Tahun sebaris di HP (v27) */
+@media (max-width: 768px) {
+  #v4RekapReligiSiswa .amalan-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+  #v4RekapReligiSiswa .amalan-filters > div { min-width: 0 !important; }
+  #v4RekapReligiSiswa .amalan-filters .field { padding-left: 8px; padding-right: 6px; font-size: 13px; }
+}
+
+/* ---------- 23. Notification Center (v28) ---------- */
+#v4NotificationList .v4-notif { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 0 0 8px; border: 1px solid var(--mp-line); border-radius: var(--mp-radius-sm); background: var(--mp-surface); }
+#v4NotificationList .v4-notif-icon { flex: 0 0 auto; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(100, 116, 139, .10); font-size: 16px; }
+#v4NotificationList .v4-notif > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+#v4NotificationList .v4-notif.unread { border-left: 4px solid var(--mi-green, #006b4f); background: linear-gradient(135deg, rgba(0, 107, 79, .09), rgba(0, 107, 79, .02)); cursor: pointer; }
+#v4NotificationList .v4-notif:not(.unread) { opacity: .82; }
+@media (max-width: 768px) {
+  #page-notifications-v4 .v4-section-title { flex-wrap: wrap; gap: 8px; }
+  #page-notifications-v4 .v4-section-title .btn { width: 100%; min-height: 40px; }
+}
