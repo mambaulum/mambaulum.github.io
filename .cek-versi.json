@@ -1,6 +1,6 @@
 {
-  "appVersion": "v7.41",
-  "disimpan": "2026-10-17T12:55:36.979Z",
+  "appVersion": "v7.44",
+  "disimpan": "2026-10-17T12:56:09.795Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -89,6 +89,14 @@
     "js/rapat.js": {
       "v": "v=6",
       "hash": "eb208086e3d12622d72c7379df80fbd5bf62ca4f"
+    },
+    "js/data-pkg-mi.js": {
+      "v": "v=1",
+      "hash": "bdb3241404421382d218ae3ffa508b5ee43198dc"
+    },
+    "js/pkg.js": {
+      "v": "v=5",
+      "hash": "b2dbfc71dd35b490e1ee2935b4c39730cdb54f0e"
     },
     "js/data-tp-mi.js": {
       "v": "v=3",
