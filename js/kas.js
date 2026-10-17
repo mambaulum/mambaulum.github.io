@@ -76,7 +76,7 @@ const KAS_KATEGORI = {
     keluar: ['Kegiatan Siswa', 'Santunan & Sosial', 'Hadiah & Perlengkapan Siswa', 'Konsumsi Kegiatan', 'Lainnya']
   }
 };
-const KAS_NAMA_BUKU = { umum: 'Kas Umum', infaq: 'Kas Infaq' };
+const KAS_NAMA_BUKU = { umum: 'Kas Umum', infaq: 'Infaq' };
 const KAS_NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 let kasEditingKey = null;
 let kasBukuAktif = 'umum';                // buku yang dipakai tabel/PDF/Excel: 'umum' | 'infaq'
@@ -163,7 +163,7 @@ function kasSusunEntriBaru(buku) {
       perHari[tgl].total += nom; perHari[tgl].jumlah += 1;
     });
     Object.keys(perHari).forEach(tgl => rows.push({
-      key: 'auto_' + tgl, tanggal: tgl, jenis: 'masuk', kategori: 'Infaq Mingguan',
+      key: 'auto_' + tgl, tanggal: tgl, jenis: 'masuk', kategori: 'Infaq',
       uraian: `Infaq mingguan siswa (${perHari[tgl].jumlah} pembayaran)`, buktiNo: '',
       nominal: perHari[tgl].total, otomatis: true, urut: tgl + 'T23:59:59'
     }));
@@ -260,8 +260,8 @@ function kasUpdateHeader() {
   if (!intro) return;
   if (setoran) { intro.textContent = setoranIntroTeks(); return; }
   const uraianBuku = kasBukuAktif === 'infaq'
-    ? 'Kas Infaq: pemasukan otomatis dari Infaq Mingguan siswa; pengeluaran khusus infaq (kegiatan siswa, sosial, dll.) dicatat di sini. Saldonya terpisah dari Kas Umum.'
-    : 'Kas Umum: Dana BOS, bantuan, donasi, dan pengeluaran operasional madrasah. Infaq siswa TIDAK termasuk — lihat tab Kas Infaq.';
+    ? 'Infaq: pemasukan otomatis dari infaq siswa (menu Infaq); pengeluaran khusus infaq (kegiatan siswa, sosial, dll.) dicatat di sini. Saldonya terpisah dari Kas Umum.'
+    : 'Kas Umum: Dana BOS, bantuan, donasi, dan pengeluaran operasional madrasah. Infaq siswa TIDAK termasuk — lihat tab Infaq.';
   intro.textContent = uraianBuku + (kasCanEdit() ? '' : ' (Lihat & unduh saja; pencatatan dilakukan oleh Admin.)');
 }
 function kasPilihBuku(buku) {
@@ -685,7 +685,7 @@ function setoranIntroTeks() {
   if (isAdmin()) awal = 'Catat dan pantau setoran infaq tiap kelas ke Bendahara madrasah, per rentang tanggal dalam satu semester.';
   else if (isKepsek()) awal = 'Pantau setoran infaq tiap kelas ke Bendahara madrasah (lihat saja).';
   else awal = `Catat setoran infaq kelas ${infaqMyKelasList().join(', ')} ke Bendahara madrasah, per rentang tanggal dalam satu semester.`;
-  return awal + ' Jumlah terkumpul dihitung otomatis dari Infaq Mingguan. Setoran tidak menambah saldo Kas Infaq (infaq sudah otomatis masuk ke sana), hanya untuk mencocokkan uang terkumpul dengan yang disetor.';
+  return awal + ' Jumlah terkumpul dihitung otomatis dari menu Infaq. Setoran tidak menambah saldo Infaq (infaq sudah otomatis masuk ke sana), hanya untuk mencocokkan uang terkumpul dengan yang disetor.';
 }
 
 // =====================================================
@@ -1111,7 +1111,7 @@ function setoranOnRentangChange() {
   const t = setoranHitungTerkumpul(kelas, dari, sampai);
   const terkumpulSem = setoranHitungTerkumpul(kelas, r.dari, setoranBatasSampai(sem)).total;
   const sudah = setoranTotalDisetor(kelas, sem, setoranEditingKey);
-  info.innerHTML = `Infaq lunas tercatat pada rentang ini: <strong>${kasRp(t.total)}</strong> (${t.jumlah} pembayaran).<br>Total semester ${sem} untuk ${escapeHtml(kelas)}: terkumpul ${kasRp(terkumpulSem)} • sudah disetor ${kasRp(sudah)}${setoranEditingKey ? ' (tidak termasuk setoran yang sedang diubah)' : ''} • belum disetor <strong>${kasRp(terkumpulSem - sudah)}</strong>.${t.tanpaTanggal ? `<br><span style="color:#b45309;">⚠️ ${t.tanpaTanggal} pembayaran infaq kelas ini tidak punya tanggal terbaca sehingga tidak terhitung — periksa di menu Infaq Mingguan.</span>` : ''}`;
+  info.innerHTML = `Infaq lunas tercatat pada rentang ini: <strong>${kasRp(t.total)}</strong> (${t.jumlah} pembayaran).<br>Total semester ${sem} untuk ${escapeHtml(kelas)}: terkumpul ${kasRp(terkumpulSem)} • sudah disetor ${kasRp(sudah)}${setoranEditingKey ? ' (tidak termasuk setoran yang sedang diubah)' : ''} • belum disetor <strong>${kasRp(terkumpulSem - sudah)}</strong>.${t.tanpaTanggal ? `<br><span style="color:#b45309;">⚠️ ${t.tanpaTanggal} pembayaran infaq kelas ini tidak punya tanggal terbaca sehingga tidak terhitung — periksa di menu Infaq.</span>` : ''}`;
   const nomEl = kasEl('setoranNominal');
   if (nomEl && !setoranNominalManual) nomEl.value = t.total > 0 ? t.total : '';
   setoranUpdateSelisih();

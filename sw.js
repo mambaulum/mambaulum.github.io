@@ -38,7 +38,7 @@
    js/kredensial.js, js/ttd-digital.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.37';
+const APP_VERSION = 'v7.41';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -65,12 +65,12 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './css/styles.css?v=21',
-  './css/menu-polish.css?v=30',              // samakan dengan ?v= di index.html
+  './css/menu-polish.css?v=32',              // samakan dengan ?v= di index.html
   './js/logo-fallback.js',
   './js/offline-db.js',
-  './js/kas.js?v=8',
+  './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=3',
-  './js/app.js?v=82',
+  './js/app.js?v=86',
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=3',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
@@ -91,7 +91,7 @@ const PRECACHE_URLS = [
   './js/modul-ajar.js?v=14',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
-  './js/tunggakan-infaq.js?v=7',
+  './js/tunggakan-infaq.js?v=10',
   './js/auto-logout.js?v=4',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=2',

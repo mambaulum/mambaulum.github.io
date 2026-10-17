@@ -434,7 +434,7 @@ function tunggakanRender() {
       ? '<div style="font-size:12px;color:#065f46;">🎉 Tidak ada tunggakan pada rentang ini.</div>'
       : `<div style="font-size:12px;color:#78350f;margin-bottom:8px;"><strong>${baris.length}</strong> siswa menunggak • <strong>${totMinggu}</strong> minggu${adaTanpaNominal ? '' : ` • perkiraan <strong>${iuranRp(totRp)}</strong>`}</div>
          <div style="overflow-x:auto;"><table><thead><tr><th>Siswa</th><th style="text-align:center;">Tunggakan</th><th>Minggu</th><th style="text-align:right;">Perkiraan</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-         ${adaTanpaNominal ? '<div style="font-size:10px;color:#b45309;margin-top:4px;">⚠️ Nominal iuran standar belum diatur, jadi Rp tidak dihitung.</div>' : `<div style="font-size:10px;color:#6b7280;margin-top:4px;">${tgCatatanNominal()}${baris.some(b => b.bervariasi) ? ' Tanda ≈ = nominal berubah di antara minggu-minggu itu.' : ''}</div>`}`}
+         ${adaTanpaNominal ? '<div style="font-size:10px;color:#b45309;margin-top:4px;">⚠️ Nominal infaq standar belum diatur, jadi Rp tidak dihitung.</div>' : `<div style="font-size:10px;color:#6b7280;margin-top:4px;">${tgCatatanNominal()}${baris.some(b => b.bervariasi) ? ' Tanda ≈ = nominal berubah di antara minggu-minggu itu.' : ''}</div>`}`}
     ${kosongKal}
   </div>`;
   try { kelunasanRender(); } catch (e) { console.error('[SI MAMBA] kelunasanRender gagal:', e); }
@@ -596,6 +596,275 @@ async function tunggakanExportExcel() {
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Per Siswa'); XLSX.utils.book_append_sheet(wb, ws2, 'Per Kelas');
   XLSX.writeFile(wb, `${tgSlug()}.xlsx`); toast('📥 Excel Tunggakan Infaq berhasil diunduh!');
   try { addLog('unduh_tunggakan_infaq', `Excel - ${tgLabelKelas()} - ${d.baris.length} siswa`); } catch (e) { /* log best-effort */ }
+}
+
+// ============================================================
+// EKSPOR TAGIHAN INFAQ BULANAN (tab "Tagihan Bulanan" di halaman Infaq) -- PDF & Excel.
+// Data dari infaqHitungBulan() / infaqBulanDipilih() (app.js), jadi angkanya sama dengan layar.
+// Mengikuti kelas & bulan yang sedang dipilih; "Semua Kelas" (Admin) = ringkasan + satu tabel per kelas.
+// Hak akses sama dengan Tunggakan: Admin, petugas infaq (kelasnya saja), Kepala Madrasah.
+// ============================================================
+function tagihanBulanCanExport() { return !!currentUser && (infaqCanAccess() || isKepsek()); }
+function tbDataAktif() {
+  const b = infaqBulanDipilih();
+  const sel = document.getElementById('infaqKelas');
+  const pilih = sel ? sel.value : '';
+  const semuaBoleh = isAdmin() || isKepsek();
+  const milik = semuaBoleh ? [...KELAS_LIST] : infaqMyKelasList();
+  const semuaKelas = (!pilih || pilih === 'ALL');
+  let kelasList = semuaKelas ? milik : [pilih].filter(k => milik.includes(k));
+  const per = kelasList.map(k => Object.assign({ kelas: k }, infaqHitungBulan(k, b.weeks)))
+    .filter(p => p.rows.length > 0 || p.gratis.length > 0);
+  const tot = per.reduce((a, p) => ({ tagihan: a.tagihan + p.tot.tagihan, terbayar: a.terbayar + p.tot.terbayar, kurang: a.kurang + p.tot.kurang, penuh: a.penuh + p.tot.penuh, siswa: a.siswa + p.rows.length, gratis: a.gratis + p.gratis.length }), { tagihan: 0, terbayar: 0, kurang: 0, penuh: 0, siswa: 0, gratis: 0 });
+  const label = (semuaKelas && per.length !== 1) ? 'Semua Kelas' : (per[0] ? per[0].kelas : (pilih || '-'));
+  const slug = 'Tagihan_Infaq_' + b.label.replace(/\s+/g, '_') + '_' + label.replace(/[^A-Za-z0-9]+/g, '_');
+  return { b, per, tot, label, slug, nominalBelum: iuranNominalStandar() === null };
+}
+function tbKeteranganMinggu(b) { return b.weeks.map((w, i) => `Mg ${i + 1} = ${infaqMingguPendek(w)}`).join('; '); }
+function tbCatatan(d) {
+  return 'V = lunas, - = belum. Tagihan = yang sudah dibayar (nominal saat dibayar) + sisa minggu x nominal siswa saat ini.' +
+    (d.tot.gratis ? ` ${d.tot.gratis} siswa gratis tidak ditagih.` : '') + (d.nominalBelum ? ' Nominal standar belum diatur, sebagian tagihan tidak dihitung.' : '');
+}
+async function tagihanBulanExportPDF() {
+  if (!tagihanBulanCanExport()) return toast('Tidak diizinkan!', true);
+  const d = tbDataAktif();
+  if (!d.per.length || d.tot.siswa === 0) return toast('Tidak ada siswa yang ditagih untuk diekspor.', true);
+  try { await ensureLib('pdf'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul PDF', e); return toast('❌ Modul PDF belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true }); const pw = doc.internal.pageSize.getWidth();
+  if (typeof doc.autoTable !== 'function') { console.error('[SI MAMBA] jspdf-autotable tidak tersedia setelah ensureLib("pdf")'); return toast('❌ Modul tabel PDF (autotable) belum termuat. Muat ulang halaman lalu coba lagi.', true); }
+  const logoData = await v4LoadLogoForPdf();
+  const offY = MADRASAH.nsm ? 5 : 0;
+  v4TambahLogoKeKopPdf(doc, logoData, offY);
+  kopTeksPdf(doc, MADRASAH.nama, 20, 16, pw);
+  doc.setFontSize(10);
+  if (MADRASAH.nsm) kopTeksPdf(doc, `NSM: ${MADRASAH.nsm}`, 25, 10, pw, true);
+  kopTeksPdf(doc, MADRASAH.alamat, 27 + offY, 10, pw);
+  const kontak = [MADRASAH.telp ? 'Telp. ' + MADRASAH.telp : '', MADRASAH.email || '', MADRASAH.website || ''].filter(Boolean).join(' | ');
+  if (kontak) kopTeksPdf(doc, kontak, 33 + offY, 10, pw);
+  doc.setDrawColor(0); doc.setLineWidth(0.5);
+  doc.line(15, 38 + offY, pw - 15, 38 + offY); doc.line(15, 40 + offY, pw - 15, 40 + offY);
+  let y = 49 + offY;
+  doc.setFontSize(14); doc.text('TAGIHAN INFAQ BULANAN', pw / 2, y, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text(`${d.b.label} - ${d.label} - Tahun Ajaran ${currentTahunAjaran}`, pw / 2, y + 6, { align: 'center' });
+  doc.setFontSize(8); doc.setTextColor(90);
+  doc.text(tbKeteranganMinggu(d.b), pw / 2, y + 11, { align: 'center', maxWidth: pw - 30 });
+  doc.setTextColor(0);
+  const gaya = { theme: 'grid', showFoot: 'lastPage', styles: { fontSize: 8, cellPadding: 1.5 }, headStyles: { fillColor: [0, 107, 79], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' }, footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' }, margin: { left: 15, right: 15 } };
+  const rp = n => (n === null ? '-' : iuranRp(n));
+  let startY = y + 16;
+  if (d.per.length > 1) {
+    doc.autoTable(Object.assign({}, gaya, {
+      startY, head: [['Kelas', 'Siswa', 'Lunas Penuh', 'Tagihan', 'Terkumpul', 'Kurang']],
+      body: d.per.map(p => [p.kelas, String(p.rows.length), String(p.tot.penuh), iuranRp(p.tot.tagihan), iuranRp(p.tot.terbayar), iuranRp(p.tot.kurang)]),
+      foot: [['TOTAL', String(d.tot.siswa), String(d.tot.penuh), iuranRp(d.tot.tagihan), iuranRp(d.tot.terbayar), iuranRp(d.tot.kurang)]],
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } }
+    }));
+    startY = doc.lastAutoTable.finalY + 8;
+  }
+  const n = d.b.weeks.length;
+  const colStyles = { 0: { cellWidth: 8, halign: 'center' } };
+  for (let i = 0; i < n; i++) colStyles[2 + i] = { cellWidth: 10, halign: 'center' };
+  [n + 2, n + 3, n + 4].forEach(i => { colStyles[i] = { cellWidth: 21, halign: 'right' }; });
+  d.per.forEach(p => {
+    if (p.rows.length === 0) return;
+    if (startY > 255) { doc.addPage(); startY = 20; }
+    doc.setFontSize(10); doc.setFont(undefined, 'bold'); doc.text(`${p.kelas}${infaqPetugasNama(p.kelas) ? ' (Petugas: ' + infaqPetugasNama(p.kelas) + ')' : ''}`, 15, startY);
+    doc.setFont(undefined, 'normal');
+    doc.autoTable(Object.assign({}, gaya, {
+      startY: startY + 2,
+      head: [['No', 'Nama Siswa'].concat(d.b.weeks.map((w, i) => 'Mg ' + (i + 1)), ['Tagihan', 'Terbayar', 'Kurang'])],
+      body: p.rows.map((r, i) => [String(i + 1), r.s.name].concat(d.b.weeks.map(w => r.lunasMg[w] ? 'V' : '-'), [rp(r.tagihan), iuranRp(r.terbayar), r.penuh ? 'Lunas' : rp(r.kurang)])),
+      foot: [['', 'TOTAL'].concat(d.b.weeks.map(() => ''), [iuranRp(p.tot.tagihan), iuranRp(p.tot.terbayar), iuranRp(p.tot.kurang)])],
+      columnStyles: colStyles
+    }));
+    startY = doc.lastAutoTable.finalY + 8;
+  });
+  let yc = startY - 3;
+  if (yc > 270) { doc.addPage(); yc = 20; }
+  doc.setFontSize(8); doc.setTextColor(100);
+  doc.text(tbCatatan(d), 15, yc, { maxWidth: pw - 30 });
+  doc.setTextColor(0);
+  let ySign = yc + 12;
+  if (ySign > 235) { doc.addPage(); ySign = 20; }
+  const xKiri = 50, xKanan = pw - 50;
+  // Penandatangan kiri: Petugas Infaq bila satu kelas yang punya petugas; selain itu Bendahara Madrasah.
+  const petugasKelas = d.per.length === 1 ? infaqPetugasNama(d.per[0].kelas) : null;
+  const kiri = petugasKelas ? { nama: petugasKelas, jabatan: 'Petugas Infaq ' + d.per[0].kelas, nip: '', jenis: 'umum' }
+    : { nama: MADRASAH.bendahara || '', jabatan: 'Bendahara Madrasah', nip: MADRASAH.nip_bendahara || '', jenis: 'bendahara' };
+  doc.setFontSize(10);
+  doc.text('Dibuat oleh,', xKiri, ySign, { align: 'center' }); doc.text(kiri.jabatan, xKiri, ySign + 5, { align: 'center' });
+  doc.text('Mengetahui,', xKanan, ySign, { align: 'center' }); doc.text('Kepala Madrasah', xKanan, ySign + 5, { align: 'center' });
+  // Tanda tangan QR / gambar (js/ttd-digital.js) -- dilewati bila modulnya belum termuat
+  if (typeof TTD !== 'undefined' && TTD && typeof TTD.tandai === 'function') {
+    const meta = { jenis: 'Tagihan Infaq Bulanan', ket: `${d.b.label} | ${d.label}` };
+    try {
+      if (kiri.nama) await TTD.tandai(doc, kiri.jenis, xKiri, ySign + 7, { lebar: 32, tinggiMaks: 20, meta: Object.assign({ nama: kiri.nama, jabatan: kiri.jabatan, nip: kiri.nip }, meta) });
+      await TTD.tandai(doc, 'kepala', xKanan, ySign + 7, { lebar: 32, tinggiMaks: 20, hanyaPimpinan: true, meta: Object.assign({ nama: MADRASAH.kepala_sekolah || '', jabatan: 'Kepala Madrasah', nip: MADRASAH.nip_kepala_sekolah || '' }, meta) });
+    } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Tagihan Infaq:', e); }
+  }
+  const yNama = ySign + 31;
+  doc.text(kiri.nama || '(............................)', xKiri, yNama, { align: 'center' });
+  if (kiri.nama && kiri.nip) doc.text('NIP. ' + kiri.nip, xKiri, yNama + 5, { align: 'center' });
+  doc.text(MADRASAH.kepala_sekolah || '', xKanan, yNama, { align: 'center' });
+  if (MADRASAH.nip_kepala_sekolah) doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, xKanan, yNama + 5, { align: 'center' });
+  doc.setFontSize(8); doc.setTextColor(120);
+  doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 15, doc.internal.pageSize.getHeight() - 8);
+  doc.save(`${d.slug}.pdf`); toast('📥 PDF Tagihan Infaq berhasil diunduh!');
+  try { addLog('unduh_tagihan_infaq', `PDF - ${d.b.label} - ${d.label} - ${d.tot.siswa} siswa`); } catch (e) { /* log best-effort */ }
+}
+async function tagihanBulanExportExcel() {
+  if (!tagihanBulanCanExport()) return toast('Tidak diizinkan!', true);
+  const d = tbDataAktif();
+  if (!d.per.length || d.tot.siswa === 0) return toast('Tidak ada siswa yang ditagih untuk diekspor.', true);
+  try { await ensureLib('xlsx'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul Excel', e); return toast('❌ Modul Excel belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
+  if (typeof XLSX === 'undefined' || !XLSX.utils) return toast('❌ Modul Excel belum termuat. Muat ulang halaman lalu coba lagi.', true);
+  const judul = [[MADRASAH.nama || ''], ['TAGIHAN INFAQ BULANAN'], [`${d.b.label} - ${d.label} - Tahun Ajaran ${currentTahunAjaran}`], [tbKeteranganMinggu(d.b)], []];
+  const aoa1 = judul.concat([['No', 'Kelas', 'Nama Siswa'].concat(d.b.weeks.map((w, i) => 'Mg ' + (i + 1) + ' (' + infaqMingguPendek(w) + ')'), ['Tagihan', 'Terbayar', 'Kurang', 'Status'])]);
+  let no = 0;
+  d.per.forEach(p => p.rows.forEach(r => {
+    no++;
+    aoa1.push([no, p.kelas, r.s.name].concat(d.b.weeks.map(w => r.lunasMg[w] ? 'Lunas' : ''), [r.tagihan === null ? '' : r.tagihan, r.terbayar, r.kurang === null ? '' : r.kurang, r.penuh ? 'Lunas penuh' : 'Kurang']));
+  }));
+  aoa1.push(['', '', 'TOTAL'].concat(d.b.weeks.map(() => ''), [d.tot.tagihan, d.tot.terbayar, d.tot.kurang, '']));
+  const aoa2 = judul.concat([['Kelas', 'Petugas', 'Siswa', 'Lunas Penuh', 'Tagihan', 'Terkumpul', 'Kurang']]);
+  d.per.forEach(p => aoa2.push([p.kelas, infaqPetugasNama(p.kelas) || '', p.rows.length, p.tot.penuh, p.tot.tagihan, p.tot.terbayar, p.tot.kurang]));
+  aoa2.push(['TOTAL', '', d.tot.siswa, d.tot.penuh, d.tot.tagihan, d.tot.terbayar, d.tot.kurang]);
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa1), ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws1['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 28 }].concat(d.b.weeks.map(() => ({ wch: 16 })), [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }]);
+  ws2['!cols'] = [{ wch: 14 }, { wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Per Siswa'); XLSX.utils.book_append_sheet(wb, ws2, 'Per Kelas');
+  XLSX.writeFile(wb, `${d.slug}.xlsx`); toast('📥 Excel Tagihan Infaq berhasil diunduh!');
+  try { addLog('unduh_tagihan_infaq', `Excel - ${d.b.label} - ${d.label} - ${d.tot.siswa} siswa`); } catch (e) { /* log best-effort */ }
+}
+
+// ============================================================
+// EKSPOR REKAP INFAQ PER MINGGU (kartu "Rekap Infaq per Minggu" di halaman Infaq) -- PDF & Excel.
+// Isi = riwayat semua minggu yang ada datanya, per kelas (angka sama dengan kartu di layar: siswa gratis tidak
+// dihitung). Mengikuti pilihan kelas; "Semua Kelas" (Admin/Kepala Madrasah) = semua kelas sekaligus.
+// Tidak bergantung pada pilihan minggu/bulan di atas.
+// ============================================================
+function rekapMingguCanExport() { return !!currentUser && (infaqCanAccess() || isKepsek()); }
+function rkDataAktif() {
+  const sel = document.getElementById('infaqKelas');
+  const pilih = sel ? sel.value : '';
+  const semuaBoleh = isAdmin() || isKepsek();
+  const milik = semuaBoleh ? [...KELAS_LIST] : infaqMyKelasList();
+  const semuaKelas = (!pilih || pilih === 'ALL');
+  const kelasList = semuaKelas ? milik : [pilih].filter(k => milik.includes(k));
+  const baris = [], ring = [];
+  kelasList.forEach(kelas => {
+    const wajib = new Set(allSiswa.filter(s => s.kelas === kelas && !iuranGratis(s)).map(s => s.key));
+    const byMinggu = {};
+    allInfaqSiswa.filter(it => it.kelas === kelas).forEach(it => {
+      if (!byMinggu[it.minggu]) byMinggu[it.minggu] = { total: 0, lunas: 0 };
+      byMinggu[it.minggu].total += (it.nominal || 0);
+      if (wajib.has(it.siswaKey)) byMinggu[it.minggu].lunas += 1;
+    });
+    const mingguList = Object.keys(byMinggu).sort().reverse();
+    let total = 0, lunas = 0;
+    mingguList.forEach(mg => {
+      baris.push({ kelas, minggu: mg, label: mingguLabel(mg), lunas: byMinggu[mg].lunas, siswa: wajib.size, total: byMinggu[mg].total });
+      total += byMinggu[mg].total; lunas += byMinggu[mg].lunas;
+    });
+    ring.push({ kelas, siswa: wajib.size, minggu: mingguList.length, lunas, slot: wajib.size * mingguList.length, total });
+  });
+  const tot = ring.reduce((a, r) => ({ total: a.total + r.total, lunas: a.lunas + r.lunas, slot: a.slot + r.slot, minggu: a.minggu + r.minggu }), { total: 0, lunas: 0, slot: 0, minggu: 0 });
+  const label = (semuaKelas && kelasList.length !== 1) ? 'Semua Kelas' : (kelasList[0] || pilih || '-');
+  const slug = 'Rekap_Infaq_per_Minggu_' + label.replace(/[^A-Za-z0-9]+/g, '_') + '_' + String(currentTahunAjaran).replace('/', '-');
+  return { kelasList, baris, ring, tot, label, slug };
+}
+function rkPct(lunas, slot) { return slot > 0 ? Math.round(lunas / slot * 100) + '%' : '-'; }
+async function rekapMingguExportPDF() {
+  if (!rekapMingguCanExport()) return toast('Tidak diizinkan!', true);
+  const d = rkDataAktif();
+  if (!d.baris.length) return toast('Belum ada riwayat infaq untuk diekspor.', true);
+  try { await ensureLib('pdf'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul PDF', e); return toast('❌ Modul PDF belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true }); const pw = doc.internal.pageSize.getWidth();
+  if (typeof doc.autoTable !== 'function') { console.error('[SI MAMBA] jspdf-autotable tidak tersedia setelah ensureLib("pdf")'); return toast('❌ Modul tabel PDF (autotable) belum termuat. Muat ulang halaman lalu coba lagi.', true); }
+  const logoData = await v4LoadLogoForPdf();
+  const offY = MADRASAH.nsm ? 5 : 0;
+  v4TambahLogoKeKopPdf(doc, logoData, offY);
+  kopTeksPdf(doc, MADRASAH.nama, 20, 16, pw);
+  doc.setFontSize(10);
+  if (MADRASAH.nsm) kopTeksPdf(doc, `NSM: ${MADRASAH.nsm}`, 25, 10, pw, true);
+  kopTeksPdf(doc, MADRASAH.alamat, 27 + offY, 10, pw);
+  const kontak = [MADRASAH.telp ? 'Telp. ' + MADRASAH.telp : '', MADRASAH.email || '', MADRASAH.website || ''].filter(Boolean).join(' | ');
+  if (kontak) kopTeksPdf(doc, kontak, 33 + offY, 10, pw);
+  doc.setDrawColor(0); doc.setLineWidth(0.5);
+  doc.line(15, 38 + offY, pw - 15, 38 + offY); doc.line(15, 40 + offY, pw - 15, 40 + offY);
+  let y = 49 + offY;
+  doc.setFontSize(14); doc.text('REKAP INFAQ PER MINGGU', pw / 2, y, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text(`Tahun Ajaran ${currentTahunAjaran} - ${d.label}`, pw / 2, y + 6, { align: 'center' });
+  const gaya = { theme: 'grid', showFoot: 'lastPage', styles: { fontSize: 8, cellPadding: 1.5 }, headStyles: { fillColor: [0, 107, 79], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' }, footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' }, margin: { left: 15, right: 15 } };
+  let startY = y + 11;
+  if (d.ring.length > 1) {
+    doc.autoTable(Object.assign({}, gaya, {
+      startY, head: [['Kelas', 'Siswa Wajib', 'Minggu Tercatat', 'Kepatuhan', 'Total Infaq Masuk']],
+      body: d.ring.map(r => [r.kelas, String(r.siswa), String(r.minggu), rkPct(r.lunas, r.slot), iuranRp(r.total)]),
+      foot: [['TOTAL', '', String(d.tot.minggu), rkPct(d.tot.lunas, d.tot.slot), iuranRp(d.tot.total)]],
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'right' } }
+    }));
+    startY = doc.lastAutoTable.finalY + 8;
+  }
+  doc.autoTable(Object.assign({}, gaya, {
+    startY, head: [['No', 'Kelas', 'Minggu', 'Siswa Lunas', 'Kepatuhan', 'Infaq Masuk']],
+    body: d.baris.map((b, i) => [String(i + 1), b.kelas, b.label, `${b.lunas} / ${b.siswa}`, rkPct(b.lunas, b.siswa), iuranRp(b.total)]),
+    foot: [['', '', 'TOTAL', `${d.tot.lunas} / ${d.tot.slot}`, rkPct(d.tot.lunas, d.tot.slot), iuranRp(d.tot.total)]],
+    columnStyles: { 0: { cellWidth: 9, halign: 'center' }, 1: { cellWidth: 22 }, 3: { cellWidth: 26, halign: 'center' }, 4: { cellWidth: 22, halign: 'center' }, 5: { cellWidth: 30, halign: 'right' } }
+  }));
+  let yc = doc.lastAutoTable.finalY + 5;
+  if (yc > 270) { doc.addPage(); yc = 20; }
+  doc.setFontSize(8); doc.setTextColor(100);
+  doc.text('Siswa gratis tidak dihitung pada kolom siswa lunas dan kepatuhan. Infaq masuk = jumlah nominal yang tercatat lunas pada minggu itu.', 15, yc, { maxWidth: pw - 30 });
+  doc.setTextColor(0);
+  let ySign = yc + 12;
+  if (ySign > 235) { doc.addPage(); ySign = 20; }
+  const xKiri = 50, xKanan = pw - 50;
+  const petugasKelas = d.kelasList.length === 1 ? infaqPetugasNama(d.kelasList[0]) : null;
+  const kiri = petugasKelas ? { nama: petugasKelas, jabatan: 'Petugas Infaq ' + d.kelasList[0], nip: '', jenis: 'umum' }
+    : { nama: MADRASAH.bendahara || '', jabatan: 'Bendahara Madrasah', nip: MADRASAH.nip_bendahara || '', jenis: 'bendahara' };
+  doc.setFontSize(10);
+  doc.text('Dibuat oleh,', xKiri, ySign, { align: 'center' }); doc.text(kiri.jabatan, xKiri, ySign + 5, { align: 'center' });
+  doc.text('Mengetahui,', xKanan, ySign, { align: 'center' }); doc.text('Kepala Madrasah', xKanan, ySign + 5, { align: 'center' });
+  // Tanda tangan QR / gambar (js/ttd-digital.js) -- dilewati bila modulnya belum termuat
+  if (typeof TTD !== 'undefined' && TTD && typeof TTD.tandai === 'function') {
+    const meta = { jenis: 'Rekap Infaq per Minggu', ket: `TA ${currentTahunAjaran} | ${d.label}` };
+    try {
+      if (kiri.nama) await TTD.tandai(doc, kiri.jenis, xKiri, ySign + 7, { lebar: 32, tinggiMaks: 20, meta: Object.assign({ nama: kiri.nama, jabatan: kiri.jabatan, nip: kiri.nip }, meta) });
+      await TTD.tandai(doc, 'kepala', xKanan, ySign + 7, { lebar: 32, tinggiMaks: 20, hanyaPimpinan: true, meta: Object.assign({ nama: MADRASAH.kepala_sekolah || '', jabatan: 'Kepala Madrasah', nip: MADRASAH.nip_kepala_sekolah || '' }, meta) });
+    } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Rekap Infaq:', e); }
+  }
+  const yNama = ySign + 31;
+  doc.text(kiri.nama || '(............................)', xKiri, yNama, { align: 'center' });
+  if (kiri.nama && kiri.nip) doc.text('NIP. ' + kiri.nip, xKiri, yNama + 5, { align: 'center' });
+  doc.text(MADRASAH.kepala_sekolah || '', xKanan, yNama, { align: 'center' });
+  if (MADRASAH.nip_kepala_sekolah) doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, xKanan, yNama + 5, { align: 'center' });
+  doc.setFontSize(8); doc.setTextColor(120);
+  doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 15, doc.internal.pageSize.getHeight() - 8);
+  doc.save(`${d.slug}.pdf`); toast('📥 PDF Rekap Infaq berhasil diunduh!');
+  try { addLog('unduh_rekap_infaq', `PDF - ${d.label} - ${d.baris.length} baris`); } catch (e) { /* log best-effort */ }
+}
+async function rekapMingguExportExcel() {
+  if (!rekapMingguCanExport()) return toast('Tidak diizinkan!', true);
+  const d = rkDataAktif();
+  if (!d.baris.length) return toast('Belum ada riwayat infaq untuk diekspor.', true);
+  try { await ensureLib('xlsx'); } catch (e) { console.error('[SI MAMBA] Gagal memuat modul Excel', e); return toast('❌ Modul Excel belum bisa dimuat. Cek koneksi internet lalu coba lagi.', true); }
+  if (typeof XLSX === 'undefined' || !XLSX.utils) return toast('❌ Modul Excel belum termuat. Muat ulang halaman lalu coba lagi.', true);
+  const judul = [[MADRASAH.nama || ''], ['REKAP INFAQ PER MINGGU'], [`Tahun Ajaran ${currentTahunAjaran} - ${d.label}`], []];
+  const aoa1 = judul.concat([['No', 'Kelas', 'Minggu', 'Kode Minggu', 'Siswa Lunas', 'Siswa Wajib', 'Kepatuhan', 'Infaq Masuk']]);
+  d.baris.forEach((b, i) => aoa1.push([i + 1, b.kelas, b.label, b.minggu, b.lunas, b.siswa, b.siswa > 0 ? Math.round(b.lunas / b.siswa * 100) / 100 : '', b.total]));
+  aoa1.push(['', '', 'TOTAL', '', d.tot.lunas, d.tot.slot, d.tot.slot > 0 ? Math.round(d.tot.lunas / d.tot.slot * 100) / 100 : '', d.tot.total]);
+  const aoa2 = judul.concat([['Kelas', 'Petugas', 'Siswa Wajib', 'Minggu Tercatat', 'Kepatuhan', 'Total Infaq Masuk']]);
+  d.ring.forEach(r => aoa2.push([r.kelas, infaqPetugasNama(r.kelas) || '', r.siswa, r.minggu, r.slot > 0 ? Math.round(r.lunas / r.slot * 100) / 100 : '', r.total]));
+  aoa2.push(['TOTAL', '', '', d.tot.minggu, d.tot.slot > 0 ? Math.round(d.tot.lunas / d.tot.slot * 100) / 100 : '', d.tot.total]);
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa1), ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws1['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }];
+  ws2['!cols'] = [{ wch: 14 }, { wch: 24 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 18 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Per Minggu'); XLSX.utils.book_append_sheet(wb, ws2, 'Per Kelas');
+  XLSX.writeFile(wb, `${d.slug}.xlsx`); toast('📥 Excel Rekap Infaq berhasil diunduh!');
+  try { addLog('unduh_rekap_infaq', `Excel - ${d.label} - ${d.baris.length} baris`); } catch (e) { /* log best-effort */ }
 }
 
 // ============================================================

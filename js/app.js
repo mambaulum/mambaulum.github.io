@@ -3011,7 +3011,7 @@
       document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
       const bottomItem = document.querySelector(`.bottom-nav-item[data-bottom-page="${page}"]`);
       if (bottomItem) bottomItem.classList.add('active');
-      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Sholat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Madrasah', rekap:'Ringkasan Sekolah', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan Resmi', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Iuran Mingguan', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
+      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Sholat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Madrasah', rekap:'Ringkasan Sekolah', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan Resmi', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Infaq', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
       document.getElementById('pageTitle').innerHTML = titleMap[page] || 'Dashboard';
       if (window.innerWidth <= 768) { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
       flushRenderTertunda(page); // render yang ditunda saat halaman ini tersembunyi (lihat renderAll)
@@ -8078,8 +8078,25 @@
       if (isAdmin()) return false;
       return (Date.now() - new Date(record.inputAt).getTime()) > KUNCI_IURAN_MS;
     }
+    // Kepala Madrasah: lihat saja -- Tagihan Bulanan semua kelas + unduh PDF/Excel (tanpa bisa mencentang).
+    function setupInfaqKepsek() {
+      const kelasSelect = document.getElementById('infaqKelas'), intro = document.getElementById('infaqIntroText');
+      const sw = document.getElementById('infaqModeSwitch'); if (sw) sw.style.display = 'none';
+      window._iqMode = 'bulan';
+      if (intro) intro.innerHTML = '👁️ Mode lihat saja untuk Kepala Madrasah. Pilih <strong>Semua Kelas</strong> atau satu kelas, lalu unduh PDF/Excel bila perlu. Pencatatan dilakukan petugas/Admin.';
+      const prev = kelasSelect.value;
+      kelasSelect.innerHTML = '<option value="ALL">Semua Kelas</option>' + KELAS_LIST.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+      kelasSelect.value = (prev && (prev === 'ALL' || KELAS_LIST.includes(prev))) ? prev : 'ALL';
+      kelasSelect.disabled = false;
+      populateBulanSelect();
+      infaqTerapkanModeUI();
+      renderIuranNominalArea();
+      loadIuranInput();
+    }
     function setupInfaqPage() {
       renderInfaqPetugasAdmin();
+      const swTombol = document.getElementById('infaqModeSwitch'); if (swTombol) swTombol.style.display = '';
+      if (!infaqCanAccess() && isKepsek()) { setupInfaqKepsek(); return; }
       if (!infaqCanAccess()) {
         const wrap = document.getElementById('infaqInputArea');
         if (wrap) wrap.innerHTML = isKepsek()
@@ -8095,6 +8112,8 @@
       const kelasSelect = document.getElementById('infaqKelas'), intro = document.getElementById('infaqIntroText');
       const mingguInput = document.getElementById('infaqRekapMinggu');
       populateMingguSelect();
+      populateBulanSelect();
+      infaqTerapkanModeUI();
       if (mingguInput && !mingguInput.value) mingguInput.value = isoMingguKey();
       if (isAdmin()) {
         intro.innerHTML = 'Pilih kelas untuk mencatat infaq, atau <strong>Semua Kelas</strong> untuk rekap gabungan.' +
@@ -8118,11 +8137,17 @@
       const mingguInput = document.getElementById('infaqRekapMinggu');
       const mingguKey = (mingguInput && mingguInput.value) || isoMingguKey();
       renderIuranNominalArea();
-      if (!infaqCanAccess() || !kelas || !mingguKey) { area.innerHTML = ''; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return; }
-      if (!isAdmin() && !infaqMyKelasList().includes(kelas)) { area.innerHTML = '<p style="color:#dc2626;">🔒 Anda hanya bisa mencatat infaq kelas yang ditugaskan Admin ke Anda.</p>'; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return; }
-      if (kelas === 'ALL') { area.innerHTML = '<p class="text-muted" style="font-size:13px;">Pilih satu kelas tertentu di atas untuk mencatat status lunas per siswa.</p>'; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return; }
+      const kepsekLihat = !infaqCanAccess() && isKepsek();   // Kepala Madrasah: hanya tampilan bulanan, tanpa mencatat
+      if (kepsekLihat) window._iqMode = 'bulan';
+      if ((!infaqCanAccess() && !kepsekLihat) || !kelas || !mingguKey) { area.innerHTML = ''; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return; }
+      if (!isAdmin() && !kepsekLihat && !infaqMyKelasList().includes(kelas)) { area.innerHTML = '<p style="color:#dc2626;">🔒 Anda hanya bisa mencatat infaq kelas yang ditugaskan Admin ke Anda.</p>'; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return; }
+      if (kelas === 'ALL') {
+        if (window._iqMode === 'bulan') { renderInfaqBulanSemua(area, belumLunasArea); renderIuranRekap(); return; }
+        area.innerHTML = '<p class="text-muted" style="font-size:13px;">Pilih satu kelas tertentu di atas untuk mencatat status lunas per siswa.</p>'; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return;
+      }
       const siswaKelas = allSiswa.filter(s => s.kelas === kelas).sort((a,b) => COLLATOR_ID.compare(a.name, b.name));
       if (siswaKelas.length === 0) { area.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada data siswa di kelas ini.</p>'; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return; }
+      if (window._iqMode === 'bulan') { renderInfaqBulan(kelas, area, belumLunasArea); renderIuranRekap(); return; }
       const existingMap = new Map(allInfaqSiswa.filter(it => it.kelas === kelas && it.minggu === mingguKey).map(it => [it.siswaKey, it]));
       let adaKunci = false;
       const barisSiswa = (s) => {
@@ -8200,6 +8225,197 @@
         });
       }
     }
+    // ============================================================
+    // TAGIHAN INFAQ PER BULAN + CEKLIS PER MINGGU
+    // Satu bulan = beberapa minggu ISO yang hari Kamisnya jatuh di bulan itu (pola yang sama dengan
+    // isoMingguKey), jadi tiap minggu hanya masuk ke SATU bulan. Data tetap di iuran_siswa/{minggu}_{siswa}
+    // -- tidak ada struktur data baru; centang chip minggu memakai toggleLunasSatuSiswa() yang sama.
+    // ============================================================
+    window._iqMode = window._iqMode || 'bulan';
+    const NAMA_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const NAMA_BULAN_PENDEK_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    function infaqMingguPendek(mingguKey) {
+      const { senin, minggu } = mingguKeTanggal(mingguKey);
+      return senin.getMonth() === minggu.getMonth()
+        ? `${senin.getDate()}–${minggu.getDate()}`
+        : `${senin.getDate()} ${NAMA_BULAN_PENDEK_ID[senin.getMonth()]}–${minggu.getDate()} ${NAMA_BULAN_PENDEK_ID[minggu.getMonth()]}`;
+    }
+    function infaqMingguBulan(y, m) { // m: 0-11 -> daftar kunci minggu "YYYY-Www" milik bulan itu
+      const keys = [];
+      const d = new Date(y, m, 1);
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // mundur ke Senin
+      for (let i = 0; i < 7; i++) {
+        const kamis = new Date(d); kamis.setDate(d.getDate() + 3);
+        if (kamis.getFullYear() === y && kamis.getMonth() === m) keys.push(isoMingguKey(d));
+        d.setDate(d.getDate() + 7);
+      }
+      return keys;
+    }
+    function infaqBulanDipilih() { // -> { y, m, label, weeks }
+      const sel = document.getElementById('infaqBulan');
+      const now = new Date();
+      let val = (sel && sel.value) || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const p = val.split('-'); const y = parseInt(p[0], 10), m = parseInt(p[1], 10) - 1;
+      return { y, m, label: `${NAMA_BULAN_ID[m]} ${y}`, weeks: infaqMingguBulan(y, m) };
+    }
+    function populateBulanSelect() {
+      const sel = document.getElementById('infaqBulan'); if (!sel || sel.tagName !== 'SELECT') return;
+      const prev = sel.value;
+      const thn = parseInt(String(currentTahunAjaran).split('/')[0], 10) || new Date().getFullYear();
+      const sekarang = new Date();
+      const awal = new Date(thn, 6, 1), batasAkhir = new Date(thn + 1, 5, 1);
+      let akhir = new Date(sekarang.getFullYear(), sekarang.getMonth() + 1, 1); // sampai 1 bulan ke depan
+      if (akhir > batasAkhir) akhir = batasAkhir;
+      if (akhir < awal) akhir = awal;
+      const opts = [];
+      for (let d = new Date(awal); d <= akhir; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) opts.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      opts.reverse(); // terbaru di atas
+      const kini = `${sekarang.getFullYear()}-${String(sekarang.getMonth() + 1).padStart(2, '0')}`;
+      sel.innerHTML = opts.map(v => { const [yy, mm] = v.split('-'); return `<option value="${v}">${NAMA_BULAN_ID[parseInt(mm, 10) - 1]} ${yy}${v === kini ? ' (bulan ini)' : ''}</option>`; }).join('');
+      sel.value = (prev && opts.includes(prev)) ? prev : (opts.includes(kini) ? kini : opts[0]);
+    }
+    function infaqTerapkanModeUI() {
+      const bulan = window._iqMode === 'bulan';
+      const wM = document.getElementById('infaqMingguWrap'), wB = document.getElementById('infaqBulanWrap');
+      if (wM) wM.style.display = bulan ? 'none' : '';
+      if (wB) wB.style.display = bulan ? '' : 'none';
+      document.querySelectorAll('#infaqModeSwitch button').forEach(b => {
+        const on = b.dataset.mode === window._iqMode;
+        b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+    function setInfaqMode(mode) {
+      window._iqMode = mode === 'minggu' ? 'minggu' : 'bulan';
+      infaqTerapkanModeUI();
+      loadIuranInput();
+    }
+    function infaqBukaKelas(kelas) { // dari kartu "Semua Kelas" -> buka kelas itu
+      const sel = document.getElementById('infaqKelas'); if (!sel) return;
+      sel.value = kelas; loadIuranInput();
+      try { sel.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+    }
+    // Hitung tagihan per siswa untuk satu kelas pada satu bulan.
+    // tagihan = yang sudah dibayar (nominal saat dibayar) + sisa minggu x nominal siswa saat ini.
+    function infaqHitungBulan(kelas, weeks) {
+      const wk = new Set(weeks), recMap = new Map();
+      allInfaqSiswa.forEach(it => { if (it.kelas === kelas && wk.has(it.minggu)) recMap.set(it.minggu + '|' + it.siswaKey, it); });
+      const siswa = allSiswa.filter(s => s.kelas === kelas).sort((a, b) => COLLATOR_ID.compare(a.name, b.name));
+      const gratis = siswa.filter(s => iuranGratis(s) && !weeks.some(w => recMap.has(w + '|' + s.key)));
+      const rows = siswa.filter(s => !gratis.includes(s)).map(s => {
+        const nom = iuranNominalSiswa(s);
+        let terbayar = 0; const belum = [], lunasMg = {};
+        weeks.forEach(w => {
+          const r = recMap.get(w + '|' + s.key);
+          if (r) { lunasMg[w] = r; const rn = iuranAngka(r.nominal); terbayar += rn !== null ? rn : (nom || 0); }
+          else belum.push(w);
+        });
+        const kurang = nom === null ? null : belum.length * nom;
+        return { s, nom, terbayar, belum, lunasMg, kurang, tagihan: kurang === null ? null : terbayar + kurang, penuh: belum.length === 0 };
+      });
+      const tot = rows.reduce((a, r) => { a.tagihan += r.tagihan || 0; a.terbayar += r.terbayar; a.kurang += r.kurang || 0; if (r.penuh) a.penuh++; return a; }, { tagihan: 0, terbayar: 0, kurang: 0, penuh: 0 });
+      return { rows, gratis, tot };
+    }
+    function infaqBarHtml(terbayar, tagihan) {
+      const pct = tagihan > 0 ? Math.min(100, Math.round(terbayar / tagihan * 100)) : 0;
+      return `<div class="mp-iqb-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Terkumpul ${pct} persen"><span style="width:${pct}%"></span></div>`;
+    }
+    function infaqRp(n) { return 'Rp ' + (n || 0).toLocaleString('id-ID'); }
+    function renderInfaqBulan(kelas, area, tagihArea) {
+      const b = infaqBulanDipilih();
+      if (b.weeks.length === 0) { area.innerHTML = '<p class="text-muted" style="font-size:13px;">Tidak ada minggu pada bulan ini.</p>'; if (tagihArea) tagihArea.innerHTML = ''; return; }
+      const { rows, gratis, tot } = infaqHitungBulan(kelas, b.weeks);
+      const mingguIni = isoMingguKey();
+      const nominalBelum = iuranNominalStandar() === null;
+      const bolehCatat = infaqCanAccess();   // Kepala Madrasah: lihat saja
+      const kartu = rows.map(r => {
+        const chips = b.weeks.map((w, i) => {
+          const rec = r.lunasMg[w], lunas = !!rec, terkunci = iuranTerkunci(rec);
+          const ro = !bolehCatat;
+          return `<label class="mp-iqb-wk${lunas ? ' on' : ''}${w === mingguIni ? ' now' : ''}${terkunci || ro ? ' lock' : ''}">
+            <input type="checkbox" class="infaq-lunas-checkbox" data-siswa-key="${r.s.key}" data-siswa-nama="${escapeHtml(r.s.name)}" data-nominal="${r.nom === null ? '' : r.nom}" ${lunas ? 'checked' : ''} ${terkunci || ro ? 'disabled' : ''} onchange="toggleLunasSatuSiswa(this,'${escapeJs(kelas)}','${w}')" aria-label="${escapeHtml(r.s.name)} minggu ${i + 1} (${infaqMingguPendek(w)}${/[A-Za-z]/.test(infaqMingguPendek(w)) ? '' : ' ' + NAMA_BULAN_PENDEK_ID[b.m]})">
+            <span class="mp-iqb-wk-n">Mg ${i + 1}${w === mingguIni ? ' •' : ''}</span>
+            <span class="mp-iqb-wk-d">${infaqMingguPendek(w)}</span>
+            <span class="mp-iqb-wk-s">${lunas ? '✓' : (terkunci && !ro ? '🔒' : '○')}</span>
+          </label>`;
+        }).join('');
+        const badgeKhusus = (iuranAngka(r.s.nominalIuranKhusus) !== null && r.nom !== 0) ? `<span class="mp-iq-khusus" title="Nominal khusus siswa ini">✨ ${iuranRp(r.nom)}</span>` : '';
+        const status = r.penuh ? '<span class="mp-iqb-st ok">✅ Lunas</span>'
+          : (r.kurang === null ? `<span class="mp-iqb-st no">⏳ ${r.belum.length} mg belum</span>` : `<span class="mp-iqb-st no">Kurang ${infaqRp(r.kurang)}</span>`);
+        return `<div class="mp-iqb-card${r.penuh ? ' is-ok' : ''}">
+          <div class="mp-iqb-top"><span class="mp-iqb-name">${escapeHtml(r.s.name)}${badgeKhusus}</span>${status}</div>
+          <div class="mp-iqb-weeks" style="grid-template-columns:repeat(${b.weeks.length},minmax(0,1fr));">${chips}</div>
+          <div class="mp-iqb-foot"><span>Tagihan <strong>${r.tagihan === null ? '—' : infaqRp(r.tagihan)}</strong></span><span>Terbayar <strong>${infaqRp(r.terbayar)}</strong></span></div>
+        </div>`;
+      }).join('');
+      const gratisHtml = gratis.length
+        ? `<details class="mp-iq-gratis"${window._iqGratisOpen ? ' open' : ''} ontoggle="window._iqGratisOpen=this.open"><summary>🆓 ${gratis.length} siswa gratis — tidak ditagih</summary><div class="mp-iq-list">${gratis.map(s => `<div class="mp-iq-row mp-iq-gratis-row"><span class="mp-iq-name">${escapeHtml(s.name)}</span></div>`).join('')}</div></details>` : '';
+      area.innerHTML = `<div class="mp-iq mp-iqb">
+        <div class="mp-iqb-head">
+          <div class="mp-iq-title">Tagihan ${escapeHtml(b.label)} · ${escapeHtml(kelas)}</div>
+          <div class="mp-iqb-sub">${b.weeks.length} minggu${nominalBelum ? ' · ⚠️ nominal standar belum diatur Admin' : ''}</div>
+          <div class="mp-iqb-stats">
+            <div><span>Tagihan</span><strong>${infaqRp(tot.tagihan)}</strong></div>
+            <div class="ok"><span>Terkumpul</span><strong>${infaqRp(tot.terbayar)}</strong></div>
+            <div class="no"><span>Kurang</span><strong>${infaqRp(tot.kurang)}</strong></div>
+          </div>
+          ${infaqBarHtml(tot.terbayar, tot.tagihan)}
+          <div class="mp-iq-sum"><span class="mp-iq-chip mp-iq-chip-ok">✅ ${tot.penuh} lunas penuh</span><span class="mp-iq-chip mp-iq-chip-no">⏳ ${rows.length - tot.penuh} masih kurang</span></div>
+          <div class="mp-iqb-actions"><button type="button" class="btn btn-soft" onclick="tagihanBulanExportPDF()">📄 Unduh PDF</button><button type="button" class="btn btn-soft" onclick="tagihanBulanExportExcel()">📊 Unduh Excel</button></div>
+        </div>
+        <p class="mp-iq-tip">${bolehCatat ? '💡 Ketuk kotak minggu saat siswa bayar — langsung tersimpan. Ketuk lagi untuk membatalkan. • = minggu ini. 🔒 = sudah lebih dari 24 jam, hanya Admin yang bisa mengubah.' : '👁️ Lihat saja. ✓ = lunas, ○ = belum. • = minggu ini.'}</p>
+        ${rows.length ? `<div class="mp-iqb-list">${kartu}</div>` : '<p class="text-muted" style="font-size:13px;margin:8px 0;">Semua siswa di kelas ini gratis, tidak ada yang ditagih.</p>'}
+        ${gratisHtml}
+      </div>`;
+      renderInfaqBulanTagih(kelas, rows, b, tagihArea);
+    }
+    function renderInfaqBulanTagih(kelas, rows, b, box) {
+      if (!box) return;
+      const perlu = rows.filter(r => !r.penuh);
+      if (perlu.length === 0) { box.innerHTML = `<div class="mp-iq-allok">🎉 Semua siswa ${escapeHtml(kelas)} sudah lunas penuh untuk ${escapeHtml(b.label)}!</div>`; return; }
+      const labelMg = (w) => 'Mg ' + (b.weeks.indexOf(w) + 1);
+      box.innerHTML = `<details class="mp-iq-tagih"${window._iqTagihOpen ? ' open' : ''} ontoggle="window._iqTagihOpen=this.open">
+        <summary>⏳ Perlu ditagih: <strong>${perlu.length} siswa</strong> <span class="mp-iq-tagih-hint">· ketuk untuk daftar &amp; kirim WA</span></summary>
+        <div class="mp-iq-tagih-list">${perlu.map(r => {
+          const s = r.s, mg = r.belum.map(labelMg).join(', ');
+          const pesan = `Assalamu'alaikum, Bapak/Ibu wali dari ananda *${s.name}* (${s.kelas}).\n\nKami informasikan bahwa infaq bulan *${b.label}* masih ada yang belum tercatat lunas: ${mg}${r.kurang ? ' (total ' + infaqRp(r.kurang) + ')' : ''}. Mohon kesediaannya untuk melunasi secepatnya. Terima kasih.\n\n- ${MADRASAH.nama}`;
+          return `<div class="mp-iq-tagih-row">
+            <span class="mp-iq-tagih-name">${escapeHtml(s.name)}<span class="mp-iqb-tagih-det">${escapeHtml(mg)}${r.kurang ? ' · ' + infaqRp(r.kurang) : ''}</span></span>
+            ${s.noWaOrtu ? `<button class="btn mp-iq-wa" onclick="kirimWaSiswaKey('${s.key}','${escapeJsMultiline(pesan)}')">📲 WA</button>` : `<span class="mp-iq-nowa" title="Nomor WA wali belum diisi di Data Siswa">no. WA kosong</span>`}
+          </div>`;
+        }).join('')}</div>
+      </details>`;
+    }
+    // Admin: "Semua Kelas" pada mode bulan -> ringkasan tagihan per kelas (ketuk untuk membuka kelas).
+    function renderInfaqBulanSemua(area, tagihArea) {
+      const b = infaqBulanDipilih();
+      if (tagihArea) tagihArea.innerHTML = '';
+      let gT = 0, gB = 0, gK = 0;
+      const kartu = KELAS_LIST.map(k => {
+        const { rows, tot } = infaqHitungBulan(k, b.weeks);
+        gT += tot.tagihan; gB += tot.terbayar; gK += tot.kurang;
+        const petugas = infaqPetugasNama(k);
+        return `<button type="button" class="mp-iqb-kelas" onclick="infaqBukaKelas('${escapeJs(k)}')">
+          <span class="mp-iqb-kelas-top"><strong>${escapeHtml(k)}</strong><span class="mp-iqb-st ${rows.length && tot.penuh === rows.length ? 'ok' : 'no'}">${tot.penuh}/${rows.length} lunas penuh</span></span>
+          ${infaqBarHtml(tot.terbayar, tot.tagihan)}
+          <span class="mp-iqb-foot"><span>Terkumpul <strong>${infaqRp(tot.terbayar)}</strong></span><span>Kurang <strong>${infaqRp(tot.kurang)}</strong></span></span>
+          ${petugas ? '' : '<span class="mp-iq-warn" style="font-size:11px;">⚠️ belum ada petugas</span>'}
+        </button>`;
+      }).join('');
+      area.innerHTML = `<div class="mp-iq mp-iqb">
+        <div class="mp-iqb-head">
+          <div class="mp-iq-title">Tagihan ${escapeHtml(b.label)} · Semua Kelas</div>
+          <div class="mp-iqb-stats">
+            <div><span>Tagihan</span><strong>${infaqRp(gT)}</strong></div>
+            <div class="ok"><span>Terkumpul</span><strong>${infaqRp(gB)}</strong></div>
+            <div class="no"><span>Kurang</span><strong>${infaqRp(gK)}</strong></div>
+          </div>
+          ${infaqBarHtml(gB, gT)}
+          <div class="mp-iqb-actions"><button type="button" class="btn btn-soft" onclick="tagihanBulanExportPDF()">📄 Unduh PDF</button><button type="button" class="btn btn-soft" onclick="tagihanBulanExportExcel()">📊 Unduh Excel</button></div>
+        </div>
+        <p class="mp-iq-tip">💡 Ketuk salah satu kelas untuk membuka ceklis mingguan siswa.</p>
+        <div class="mp-iqb-kelas-grid">${kartu}</div>
+      </div>`;
+    }
     // Daftar siswa yang BELUM lunas minggu ini -- supaya petugas/admin langsung tahu siapa yang
     // perlu ditagih, bukan cuma melihat angka "X dari Y siswa".
     function renderIuranBelumLunas(kelas, siswaKelas, existingMap, mingguKey) {
@@ -8269,14 +8485,16 @@
       try { if (typeof tunggakanRender === 'function') tunggakanRender(); } catch (e) { console.error('[SI MAMBA] tunggakanRender gagal:', e); }
       const area = document.getElementById('infaqRekapArea');
       const areaBulananLama = document.getElementById('infaqRekapBulananArea'); // elemen lama (kalau masih ada di index.html) ikut diisi supaya tidak kosong menggantung
-      const setHtml = (html) => { if (area) area.innerHTML = html; if (areaBulananLama) areaBulananLama.innerHTML = html; };
-      if (!infaqCanAccess()) { setHtml(''); return; }
+      const tombolRekap = '<div class="mp-iqb-actions" style="margin-bottom:10px;"><button type="button" class="btn btn-soft" onclick="rekapMingguExportPDF()">📄 Unduh PDF</button><button type="button" class="btn btn-soft" onclick="rekapMingguExportExcel()">📊 Unduh Excel</button></div>';
+      const setHtml = (html, denganTombol) => { const h = denganTombol ? tombolRekap + html : html; if (area) area.innerHTML = h; if (areaBulananLama) areaBulananLama.innerHTML = h; };
+      const kepsekSaja = !infaqCanAccess() && isKepsek();   // Kepala Madrasah: lihat + unduh, tanpa tombol WA
+      if (!infaqCanAccess() && !kepsekSaja) { setHtml(''); return; }
       const mingguInput = document.getElementById('infaqRekapMinggu');
       const mingguKey = (mingguInput && mingguInput.value) || isoMingguKey();
       const nominal = iuranNominalStandar(); // null = belum diatur, 0 = gratis
-      const nominalInfo = nominal !== null ? `<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Nominal infaq per siswa/minggu: <strong>Rp ${nominal.toLocaleString('id-ID')}</strong>${nominal === 0 ? ' (gratis)' : ''}</p>` : `<p style="font-size:12px;color:#92400e;margin-bottom:8px;">⚠️ Nominal iuran belum diatur Admin.</p>`;
+      const nominalInfo = nominal !== null ? `<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Nominal infaq per siswa/minggu: <strong>Rp ${nominal.toLocaleString('id-ID')}</strong>${nominal === 0 ? ' (gratis)' : ''}</p>` : `<p style="font-size:12px;color:#92400e;margin-bottom:8px;">⚠️ Nominal infaq belum diatur Admin.</p>`;
       const kelasPilih = document.getElementById('infaqKelas').value;
-      if (isAdmin() && kelasPilih === 'ALL') {
+      if ((isAdmin() || kepsekSaja) && kelasPilih === 'ALL') {
         let totalMadrasah = 0, totalLunasMadrasah = 0, totalSiswaMadrasah = 0;
         let rows = KELAS_LIST.map(k => {
           const items = allInfaqSiswa.filter(it => it.kelas === k && it.minggu === mingguKey);
@@ -8288,10 +8506,10 @@
           const kurang = jumlahSiswaKelas > 0 && jumlahLunas < jumlahSiswaKelas;
           return `<tr ${kurang?'style="background:#fffbeb;"':''}><td>${escapeHtml(k)}</td><td>${jumlahLunas} / ${jumlahSiswaKelas} siswa lunas</td><td style="text-align:right;">Rp ${total.toLocaleString('id-ID')}</td></tr>`;
         }).join('');
-        setHtml(`${nominalInfo}<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Rekap minggu: <strong>${escapeHtml(mingguLabel(mingguKey))}</strong> — Kepatuhan madrasah: <strong>${totalSiswaMadrasah>0?Math.round((totalLunasMadrasah/totalSiswaMadrasah)*100):0}%</strong></p><div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Status Lunas</th><th>Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th style="text-align:left;">TOTAL MADRASAH</th><th style="text-align:left;">${totalLunasMadrasah} / ${totalSiswaMadrasah} siswa lunas</th><th style="text-align:right;color:#059669;">Rp ${totalMadrasah.toLocaleString('id-ID')}</th></tr></tfoot></table></div>${daftarNominalKhususHtml([])}${daftarBelumLunasRekapHtml([], mingguKey)}${iuranTtdBendahara()}`);
+        setHtml(`${nominalInfo}<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Rekap minggu: <strong>${escapeHtml(mingguLabel(mingguKey))}</strong> — Kepatuhan madrasah: <strong>${totalSiswaMadrasah>0?Math.round((totalLunasMadrasah/totalSiswaMadrasah)*100):0}%</strong></p><div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Status Lunas</th><th>Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th style="text-align:left;">TOTAL MADRASAH</th><th style="text-align:left;">${totalLunasMadrasah} / ${totalSiswaMadrasah} siswa lunas</th><th style="text-align:right;color:#059669;">Rp ${totalMadrasah.toLocaleString('id-ID')}</th></tr></tfoot></table></div>${daftarNominalKhususHtml([])}${kepsekSaja ? '' : daftarBelumLunasRekapHtml([], mingguKey)}${iuranTtdBendahara()}`, true);
         return;
       }
-      const kelasList = isAdmin() ? (kelasPilih && kelasPilih!=='ALL' ? [kelasPilih] : []) : infaqMyKelasList();
+      const kelasList = (isAdmin() || kepsekSaja) ? (kelasPilih && kelasPilih!=='ALL' ? [kelasPilih] : []) : infaqMyKelasList();
       if (kelasList.length === 0) { setHtml(nominalInfo); return; }
       // Riwayat per minggu untuk kelas ini (beberapa minggu terakhir yang ada datanya), supaya
       // kelihatan siswa mana yang menunggak berminggu-minggu -- bukan cuma status minggu berjalan.
@@ -8309,7 +8527,7 @@
           rowsGabungan += `<tr ${kurang?'style="background:#fffbeb;"':''}><td>${escapeHtml(kelas)}</td><td>${escapeHtml(mingguLabel(mg))}</td><td>${byMinggu[mg].jumlah} / ${jumlahSiswaKelas} siswa lunas</td><td style="text-align:right;">Rp ${byMinggu[mg].total.toLocaleString('id-ID')}</td></tr>`;
         });
       });
-      setHtml(`${nominalInfo}<div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Minggu</th><th>Status Lunas</th><th>Total</th></tr></thead><tbody>${rowsGabungan}</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th colspan="2" style="text-align:left;">TOTAL KESELURUHAN</th><th style="text-align:left;">${totalLunasSemua} / ${totalSlotSemua} siswa lunas</th><th style="text-align:right;color:#059669;">Rp ${totalKeseluruhan.toLocaleString('id-ID')}</th></tr></tfoot></table></div>${daftarNominalKhususHtml(kelasList)}${daftarBelumLunasRekapHtml(kelasList, mingguKey)}${iuranTtdBendahara()}`);
+      setHtml(`${nominalInfo}<div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Minggu</th><th>Status Lunas</th><th>Total</th></tr></thead><tbody>${rowsGabungan}</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th colspan="2" style="text-align:left;">TOTAL KESELURUHAN</th><th style="text-align:left;">${totalLunasSemua} / ${totalSlotSemua} siswa lunas</th><th style="text-align:right;color:#059669;">Rp ${totalKeseluruhan.toLocaleString('id-ID')}</th></tr></tfoot></table></div>${daftarNominalKhususHtml(kelasList)}${kepsekSaja ? '' : daftarBelumLunasRekapHtml(kelasList, mingguKey)}${iuranTtdBendahara()}`, true);
     }
     // Blok tanda tangan Bendahara -- menghubungkan data "Struktur Pengurus" (diisi Admin di
     // halaman Profil Sekolah) ke rekap keuangan iuran secara nyata, bukan sekadar tersimpan.
