@@ -8037,17 +8037,19 @@
       const sudahDiatur = nominalRaw !== null && nominalRaw !== undefined;
       const nominal = sudahDiatur ? nominalRaw : 0;
       if (isAdmin()) {
-        box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;">
-          <span style="font-size:13px;font-weight:600;color:#065f46;">💵 Nominal Infaq Mingguan (standar semua siswa):</span>
-          <input id="infaqTargetInput" type="number" class="field" style="width:140px;" min="0" step="500" value="${sudahDiatur ? nominal : ''}" placeholder="Belum diatur">
-          ${typeof infaqRiwayatBerlakuSelectHtml === 'function' ? infaqRiwayatBerlakuSelectHtml() : ''}
-          <button class="btn btn-success" style="padding:7px 14px;font-size:12px;" onclick="simpanIuranNominal()">💾 Simpan</button>
-          <span class="text-muted" style="font-size:11px;">Berlaku untuk semua siswa mulai minggu yang dipilih (minggu sebelumnya tetap memakai nominal lama di perkiraan tunggakan). Pembayaran yang sudah tercatat lunas tidak ikut berubah. Untuk siswa dengan nominal beda (mis. keringanan siswa bersaudara), atur lewat tombol ✏️ Edit di halaman Data Siswa — ditandai ✨ di daftar bawah.</span>
+        box.innerHTML = `<div class="mp-iq-nominal mp-iq-nominal-admin">
+          <span class="mp-iq-nominal-lbl">💵 Nominal standar / siswa / minggu</span>
+          <div class="mp-iq-nominal-row">
+            <input id="infaqTargetInput" type="number" class="field" min="0" step="500" value="${sudahDiatur ? nominal : ''}" placeholder="Belum diatur" inputmode="numeric" aria-label="Nominal infaq mingguan">
+            ${typeof infaqRiwayatBerlakuSelectHtml === 'function' ? infaqRiwayatBerlakuSelectHtml() : ''}
+            <button class="btn btn-success" onclick="simpanIuranNominal()">💾 Simpan</button>
+          </div>
+          <details class="mp-iq-help"><summary>ℹ️ Penjelasan</summary>Berlaku untuk semua siswa mulai minggu yang dipilih (minggu sebelumnya tetap memakai nominal lama di perkiraan tunggakan). Pembayaran yang sudah tercatat lunas tidak ikut berubah. Untuk siswa dengan nominal beda (mis. keringanan siswa bersaudara), atur lewat tombol ✏️ Edit di halaman Data Siswa — ditandai ✨ di daftar.</details>
         </div>`;
       } else {
         box.innerHTML = sudahDiatur
-          ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:13px;color:#065f46;font-weight:600;">💵 Infaq Mingguan: <strong>Rp ${nominal.toLocaleString('id-ID')}</strong> / siswa / minggu <span class="text-muted" style="font-weight:400;font-size:11px;">(siswa bertanda ✨ di bawah punya nominal berbeda)</span></div>`
-          : `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;font-size:12px;color:#92400e;">⚠️ Admin belum mengatur nominal infaq mingguan.</div>`;
+          ? `<div class="mp-iq-nominal">💵 <strong>Rp ${nominal.toLocaleString('id-ID')}</strong> / siswa / minggu <span class="mp-iq-nominal-note">· ✨ = nominal berbeda</span></div>`
+          : `<div class="mp-iq-nominal mp-iq-nominal-warn">⚠️ Admin belum mengatur nominal infaq mingguan.</div>`;
       }
     }
     function simpanIuranNominal() {
@@ -8095,12 +8097,14 @@
       populateMingguSelect();
       if (mingguInput && !mingguInput.value) mingguInput.value = isoMingguKey();
       if (isAdmin()) {
-        intro.textContent = 'Kelola status lunas infaq mingguan seluruh kelas. Setiap siswa wajib bayar infaq tiap minggu dengan nominal yang sama. Klik centang langsung tersimpan. Pilih kelas tertentu untuk input, atau "Semua Kelas" untuk melihat rekap gabungan.';
+        intro.innerHTML = 'Pilih kelas untuk mencatat infaq, atau <strong>Semua Kelas</strong> untuk rekap gabungan.' +
+          '<details class="mp-iq-help"><summary>ℹ️ Petunjuk</summary>Setiap siswa wajib bayar infaq tiap minggu dengan nominal yang sama. Klik centang langsung tersimpan. Untuk siswa dengan nominal berbeda, atur lewat Edit di halaman Data Siswa.</details>';
         kelasSelect.innerHTML = '<option value="ALL">Semua Kelas (rekap saja)</option>' + KELAS_LIST.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
         kelasSelect.disabled = false;
       } else {
         const myKelasList = infaqMyKelasList();
-        intro.textContent = `Anda ditunjuk Admin sebagai petugas pencatat infaq untuk: ${myKelasList.join(', ')}. Setiap siswa wajib bayar infaq tiap minggu. Klik centang langsung tersimpan begitu ada yang bayar. ⚠️ Status yang sudah tercatat lebih dari 24 jam tidak bisa diubah lagi — hubungi Admin kalau ada koreksi. Untuk mengubah nominal atau penugasan, hubungi Admin.`;
+        intro.innerHTML = `Petugas infaq: <strong>${escapeHtml(myKelasList.join(', '))}</strong>. Centang saat siswa bayar — langsung tersimpan.` +
+          `<details class="mp-iq-help"><summary>ℹ️ Petunjuk</summary>Status yang sudah tercatat lebih dari 24 jam tidak bisa diubah lagi — hubungi Admin untuk koreksi. Untuk mengubah nominal atau penugasan petugas, hubungi Admin juga.</details>`;
         kelasSelect.innerHTML = myKelasList.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
         kelasSelect.disabled = myKelasList.length <= 1;
       }
@@ -8120,10 +8124,12 @@
       const siswaKelas = allSiswa.filter(s => s.kelas === kelas).sort((a,b) => COLLATOR_ID.compare(a.name, b.name));
       if (siswaKelas.length === 0) { area.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada data siswa di kelas ini.</p>'; if(belumLunasArea) belumLunasArea.innerHTML=''; renderIuranRekap(); return; }
       const existingMap = new Map(allInfaqSiswa.filter(it => it.kelas === kelas && it.minggu === mingguKey).map(it => [it.siswaKey, it]));
-      let rows = siswaKelas.map(s => {
+      let adaKunci = false;
+      const barisSiswa = (s) => {
         const rec = existingMap.get(s.key);
         const lunas = !!rec;
         const terkunci = iuranTerkunci(rec);
+        if (terkunci) adaKunci = true;
         // Nominal khusus (mis. keringanan siswa bersaudara) diatur per siswa lewat Edit Siswa di
         // halaman Data Siswa -- kalau diisi, dipakai menggantikan nominal standar KHUSUS untuk
         // siswa ini saja saat disimpan (lihat toggleLunasSatuSiswa), dan ditampilkan di sini
@@ -8131,18 +8137,37 @@
         const punyaNominalKhusus = iuranAngka(s.nominalIuranKhusus) !== null; // 0 (gratis) juga "khusus"
         const nominalDipakai = iuranNominalSiswa(s); // null = nominal standar belum diatur
         const gratis = nominalDipakai === 0;          // dibebaskan: tampil "Gratis", bukan "Belum Lunas"
-        const badgeKhusus = punyaNominalKhusus ? `<span style="background:#ede9fe;color:#6d28d9;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px;">✨ ${iuranRp(nominalDipakai)}</span>` : '';
-        const labelKunci = terkunci ? ` <span class="text-muted" title="Sudah lebih dari 24 jam sejak dicatat, hanya Admin yang bisa mengubah">🔒</span>` : '';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;">
-        <span style="flex:1;font-size:13px;">${escapeHtml(s.name)}${badgeKhusus}</span>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;${terkunci?'':'cursor:pointer;'}color:${lunas?'#059669':(gratis?'#6b7280':'#dc2626')};">
-          <input type="checkbox" class="infaq-lunas-checkbox" data-siswa-key="${s.key}" data-siswa-nama="${escapeHtml(s.name)}" data-nominal="${nominalDipakai === null ? '' : nominalDipakai}" ${lunas?'checked':''} ${terkunci?'disabled':''} onchange="toggleLunasSatuSiswa(this,'${escapeJs(kelas)}','${mingguKey}')" style="width:16px;height:16px;">
-          ${lunas?'✅ Lunas':(gratis?'🆓 Gratis':'⏳ Belum Lunas')}${labelKunci}
-        </label>
+        const status = lunas ? 'lunas' : (gratis ? 'gratis' : 'belum');
+        // Badge ✨ hanya untuk nominal berbeda yang masih ditagih; siswa gratis cukup berlabel Gratis (tidak ganda dengan "Rp 0").
+        const badgeKhusus = (punyaNominalKhusus && nominalDipakai !== 0) ? `<span class="mp-iq-khusus" title="Nominal khusus siswa ini">✨ ${iuranRp(nominalDipakai)}</span>` : '';
+        const labelKunci = terkunci ? ` <span title="Sudah lebih dari 24 jam sejak dicatat, hanya Admin yang bisa mengubah">🔒</span>` : '';
+        const nama = `<span class="mp-iq-name">${escapeHtml(s.name)}${badgeKhusus}</span>`;
+        if (gratis && !lunas) return `<div class="mp-iq-row mp-iq-gratis-row">${nama}</div>`;
+        return `<label class="mp-iq-row mp-iq-${status}${terkunci ? ' mp-iq-locked' : ''}">${nama}
+          <span class="mp-iq-state">${lunas ? '✅ Lunas' : '⏳ Belum'}${labelKunci}
+          <input type="checkbox" class="infaq-lunas-checkbox" data-siswa-key="${s.key}" data-siswa-nama="${escapeHtml(s.name)}" data-nominal="${nominalDipakai === null ? '' : nominalDipakai}" ${lunas?'checked':''} ${terkunci?'disabled':''} onchange="toggleLunasSatuSiswa(this,'${escapeJs(kelas)}','${mingguKey}')" aria-label="Lunas: ${escapeHtml(s.name)}"></span>
+        </label>`;
+      };
+      const adaRec = (s) => existingMap.has(s.key);
+      const gratisTanpaCatatan = siswaKelas.filter(s => iuranGratis(s) && !adaRec(s));
+      const utama = siswaKelas.filter(s => !(iuranGratis(s) && !adaRec(s)));
+      const rowsUtama = utama.map(barisSiswa).join('');
+      const jmlLunas = siswaKelas.filter(adaRec).length;
+      const jmlBelum = siswaKelas.filter(s => !adaRec(s) && !iuranGratis(s)).length;
+      const gratisHtml = gratisTanpaCatatan.length
+        ? `<details class="mp-iq-gratis"${window._iqGratisOpen ? ' open' : ''} ontoggle="window._iqGratisOpen=this.open"><summary>🆓 ${gratisTanpaCatatan.length} siswa gratis — tidak perlu dicatat</summary><div class="mp-iq-list">${gratisTanpaCatatan.map(barisSiswa).join('')}</div></details>`
+        : '';
+      const petugasInfo = isAdmin() ? (infaqPetugasNama(kelas) ? ` · Petugas: <strong>${escapeHtml(infaqPetugasNama(kelas))}</strong>` : ' · <span class="mp-iq-warn">⚠️ belum ada petugas ditunjuk</span>') : '';
+      area.innerHTML = `<div class="mp-iq">
+        <div class="mp-iq-head">
+          <div class="mp-iq-title">${escapeHtml(mingguLabel(mingguKey))} · ${escapeHtml(kelas)}</div>
+          <div class="mp-iq-sum"><span class="mp-iq-chip mp-iq-chip-ok">✅ ${jmlLunas} lunas</span><span class="mp-iq-chip mp-iq-chip-no">⏳ ${jmlBelum} belum</span>${gratisTanpaCatatan.length ? `<span class="mp-iq-chip mp-iq-chip-fr">🆓 ${gratisTanpaCatatan.length} gratis</span>` : ''}</div>
+          ${petugasInfo ? `<div class="mp-iq-petugas">${petugasInfo.replace(/^ · /, '')}</div>` : ''}
+        </div>
+        <p class="mp-iq-tip">💡 Centang saat siswa bayar — langsung tersimpan.${adaKunci ? ' 🔒 = sudah lebih dari 24 jam, hanya Admin yang bisa mengubah.' : ''}</p>
+        <div class="mp-iq-list">${rowsUtama || '<p class="text-muted" style="font-size:13px;margin:8px 0;">Semua siswa di kelas ini gratis, tidak ada yang perlu dicatat.</p>'}</div>
+        ${gratisHtml}
       </div>`;
-      }).join('');
-      const petugasInfo = isAdmin() ? (infaqPetugasNama(kelas) ? ` — Petugas: <strong>${escapeHtml(infaqPetugasNama(kelas))}</strong>` : ' — <span style="color:#d97706;">⚠️ belum ada petugas ditunjuk</span>') : '';
-      area.innerHTML = `<div style="margin-top:8px;"><p class="text-muted" style="font-size:12px;margin-bottom:8px;">Minggu: <strong>${escapeHtml(mingguLabel(mingguKey))}</strong> — Kelas: <strong>${escapeHtml(kelas)}</strong>${petugasInfo}</p><p class="text-muted" style="font-size:11px;margin-bottom:8px;">💡 Klik centang saat siswa bayar — langsung tersimpan, tidak perlu tombol Simpan lagi.</p>${rows}</div>`;
       renderIuranBelumLunas(kelas, siswaKelas, existingMap, mingguKey);
       renderIuranRekap();
     }
@@ -8180,20 +8205,18 @@
     function renderIuranBelumLunas(kelas, siswaKelas, existingMap, mingguKey) {
       const box = document.getElementById('infaqBelumSetorArea'); if (!box) return;
       const belum = siswaKelas.filter(s => !existingMap.has(s.key) && !iuranGratis(s));
-      const jmlGratis = siswaKelas.filter(s => !existingMap.has(s.key) && iuranGratis(s)).length;
-      const infoGratis = jmlGratis ? ` <span style="color:#6b7280;">(${jmlGratis} siswa gratis tidak dihitung)</span>` : '';
-      if (belum.length === 0) { box.innerHTML = `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:12px;color:#065f46;">🎉 Semua siswa ${escapeHtml(kelas)} sudah lunas iuran minggu ini!${infoGratis}</div>`; return; }
+      if (belum.length === 0) { box.innerHTML = `<div class="mp-iq-allok">🎉 Semua siswa ${escapeHtml(kelas)} sudah lunas minggu ini!</div>`; return; }
       const namaMinggu = mingguLabel(mingguKey);
-      box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 12px;">
-        <div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:6px;">⏳ Belum Lunas Minggu Ini (${belum.length} siswa) — wajib ditagih:${infoGratis}</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">${belum.map(s => {
-          const pesan = `Assalamu'alaikum, Bapak/Ibu wali dari ananda *${s.name}* (Kelas ${s.kelas}).\n\nKami informasikan bahwa infaq mingguan untuk minggu *${namaMinggu}* belum tercatat lunas. Mohon kesediaannya untuk melunasi secepatnya. Terima kasih.\n\n- ${MADRASAH.nama}`;
-          return `<div style="display:flex;align-items:center;gap:8px;background:#fee2e2;border-radius:20px;padding:3px 6px 3px 10px;">
-            <span style="color:#991b1b;font-size:11px;font-weight:600;">${escapeHtml(s.name)}</span>
-            ${s.noWaOrtu ? `<button class="btn" style="padding:2px 8px;font-size:10px;background:#25D366;color:white;" onclick="kirimWaSiswaKey('${s.key}','${escapeJsMultiline(pesan)}')">📲 WA</button>` : `<span class="text-muted" style="font-size:10px;" title="Nomor WA wali belum diisi">📵</span>`}
+      box.innerHTML = `<details class="mp-iq-tagih"${window._iqTagihOpen ? ' open' : ''} ontoggle="window._iqTagihOpen=this.open">
+        <summary>⏳ Perlu ditagih: <strong>${belum.length} siswa</strong> <span class="mp-iq-tagih-hint">· ketuk untuk daftar &amp; kirim WA</span></summary>
+        <div class="mp-iq-tagih-list">${belum.map(s => {
+          const pesan = `Assalamu'alaikum, Bapak/Ibu wali dari ananda *${s.name}* (${s.kelas}).\n\nKami informasikan bahwa infaq mingguan untuk minggu *${namaMinggu}* belum tercatat lunas. Mohon kesediaannya untuk melunasi secepatnya. Terima kasih.\n\n- ${MADRASAH.nama}`;
+          return `<div class="mp-iq-tagih-row">
+            <span class="mp-iq-tagih-name">${escapeHtml(s.name)}</span>
+            ${s.noWaOrtu ? `<button class="btn mp-iq-wa" onclick="kirimWaSiswaKey('${s.key}','${escapeJsMultiline(pesan)}')">📲 WA</button>` : `<span class="mp-iq-nowa" title="Nomor WA wali belum diisi di Data Siswa">no. WA kosong</span>`}
           </div>`;
         }).join('')}</div>
-      </div>`;
+      </details>`;
     }
     // Satu tampilan rekap saja (menggantikan renderInfaqRekap + renderInfaqRekapBulanan yang
     // dulu terpisah). renderInfaqRekapBulanan() masih ada di bawah sebagai alias kompatibilitas
@@ -8229,7 +8252,7 @@
         const sudahLunasSet = new Set(allInfaqSiswa.filter(it => it.kelas === kelas && it.minggu === mingguKey).map(it => it.siswaKey));
         const belum = siswaKelas.filter(s => !sudahLunasSet.has(s.key) && !iuranGratis(s));
         belum.forEach(s => {
-          const pesan = `Assalamu'alaikum, Bapak/Ibu wali dari ananda *${s.name}* (Kelas ${s.kelas}).\n\nKami informasikan bahwa infaq mingguan untuk minggu *${namaMinggu}* belum tercatat lunas. Mohon kesediaannya untuk melunasi secepatnya. Terima kasih.\n\n- ${MADRASAH.nama}`;
+          const pesan = `Assalamu'alaikum, Bapak/Ibu wali dari ananda *${s.name}* (${s.kelas}).\n\nKami informasikan bahwa infaq mingguan untuk minggu *${namaMinggu}* belum tercatat lunas. Mohon kesediaannya untuk melunasi secepatnya. Terima kasih.\n\n- ${MADRASAH.nama}`;
           rows += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
             <span>${escapeHtml(s.name)} <span class="text-muted" style="font-size:11px;">(${escapeHtml(s.kelas)})</span></span>
             ${s.noWaOrtu ? `<button class="btn" style="padding:2px 8px;font-size:11px;background:#25D366;color:white;flex-shrink:0;" onclick="kirimWaSiswaKey('${s.key}','${escapeJsMultiline(pesan)}')">📲 WA</button>` : `<span class="text-muted" style="font-size:10px;" title="Nomor WA wali belum diisi">📵</span>`}
@@ -13235,7 +13258,20 @@
     }
 
     // -------- Notifications / tasks / approval --------
-    function v4LoadNotifications(){if(!currentUser)return Promise.resolve();const seq=++v4NotifSeq;return fbTimeout(db.ref('notifications_v4').once('value').then(s=>{if(seq!==v4NotifSeq)return;V4.notifications=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;if(x.userKey===currentUser.key||x.userKey===currentUser.name||x.userKey==='system'||v4IsAdmin()||v4IsHead())V4.notifications.push(x)});v4RenderNotifications();}), 7000, 'notifications_v4');}
+    function v4LoadNotifications(){
+      if(!currentUser)return Promise.resolve();
+      const seq=++v4NotifSeq;
+      const penuh=v4IsAdmin()||v4IsHead();
+      // Admin/Kepsek melihat semua notifikasi (baca node penuh). Pengguna lain hanya mengunduh miliknya + 'system'
+      // lewat query per userKey (hemat kuota Spark; makin hemat bila Rules punya ".indexOn": ["userKey"] di notifications_v4).
+      const ref=db.ref('notifications_v4');
+      const tarik=penuh
+        ? ref.once('value').then(s=>{const a=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;a.push(x)});return a})
+        : Promise.all([...new Set([currentUser.key,currentUser.name,'system'].filter(Boolean))].map(k=>
+            ref.orderByChild('userKey').equalTo(k).once('value').then(s=>{const a=[];s.forEach(c=>{const x=c.val()||{};x.key=c.key;a.push(x)});return a})
+          )).then(r=>{const m=new Map();r.flat().forEach(x=>m.set(x.key,x));return [...m.values()]});
+      return fbTimeout(tarik.then(a=>{if(seq!==v4NotifSeq)return;V4.notifications=a;v4RenderNotifications();}), 7000, 'notifications_v4');
+    }
     function v4RenderNotifications(){const el=document.getElementById('v4NotificationList');if(!el)return;const milikku=x=>!!currentUser&&(x.userKey===currentUser.key||x.userKey===currentUser.name);const unread=V4.notifications.filter(x=>milikku(x)&&!x.isRead).length;document.getElementById('v4NotifDot')?.classList.toggle('show',unread>0);el.innerHTML=V4.notifications.slice().sort((a,b)=>COLLATOR_ID.compare(String(b.createdAt), String(a.createdAt))).slice(0,100).map(x=>`<div class="v4-notif ${(milikku(x)&&!x.isRead)?'unread':''}" ${(milikku(x)&&!x.isRead)?`onclick="v4MarkNotifRead('${escapeJs(x.key)}')" title="Ketuk untuk menandai dibaca"`:''}><div class="v4-notif-icon">${x.type==='ACTION'?'🚨':x.type==='SUCCESS'?'✅':x.type==='ALERT'?'⚠️':x.type==='REMINDER'?'⏰':'🔔'}</div><div style="flex:1"><div style="font-weight:800;font-size:13px;">${v4Safe(x.title)}</div><div style="font-size:12px;margin-top:3px;line-height:1.45;">${v4Safe(x.message)}</div><div class="v4-muted" style="margin-top:4px;">${x.createdAt?new Date(x.createdAt).toLocaleString('id-ID'):''}</div></div></div>`).join('')||'<p class="v4-muted">Belum ada notifikasi.</p>';}
     function v4MarkNotifRead(key){if(!currentUser||!key)return;const x=V4.notifications.find(n=>n.key===key);if(!x||x.isRead)return;if(!(x.userKey===currentUser.key||x.userKey===currentUser.name))return;x.isRead=true;v4RenderNotifications();db.ref('notifications_v4').update({[key+'/isRead']:true}).then(()=>{v4NotifSeq++;}).catch(err=>{x.isRead=false;v4RenderNotifications();console.error('[SI MAMBA] Gagal simpan:',err);toast('❌ Gagal menyimpan: '+(err&&err.message||err),true);});}
     function v4MarkAllNotificationsRead(){if(!currentUser)return;const updates={};V4.notifications.filter(x=>!x.isRead && (x.userKey===currentUser.key||x.userKey===currentUser.name)).forEach(x=>updates[x.key+'/isRead']=true);if(Object.keys(updates).length)db.ref('notifications_v4').update(updates).then(()=>{v4NotifSeq++;V4.notifications.forEach(x=>x.isRead=true);v4RenderNotifications();toast('✓ Semua notifikasi dibaca');}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });}

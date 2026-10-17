@@ -387,8 +387,12 @@
     window.toast = function (msg, err) {
       var r = origToast.apply(this, arguments);
       try {
-        if (armed && !err && /✅|berhasil|ditambah|disimpan|tersimpan|diperbarui/i.test(String(msg))) {
-          var m = armed; armed = null; setTimeout(m.close, 450);
+        // Toast pertama setelah klik di dalam jendela menentukan hasilnya: sukses -> tutup; galat/negatif -> jendela tetap terbuka
+        if (armed) {
+          var m = armed; armed = null;
+          var teks = String(msg);
+          var sukses = !err && /✅|berhasil|ditambah|disimpan|tersimpan|diperbarui/i.test(teks) && !/tidak|belum|gagal|batal|⚠️|❌/i.test(teks);
+          if (sukses) setTimeout(m.close, 450);
         }
       } catch (e) { console.error('[menu-polish]', e); }
       return r;
@@ -528,6 +532,27 @@
     });
   }
 
+  /* ---------------- 7c. Keterangan panjang di Kas Madrasah diringkas 2 baris di HP (v30) ---------------- */
+  function introClamp(id) {
+    var p = document.getElementById(id); if (!p) return;
+    var t = (p.textContent || '').trim();
+    var btn = p.nextElementSibling && p.nextElementSibling.classList.contains('mp-intro-toggle') ? p.nextElementSibling : null;
+    if (t.length <= 110) { p.classList.remove('mp-intro-clamp'); if (btn) btn.hidden = true; return; }
+    if (!btn) {
+      btn = el('button', 'mp-intro-toggle', 'Selengkapnya'); btn.type = 'button'; btn.setAttribute('aria-expanded', 'false');
+      btn.addEventListener('click', function () {
+        var buka = p.classList.toggle('mp-intro-clamp') === false;
+        btn.textContent = buka ? 'Ringkas' : 'Selengkapnya'; btn.setAttribute('aria-expanded', buka ? 'true' : 'false');
+      });
+      p.parentNode.insertBefore(btn, p.nextSibling);
+    }
+    btn.hidden = false;
+    if (p.getAttribute('data-intro-text') !== t) { // teks diganti kas.js (pindah tab) -> kembali ringkas
+      p.setAttribute('data-intro-text', t); p.classList.add('mp-intro-clamp');
+      btn.textContent = 'Selengkapnya'; btn.setAttribute('aria-expanded', 'false');
+    }
+  }
+
   var obsTimers = {};
   function watchPage(id) {
     var pg = document.getElementById(id);
@@ -536,7 +561,7 @@
     new MutationObserver(function () {
       clearTimeout(obsTimers[id]);
       obsTimers[id] = setTimeout(function () {
-        try { decorate(pg); if (CARD_TABLE_PAGES.indexOf(id) !== -1) cardifyTables(pg); if (id === 'page-jadwal') jadwalPortrait(); if (id === 'page-grades') gradeInputsSiap(); if (id === 'page-activities-v4') amalanRapi(pg); } catch (e) { console.error('[menu-polish]', e); }
+        try { decorate(pg); if (CARD_TABLE_PAGES.indexOf(id) !== -1) cardifyTables(pg); if (id === 'page-jadwal') jadwalPortrait(); if (id === 'page-grades') gradeInputsSiap(); if (id === 'page-activities-v4') amalanRapi(pg); if (id === 'page-kas-umum') introClamp('kasIntroText'); } catch (e) { console.error('[menu-polish]', e); }
       }, 80);
     }).observe(pg, { childList: true, subtree: true, characterData: true });
   }
