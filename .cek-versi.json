@@ -1,14 +1,14 @@
 {
-  "appVersion": "v7.26",
-  "disimpan": "2026-10-16T16:59:42.512Z",
+  "appVersion": "v7.35",
+  "disimpan": "2026-10-17T02:22:24.483Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
       "hash": "d968e42b9a4962f67a0a57f15b40db61d0a3d461"
     },
     "css/menu-polish.css": {
-      "v": "v=21",
-      "hash": "5c3b347ec0d61c8cbfe552695faf50edc0dc9306"
+      "v": "v=28",
+      "hash": "700c3920626cebf1bae56a68193c77c5f08fdb76"
     },
     "js/logo-fallback.js": {
       "v": "",
@@ -55,16 +55,16 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=77",
-      "hash": "fb7c409cb91a9604ce36ef8870b81ed2f472c33c"
+      "v": "v=80",
+      "hash": "2224fb4468f705527b85b2ac6c4409529a56d48b"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=21",
-      "hash": "08e81c3b1ab7e8f9563de659060a015b09b01530"
+      "v": "v=22",
+      "hash": "c37752d1828c73d5058b7a8dafdbed024addb6d5"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=1",
-      "hash": "aba26d157f53c8bb7aa12d9565cb382dd2a4effe"
+      "v": "v=3",
+      "hash": "31a9e765af839dad3c6032d543cd91683c9adf7f"
     },
     "js/kredensial.js": {
       "v": "v=3",
@@ -79,8 +79,8 @@
       "hash": "edd5d7600e7f47dbdea2d3210ec3641748f01100"
     },
     "js/menu-polish.js": {
-      "v": "v=21",
-      "hash": "3ce9eba0cbac93a1b4601010f097b9cd6cf298fc"
+      "v": "v=28",
+      "hash": "55a7fe3e60cd36e42b3e1f040bf4fffb535aff4c"
     },
     "js/rekap-jurnal.js": {
       "v": "v=1",
