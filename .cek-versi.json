@@ -1,14 +1,14 @@
 {
-  "appVersion": "v7.35",
-  "disimpan": "2026-10-17T02:22:24.483Z",
+  "appVersion": "v7.37",
+  "disimpan": "2026-10-17T02:25:21.622Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
       "hash": "d968e42b9a4962f67a0a57f15b40db61d0a3d461"
     },
     "css/menu-polish.css": {
-      "v": "v=28",
-      "hash": "700c3920626cebf1bae56a68193c77c5f08fdb76"
+      "v": "v=30",
+      "hash": "111d84262ac0e79405731e0e9d511d8fd3a6ec52"
     },
     "js/logo-fallback.js": {
       "v": "",
@@ -55,8 +55,8 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=80",
-      "hash": "2224fb4468f705527b85b2ac6c4409529a56d48b"
+      "v": "v=82",
+      "hash": "1372e58623fdae5462bb0d94b4dc62bdc8ed3b9e"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
@@ -79,8 +79,8 @@
       "hash": "edd5d7600e7f47dbdea2d3210ec3641748f01100"
     },
     "js/menu-polish.js": {
-      "v": "v=28",
-      "hash": "55a7fe3e60cd36e42b3e1f040bf4fffb535aff4c"
+      "v": "v=30",
+      "hash": "9ebe389d34d51166f4458405a82d6d95113e4417"
     },
     "js/rekap-jurnal.js": {
       "v": "v=1",
