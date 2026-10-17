@@ -108,6 +108,10 @@
   <script defer src="js/rekap-jurnal.js?v=1"></script>
   <!-- Menu Rapat (daftar hadir guru, pimpinan pengganti, notulen, cetak). Halaman dibuat sendiri oleh JS; WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rapat.js?v=6"></script>
+  <!-- PKG Guru (Penilaian Kinerja Guru MI, Juknis Kepdirjen Pendis 1843/2021). Halaman & item menu dibuat sendiri oleh JS.
+       Urutan WAJIB: data-pkg-mi.js dulu, lalu pkg.js; keduanya SESUDAH app.js & menu-hub.js. Butuh Firebase Rules pkg_v4_*. -->
+  <script defer src="js/data-pkg-mi.js?v=1"></script>
+  <script defer src="js/pkg.js?v=5"></script>
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.
        Urutan: data bank -> perangkat-rpe (rpeUtil) -> modul turunan -> perangkat-pembelajaran (hub, TERAKHIR karena membungkus navigateTo). -->
   <script defer src="js/data-tp-mi.js?v=3"></script>

@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - sw.js (Service Worker)  -- versi patch v7.00
+   SI MAMBA - sw.js (Service Worker)  -- versi patch v7.44
    PWA offline caching untuk aplikasi SI MAMBA.
 
    STRATEGI CACHE:
@@ -21,6 +21,16 @@
    4) FIREBASE REALTIME DATABASE / AUTH (data) -> TIDAK di-cache (Network-Only).
    5) Request non-GET -> langsung ke network.
 
+   PERUBAHAN v7.43 (hasil audit):
+   - Install: file inti (index/app.js/styles/firebase/crypto) WAJIB berhasil di-precache; kalau gagal,
+     install dibatalkan & dicoba lagi (sebelumnya SW "terpasang" dengan cache bolong -> offline rusak).
+   - Install: respons 200 berisi HTML untuk file .js/.css/gambar (halaman login Wi-Fi/captive portal)
+     ditolak, bukan disimpan permanen sebagai aset ber-versi.
+   - Install: respons hasil redirect dibersihkan (browser menolak respons redirected untuk navigasi).
+   - Precache dibatasi 8 unduhan paralel (jaringan lemah tidak kewalahan).
+   - Cache runtime hanya menyimpan status 200 (206 dari Range request membuat cache.put gagal).
+   - Pencocokan host NEVER_CACHE memakai batas titik (bukan sekadar endsWith).
+
    PERUBAHAN v5.5 (dibanding v5.4):
    - event.waitUntil() pada update background (navigasi & SWR).
    - Tidak lagi menyimpan respons opaque; cek res.ok.
@@ -35,10 +45,10 @@
    (css/styles.css, js/app.js, js/amalan-kegiatan.js, js/kas.js, js/administrasi-ujian.js,
    js/bacaan-shalat.js, js/menu-hub.js, js/rapat.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js,
    js/tunggakan-infaq.js, js/auto-logout.js, js/login-kode.js, js/tahfidz-grafik.js, js/monitor-petugas.js,
-   js/kredensial.js, js/ttd-digital.js, js/perangkat-*.js).
+   js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.41';
+const APP_VERSION = 'v7.44';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -79,6 +89,8 @@ const PRECACHE_URLS = [
   './js/menu-polish.js?v=30',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=6',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
+  './js/data-pkg-mi.js?v=1',              // instrumen & rumus PKG Guru MI (dimuat SEBELUM pkg.js)
+  './js/pkg.js?v=5',                      // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-tp-mi.js?v=3',
   './js/data-soal-mi.js?v=4',
   './js/perangkat-rpe.js?v=9',
@@ -145,10 +157,25 @@ function isAppShellPath(url) {
 function isNeverCacheRequest(url) {
   // Google Fonts adalah file statis (bukan data) -- boleh di-cache.
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') return false;
-  if (!NEVER_CACHE_HOSTS.some(host => url.hostname.endsWith(host))) return false;
+  if (!NEVER_CACHE_HOSTS.some(host => url.hostname === host || url.hostname.endsWith('.' + host))) return false;
   // Kalau app ini di-host di *.firebaseapp.com, hanya endpoint auth (/__/) yang network-only.
   if (isSameOrigin(url)) return url.pathname.startsWith('/__/');
   return true;
+}
+
+// File yang tanpanya aplikasi tidak bisa jalan offline: kalau salah satunya gagal di-precache, install dibatalkan.
+const CRITICAL_RE = /^\.\/$|index\.html|js\/app\.js|css\/styles\.css|vendor\/(firebase-|crypto-js)/;
+
+// Browser menolak respons "redirected" dipakai untuk navigasi -> salin jadi respons biasa sebelum disimpan.
+async function bersihkanRedirect(res) {
+  if (!res.redirected) return res;
+  return new Response(await res.clone().blob(), { status: res.status, statusText: res.statusText, headers: res.headers });
+}
+
+// Halaman login Wi-Fi sering membalas 200 + HTML untuk URL apa pun. Untuk file non-HTML itu pasti salah.
+function isiCocok(url, res) {
+  if (!/\.(js|css|json|png|jpe?g|webp|svg|ico|woff2?)$/i.test(url.split('?')[0])) return true;
+  return !(res.headers.get('content-type') || '').toLowerCase().includes('text/html');
 }
 
 const timeoutAfter = ms => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
@@ -159,16 +186,23 @@ const timeoutAfter = ms => new Promise((_, reject) => setTimeout(() => reject(ne
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(SHELL_CACHE).then(async cache => {
-      await Promise.all(
-        PRECACHE_URLS.map(async url => {
-          try {
-            const res = await fetch(url, { cache: 'no-cache' });
-            if (res && res.ok) await cache.put(url, res);
-          } catch (e) {
-            console.warn('[SW] Gagal precache:', url, e);
-          }
-        })
-      );
+      const gagalKritis = [];
+      for (let i = 0; i < PRECACHE_URLS.length; i += 8) {
+        await Promise.all(
+          PRECACHE_URLS.slice(i, i + 8).map(async url => {
+            try {
+              const res = await fetch(url, { cache: 'no-cache' });
+              if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status));
+              if (!isiCocok(url, res)) throw new Error('isi HTML tidak sesuai untuk file ini');
+              await cache.put(url, await bersihkanRedirect(res));
+            } catch (e) {
+              console.warn('[SW] Gagal precache:', url, e);
+              if (CRITICAL_RE.test(url)) gagalKritis.push(url);
+            }
+          })
+        );
+      }
+      if (gagalKritis.length) throw new Error('[SW] Precache file inti gagal: ' + gagalKritis.join(', '));
     })
   );
   // Tidak auto skipWaiting(): update dikontrol dari UI (lihat listener 'message' di bawah).
@@ -235,7 +269,7 @@ async function networkFirstNavigate(req, event) {
   // (mis. halaman login captive portal Wi-Fi).
   const valid = res => res && res.ok && !(res.redirected && new URL(res.url).origin !== self.location.origin);
   const networkFetch = fetch(req).then(res => {
-    if (valid(res)) cache.put('./index.html', res.clone());
+    if (valid(res)) cache.put('./index.html', res.clone()).catch(() => {});
     return res;
   });
 
@@ -289,7 +323,7 @@ async function staleWhileRevalidate(req, event) {
   const networkFetch = fetchForCache(req, sameOrigin)
     .then(res => {
       // Simpan hanya respons yang benar-benar sukses (2xx). Opaque TIDAK disimpan.
-      if (res && res.ok) cache.put(req, res.clone());
+      if (res && res.ok && res.status === 200) cache.put(req, res.clone()).catch(() => {});
       return res;
     })
     .catch(() => null);
