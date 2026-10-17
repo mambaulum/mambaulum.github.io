@@ -1,14 +1,14 @@
 {
-  "appVersion": "v7.37",
-  "disimpan": "2026-10-17T02:25:21.622Z",
+  "appVersion": "v7.41",
+  "disimpan": "2026-10-17T02:52:12.982Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
       "hash": "d968e42b9a4962f67a0a57f15b40db61d0a3d461"
     },
     "css/menu-polish.css": {
-      "v": "v=30",
-      "hash": "111d84262ac0e79405731e0e9d511d8fd3a6ec52"
+      "v": "v=32",
+      "hash": "d47475e79f536a951ef5760a950dc102fa928c76"
     },
     "js/logo-fallback.js": {
       "v": "",
@@ -47,16 +47,16 @@
       "hash": "929631093175eed9c99eb7b583ad96ace8243a92"
     },
     "js/kas.js": {
-      "v": "v=8",
-      "hash": "e64846b4af9f8202b19ac260732c5312822a0df7"
+      "v": "v=9",
+      "hash": "fe133e4f2f932d1f0eb4aeafedb44d0188dde580"
     },
     "js/administrasi-ujian.js": {
       "v": "v=3",
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=82",
-      "hash": "1372e58623fdae5462bb0d94b4dc62bdc8ed3b9e"
+      "v": "v=86",
+      "hash": "20aa7a096890b4461438c32f78bb5f930c88cccb"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
@@ -139,8 +139,8 @@
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
     },
     "js/tunggakan-infaq.js": {
-      "v": "v=7",
-      "hash": "51d37b33c63e86e226badf8abe73974febad79ee"
+      "v": "v=10",
+      "hash": "223725093f8d83d654a4420b8bba2b4e1b4c0959"
     },
     "js/auto-logout.js": {
       "v": "v=4",
