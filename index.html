@@ -92,13 +92,13 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=86"></script>
+  <script defer src="js/app.js?v=87"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=22"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=3"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
-  <script defer src="js/kredensial.js?v=4"></script>
+  <script defer src="js/kredensial.js?v=5"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
   <script defer src="js/ttd-digital.js?v=4"></script>
   <script defer src="js/menu-hub.js?v=10"></script>
@@ -112,10 +112,10 @@
        Urutan WAJIB: data-pkg-mi.js dulu, lalu pkg.js; keduanya SESUDAH app.js & menu-hub.js. Butuh Firebase Rules pkg_v4_*. -->
   <script defer src="js/data-pkg-mi.js?v=1"></script>
   <!-- Pembaca data SI MAMBA (absensi guru, jurnal, nilai) untuk bukti otomatis PKG. Opsional tapi WAJIB sebelum pkg.js bila dipakai. -->
-  <script defer src="js/pkg-sumber.js?v=2"></script>
+  <script defer src="js/pkg-sumber.js?v=4"></script>
   <!-- Butir angket PKG (peserta didik / orang tua / sejawat) + rumus rekap; dipakai pkg.js dan angket.html. WAJIB sebelum pkg.js. -->
-  <script defer src="js/data-pkg-angket.js?v=3"></script>
-  <script defer src="js/pkg.js?v=17"></script>
+  <script defer src="js/data-pkg-angket.js?v=4"></script>
+  <script defer src="js/pkg.js?v=21"></script>
   <!-- Tab Analisis PKG (dasbor, RTL, perbandingan periode, ekspor Excel). WAJIB sesudah pkg.js. -->
   <script defer src="js/pkg-analisis.js?v=3"></script>
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.

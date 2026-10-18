@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.58';
+const APP_VERSION = 'v7.62';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -80,19 +80,19 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=3',
-  './js/app.js?v=86',
+  './js/app.js?v=87',
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
-  './js/kredensial.js?v=4',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
+  './js/kredensial.js?v=5',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=4',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=10',
   './js/menu-polish.js?v=30',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=6',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-pkg-mi.js?v=1',              // instrumen & rumus PKG Guru MI (dimuat SEBELUM pkg.js)
-  './js/pkg-sumber.js?v=2',               // pembaca absensi guru/jurnal/nilai untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
-  './js/data-pkg-angket.js?v=3',          // butir & rumus angket PKG (dimuat SEBELUM pkg.js; juga dipakai angket.html)
-  './js/pkg.js?v=17',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
+  './js/pkg-sumber.js?v=4',               // pembaca absensi guru/jurnal/nilai untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
+  './js/data-pkg-angket.js?v=4',          // butir & rumus angket PKG (dimuat SEBELUM pkg.js; juga dipakai angket.html)
+  './js/pkg.js?v=21',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
   './js/data-tp-mi.js?v=3',
   './js/data-soal-mi.js?v=4',
