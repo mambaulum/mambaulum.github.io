@@ -328,11 +328,35 @@
     return true;
   }
 
+  // Kemajuan penilaian untuk guru yang dinilai SEBELUM diajukan: hanya JUMLAH indikator yang sudah diisi penilai,
+  // tidak pernah skor/predikat. Murni tampilan (tanpa Rules baru). Mode: 'angka' | 'bar' | 'keduanya'.
+  var PROGRES_GURU_MODE = 'angka';
+  function progresGuruHtml(x, boleh) {
+    var u = me();
+    if (!u || x.g.key !== u.key || boleh || !x.n || !x.n.skor) return null;
+    var t = P.totalIndikator(), j = jumlahTerisi(x.n.skor);
+    if (!j) return null;
+    var teks = '<span class="text-muted">Penilai sedang menilai: ' + j + '/' + t + ' indikator</span>';
+    var bar = '<div class="pkg-bar" style="margin-top:4px;min-width:90px"><i style="width:' + Math.round(j / t * 100) + '%"></i></div>';
+    return PROGRES_GURU_MODE === 'bar' ? bar : PROGRES_GURU_MODE === 'keduanya' ? teks + bar : teks;
+  }
+
+  // Ringkasan untuk penilai: berapa guru yang ia nilai sudah diajukan/final (tampilan saja).
+  function ringkasanPenilaiHtml(rows) {
+    var mine = rows.filter(function (x) { return penilaiYa(x.g.key); });
+    if (!mine.length || lihatSemua()) return '';
+    var sudah = mine.filter(function (x) { return x.st === 'diajukan' || selesai(x.st); }).length, t = P.totalIndikator(), isi = 0;
+    mine.forEach(function (x) { isi += (x.n && x.n.skor) ? jumlahTerisi(x.n.skor) : 0; });
+    var pct = Math.round(isi / (mine.length * t) * 100);
+    return '<div class="card"><b>Progres penilaian Anda:</b> ' + sudah + ' dari ' + mine.length + ' guru sudah diajukan/final &bull; ' + pct + '% indikator terisi' +
+      '<div class="pkg-bar" style="margin-top:6px"><i style="width:' + pct + '%"></i></div></div>';
+  }
+
   // ----- Daftar guru -----
   function daftarHtml() {
     var rows = barisGuru(), u = me();
     if (!rows.length) return '<div class="card"><p class="text-muted">Tidak ada guru yang bisa ditampilkan untuk Anda pada periode ini.</p></div>';
-    var h = '<div class="card" style="overflow-x:auto"><table><thead><tr><th>No</th><th>Nama Guru</th><th>Penilai</th><th>Jadwal</th><th>Status</th><th>Nilai</th><th>Predikat</th><th></th></tr></thead><tbody>';
+    var h = ringkasanPenilaiHtml(rows) + '<div class="card" style="overflow-x:auto"><table><thead><tr><th>No</th><th>Nama Guru</th><th>Penilai</th><th>Jadwal</th><th>Status</th><th>Nilai</th><th>Predikat</th><th></th></tr></thead><tbody>';
     rows.forEach(function (x, i) {
       var gk = x.g.key, tombol = '';
       if (bolehMenilai(gk) && !selesai(x.st) && x.st !== 'diajukan') tombol += '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px" data-act="nilai" data-gk="' + esc(gk) + '">' + (x.st === 'belum' ? 'Nilai' : 'Lanjut') + '</button> ';
@@ -341,7 +365,7 @@
       if (x.h && boleh && (gk === u.key || bolehMenilai(gk) || lihatSemua())) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="cetak" data-gk="' + esc(gk) + '">🖨️</button> ';
       if (gk === u.key || bolehMenilai(gk) || lihatSemua()) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="bukti" data-gk="' + esc(gk) + '" title="Isi bukti di aplikasi">📂 Bukti</button> <button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="perangkat" data-gk="' + esc(gk) + '" title="Perangkat penilaian (cetak)">📋</button>';
       h += '<tr><td>' + (i + 1) + '</td><td>' + esc(x.g.name) + '</td><td>' + (x.t ? esc(x.t.penilaiNama || namaGuru(x.t.penilaiKey)) : '<span class="text-muted">belum ditugaskan</span>') + '</td><td>' + (x.t && x.t.jadwal ? fmtTgl(x.t.jadwal) : '-') +
-        '</td><td>' + chip(x.st) + '</td><td>' + (x.h && boleh ? (x.h.lengkap ? f1(x.h.nilai100) : '<span class="text-muted">' + jumlahTerisi(x.n.skor) + '/' + P.totalIndikator() + ' terisi</span>') : '-') +
+        '</td><td>' + chip(x.st) + '</td><td>' + (x.h && boleh ? (x.h.lengkap ? f1(x.h.nilai100) : '<span class="text-muted">' + jumlahTerisi(x.n.skor) + '/' + P.totalIndikator() + ' terisi</span>' + (penilaiYa(gk) ? '<div class="pkg-bar" style="margin-top:4px;min-width:90px"><i style="width:' + Math.round(jumlahTerisi(x.n.skor) / P.totalIndikator() * 100) + '%"></i></div>' : '')) : (progresGuruHtml(x, boleh) || '-')) +
         '</td><td>' + (x.h && boleh && x.h.lengkap ? predChip(x.h) : '-') + '</td><td style="white-space:nowrap">' + tombol + '</td></tr>';
     });
     h += '</tbody></table></div>';
@@ -589,7 +613,7 @@
     if (!def) o += '<p class="text-muted" style="font-size:12px;margin:0">Modul <code>js/pkg-sumber.js</code> belum dimuat, sehingga bukti otomatis tidak tersedia. Bukti manual tetap bisa diisi.</p>';
     else {
       var rg = rentangOto(), dr = S.otoDari || (d.otoDari || rg.dari), sp = S.otoSampai || (d.otoSampai || rg.sampai);
-      o += !adaPenilai(gk) ? '<p class="text-muted" style="font-size:12px;margin:0">Bukti otomatis (absensi, jurnal, nilai) ditarik oleh penilai.</p>' : '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, dan <b>nilai siswa</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
+      o += !adaPenilai(gk) ? '<p class="text-muted" style="font-size:12px;margin:0">Bukti otomatis (absensi, jurnal, nilai, perangkat pembelajaran) ditarik oleh penilai.</p>' : '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, <b>nilai siswa</b>, serta <b>perangkat pembelajaran dan modul ajar</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><div><label class="label">Dari</label><input id="pkgOtoDari" type="date" class="field" value="' + esc(dr) + '"></div>' +
         '<div><label class="label">Sampai</label><input id="pkgOtoSampai" type="date" class="field" value="' + esc(sp) + '"></div>' +
         (boleh && adaPenilai(gk) ? '<button class="btn btn-success" data-act="bukti-tarik">🔄 Tarik bukti otomatis</button>' : '') + '</div>';
@@ -824,7 +848,7 @@
     if (dari > sampai) return pesan('Tanggal "Dari" tidak boleh sesudah "Sampai".', true);
     S.otoDari = dari; S.otoSampai = sampai;
     var ctx = { db: db, guruKey: gk, guruNama: namaGuru(gk), dari: dari, sampai: sampai };
-    pesan('Menarik data absensi, jurnal, dan nilai…');
+    pesan('Menarik data absensi, jurnal, nilai, dan perangkat pembelajaran…');
     kerjakan(function () {
       return SM.jalankan(ctx).then(function (hasil) {
         var peta = petaOto(), sumber = {}, oto = {}, waktu = nowIso(), adaOk = false;
@@ -836,7 +860,7 @@
         Object.keys(peta).forEach(function (key) {
           var ids = peta[key].filter(function (id) { return sumber[id] && sumber[id].ok; });
           if (!ids.length) return;
-          var sr = ids.map(function (id) { return sumber[id].saran; }).filter(function (x) { return x != null; });
+          var sr = ids.map(function (id) { var hh = hasil[id], pi = hh && hh.perInd; return (pi && (pi[key] === 0 || pi[key] === 1 || pi[key] === 2)) ? pi[key] : sumber[id].saran; }).filter(function (x) { return x != null; });   // sumber yang menghitung per indikator (perInd) menimpa saran tunggal
           oto[key] = { s: ids.join(','), saran: sr.length ? Math.max.apply(null, sr) : null };   // bukti boleh alternatif -> ambil yang terkuat
         });
         var upd = aman({ otomatis: Object.keys(oto).length ? oto : null, sumberOto: sumber, otoAt: waktu, otoOleh: u.name || u.key, otoDari: dari, otoSampai: sampai });
@@ -1579,7 +1603,7 @@
     });
     if (!rows) return '';
     return '<h3 style="page-break-before:always">LAMPIRAN: BUKTI KINERJA PER INDIKATOR</h3><table><thead><tr><th style="width:38px">No</th><th style="width:34%">Indikator</th><th>Bukti terlampir</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-      '<p class="ket">Bukti dihimpun melalui aplikasi SI MAMBA' + (d.otoAt ? '; data otomatis (absensi, jurnal, nilai) ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ' untuk rentang ' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) : '') + '. Catatan wawancara bersifat rahasia dan tidak dilampirkan.</p>';
+      '<p class="ket">Bukti dihimpun melalui aplikasi SI MAMBA' + (d.otoAt ? '; data otomatis (absensi, jurnal, nilai, perangkat pembelajaran) ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ' untuk rentang ' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) : '') + '. Catatan wawancara bersifat rahasia dan tidak dilampirkan.</p>';
   }
 
   function cetakRekap() {

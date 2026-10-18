@@ -4,6 +4,7 @@
      1) absensi guru    -> kehadiran, keterlambatan, izin/sakit/alpa
      2) jurnal mengajar -> jumlah jurnal dan hari berjurnal dibanding hari hadir
      3) nilai siswa     -> kelengkapan input, rata-rata nilai rapor, ketuntasan
+     4) perangkat pembelajaran + modul ajar -> ATP/TP, Prota/Promes, kisi-kisi, kartu soal, modul ajar, persetujuan Kepala (v5)
 
    WAJIB dimuat SEBELUM js/pkg.js (bila file ini tidak dimuat, isian bukti manual tetap jalan,
    hanya tombol "Tarik bukti otomatis" yang nonaktif).
@@ -234,6 +235,121 @@
     });
   }
 
+
+  // ---------- 4) perangkat pembelajaran dan modul ajar ----------
+  // Membaca node yang ditulis js/perangkat-pembelajaran.js, perangkat-atp-tp.js, perangkat-prota-promes.js, perangkat-kisi.js,
+  // perangkat-soal.js (perangkat_v4, perangkat_tp_v4, perangkat_materi_v4, perangkat_kisi_v4, perangkat_soal_v4) dan js/modul-ajar.js
+  // (modul_ajar). Usulan skor DIHITUNG PER INDIKATOR (hasil.perInd), bukan satu skor untuk semua indikator sumber ini.
+  // Satuan penilaian = (mapel + kelas + semester) yang masuk rentang tanggal. Tingkat per satuan: 2 = ada DAN disetujui Kepala,
+  // 1 = ada tetapi belum disetujui / hanya sebagian, 0 = belum ada. Usulan indikator: semua satuan 2 -> 2; ada yang >= 1 -> 1; selain itu 0.
+  // RPE tidak disimpan sebagai data (hanya dicetak), jadi tidak dipakai kecuali ada tautannya.
+  var PERANGKAT_IND = {
+    '3_1': 'Silabus/ATP-TP sesuai kurikulum', '3_2': 'Rencana pembelajaran (modul ajar) sesuai ATP/TP', '3_3': 'Materi untuk mencapai tujuan (modul ajar, Prota/Promes)',
+    '3_4': 'Urutan materi (Prota/Promes)', '7_1': 'Alat penilaian (kisi-kisi, kartu soal)', '13_2': 'Pemetaan CP/TP dan alokasi waktu (ATP/TP, Promes)'
+  };
+  function slugKey(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'x'; }   // sama dengan slug() di perangkat-pembelajaran.js
+  function normMapel(x) { return String(x || '').toLowerCase().replace(/[’'`´ʻʼ]/g, '').replace(/[^a-z0-9؀-ۿ]+/g, ' ').trim(); }
+  function normKelas(x) { return String(x || '').toLowerCase().replace(/\s+/g, '').replace(/^kelas/, ''); }
+  function kunciUnit(m, k) { return normMapel(m) + '|' + normKelas(k); }
+  function arr(x) { return Array.isArray(x) ? x : (obj(x) ? Object.keys(x).map(function (k) { return x[k]; }) : []); }
+  function semNama(x) { var t = String(x || '').toLowerCase(); return t === 'genap' ? 'genap' : (t === 'ganjil' ? 'ganjil' : ''); }
+  // Semester yang beririsan dengan rentang tanggal: Juli-Desember = ganjil, Januari-Juni = genap.
+  function semDalamRentang(dari, sampai) {
+    var a = new Date(dari + 'T00:00:00'), b = new Date(sampai + 'T00:00:00'), ada = {}, n = 0;
+    if (isNaN(a) || isNaN(b)) return [];
+    for (var d = new Date(a.getFullYear(), a.getMonth(), 1); d <= b && n < 36; d.setMonth(d.getMonth() + 1), n++) ada[d.getMonth() >= 6 ? 'ganjil' : 'genap'] = 1;
+    return ['ganjil', 'genap'].filter(function (x) { return ada[x]; });
+  }
+  // Baca node berkunci "<awalan>..." lalu saring rekaman milik guru ini. Mengembalikan { d: [rekaman], e: pesan galat atau null }.
+  function bacaAwalan(db, node, awalan, ctx) {
+    return Promise.all(awalan.map(function (aw) {
+      return db.ref(node).orderByKey().startAt(aw).endAt(aw + '').once('value').then(function (s) {
+        var o = []; if (s.exists()) s.forEach(function (c) { var v = c.val(); if (obj(v) && v.guruKey === ctx.guruKey) o.push(v); });
+        return o;
+      });
+    })).then(function (h) { return { d: [].concat.apply([], h), e: null }; }, function (e) { return { d: [], e: node + ': ' + kunci(e) }; });
+  }
+  function bacaModul(db, ctx) {
+    var milik = function (v) { return obj(v) && (v.ownerKey ? v.ownerKey === ctx.guruKey : (normNama(v.ownerName) === normNama(ctx.guruNama) && !!normNama(ctx.guruNama))); };
+    var saring = function (s) { var o = []; if (s.exists()) s.forEach(function (c) { var v = c.val(); if (milik(v)) o.push(v); }); return o; };
+    return db.ref('modul_ajar').orderByChild('ownerKey').equalTo(ctx.guruKey).once('value').then(saring)
+      .then(function (o) { return o.length ? o : db.ref('modul_ajar').once('value').then(saring); },      // modul lama tanpa ownerKey, atau .indexOn belum dipasang
+            function () { return db.ref('modul_ajar').once('value').then(saring); })
+      .then(function (o) { return { d: o, e: null }; }, function (e) { return { d: [], e: 'modul_ajar: ' + kunci(e) }; });
+  }
+  function ambilPerangkat(ctx) {
+    var ta = (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) ? String(currentTahunAjaran) : '';
+    if (!ta) return Promise.resolve({ ok: false, alasan: 'Perangkat pembelajaran: tahun ajaran aktif tidak diketahui (currentTahunAjaran kosong).' });
+    var sems = semDalamRentang(ctx.dari, ctx.sampai);
+    if (!sems.length) return Promise.resolve({ ok: false, alasan: 'Perangkat pembelajaran: rentang tanggal tidak sah.' });
+    var tas = slugKey(ta), gs = slugKey(ctx.guruKey);
+    var awSem = sems.map(function (x) { return tas + '_' + x + '_' + gs + '_'; });
+    return Promise.all([bacaAwalan(ctx.db, 'perangkat_v4', awSem, ctx), bacaAwalan(ctx.db, 'perangkat_tp_v4', [tas + '_' + gs + '_'], ctx),
+      bacaAwalan(ctx.db, 'perangkat_materi_v4', awSem, ctx), bacaAwalan(ctx.db, 'perangkat_kisi_v4', awSem, ctx),
+      bacaAwalan(ctx.db, 'perangkat_soal_v4', awSem, ctx), bacaModul(ctx.db, ctx)]).then(function (r) {
+      var G = { v4: r[0], tp: r[1], materi: r[2], kisi: r[3], soal: r[4], modul: r[5] }, galat = [];
+      Object.keys(G).forEach(function (k) { if (G[k].e) galat.push(G[k].e); });
+      var ok = function () { for (var i = 0; i < arguments.length; i++) if (G[arguments[i]].e) return false; return true; };
+      if (G.v4.e) return { ok: false, alasan: 'Perangkat pembelajaran tidak terbaca (' + galat.join('; ') + '). Biasanya Rules membatasi baca perangkat_v4 untuk penilai; lihat catatan paket.' };
+      var ta0 = normMapel(ta).replace(/\s+/g, '');
+      var modul = G.modul.d.filter(function (m) {
+        return m.status !== 'arsip' && semNama(m.semester) && sems.indexOf(semNama(m.semester)) > -1 && (!m.tahunAjaran || normMapel(m.tahunAjaran).replace(/\s+/g, '') === ta0);
+      });
+      var pairs = {}, label = {}, rows = {}, tp = {}, materi = {}, kisi = {}, soal = {};
+      var tambah = function (m, k, sm) { if (!m || !k || sems.indexOf(sm) < 0) return ''; var u = kunciUnit(m, k), key = u + '#' + sm; pairs[key] = { u: u, sem: sm }; if (!label[key]) label[key] = String(m) + ' ' + String(k) + ' ' + sm; return key; };
+      G.v4.d.forEach(function (v) { var key = tambah(v.mapel, v.kelas, semNama(v.semester)); if (key) rows[key] = v; });
+      G.materi.d.forEach(function (v) { var key = tambah(v.mapel, v.kelas, semNama(v.semester)); if (key) materi[key] = v; });
+      G.kisi.d.forEach(function (v) { var key = tambah(v.mapel, v.kelas, semNama(v.semester)); if (key) kisi[key] = v; });
+      G.soal.d.forEach(function (v) { var key = tambah(v.mapel, v.kelas, semNama(v.semester)); if (key) soal[key] = v; });
+      G.tp.d.forEach(function (v) { tp[kunciUnit(v.mapel, v.kelas)] = v; arr(v.items).forEach(function (it) { if (it && semNama(it.sem)) tambah(v.mapel, v.kelas, semNama(it.sem)); }); });
+      modul.forEach(function (m) { m.__key = tambah(m.mapel, m.kelas, semNama(m.semester)); });
+      var keys = Object.keys(pairs);
+      if (!keys.length) return { ok: false, alasan: 'Perangkat pembelajaran: belum ada perangkat (menu Perangkat Pembelajaran) maupun modul ajar milik guru ini untuk semester ' + sems.join('/') + ' tahun ajaran ' + ta + '.' };
+      // keberadaan dokumen: tautan (perangkat_v4.docs) ATAU dibuat di aplikasi
+      var ada = function (jk, key) {
+        var p = pairs[key], row = rows[key], ln = row && row.docs && row.docs[jk], gen = false;
+        if (jk === 'atp' || jk === 'tp') { var t = tp[p.u], its = t ? arr(t.items) : []; gen = its.some(function (it) { return it && (semNama(it.sem) === p.sem || !semNama(it.sem)); }); }
+        else if (jk === 'prota' || jk === 'promes') gen = !!(materi[key] && arr(materi[key].materi).length);
+        else if (jk === 'kisi') gen = !!(kisi[key] && arr(kisi[key].items).some(function (it) { return it && ((+it.pg || 0) + (+it.is || 0) + (+it.ur || 0)) > 0; }));
+        else if (jk === 'kartu' || jk === 'kunci') gen = !!(soal[key] && arr(soal[key].soal).some(function (x) { return x && String(x.q || '').trim(); }));
+        return { ada: !!(ln && ln.url) || gen, setuju: !!(ln && ln.setuju) };
+      };
+      var modulDi = function (key) { var l = modul.filter(function (m) { return m.__key === key; }); return { ada: l.length, setuju: l.filter(function (m) { return m.persetujuan === 'disetujui'; }), semua: l }; };
+      var lvl = function (semua, ada1, setuju) { return semua ? (setuju ? 2 : 1) : (ada1 ? 1 : 0); };
+      var HIT = {
+        '3_1': { perlu: ['v4', 'tp'], f: function (k) { var a = ada('atp', k), t = ada('tp', k); return lvl(a.ada && t.ada, a.ada || t.ada, a.setuju); } },
+        '3_2': { perlu: ['v4', 'tp', 'modul'], f: function (k) { var m = modulDi(k), t = ada('tp', k); return m.setuju.length && t.ada ? 2 : (m.ada ? 1 : 0); } },
+        '3_3': { perlu: ['v4', 'materi', 'modul'], f: function (k) { var m = modulDi(k), p = ada('prota', k); return m.setuju.some(function (x) { return String(x.materiIsi || '').trim(); }) ? 2 : ((m.ada || p.ada) ? 1 : 0); } },
+        '3_4': { perlu: ['v4', 'materi'], f: function (k) { var a = ada('prota', k), b = ada('promes', k); return lvl(a.ada && b.ada, a.ada || b.ada, a.setuju && b.setuju); } },
+        '7_1': { perlu: ['v4', 'kisi', 'soal'], f: function (k) { var a = ada('kisi', k), b = ada('kartu', k); return lvl(a.ada && b.ada, a.ada || b.ada, a.setuju); } },
+        '13_2': { perlu: ['v4', 'tp', 'materi'], f: function (k) { var t = ada('tp', k), a = ada('atp', k), p = ada('promes', k); return lvl(t.ada && a.ada && p.ada, t.ada || p.ada, a.setuju); } }
+      };
+      var perInd = {}, rincian = [], angka = { satuan: keys.length }, tanpa = [];
+      Object.keys(HIT).forEach(function (id) {
+        var h = HIT[id], bisa = ok.apply(null, h.perlu);
+        if (!bisa) { tanpa.push(id.replace('_', '.')); return; }
+        var n = [0, 0, 0]; keys.forEach(function (k) { n[h.f(k)]++; });
+        var sr = n[0] === 0 && n[1] === 0 ? 2 : (n[1] + n[2] > 0 ? 1 : 0);
+        perInd[id] = sr; angka['i' + id] = sr;
+        rincian.push(id.replace('_', '.') + ' ' + PERANGKAT_IND[id] + ' → usulan ' + sr + ' (lengkap ' + n[2] + ', sebagian ' + n[1] + ', belum ' + n[0] + ' dari ' + keys.length + ' satuan)');
+      });
+      if (!Object.keys(perInd).length) return { ok: false, alasan: 'Perangkat pembelajaran: node yang dibutuhkan tidak terbaca (' + galat.join('; ') + ').' };
+      var cat = ['RPE tidak disimpan sebagai data (hanya dicetak), sehingga tidak dihitung.'];
+      if (galat.length) cat.push('Tidak terbaca: ' + galat.join('; ') + (tanpa.length ? ' (indikator ' + tanpa.join(', ') + ' tanpa usulan)' : ''));
+      rincian.unshift('Satuan (mapel kelas semester): ' + keys.map(function (k) { return label[k]; }).slice(0, 8).join(', ') + (keys.length > 8 ? ', …' : ''));
+      rincian.push(cat.join(' '));
+      var nm = modul.length, nms = modul.filter(function (m) { return m.persetujuan === 'disetujui'; }).length;
+      angka.modul = nm; angka.modulSetuju = nms;
+      var cnt = function (jk) { return keys.filter(function (k) { return ada(jk, k).ada; }).length; };
+      return {
+        ok: true, path: 'perangkat_v4 + modul_ajar', saran: null, perInd: perInd,
+        dasar: 'Per indikator: 2 bila semua satuan ada dan disetujui Kepala; 1 bila ada sebagian atau belum disetujui; 0 bila belum ada.',
+        ringkas: keys.length + ' satuan (semester ' + sems.join('/') + '): ATP/TP ' + cnt('atp') + ', Prota/Promes ' + cnt('promes') + ', kisi-kisi ' + cnt('kisi') + ', kartu soal ' + cnt('kartu') + '; modul ajar ' + nm + ' (disetujui ' + nms + ')',
+        rincian: rincian, angka: angka
+      };
+    }).catch(function (e) { return { ok: false, alasan: 'Perangkat pembelajaran: ' + kunci(e) }; });
+  }
+
   // ---------- registrasi sumber ----------
   // indikator: daftar EKSPLISIT indikator ("komponen_urut") yang benar-benar bisa dibuktikan sumber ini. Sebelum v20 dicocokkan lewat
   // regex pada teks bukti instrumen, sehingga mis. "daftar hadir guru" (bukti pendamping 9.1-9.5) ikut memberi usulan skor untuk
@@ -241,9 +357,10 @@
   var DAFTAR = {
     absensi: { label: 'Absensi guru', ikon: '🕘', indikator: ['10_1', '10_3', '10_4'], ambil: ambilAbsensi },
     jurnal: { label: 'Jurnal mengajar', ikon: '📓', indikator: ['7_4', '14_2'], ambil: ambilJurnal },
-    nilai: { label: 'Nilai siswa', ikon: '📊', indikator: ['5_1', '7_1', '7_2', '7_3'], ambil: ambilNilai }
+    nilai: { label: 'Nilai siswa', ikon: '📊', indikator: ['5_1', '7_1', '7_2', '7_3'], ambil: ambilNilai },
+    perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '7_1', '13_2'], ambil: ambilPerangkat }
   };
-  var URUT = ['absensi', 'jurnal', 'nilai'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
+  var URUT = ['absensi', 'jurnal', 'nilai', 'perangkat'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
 
   function jalankan(ctx) {
     var hasil = {};
@@ -256,5 +373,5 @@
     }, Promise.resolve()).then(function () { return hasil; });
   }
 
-  window.PKG_SUMBER = { versi: 4, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
+  window.PKG_SUMBER = { versi: 5, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
 })();
