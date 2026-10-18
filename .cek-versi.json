@@ -1,6 +1,6 @@
 {
-  "appVersion": "v7.58",
-  "disimpan": "2026-10-18T05:54:24.609Z",
+  "appVersion": "v7.62",
+  "disimpan": "2026-10-18T11:47:36.569Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -55,8 +55,8 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=86",
-      "hash": "20aa7a096890b4461438c32f78bb5f930c88cccb"
+      "v": "v=87",
+      "hash": "1a3391c1ece4e3535a25b63ef3d435dc4d0325d3"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
@@ -67,8 +67,8 @@
       "hash": "31a9e765af839dad3c6032d543cd91683c9adf7f"
     },
     "js/kredensial.js": {
-      "v": "v=4",
-      "hash": "adcf9b019262bfceb7fbe31c52de3b078b5ea80f"
+      "v": "v=5",
+      "hash": "5dea66282f60a9e613f5edab868563506a4826af"
     },
     "js/ttd-digital.js": {
       "v": "v=4",
@@ -95,16 +95,16 @@
       "hash": "bdb3241404421382d218ae3ffa508b5ee43198dc"
     },
     "js/pkg-sumber.js": {
-      "v": "v=2",
-      "hash": "6acbffbf3ac478df7c2706afd16fe85bb559710e"
+      "v": "v=4",
+      "hash": "2d0a61aa8169a71433c3623b80d579c5f4767a4b"
     },
     "js/data-pkg-angket.js": {
-      "v": "v=3",
-      "hash": "4eeb193d7f974c208fe183a140489bf8a4914d7c"
+      "v": "v=4",
+      "hash": "5d5f1fbdd8a6236727bbc4a055d7ae78d9438b1d"
     },
     "js/pkg.js": {
-      "v": "v=17",
-      "hash": "d559c1197b88b83ad4d02fc677f807d2de576d75"
+      "v": "v=21",
+      "hash": "03554ac5941c2afc0f9c5e73b7ba60c0684c3d08"
     },
     "js/pkg-analisis.js": {
       "v": "v=3",
