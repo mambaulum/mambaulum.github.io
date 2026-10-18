@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Angket PKG – MI Mambaul Ulum</title>
+<style>
+  :root { --bg:#f5f7fa; --kartu:#fff; --teks:#1f2937; --redup:#6b7280; --garis:#d1d5db; --aksen:#0f766e; --aksen-t:#fff; --err:#b91c1c; --ok:#15803d; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111827; --kartu:#1f2937; --teks:#f3f4f6; --redup:#9ca3af; --garis:#374151; --aksen:#14b8a6; --aksen-t:#04201d; --err:#f87171; --ok:#4ade80; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--teks); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:16px 14px 40px; }
+  .kartu { background:var(--kartu); border:1px solid var(--garis); border-radius:12px; padding:16px; margin-bottom:14px; }
+  h1 { font-size:20px; margin:0 0 4px; } h2 { font-size:16px; margin:0 0 6px; }
+  .redup { color:var(--redup); font-size:14px; }
+  .butir { padding:12px 0; border-top:1px solid var(--garis); }
+  .butir:first-of-type { border-top:0; }
+  .butir p { margin:0 0 8px; font-weight:600; }
+  .opsi { display:flex; flex-wrap:wrap; gap:8px; }
+  .opsi label { flex:1 1 90px; min-width:90px; }
+  .opsi input { position:absolute; opacity:0; pointer-events:none; }
+  .opsi span { display:block; text-align:center; padding:10px 8px; border:2px solid var(--garis); border-radius:10px; cursor:pointer; font-size:15px; user-select:none; }
+  .opsi input:checked + span { border-color:var(--aksen); background:var(--aksen); color:var(--aksen-t); font-weight:700; }
+  .opsi input:focus-visible + span { outline:3px solid var(--aksen); outline-offset:2px; }
+  .butir.belum { outline:2px solid var(--err); outline-offset:4px; border-radius:6px; }
+  select { width:100%; padding:10px; border:2px solid var(--garis); border-radius:10px; background:var(--kartu); color:var(--teks); font-size:16px; }
+  button { width:100%; padding:14px; border:0; border-radius:12px; background:var(--aksen); color:var(--aksen-t); font-size:17px; font-weight:700; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  button.sekunder { background:transparent; color:var(--aksen); border:2px solid var(--aksen); margin-top:10px; }
+  .galat { color:var(--err); font-weight:600; margin:10px 0 0; }
+  .sukses { color:var(--ok); font-size:18px; font-weight:700; }
+</style>
+</head>
+<body>
+<main id="app"><div class="kartu"><p class="redup">Memuat…</p></div></main>
+
+<script defer src="vendor/firebase-app-compat.js?v=10.12.0"></script>
+<script defer src="vendor/firebase-database-compat.js?v=10.12.0"></script>
+<script defer src="vendor/firebase-auth-compat.js?v=10.12.0"></script>
+<script defer src="js/data-pkg-angket.js?v=3"></script>
+<script defer>
+(function () {
+  'use strict';
+  var app = document.getElementById('app');
+  var q = new URLSearchParams(location.search), P = q.get('p') || '', G = q.get('g') || '', J = q.get('j') || '', T = q.get('t') || '';
+
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (k === 'class') e.className = attrs[k]; else if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
+    (kids || []).forEach(function (c) { if (c) e.appendChild(c); });
+    return e;
+  }
+  function tampil(judul, teks, galat) {
+    app.textContent = '';
+    app.appendChild(el('div', { class: 'kartu' }, [el('h1', { text: judul }), el('p', { class: galat ? 'galat' : 'redup', text: teks })]));
+  }
+  function mulai() {
+    var A = window.PKG_ANGKET, def = A && A.jenis[J];
+    if (!P || !G || !def || !/^[A-Za-z0-9_\-]+$/.test(P) || !/^[A-Za-z0-9_\-]+$/.test(G)) return tampil('Tautan tidak valid', 'Mohon minta tautan angket yang benar kepada madrasah.', true);
+    if (typeof firebase === 'undefined') return tampil('Tidak dapat memuat', 'Periksa koneksi internet lalu muat ulang halaman ini.', true);
+    firebase.initializeApp({
+      apiKey: 'AIzaSyDavQuImJuJmskAbcqeFL3rkxFaKVFS4HI',
+      authDomain: 'administrasi-madrasah-46c72.firebaseapp.com',
+      databaseURL: 'https://administrasi-madrasah-46c72-default-rtdb.firebaseio.com',
+      projectId: 'administrasi-madrasah-46c72',
+      appId: '1:515893476502:web:7141669c4158a4678c16b7'
+    });
+    var db = firebase.database();
+    firebase.auth().signInAnonymously().then(function () {
+      return db.ref('pkg_v4_angket_info/' + P + '/' + G).once('value');
+    }).then(function (s) {
+      var info = s.val();
+      if (!info || info.aktif !== true) return tampil('Angket belum dibuka', 'Angket ini belum dibuka atau sudah ditutup oleh madrasah.', true);
+      info.kupon = info.mode === 'kupon';
+      if (info.kupon) {                                       // tautan sekali pakai: wajib membawa token milik responden
+        if (!/^[A-Za-z0-9]{20,40}$/.test(T)) return tampil('Tautan tidak lengkap', 'Angket ini memakai tautan pribadi sekali pakai. Mohon minta tautan Anda sendiri kepada madrasah.', true);
+        var sudah = false; try { sudah = localStorage.getItem('pkgAngket_' + T) === '1'; } catch (e) { }
+        if (sudah) return tampil('Jawaban sudah terkirim', 'Tautan ini sudah dipakai di perangkat ini. Terima kasih.', false);
+      }
+      formulir(db, def, info);
+    }).catch(function (e) {
+      tampil('Tidak dapat memuat', 'Periksa koneksi internet lalu coba lagi. (' + ((e && (e.code || e.message)) || 'galat') + ')', true);
+    });
+  }
+
+  function formulir(db, def, info) {
+    var A = window.PKG_ANGKET, jawab = {}, kelas = '';
+    app.textContent = '';
+    app.appendChild(el('div', { class: 'kartu' }, [
+      el('h1', { text: def.judul }),
+      el('p', { text: 'Untuk: ' + (info.nama || 'guru') }),
+      el('p', { class: 'redup', text: def.pembuka })
+    ]));
+    var kartu = el('div', { class: 'kartu' }), form = el('div', {});
+    kartu.appendChild(form); app.appendChild(kartu);
+
+    if (J === 'siswa') {
+      var sel = el('select', { 'aria-label': 'Kelas' }, ['', '4', '5', '6', 'Lainnya'].map(function (k) { return el('option', { value: k, text: k ? 'Kelas ' + k : 'Kelas (boleh dikosongkan)' }); }));
+      if (sel.options[4]) sel.options[4].textContent = 'Kelas lainnya';
+      sel.addEventListener('change', function () { kelas = sel.value; });
+      form.appendChild(el('div', { class: 'butir' }, [sel]));
+    }
+    var daftar = def.butir;                                   // butir pembanding ikut ditanyakan
+    daftar.forEach(function (x, i) {
+      var box = el('div', { class: 'butir', 'data-k': x.k }), grup = el('div', { class: 'opsi', role: 'radiogroup', 'aria-label': x.t });
+      box.appendChild(el('p', { text: (i + 1) + '. ' + x.t }));
+      ['y', 'k', 't'].concat(x.x ? ['x'] : []).forEach(function (kode) {
+        var id = 'r_' + x.k + '_' + kode, inp = el('input', { type: 'radio', name: 'n_' + x.k, id: id, value: kode });
+        inp.addEventListener('change', function () { jawab[x.k] = kode; box.classList.remove('belum'); });
+        grup.appendChild(el('label', { 'for': id }, [inp, el('span', { text: A.pilihan[kode] })]));
+      });
+      box.appendChild(grup); form.appendChild(box);
+    });
+    var galat = el('p', { class: 'galat', role: 'alert' }), kirim = el('button', { type: 'button', text: 'Kirim jawaban' });
+    kartu.appendChild(galat); kartu.appendChild(kirim);
+
+    kirim.addEventListener('click', function () {
+      var kosong = daftar.filter(function (x) { return !jawab[x.k]; });
+      Array.prototype.forEach.call(form.querySelectorAll('.butir[data-k]'), function (b) { b.classList.toggle('belum', kosong.some(function (x) { return x.k === b.getAttribute('data-k'); })); });
+      if (kosong.length) { galat.textContent = 'Masih ada ' + kosong.length + ' pernyataan yang belum dijawab.'; var f = form.querySelector('.belum'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+      galat.textContent = ''; kirim.disabled = true; kirim.textContent = 'Mengirim…';
+      var rec = { j: jawab, at: new Date().toISOString() }; if (kelas) rec.kls = kelas;
+      var ref = info.kupon ? db.ref('pkg_v4_angket/' + P + '/' + G + '/' + J + '/' + T) : db.ref('pkg_v4_angket/' + P + '/' + G + '/' + J).push();
+      ref.set(rec).then(function () {
+        if (info.kupon) { try { localStorage.setItem('pkgAngket_' + T, '1'); } catch (e) { } }
+        app.textContent = '';
+        var k2 = el('div', { class: 'kartu' }, [el('p', { class: 'sukses', text: '✔ Terima kasih, jawabanmu sudah terkirim.' }), el('p', { class: 'redup', text: 'Jawaban bersifat rahasia dan tidak memuat namamu.' })]);
+        if (!info.kupon) {                                    // tautan terbuka (warisan): boleh isi lagi; tautan sekali pakai tidak
+          var lagi = el('button', { type: 'button', class: 'sekunder', text: 'Isi untuk responden lain' });
+          lagi.addEventListener('click', function () { formulir(db, def, info); window.scrollTo(0, 0); });
+          k2.appendChild(lagi);
+        }
+        app.appendChild(k2);
+      }).catch(function (e) {
+        kirim.disabled = false; kirim.textContent = 'Kirim jawaban';
+        galat.textContent = (e && e.code === 'PERMISSION_DENIED') ? (info.kupon ? 'Tautan ini sudah dipakai, tidak berlaku, atau angket sudah ditutup.' : 'Angket sudah ditutup oleh madrasah.') : 'Gagal mengirim. Periksa koneksi lalu coba lagi.';
+      });
+    });
+  }
+
+  if (document.readyState === 'complete') mulai(); else window.addEventListener('load', mulai);
+})();
+</script>
+</body>
+</html>
