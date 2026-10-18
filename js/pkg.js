@@ -23,6 +23,8 @@
         diri                  : {j:{G1..G12:'y'|'k'|'t'}, r:{r1..r3}} penilaian diri guru (pembanding angket siswa) + diriAt, diriOleh
         angketBanding/{S9..}  : {pct, n, ind}  butir pembanding observasi; angketN, angketAt, angketOleh
    NODE ANGKET (jawaban dari angket.html): pkg_v4_angket_info/{periodeId}/{guruKey} {nama, aktif, dibuat}; pkg_v4_angket/{periodeId}/{guruKey}/{jenis}/{pushId} {j:{S1:'y'|'k'|'t'|'x'}, kls, at}
+   JATAH SEJAWAT (v22): pkg_v4_angket_jatah/{periodeId}/{guruDinilai}/{guruSejawat} = token kupon jenis 'sejawat' milik guru sejawat itu.
+        Ditulis penilai/Kepala/Admin; dibaca penilai/Kepala/Admin dan guru sejawat pemilik jatah. Dipakai kartu "Angket sejawat untuk Anda isi".
         siap/{g0..gN}         : true  (centang kesiapan bukti, per kelompok pada daftar bukti)
         otomatis/{k_i}        : {s:'absensi,jurnal', saran:0|1|2|null}   (indikator yang bisa dibuktikan data SI MAMBA)
         sumberOto/{id}        : hasil tarikan per sumber {ok, ringkas, saran, dasar, rincian, angka, alasan, at}
@@ -54,7 +56,7 @@
   var P = window.PKG_MI;
   if (!P || !P.komponen || typeof P.hitungPKG !== 'function' || typeof P.totalIndikator !== 'function') { console.warn('[PKG] js/data-pkg-mi.js belum dimuat / tidak lengkap.'); return; }
 
-  var N = { periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon' };
+  var N = { periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon', angketJatah: 'pkg_v4_angket_jatah' };
   var MAKS_ITEM = 10;                 // maks. bukti manual per indikator
   var JENIS_ITEM = { dokumen: '📄 Dokumen', observasi: '👁️ Observasi', wawancara: '🎤 Wawancara' };
   var MAKS_GURU_PER_PENILAI = 10;
@@ -66,7 +68,7 @@
     belum: '#6b7280', draft: '#b45309', diajukan: '#1d4ed8', disetujui: '#15803d', keberatan: '#b91c1c', ditetapkan: '#166534'
   };
 
-  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'ringkasan', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, angket: {}, otoDari: '', otoSampai: '' };
+  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'ringkasan', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, angket: {}, jatah: [], jatahId: 0, otoDari: '', otoSampai: '' };
 
   // ---------- util ----------
   function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -171,7 +173,7 @@
           S.tugas = tugas; S.nilai = nilai;
         });
       });
-    }).then(function () { if (basi()) return; S.memuat = false; render(); if (cb) cb(); })
+    }).then(function () { if (basi()) return; S.memuat = false; render(); muatJatah(); if (cb) cb(); })
       .catch(function (e) {
         if (basi()) return;
         S.memuat = false; render();
@@ -268,7 +270,7 @@
     if (S.tab === 'pengaturan' && bolehKelola()) h += pengaturanHtml();
     else if (S.tab === 'analisis' && bolehKelola()) h += analisisHtml();
     else if (S.tab === 'daftar') h += daftarHtml();
-    else h += ringkasanHtml();
+    else h += jatahKartu() + ringkasanHtml();
     r.innerHTML = h;
   }
 
@@ -890,9 +892,10 @@
     var mentah = adaPenilai(gk);
     siapSesi().then(function () {
       var info = db.ref(N.angketInfo + '/' + pid + '/' + gk).once('value');
-      if (!mentah) return Promise.all([info, null, null]);
+      if (!mentah) return Promise.all([info, null, null, null]);
       return Promise.all([info, db.ref(N.angket + '/' + pid + '/' + gk).once('value'),
-        db.ref(N.angketKupon + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return {}; })]);
+        db.ref(N.angketKupon + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return {}; }),
+        db.ref(N.angketJatah + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return null; })]);   // null = Rules jatah belum dipublikasikan
     }).then(function (h) {
       if (pid !== S.periodeId) return;
       var resp = (h[1] && h[1].val()) || {}, daftar = {}, ids = {};
@@ -900,7 +903,7 @@
         var m = resp[j] || {}; ids[j] = {};
         daftar[j] = Object.keys(m).filter(function (id) { return m[id] && typeof m[id] === 'object'; }).map(function (id) { ids[j][id] = 1; return m[id]; });
       });
-      S.angket[kunci] = { info: h[0].val() || null, resp: daftar, ids: ids, kupon: h[2] || {}, mentah: mentah };
+      S.angket[kunci] = { info: h[0].val() || null, resp: daftar, ids: ids, kupon: h[2] || {}, jatah: h[3] || {}, jatahOk: !!mentah && h[3] !== null && h[3] !== undefined, mentah: mentah };
     }).catch(function (e) {
       console.warn('[PKG] angket gagal dimuat:', e);
       S.angket[kunci] = { info: null, resp: { siswa: [], ortu: [], sejawat: [] }, galat: true };
@@ -945,6 +948,7 @@
           '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="kupon-salin" data-j="' + j + '" data-m="satu"' + (sisa ? '' : ' disabled') + '>📋 Salin 1 tautan</button>' +
           '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="kupon-salin" data-j="' + j + '" data-m="semua"' + (sisa ? '' : ' disabled') + '>📋 Salin semua tersisa</button></div>';
       }
+      if (aktif && kup && a.info && j === 'sejawat') o += jatahPenilaiHtml(gk, a, boleh);
       o += '</div>';
     });
     if (aktif) o += waPanel(gk);
@@ -962,38 +966,52 @@
   function waSiap() { return typeof allSiswa !== 'undefined' && Array.isArray(allSiswa) && typeof kirimWA === 'function' && typeof formatNomorWa === 'function'; }
   function waAdaNo(x) { return !!(x && x.noWaOrtu) && formatNomorWa(x.noWaOrtu).length >= 10; }
   function waKelas456(k) { return /^\s*(kelas\s*)?([456]|IV|VI|V)(?![0-9IVXivx])/i.test(String(k || '')); }
-  function waState(gk) { if (!S.wa || S.wa.gk !== gk) S.wa = { gk: gk, kelas: '', sent: {}, ant: null }; return S.wa; }
-  function waDaftarKelas() {
+  function waState(gk) { if (!S.wa || S.wa.gk !== gk) S.wa = { gk: gk, jenis: 'siswa', kelas: '', sent: { siswa: {}, ortu: {} }, ant: null }; return S.wa; }
+  function waNo(x) { return formatNomorWa(x.noWaOrtu); }
+  function waJudul(jenis) { return jenis === 'ortu' ? 'orang tua' : 'siswa'; }
+  function waDaftarKelas(jenis) {
     var m = {}; allSiswa.forEach(function (x) { if (x && x.kelas) m[x.kelas] = 1; });
-    var semua = Object.keys(m).sort(), sub = semua.filter(waKelas456);
-    return sub.length ? sub : semua;
+    var semua = Object.keys(m).sort();
+    if (jenis === 'ortu') return semua;                         // angket orang tua: semua kelas boleh (orang tua kelas 1\u20133 juga bisa menjawab)
+    var sub = semua.filter(waKelas456); return sub.length ? sub : semua;
   }
   function waItems(gk) {
     var st = waState(gk); if (!st.kelas) return [];
-    return allSiswa.filter(function (x) { return x && x.kelas === st.kelas && waAdaNo(x) && !st.sent[x.key]; }).map(function (x) { return x.key; });
+    var sent = st.sent[st.jenis], lihat = {};
+    return allSiswa.filter(function (x) {
+      if (!x || x.kelas !== st.kelas || !waAdaNo(x)) return false;
+      if (st.jenis === 'ortu') { var n = waNo(x); if (sent['n' + n] || lihat[n]) return false; lihat[n] = 1; return true; }   // satu pesan per nomor WA wali
+      return !sent[x.key];
+    }).map(function (x) { return x.key; });
   }
-  function waPesan(x, gk, tok) {
+  function waPesan(x, gk, tok, jenis) {
     var nm = (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) ? MADRASAH.nama : 'Madrasah';
-    return 'Assalamu\u2019alaikum, Bapak/Ibu wali dari ananda *' + x.name + '* (' + x.kelas + ').\n\nDalam rangka penilaian kinerja guru, mohon ananda dibantu mengisi angket singkat berikut (sekitar 3 menit, tanpa nama, jawaban dirahasiakan; tautan ini khusus untuk satu kali pengisian). Mohon ananda menjawab jujur sesuai yang ia rasakan:\n' + tautanAngket(gk, 'siswa', tok) + '\n\nTerima kasih.\n\n- ' + nm;
+    var isi = jenis === 'ortu'
+      ? 'Dalam rangka penilaian kinerja guru, mohon Bapak/Ibu mengisi angket singkat tentang guru *' + namaGuru(gk) + '* berikut (sekitar 3 menit, tanpa nama, jawaban dirahasiakan; tautan ini khusus untuk satu kali pengisian). Pilih \u201cTidak tahu\u201d bila belum mengetahuinya:\n'
+      : 'Dalam rangka penilaian kinerja guru, mohon ananda dibantu mengisi angket singkat tentang guru *' + namaGuru(gk) + '* berikut (sekitar 3 menit, tanpa nama, jawaban dirahasiakan; tautan ini khusus untuk satu kali pengisian). Mohon ananda menjawab jujur sesuai yang ia rasakan:\n';
+    return 'Assalamu\u2019alaikum, Bapak/Ibu wali dari ananda *' + x.name + '* (' + x.kelas + ').\n\n' + isi + tautanAngket(gk, jenis === 'ortu' ? 'ortu' : 'siswa', tok) + '\n\nTerima kasih.\nWassalamu\u2019alaikum warahmatullahi wabarakatuh.\n\n- ' + nm;
   }
   function waPanel(gk) {
     if (!waSiap()) return '';
-    var st = waState(gk), kls = waDaftarKelas(), a = st.ant;
-    var o = '<div class="pkg-ind" style="margin:6px 0;border:1px solid #25D366;border-radius:10px"><div><b>📲 Kirim ke wali murid lewat WhatsApp</b></div><div class="pkg-meta">Pilih kelas, lalu tekan tombol satu per satu. Setiap klik membuka satu chat WhatsApp berisi tautan angket siswa; Anda tinggal menekan Kirim di WhatsApp. Kelas 1\u20133 sebaiknya tidak dikirimi (dibacakan guru lain).</div>';
-    o += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center"><select class="field" data-act="wa-kelas" style="font-size:12px;padding:5px;max-width:170px"><option value="">Pilih kelas…</option>' + kls.map(function (k) { return '<option value="' + esc(k) + '"' + (k === st.kelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select>';
+    var st = waState(gk), a = st.ant, jn = a ? a.jenis : st.jenis, kls = waDaftarKelas(jn);
+    var o = '<div class="pkg-ind" style="margin:6px 0;border:1px solid #25D366;border-radius:10px"><div><b>\ud83d\udcf2 Kirim ke wali murid lewat WhatsApp</b></div><div class="pkg-meta">Pilih jenis angket dan kelas, lalu tekan tombol satu per satu. Setiap klik membuka satu chat WhatsApp berisi tautan angket; Anda tinggal menekan Kirim di WhatsApp. ' +
+      (jn === 'ortu' ? 'Angket orang tua: satu pesan per nomor WA (wali yang punya beberapa anak hanya dikirimi sekali). Semua kelas boleh.' : 'Kelas 1\u20133 sebaiknya tidak dikirimi angket siswa (dibacakan guru lain).') + '</div>';
+    o += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center">';
+    if (!a) o += '<select class="field" data-act="wa-jenis" aria-label="Jenis angket" style="font-size:12px;padding:5px;max-width:170px"><option value="siswa"' + (st.jenis === 'siswa' ? ' selected' : '') + '>Angket siswa</option><option value="ortu"' + (st.jenis === 'ortu' ? ' selected' : '') + '>Angket orang tua</option></select>' +
+      '<select class="field" data-act="wa-kelas" style="font-size:12px;padding:5px;max-width:170px"><option value="">Pilih kelas\u2026</option>' + kls.map(function (k) { return '<option value="' + esc(k) + '"' + (k === st.kelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select>';
     if (st.kelas && !a) {
       var n = waItems(gk).length, tanpa = allSiswa.filter(function (x) { return x && x.kelas === st.kelas && !waAdaNo(x); }).length;
-      o += n ? '<button type="button" class="btn" style="padding:5px 12px;font-size:12px;background:#25D366;color:#fff" data-act="wa-mulai">▶ Mulai antrean (' + n + ' wali)</button>' : '<span class="pkg-meta">Tidak ada wali yang belum dikirimi.</span>';
+      o += n ? '<button type="button" class="btn" style="padding:5px 12px;font-size:12px;background:#25D366;color:#fff" data-act="wa-mulai">\u25b6 Mulai antrean (' + n + ' wali)</button>' : '<span class="pkg-meta">Tidak ada wali yang belum dikirimi.</span>';
       if (tanpa) o += '<span class="pkg-meta">' + tanpa + ' siswa tanpa nomor WA wali valid.</span>';
     }
     o += '</div>';
     if (a) {
       var kotak;
-      if (a.i >= a.items.length) kotak = '<div style="font-size:12px">✅ Antrean selesai: <b>' + a.kirim + '</b> chat dibuka, <b>' + a.lewat + '</b> dilewati.</div><button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:11px;margin-top:6px" data-act="wa-tutup">Tutup</button>';
+      if (a.i >= a.items.length) kotak = '<div style="font-size:12px">\u2705 Antrean ' + waJudul(a.jenis) + ' selesai: <b>' + a.kirim + '</b> chat dibuka, <b>' + a.lewat + '</b> dilewati.</div><button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:11px;margin-top:6px" data-act="wa-tutup">Tutup</button>';
       else {
         var x = allSiswa.filter(function (y) { return y && y.key === a.items[a.i]; })[0];
-        kotak = '<div class="pkg-meta">Antrean WA ' + (a.i + 1) + ' dari ' + a.items.length + '</div><div style="font-size:13px;margin:2px 0 8px"><b>' + esc(x ? x.name : '-') + '</b> (' + esc(x ? x.kelas : '') + ')</div>' +
-          '<div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn" style="padding:5px 12px;font-size:12px;background:#25D366;color:#fff" data-act="wa-buka">📲 Buka WA &amp; lanjut</button><button type="button" class="btn btn-soft" style="padding:5px 12px;font-size:12px" data-act="wa-lewati">⏭️ Lewati</button><button type="button" class="btn btn-soft" style="padding:5px 12px;font-size:12px" data-act="wa-tutup">✖ Berhenti</button></div>';
+        kotak = '<div class="pkg-meta">Antrean WA ' + waJudul(a.jenis) + ' ' + (a.i + 1) + ' dari ' + a.items.length + '</div><div style="font-size:13px;margin:2px 0 8px"><b>' + esc(x ? x.name : '-') + '</b> (' + esc(x ? x.kelas : '') + ')</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn" style="padding:5px 12px;font-size:12px;background:#25D366;color:#fff" data-act="wa-buka">\ud83d\udcf2 Buka WA &amp; lanjut</button><button type="button" class="btn btn-soft" style="padding:5px 12px;font-size:12px" data-act="wa-lewati">\u23ed\ufe0f Lewati</button><button type="button" class="btn btn-soft" style="padding:5px 12px;font-size:12px" data-act="wa-tutup">\u2716 Berhenti</button></div>';
       }
       o += '<div style="background:rgba(37,211,102,.12);border-radius:10px;padding:10px 12px;margin-top:8px">' + kotak + '</div>';
     }
@@ -1006,12 +1024,79 @@
     if (!(ak && ak.info && ak.info.aktif)) return pesan('Angket belum dibuka. Buka angket dulu.', true);
     var key = a.items[a.i], x = allSiswa.filter(function (y) { return y && y.key === key; })[0];
     if (!x || !waAdaNo(x)) { a.i++; a.lewat++; return render(); }
-    a.i++; a.kirim++; st.sent[key] = true;                 // maju dulu, lalu buka WA (harus di dalam klik agar tidak diblokir popup)
     var tokS = a.tok ? a.tok[key] : '';
     if (a.tok && !tokS) { a.i++; a.lewat++; return render(); }
-    kirimWA(x.noWaOrtu, waPesan(x, gk, tokS));
-    try { if (typeof addLog === 'function') addLog('PKG angket WA', x.kelas + ' - ' + x.name); } catch (e) { console.error('[PKG] addLog angket WA gagal:', e); }
+    a.i++; a.kirim++; st.sent[a.jenis][a.jenis === 'ortu' ? 'n' + waNo(x) : key] = true;   // maju dulu, lalu buka WA (harus di dalam klik agar tidak diblokir popup)
+    kirimWA(x.noWaOrtu, waPesan(x, gk, tokS, a.jenis));
+    try { if (typeof addLog === 'function') addLog('PKG angket WA', (a.jenis === 'ortu' ? 'ortu ' : '') + x.kelas + ' - ' + x.name); } catch (e) { console.error('[PKG] addLog angket WA gagal:', e); }
     render();
+  }
+
+  // ----- Jatah angket sejawat (v22): tautan sekali pakai otomatis di akun tiap guru sejawat -----
+  // Penilai menekan satu tombol -> tiap guru lain mendapat token sendiri (pkg_v4_angket_jatah/{p}/{guruDinilai}/{guruSejawat})
+  // yang sekaligus terdaftar sebagai kupon jenis 'sejawat'. Guru sejawat melihat tautannya di menu PKG (kartu \"Angket sejawat untuk Anda isi\").
+  var AMAN_KEY = /^[A-Za-z0-9_\-]+$/;
+  function jatahPenilaiHtml(gk, a, boleh) {
+    var lain = guruAktif().filter(function (g) { return g.key && g.key !== gk && AMAN_KEY.test(g.key); });
+    var ada = lain.filter(function (g) { return a.jatah && a.jatah[g.key]; }).length, kurang = lain.length - ada;
+    var o = '<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(15,118,110,.08)"><div style="font-size:12.5px"><b>\ud83d\udc65 Tautan otomatis di akun guru</b>: ' + ada + ' dari ' + lain.length + ' guru lain sudah mendapat tautan sendiri. Tautan muncul di menu PKG masing-masing guru.</div>';
+    if (!a.jatahOk) o += '<div style="font-size:12px;color:#b91c1c;margin-top:4px">Data jatah belum bisa dibaca. Publikasikan firebase-rules-pkg.json (versi v22, node pkg_v4_angket_jatah) lebih dulu.</div>';
+    else if (boleh && kurang > 0) o += '<button type="button" class="btn btn-soft" style="margin-top:6px;padding:4px 10px;font-size:12px" data-act="jatah-buat">\ud83d\udc65 Bagikan ke ' + kurang + ' guru</button>';
+    return o + '</div>';
+  }
+  function jatahBuat() {
+    var gk = S.gk, a = dataAngket(gk), pid = S.periodeId;
+    if (!a || !a.info || !modeKupon(a)) return pesan('Angket harus memakai tautan sekali pakai.', true);
+    if (!a.info.aktif) return pesan('Buka angket dulu.', true);
+    if (!bolehUbahBukti(gk) || !adaPenilai(gk)) return pesan('Anda tidak berhak membagikan tautan angket untuk guru ini / penilaian sudah final.', true);
+    if (!a.jatahOk) return pesan('Data jatah belum bisa dibaca. Publikasikan Rules v22 (pkg_v4_angket_jatah) lebih dulu.', true);
+    var baru = guruAktif().filter(function (g) { return g.key && g.key !== gk && AMAN_KEY.test(g.key) && !(a.jatah && a.jatah[g.key]); });
+    if (!baru.length) return pesan('Semua guru lain sudah mendapat tautan.');
+    if (!kuponBoleh(a, 'sejawat', baru.length)) return pesan('Batas ' + MAKS_KUPON + ' tautan sejawat per guru terlampaui.', true);
+    if (!confirm('Bagikan tautan angket sejawat ke ' + baru.length + ' guru lain? Tiap guru akan melihat tautannya sendiri di menu PKG.')) return;
+    var upd = {}, peta = {}, now = nowIso();
+    baru.forEach(function (g) { var t = buatToken(); peta[g.key] = t; upd[N.angketJatah + '/' + pid + '/' + gk + '/' + g.key] = t; upd[N.angketKupon + '/' + pid + '/' + gk + '/sejawat/' + t] = now; });
+    kerjakan(function () { return db.ref().update(upd); }, function () {
+      a.jatah = a.jatah || {}; a.kupon = a.kupon || {}; a.kupon.sejawat = a.kupon.sejawat || {};
+      Object.keys(peta).forEach(function (k) { a.jatah[k] = peta[k]; a.kupon.sejawat[peta[k]] = now; });
+      if (typeof addLog === 'function') addLog('PKG angket jatah', namaGuru(gk) + ' sejawat x' + baru.length);
+      pesan('Tautan dibagikan ke ' + baru.length + ' guru. Mereka melihatnya di menu PKG.'); render();
+    }, 'Gagal membagikan tautan: ');
+  }
+  // sisi guru sejawat: cari angket sejawat yang aktif untuk guru lain yang sedang dinilai, lalu baca jatah milik sendiri
+  function muatJatah() {
+    var u = me(), pid = S.periodeId, id = ++S.jatahId;
+    S.jatah = [];
+    if (!u || adm() || kep() || !pid) return;
+    var daftar = Object.keys(S.tugas || {}).filter(function (g) { var t = S.tugas[g]; return g !== u.key && t && t.penilaiKey && AMAN_KEY.test(g); });
+    if (!daftar.length) return;
+    siapSesi().then(function () {
+      return Promise.all(daftar.map(function (g) {
+        return db.ref(N.angketInfo + '/' + pid + '/' + g).once('value').then(function (s) {
+          var i = s.val(); if (!i || i.aktif !== true || i.mode !== 'kupon') return null;
+          return db.ref(N.angketJatah + '/' + pid + '/' + g + '/' + u.key).once('value').then(function (x) {
+            var t = x.val(); return (typeof t === 'string' && /^[A-Za-z0-9]{20,40}$/.test(t)) ? { gk: g, nama: i.nama || namaGuru(g), token: t } : null;
+          });
+        }).catch(function () { return null; });       // ditolak Rules / belum ada: lewati
+      }));
+    }).then(function (hasil) {
+      if (id !== S.jatahId || pid !== S.periodeId) return;
+      S.jatah = hasil.filter(Boolean).sort(function (x, y) { return String(x.nama).localeCompare(String(y.nama)); });
+      if (S.jatah.length && S.view === 'list') render();
+    }).catch(function (e) { console.warn('[PKG] jatah angket sejawat gagal dimuat:', e); });
+  }
+  function jatahSudah(tok) { try { return localStorage.getItem('pkgAngket_' + tok) === '1'; } catch (e) { return false; } }
+  function jatahKartu() {
+    if (!S.jatah || !S.jatah.length || bolehKelola()) return '';
+    var sisa = S.jatah.filter(function (x) { return !jatahSudah(x.token); }).length;
+    var o = '<div class="card" style="border:1px solid #0f766e"><h4 style="margin:0 0 4px">\ud83d\udcdd Angket sejawat untuk Anda isi' + (sisa ? ' <span class="pkg-chip" style="background:#0f766e">' + sisa + '</span>' : '') + '</h4>' +
+      '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Penilaian kinerja rekan sedang berjalan. Mohon isi angket untuk rekan di bawah ini (sekitar 3 menit). Jawaban tidak memuat nama Anda. Tautan ini khusus untuk Anda dan hanya bisa dipakai sekali; jangan dibagikan.</p>';
+    S.jatah.forEach(function (x) {
+      var sudah = jatahSudah(x.token), url = tautanAngket(x.gk, 'sejawat', x.token);
+      o += '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:6px 0;border-top:1px solid #f3f4f6"><span style="font-size:13px"><b>' + esc(x.nama) + '</b>' + (sudah ? ' <span class="pkg-meta">\u2714 sudah diisi di perangkat ini</span>' : '') + '</span>' +
+        (sudah ? '' : '<a class="btn btn-success" style="padding:5px 12px;font-size:12px;text-decoration:none" href="' + esc(url) + '" target="_blank" rel="noopener">Isi angket</a>') + '</div>';
+    });
+    return o + '</div>';
   }
 
   function angketToggle() {
@@ -1264,16 +1349,17 @@
     if (act === 'bukti-pengamatan') return simpanPengamatan(el);
     if (act === 'angket-toggle') return angketToggle();
     if (act === 'wa-mulai') {
-      var st1 = waState(S.gk), it = waItems(S.gk), ak1 = dataAngket(S.gk); if (!it.length) return pesan('Tidak ada wali yang belum dikirimi.', true);
-      if (!(ak1 && ak1.info && modeKupon(ak1))) { st1.ant = { items: it, i: 0, kirim: 0, lewat: 0 }; return render(); }
+      var st1 = waState(S.gk), jn = st1.jenis, it = waItems(S.gk), ak1 = dataAngket(S.gk); if (!it.length) return pesan('Tidak ada wali yang belum dikirimi.', true);
+      if (!(ak1 && ak1.info && modeKupon(ak1))) { st1.ant = { jenis: jn, items: it, i: 0, kirim: 0, lewat: 0 }; return render(); }
       if (!bolehUbahBukti(S.gk) || !adaPenilai(S.gk)) return pesan('Anda tidak berhak membuat tautan angket untuk guru ini.', true);
-      if (!kuponBoleh(ak1, 'siswa', it.length)) return pesan('Batas ' + MAKS_KUPON + ' tautan siswa per guru terlampaui.', true);
+      if (!kuponBoleh(ak1, jn, it.length)) return pesan('Batas ' + MAKS_KUPON + ' tautan ' + waJudul(jn) + ' per guru terlampaui.', true);
       var gk1 = S.gk;
-      return kerjakan(function () { return kuponBuat(gk1, 'siswa', it.length); }, function (tok) {
+      return kerjakan(function () { return kuponBuat(gk1, jn, it.length); }, function (tok) {
         var peta = {}; it.forEach(function (k, i) { peta[k] = tok[i]; });
-        st1.ant = { items: it, i: 0, kirim: 0, lewat: 0, tok: peta }; render();
+        st1.ant = { jenis: jn, items: it, i: 0, kirim: 0, lewat: 0, tok: peta }; render();
       }, 'Gagal membuat tautan sekali pakai: ');
     }
+    if (act === 'jatah-buat') return jatahBuat();
     if (act === 'angket-mode') return angketMode();
     if (act === 'kupon-buat') return kuponBuatAksi(el);
     if (act === 'kupon-salin') return kuponSalin(el);
@@ -1867,6 +1953,7 @@
       });
       div.addEventListener('change', function (ev) {
         var t = ev.target;
+        if (t.getAttribute && t.getAttribute('data-act') === 'wa-jenis' && S.gk) { var w1 = waState(S.gk); w1.jenis = t.value === 'ortu' ? 'ortu' : 'siswa'; w1.kelas = ''; w1.ant = null; return render(); }
         if (t.getAttribute && t.getAttribute('data-act') === 'wa-kelas' && S.gk) { var w0 = waState(S.gk); w0.kelas = t.value; w0.ant = null; return render(); }
         if (t.getAttribute && t.getAttribute('data-act') === 'ganti-periode') { S.periodeId = t.value; S.view = 'list'; S.bukti = {}; return muat(); }
         if (t.matches && t.matches('input[type=checkbox][data-siap]') && S.view === 'bukti') return simpanSiap(t.getAttribute('data-siap'), t.checked);
