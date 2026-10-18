@@ -2903,6 +2903,7 @@
       // itulah kenapa tombol "Keluar" bisa terlihat tidak merespon sama sekali.
       const wasUser = currentUser;
       currentUser = null;
+      try { if (typeof kredBersihkanSesi === 'function') kredBersihkanSesi(); } catch (e) { console.error('[SI MAMBA] kredBersihkanSesi gagal saat logout:', e); }   // hapus Kunci Admin/Kepsek + sesi_* (jangan tertinggal di perangkat)
       Object.keys(_flushAttKeyByItem).forEach(k => { delete _flushAttKeyByItem[k]; });   // memo key flush absensi tidak boleh terbawa ke akun berikutnya
       clearSession();
       document.getElementById('appPage').style.display = 'none';
@@ -12841,7 +12842,7 @@
     }
     window.login = function(){
       try {
-        if(currentUser){ clearSession(); currentUser=null; }
+        if(currentUser){ clearSession(); currentUser=null; try { if (typeof kredBersihkanSesi === 'function') kredBersihkanSesi(); } catch (e) {} }
         const key=document.getElementById('loginGuru').value, pin=document.getElementById('loginPIN').value.trim(), remember=document.getElementById('rememberMe').checked;
         if(!key) return toast('Pilih user!',true);
         if(key==='admin' || key==='kepsek'){
