@@ -20,6 +20,7 @@
   var PILIHAN = { y: 'Ya', k: 'Kadang-kadang', t: 'Tidak', x: 'Tidak tahu' };
   var NILAI = { y: 1, k: 0.5, t: 0 };
   var AMBANG = { baik: 80, cukup: 50 };
+  function adaNilai(v) { return typeof v === 'string' && Object.prototype.hasOwnProperty.call(NILAI, v); }   // bukan 'in': kunci prototipe ('constructor') tidak boleh lolos
 
   function b(k, t, ind, o) { o = o || {}; return { k: k, t: t, ind: ind, resmi: o.resmi !== false, x: !!o.x }; }
 
@@ -87,7 +88,7 @@
       var j = r && r.j; if (!j || typeof j !== 'object') return; nResp++;
       var dipakai = {};
       J.butir.forEach(function (x) {
-        var v = j[x.k]; if (!(v in NILAI)) return;                       // x / kosong / tak dikenal tidak dihitung
+        var v = j[x.k]; if (!adaNilai(v)) return;                       // x / kosong / tak dikenal tidak dihitung
         if (x.resmi) {
           var a = ind[x.ind] || (ind[x.ind] = { jum: 0, cnt: 0, n: 0 });
           a.jum += NILAI[v]; a.cnt++; if (!dipakai[x.ind]) { dipakai[x.ind] = 1; a.n++; }
@@ -142,12 +143,12 @@
       ['r3', 'Rencana tindak lanjut saya']
     ]
   };
-  function persen(arr) { var j = 0, c = 0; arr.forEach(function (v) { if (v in NILAI) { j += NILAI[v]; c++; } }); return c ? { pct: Math.round(j / c * 1000) / 10, n: c } : null; }
+  function persen(arr) { var j = 0, c = 0; arr.forEach(function (v) { if (adaNilai(v)) { j += NILAI[v]; c++; } }); return c ? { pct: Math.round(j / c * 1000) / 10, n: c } : null; }
   // diriJ: {G1:'y',...}; respSiswa: [{j:{S1:'y',...}}] -> baris perbandingan per butir + rata-rata per indikator
   function banding(diriJ, respSiswa) {
     var rs = (respSiswa || []).map(function (r) { return r && r.j; }).filter(function (j) { return j && typeof j === 'object'; });
     var baris = DIRI.butir.map(function (x) {
-      var d = diriJ && (diriJ[x.k] in NILAI) ? Math.round(NILAI[diriJ[x.k]] * 1000) / 10 : null;
+      var d = diriJ && adaNilai(diriJ && diriJ[x.k]) ? Math.round(NILAI[diriJ[x.k]] * 1000) / 10 : null;
       var ps = persen(rs.map(function (j) { return j[x.s]; }));
       return { k: x.k, s: x.s, t: x.t, ind: x.ind, resmi: x.resmi, diri: d, siswa: ps ? ps.pct : null, n: ps ? ps.n : 0, selisih: (d != null && ps) ? Math.round((d - ps.pct) * 10) / 10 : null };
     });

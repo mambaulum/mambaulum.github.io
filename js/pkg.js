@@ -8,7 +8,7 @@
 
    Dependensi dari app.js (global): db, currentUser, allGuru, toast, escapeHtml,
    doubleConfirm, isAdmin, isKepsek, navigateTo, MADRASAH, currentTahunAjaran,
-   addLog, KEPSEK_USER_KEY.
+   addLog, KEPSEK_USER_KEY; fitur kirim angket ke WA wali juga memakai allSiswa, kirimWA, formatNomorWa.
 
    NODE FIREBASE (semua baru -- WAJIB ditambah di Firebase Rules, lihat catatan):
      pkg_v4_periode/{periodeId}            : {nama, jenis, mulai, selesai, dibuatOleh, dibuatAt}
@@ -39,8 +39,8 @@
    ALUR STATUS (Juknis Bab III): belum -> draft -> diajukan (menunggu persetujuan guru)
         -> disetujui | keberatan (kembali ke penilai) -> ditetapkan (Kepala Madrasah)
 
-   HAK AKSES (dicek di sisi klien. CATATAN: semua pengguna login ANONIM yang sama, sehingga Firebase
-     Rules tidak bisa membedakan peran -- cek ini hanya penghalang UI, bukan keamanan sungguhan):
+   HAK AKSES (UI dan Firebase Rules berperan, sejak v16: Rules membuktikan peran lewat sesi_admin / sesi_kepsek / sesi_guru;
+     lihat CATATAN-RULES-BERPERAN-v16.md. Cek di sisi klien tetap ada demi tampilan, tetapi bukan satu-satunya penghalang):
      Admin / Kepala Madrasah : kelola periode & penugasan, lihat semua, cetak rekap
      Penilai (guru/Kepala)   : mengisi nilai untuk guru yang ditugaskan padanya
      Guru                    : hanya melihat hasil sendiri, menyetujui / mengajukan keberatan
@@ -483,12 +483,13 @@
     P.komponen.forEach(function (k) { k.indikator.forEach(function (_, i) { tot++; var key = k.no + '_' + (i + 1); if (daftarItem(gk, key).length || adaOto(gk, key)) n++; }); });
     return { n: n, total: tot };
   }
-  // indikator -> sumber data SI MAMBA yang dapat membuktikannya (dicocokkan dari teks bukti pada instrumen)
+  // indikator -> sumber data SI MAMBA yang dapat membuktikannya (daftar eksplisit di PKG_SUMBER.daftar[id].indikator)
   function petaOto() {
     var def = sumberDef(), m = {}; if (!def) return m;
     P.komponen.forEach(function (k) {
       k.indikator.forEach(function (x, i) {
-        var ids = Object.keys(def).filter(function (id) { return x.b.some(function (b) { return def[id].cocok.test(b); }); });
+        var kunciInd = k.no + '_' + (i + 1);
+        var ids = Object.keys(def).filter(function (id) { return (def[id].indikator || []).indexOf(kunciInd) > -1; });
         if (ids.length) m[k.no + '_' + (i + 1)] = ids;
       });
     });
@@ -564,7 +565,7 @@
     var h = '<div class="card"><div style="font-size:13px"><b>📂 Bukti guru:</b> ' + rb.n + ' dari ' + rb.total + ' indikator sudah punya bukti.' +
       (d.otoAt ? ' <span class="text-muted">Data otomatis ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ' (' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) + ').</span>' : ' <span class="text-muted">Data otomatis belum ditarik.</span>') + '</div>' +
       '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">';
-    if (sumberDef()) h += '<button class="btn btn-soft" style="padding:5px 12px;font-size:12px" data-act="bukti-tarik">🔄 Tarik bukti otomatis</button>';
+    if (sumberDef() && adaPenilai(gk)) h += '<button class="btn btn-soft" style="padding:5px 12px;font-size:12px" data-act="bukti-tarik">🔄 Tarik bukti otomatis</button>';
     if (saran) h += '<button class="btn btn-success" style="padding:5px 12px;font-size:12px" data-act="pakai-semua-saran">⚡ Pakai ' + saran + ' saran untuk indikator yang masih kosong</button>';
     return h + '</div></div>';
   }
@@ -586,10 +587,10 @@
     if (!def) o += '<p class="text-muted" style="font-size:12px;margin:0">Modul <code>js/pkg-sumber.js</code> belum dimuat, sehingga bukti otomatis tidak tersedia. Bukti manual tetap bisa diisi.</p>';
     else {
       var rg = rentangOto(), dr = S.otoDari || (d.otoDari || rg.dari), sp = S.otoSampai || (d.otoSampai || rg.sampai);
-      o += '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, dan <b>nilai siswa</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
+      o += !adaPenilai(gk) ? '<p class="text-muted" style="font-size:12px;margin:0">Bukti otomatis (absensi, jurnal, nilai) ditarik oleh penilai.</p>' : '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, dan <b>nilai siswa</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><div><label class="label">Dari</label><input id="pkgOtoDari" type="date" class="field" value="' + esc(dr) + '"></div>' +
         '<div><label class="label">Sampai</label><input id="pkgOtoSampai" type="date" class="field" value="' + esc(sp) + '"></div>' +
-        (boleh ? '<button class="btn btn-success" data-act="bukti-tarik">🔄 Tarik bukti otomatis</button>' : '') + '</div>';
+        (boleh && adaPenilai(gk) ? '<button class="btn btn-success" data-act="bukti-tarik">🔄 Tarik bukti otomatis</button>' : '') + '</div>';
       var so = d.sumberOto || {};
       if (Object.keys(so).length) {
         o += '<div style="margin-top:10px;font-size:12.5px">' + urutSumber(def).map(function (id) {
@@ -779,6 +780,7 @@
     if (!judul) return pesan('Judul bukti wajib diisi.', true);
     var url = amanUrl(tautan);
     if (tautan && !url) return pesan('Tautan tidak valid. Gunakan alamat http/https (mis. Google Drive).', true);
+    if (url && url.length > 1000) return pesan('Tautan terlalu panjang (maksimal 1000 karakter). Pakai tautan pendek.', true);
     if (itemTotal(gk, key) >= MAKS_ITEM) return pesan('Maksimal ' + MAKS_ITEM + ' bukti per indikator.', true);
     var ref = db.ref(nodeBukti(gk) + '/item/' + key).push();
     var item = { jenis: jenis, judul: potong(judul, 120), oleh: u.name || u.key, olehKey: u.key, at: nowIso() };
@@ -814,7 +816,7 @@
   function tarikOtomatis() {
     var gk = S.gk, u = me(), SM = window.PKG_SUMBER;
     if (!SM || typeof SM.jalankan !== 'function') return pesan('Modul js/pkg-sumber.js belum dimuat.', true);
-    if (!bolehUbahBukti(gk)) return pesan('Anda tidak berhak menarik bukti untuk guru ini / penilaian sudah final.', true);
+    if (!bolehUbahBukti(gk) || !adaPenilai(gk)) return pesan('Hanya penilai, Kepala Madrasah, atau Admin yang boleh menarik bukti otomatis / penilaian sudah final.', true);
     var rg = rentangOto(), eD = $('pkgOtoDari'), eS = $('pkgOtoSampai');
     var dari = (eD && eD.value) || rg.dari, sampai = (eS && eS.value) || rg.sampai;
     if (dari > sampai) return pesan('Tanggal "Dari" tidak boleh sesudah "Sampai".', true);
@@ -883,15 +885,22 @@
   function muatAngket(gk, cb) {
     if (!S.periodeId || typeof db === 'undefined') { if (cb) cb(); return; }
     var kunci = kb(gk), pid = S.periodeId;
-    siapSesi().then(function () { return Promise.all([db.ref(N.angketInfo + '/' + pid + '/' + gk).once('value'), db.ref(N.angket + '/' + pid + '/' + gk).once('value'),
-      db.ref(N.angketKupon + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return {}; })]); }).then(function (h) {
+    // Jawaban mentah dan kupon hanya bisa dibaca Admin / Kepala / penilai (Rules). Guru yang dinilai hanya membaca info angket;
+    // perbandingan Diri vs Siswa untuknya memakai ringkasan per butir di pkg_v4_bukti/.../angketSiswa (diisi penilai saat "Hitung hasil").
+    var mentah = adaPenilai(gk);
+    siapSesi().then(function () {
+      var info = db.ref(N.angketInfo + '/' + pid + '/' + gk).once('value');
+      if (!mentah) return Promise.all([info, null, null]);
+      return Promise.all([info, db.ref(N.angket + '/' + pid + '/' + gk).once('value'),
+        db.ref(N.angketKupon + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return {}; })]);
+    }).then(function (h) {
       if (pid !== S.periodeId) return;
-      var resp = h[1].val() || {}, daftar = {}, ids = {};
+      var resp = (h[1] && h[1].val()) || {}, daftar = {}, ids = {};
       ['siswa', 'ortu', 'sejawat'].forEach(function (j) {
         var m = resp[j] || {}; ids[j] = {};
         daftar[j] = Object.keys(m).filter(function (id) { return m[id] && typeof m[id] === 'object'; }).map(function (id) { ids[j][id] = 1; return m[id]; });
       });
-      S.angket[kunci] = { info: h[0].val() || null, resp: daftar, ids: ids, kupon: h[2] };
+      S.angket[kunci] = { info: h[0].val() || null, resp: daftar, ids: ids, kupon: h[2] || {}, mentah: mentah };
     }).catch(function (e) {
       console.warn('[PKG] angket gagal dimuat:', e);
       S.angket[kunci] = { info: null, resp: { siswa: [], ortu: [], sejawat: [] }, galat: true };
@@ -1072,11 +1081,19 @@
       Object.keys(h.pembanding).forEach(function (k) { ban[k] = h.pembanding[k]; });
     });
     if (!total) return pesan('Belum ada jawaban angket yang masuk.', true);
+    // Ringkasan per butir angket siswa untuk perbandingan Diri vs Siswa yang dibaca guru (guru tidak boleh membaca jawaban mentah).
+    // Hanya disimpan bila responden >= batas minimum, supaya kerahasiaan jawaban terjaga.
+    var sis = {}, rsS = a.resp.siswa || [], minS = A.jenis.siswa.min;
+    if (rsS.length >= minS) A.jenis.siswa.butir.forEach(function (x) {
+      var jm = 0, c = 0;
+      rsS.forEach(function (r) { var v = r && r.j && r.j[x.k]; if (v === 'y' || v === 'k' || v === 't') { jm += A.nilai[v]; c++; } });
+      if (c >= minS) sis[x.k] = { pct: Math.round(jm / c * 1000) / 10, n: c };   // per butir juga harus >= minimum (jawaban 'tidak tahu' tidak dihitung)
+    });
     var waktu = nowIso();
-    var upd = aman({ angket: Object.keys(map).length ? map : null, angketBanding: Object.keys(ban).length ? ban : null, angketN: nn, angketAt: waktu, angketOleh: u.name || u.key });
+    var upd = aman({ angket: Object.keys(map).length ? map : null, angketBanding: Object.keys(ban).length ? ban : null, angketSiswa: Object.keys(sis).length ? sis : null, angketN: nn, angketAt: waktu, angketOleh: u.name || u.key });
     kerjakan(function () { return db.ref(nodeBukti(gk)).update(upd); }, function () {
       var d = S.bukti[kb(gk)] || (S.bukti[kb(gk)] = {});
-      d.angket = upd.angket || null; d.angketBanding = upd.angketBanding || null; d.angketN = upd.angketN; d.angketAt = upd.angketAt; d.angketOleh = upd.angketOleh;
+      d.angket = upd.angket || null; d.angketBanding = upd.angketBanding || null; d.angketSiswa = upd.angketSiswa || null; d.angketN = upd.angketN; d.angketAt = upd.angketAt; d.angketOleh = upd.angketOleh;
       if (typeof addLog === 'function') addLog('PKG angket hitung', namaGuru(gk));
       pesan('Hasil angket dihitung (' + total + ' jawaban). Usulan skor tampil di form penilaian.'); render();
     }, 'Gagal menyimpan hasil angket: ');
@@ -1227,6 +1244,7 @@
       var alasan = prompt('Tuliskan alasan keberatan Anda atas hasil penilaian:');
       if (alasan === null) return;
       alasan = alasan.trim(); if (!alasan) return pesan('Alasan keberatan wajib diisi.', true);
+      if (alasan.length > 1000) return pesan('Alasan keberatan terlalu panjang (' + alasan.length + ' karakter; maksimal 1000). Mohon diringkas.', true);
       var upd2 = { status: 'keberatan', persetujuan: { setuju: false, alasan: alasan, tanggal: nowIso(), oleh: u.name || u.key } };
       return kerjakan(function () { return ubahNilai(u.key, function (c) { return statusDari(c) === 'diajukan'; }, upd2); },
         function (baru) { S.nilai[u.key] = baru; if (typeof addLog === 'function') addLog('PKG keberatan', namaGuru(u.key)); pesan('Keberatan tercatat dan diteruskan ke Kepala Madrasah.'); render(); });
@@ -1295,25 +1313,31 @@
   function simpanTugas() {
     if (!bolehKelola() || !S.periodeId) return;
     var r = root(); if (!r) return;
-    var jad = {}, upd = {}, hitungPen = {}, masalah = null, diganti = [];
+    var jad = {}, upd = {}, hitungPen = {}, masalah = null, diganti = [], dicabut = [], terkunci = [];
     Array.prototype.forEach.call(r.querySelectorAll('input[data-jad]'), function (i) { jad[i.getAttribute('data-jad')] = i.value; });
     Array.prototype.forEach.call(r.querySelectorAll('select[data-pen]'), function (sel) {
       var gk = sel.getAttribute('data-pen'), pk = sel.value;   // dibaca dari atribut: aman untuk kunci berkarakter khusus
-      if (!pk) { upd[gk] = null; return; }
+      var lama = S.tugas[gk], n = S.nilai[gk], jb = jad[gk] ? jad[gk] : null;
       if (pk === gk) masalah = namaGuru(gk) + ' tidak boleh menilai dirinya sendiri.';
-      hitungPen[pk] = (hitungPen[pk] || 0) + 1;
-      var lama = S.tugas[gk], n = S.nilai[gk];
+      if (pk) hitungPen[pk] = (hitungPen[pk] || 0) + 1;
+      var sama = pk ? !!(lama && lama.penilaiKey === pk && (lama.jadwal || null) === jb) : !lama;
+      if (sama) return;                                         // tidak berubah: jangan ditulis ulang
+      // Rules menolak SEMUA perubahan tugas guru yang penilaiannya sudah "ditetapkan"; satu entri ditolak = seluruh update gagal.
+      if (n && n.status === 'ditetapkan') { terkunci.push(namaGuru(gk)); return; }
+      if (!pk) { if (n && statusDari(n) !== 'belum') dicabut.push(namaGuru(gk)); upd[gk] = null; return; }
       if (lama && lama.penilaiKey !== pk && n && statusDari(n) !== 'belum') diganti.push(namaGuru(gk));
-      upd[gk] = { penilaiKey: pk, penilaiNama: namaGuru(pk), jadwal: jad[gk] ? jad[gk] : null };
+      upd[gk] = { penilaiKey: pk, penilaiNama: namaGuru(pk), jadwal: jb };
     });
     if (masalah) return pesan(masalah, true);
     var lebih = Object.keys(hitungPen).filter(function (k) { return hitungPen[k] > MAKS_GURU_PER_PENILAI; });
     if (lebih.length) return pesan(namaGuru(lebih[0]) + ' ditugaskan menilai ' + hitungPen[lebih[0]] + ' guru; batas Juknis maksimal ' + MAKS_GURU_PER_PENILAI + ' guru per penilai.', true);
+    if (!Object.keys(upd).length) return pesan(terkunci.length ? 'Tidak ada perubahan yang bisa disimpan: penugasan ' + terkunci.join(', ') + ' sudah terkunci (hasil ditetapkan).' : 'Tidak ada perubahan penugasan.', !!terkunci.length);
     if (diganti.length && !confirm('Penilai untuk ' + diganti.join(', ') + ' diganti padahal penilaiannya sudah berjalan. Lanjutkan?')) return;
+    if (dicabut.length && !confirm('Penilai untuk ' + dicabut.join(', ') + ' dicabut padahal penilaiannya sudah berjalan; penilai lama tidak bisa lagi mengakses guru itu. Lanjutkan?')) return;
     var pid = S.periodeId;
     kerjakan(function () { return db.ref(N.tugas + '/' + pid).update(upd); }, function () {
       if (typeof addLog === 'function') addLog('PKG penugasan penilai', (S.periodeList[pid] || {}).nama || pid);
-      pesan('Penugasan tersimpan.'); muat();
+      pesan(terkunci.length ? 'Penugasan tersimpan. Tidak diubah (sudah ditetapkan): ' + terkunci.join(', ') + '.' : 'Penugasan tersimpan.'); muat();
     }, 'Gagal menyimpan: ');
   }
 
@@ -1360,10 +1384,21 @@
   function bandingData(gk) {
     var A = DR(), d = dataBukti(gk), a = dataAngket(gk);
     if (!A || !d || !d.diri || !d.diri.j) return null;
-    var rs = (a && a.resp && a.resp.siswa) || [], min = (A.jenis && A.jenis.siswa && A.jenis.siswa.min) || 10;
-    var b = A.banding(d.diri.j, rs), tampil = b.nSiswa >= min;
+    var rs = (a && a.resp && a.resp.siswa) || [], min = (A.jenis && A.jenis.siswa && A.jenis.siswa.min) || 10, b, belumHitung = false;
+    if (rs.length) b = A.banding(d.diri.j, rs);                // penilai / Kepala / Admin: dari jawaban mentah (terkini)
+    else {
+      // Guru yang dinilai tidak boleh membaca jawaban mentah (Rules). Ia memakai ringkasan per butir yang disimpan penilai
+      // saat "Hitung hasil ke bukti" (angketSiswa); tanpa ini tabel selalu kosong karena jawaban mentah tidak terbaca.
+      var ag = d.angketSiswa || {}, ns = (d.angketN && Number(d.angketN.siswa)) || 0;
+      b = A.banding(d.diri.j, []); b.nSiswa = ns; belumHitung = !d.angketAt;
+      b.baris.forEach(function (r) {
+        var x = r.s && ag[r.s];
+        if (x && typeof x.pct === 'number') { r.siswa = x.pct; r.n = x.n; r.selisih = (r.diri != null) ? Math.round((r.diri - x.pct) * 10) / 10 : null; }
+      });
+    }
+    var tampil = b.nSiswa >= min;
     if (!tampil) b.baris.forEach(function (r) { r.siswa = null; r.selisih = null; });
-    return { b: b, min: min, tampil: tampil, refleksi: d.diri.r || {}, D: A.diri };
+    return { b: b, min: min, tampil: tampil, belumHitung: belumHitung, refleksi: d.diri.r || {}, D: A.diri };
   }
   function bandingTabel(x, cetak) {
     var th = cetak ? '' : ' style="text-align:left"';
@@ -1373,6 +1408,7 @@
       }).join('') + '</tbody></table></div>';
   }
   function bandingCatatan(x) {
+    if (x.belumHitung && !x.tampil) return 'Hasil angket peserta didik belum dihitung oleh penilai, jadi persentase peserta didik belum tersedia.';
     return x.tampil ? 'Berdasarkan ' + x.b.nSiswa + ' jawaban peserta didik (anonim). Selisih = diri dikurangi peserta didik. Hanya pembanding untuk refleksi dan PKB, tidak mengubah nilai PKG.'
       : 'Persentase peserta didik belum ditampilkan karena responden baru ' + x.b.nSiswa + ' dari minimal ' + x.min + ' (menjaga kerahasiaan jawaban).';
   }

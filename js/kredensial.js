@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/kredensial.js  (v2: + kredKepsekSiap untuk Rules PKG berperan)
+   SI MAMBA - js/kredensial.js  (v5: kunci di sessionStorage + kredBersihkanSesi; v2: + kredKepsekSiap untuk Rules PKG berperan)
    Pengamanan login guru (tahap 2 dari login-kode.js).
 
    MASALAH YANG DISELESAIKAN
@@ -139,12 +139,15 @@
   window.kredGantiPinSendiri = gantiPinSendiri;
 
   // ---------- Kunci Admin ----------
-  function kunciAdmin() { try { return localStorage.getItem(KUNCI_LS) || ''; } catch (e) { return ''; } }
-  function setKunciAdmin(v) { try { if (v) localStorage.setItem(KUNCI_LS, v); else localStorage.removeItem(KUNCI_LS); } catch (e) {} }
+  // v5: Kunci disimpan di sessionStorage (hilang saat tab ditutup) dan dihapus saat logout. Dulu di localStorage dan tidak pernah
+  // dihapus, sehingga siapa pun yang memakai perangkat itu bisa membacanya lewat DevTools dan menulis sebagai Admin/Kepala.
+  try { localStorage.removeItem('sim_kunci_admin'); localStorage.removeItem('sim_kunci_kepsek'); } catch (e) { }   // buang salinan lama
+  function kunciAdmin() { try { return sessionStorage.getItem(KUNCI_LS) || ''; } catch (e) { return ''; } }
+  function setKunciAdmin(v) { try { if (v) sessionStorage.setItem(KUNCI_LS, v); else sessionStorage.removeItem(KUNCI_LS); } catch (e) {} }
   function tanyaKunci(paksa) {
     var k = paksa ? '' : kunciAdmin();
     if (k) return k;
-    var v = window.prompt('Masukkan KUNCI ADMIN (string panjang yang Anda isi di Firebase Console pada rahasia/kunciAdmin). Disimpan hanya di perangkat ini:');
+    var v = window.prompt('Masukkan KUNCI ADMIN (string panjang yang Anda isi di Firebase Console pada rahasia/kunciAdmin). Disimpan hanya selama tab ini terbuka:');
     v = (v || '').trim();
     if (!v) return '';
     setKunciAdmin(v);
@@ -170,15 +173,15 @@
   // Kepala Madrasah memakai Kunci SENDIRI (rahasia/kunciKepsek, diisi lewat Firebase Console), terpisah dari Kunci Admin,
   // karena PIN Kepala ada di source dan tidak bisa menjadi bukti. Rules membandingkan sesi_kepsek/{uid} dengan rahasia/kunciKepsek.
   var KUNCI_KEP_LS = 'sim_kunci_kepsek';
-  function kunciKep() { try { return localStorage.getItem(KUNCI_KEP_LS) || ''; } catch (e) { return ''; } }
-  function setKunciKep(v) { try { if (v) localStorage.setItem(KUNCI_KEP_LS, v); else localStorage.removeItem(KUNCI_KEP_LS); } catch (e) {} }
+  function kunciKep() { try { return sessionStorage.getItem(KUNCI_KEP_LS) || ''; } catch (e) { return ''; } }
+  function setKunciKep(v) { try { if (v) sessionStorage.setItem(KUNCI_KEP_LS, v); else sessionStorage.removeItem(KUNCI_KEP_LS); } catch (e) {} }
   var kepSiapTerakhir = 0;
   window.kredKepsekSiap = function (paksa) {
     if (typeof isKepsek !== 'function' || !isKepsek()) return Promise.reject(new Error('Hanya Kepala Madrasah.'));
     if (!paksa && Date.now() - kepSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
     var k = paksa ? '' : kunciKep();
     if (!k) {
-      k = (window.prompt('Masukkan KUNCI KEPALA MADRASAH (string panjang yang diisi di Firebase Console pada rahasia/kunciKepsek). Disimpan hanya di perangkat ini:') || '').trim();
+      k = (window.prompt('Masukkan KUNCI KEPALA MADRASAH (string panjang yang diisi di Firebase Console pada rahasia/kunciKepsek). Disimpan hanya selama tab ini terbuka:') || '').trim();
       if (!k) { kepSiapTerakhir = 0; return Promise.reject(new Error('Kunci Kepala Madrasah belum diisi.')); }
       setKunciKep(k);
     }
@@ -202,6 +205,17 @@
       return siapAuth().then(function (u) { return db.ref('sesi_guru/' + u).set(h); });
     }).then(function () { guruSiapKey = key; guruSiapTerakhir = Date.now(); return true; },
             function (e) { guruSiapTerakhir = 0; throw galat(e); });
+  };
+
+  // Dipanggil app.js saat logout / ganti akun: lupakan Kunci, reset cache "sesi siap", dan hapus entri sesi_* milik uid ini
+  // (best-effort: bila Rules menolak penghapusan, kunci di perangkat tetap sudah terhapus). Login berikutnya menulis ulang sesi.
+  window.kredBersihkanSesi = function () {
+    setKunciAdmin(''); setKunciKep('');
+    adminSiapTerakhir = 0; kepSiapTerakhir = 0; guruSiapTerakhir = 0; guruSiapKey = '';
+    try {
+      var u = uid();
+      if (u && typeof db !== 'undefined') ['sesi_admin', 'sesi_kepsek', 'sesi_guru'].forEach(function (n) { try { db.ref(n + '/' + u).remove().catch(function () {}); } catch (e) {} });
+    } catch (e) { }
   };
 
   // Admin: tambah guru baru + kredensialnya (atomik).

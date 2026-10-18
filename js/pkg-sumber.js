@@ -102,11 +102,21 @@
     });
   }
 
+  // Utamakan kueri per guru (guruKey): hanya rekaman guru ini yang diunduh. Bila tidak ada hasil (catatan lama tanpa
+  // guruKey, atau indeks belum dipasang lalu kueri ditolak), jatuh ke cara lama: unduh rentang tanggal lalu saring.
+  function bacaGuru(db, path, ctx, dari, sampai) {
+    return db.ref(path).orderByChild('guruKey').equalTo(ctx.guruKey).once('value').then(function (s) {
+      var arr = []; if (s.exists()) s.forEach(function (c) { var v = c.val(); if (obj(v) && v.tanggal >= dari && v.tanggal <= sampai) { v.__key = c.key; arr.push(v); } });
+      return arr;
+    }).then(function (arr) { return arr.length ? arr : bacaRentang(db, path, dari, sampai); },
+            function () { return bacaRentang(db, path, dari, sampai); });
+  }
+
   // ---------- 1) absensi guru ----------
   function ambilAbsensi(ctx) {
     var batas = ctx.sampai > hariIni() ? hariIni() : ctx.sampai;
     if (ctx.dari > batas) return Promise.resolve({ ok: false, alasan: 'Absensi guru: rentang ' + ctx.dari + ' s.d. ' + ctx.sampai + ' belum dimulai (hari ini ' + hariIni() + ').' });
-    return Promise.all([bacaRentang(ctx.db, CFG.path.absensi, ctx.dari, batas), bacaLibur(ctx.db, ctx.dari, batas)]).then(function (h) {
+    return Promise.all([bacaGuru(ctx.db, CFG.path.absensi, ctx, ctx.dari, batas), bacaLibur(ctx.db, ctx.dari, batas)]).then(function (h) {
       var semua = h[0], kal = h[1];
       if (!semua.length) return { ok: false, alasan: 'Absensi guru: node ' + CFG.path.absensi + ' tidak punya catatan pada rentang ' + ctx.dari + ' s.d. ' + batas + ' (belum ada yang absen, atau rentang di luar tahun ajaran).' };
       var milik = semua.filter(function (r) { return milikGuru(r, ctx); });
@@ -149,7 +159,7 @@
   function ambilJurnal(ctx) {
     var batas = ctx.sampai > hariIni() ? hariIni() : ctx.sampai;
     if (ctx.dari > batas) return Promise.resolve({ ok: false, alasan: 'Jurnal mengajar: rentang ' + ctx.dari + ' s.d. ' + ctx.sampai + ' belum dimulai.' });
-    return bacaRentang(ctx.db, CFG.path.jurnal, ctx.dari, batas).then(function (semua) {
+    return bacaGuru(ctx.db, CFG.path.jurnal, ctx, ctx.dari, batas).then(function (semua) {
       if (!semua.length) return { ok: false, alasan: 'Jurnal mengajar: node ' + CFG.path.jurnal + ' tidak punya jurnal pada rentang ' + ctx.dari + ' s.d. ' + batas + '.' };
       var milik = semua.filter(function (r) { return milikGuru(r, ctx); });
       if (!milik.length) return { ok: false, alasan: 'Jurnal mengajar: ada ' + semua.length + ' jurnal pada rentang ini, tetapi tidak satu pun atas nama guru ini (kunci ' + ctx.guruKey + (ctx.guruNama ? ', nama ' + ctx.guruNama : '') + ').' };
@@ -225,11 +235,13 @@
   }
 
   // ---------- registrasi sumber ----------
-  // cocok: pola yang dicari pada teks BUKTI tiap indikator instrumen -> indikator itu dianggap bisa dibuktikan sumber ini.
+  // indikator: daftar EKSPLISIT indikator ("komponen_urut") yang benar-benar bisa dibuktikan sumber ini. Sebelum v20 dicocokkan lewat
+  // regex pada teks bukti instrumen, sehingga mis. "daftar hadir guru" (bukti pendamping 9.1-9.5) ikut memberi usulan skor untuk
+  // perilaku santun/teladan, dan kelengkapan input nilai memberi usulan untuk 11.1 (adil). Indikator di luar daftar = tanpa usulan.
   var DAFTAR = {
-    absensi: { label: 'Absensi guru', ikon: '🕘', cocok: /daftar hadir guru|rekap.{0,20}hadir|kehadiran guru|piket/i, ambil: ambilAbsensi },
-    jurnal: { label: 'Jurnal mengajar', ikon: '📓', cocok: /jurnal/i, ambil: ambilJurnal },
-    nilai: { label: 'Nilai siswa', ikon: '📊', cocok: /daftar nilai|buku nilai|leger|penilaian harian|analisis (hasil )?penilaian|daya serap/i, ambil: ambilNilai }
+    absensi: { label: 'Absensi guru', ikon: '🕘', indikator: ['10_1', '10_3', '10_4'], ambil: ambilAbsensi },
+    jurnal: { label: 'Jurnal mengajar', ikon: '📓', indikator: ['7_4', '14_2'], ambil: ambilJurnal },
+    nilai: { label: 'Nilai siswa', ikon: '📊', indikator: ['5_1', '7_1', '7_2', '7_3'], ambil: ambilNilai }
   };
   var URUT = ['absensi', 'jurnal', 'nilai'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
 
@@ -244,5 +256,5 @@
     }, Promise.resolve()).then(function () { return hasil; });
   }
 
-  window.PKG_SUMBER = { versi: 2, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
+  window.PKG_SUMBER = { versi: 4, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
 })();
