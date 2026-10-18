@@ -38,11 +38,11 @@
   if (window.PKG_SUMBER) return;
 
   var CFG = {
-    path: { absensi: 'teacher_attendance', jurnal: 'journal', nilai: 'grades', kalender: 'kalender_akademik', buku: 'buku_penghubung', event: 'event_attendance', ujian: 'ujian_attendance' },
+    path: { absensi: 'teacher_attendance', jurnal: 'journal', nilai: 'grades', kalender: 'kalender_akademik', buku: 'buku_penghubung', materi: 'materi_belajar', tugas: 'tugas', event: 'event_attendance', ujian: 'ujian_attendance' },
     hariLiburMingguan: [0],            // 0 = Minggu (sama dengan penanda Alpha otomatis di app.js: Senin-Sabtu)
     fieldNilai: ['h1', 'h2', 'h3', 'mid', 'pas'],
     // Ambang usulan skor (persen). Penilai tetap memutuskan.
-    ambang: { hadirBaik: 90, hadirCukup: 75, jurnalBaik: 85, jurnalCukup: 60, nilaiLengkap: 80, kkm: 70, bukuBaik: 4, bukuCukup: 1, kegiatanBaik: 3 },   // buku*: catatan per bulan; kegiatanBaik: jumlah kegiatan berbeda
+    ambang: { hadirBaik: 90, hadirCukup: 75, jurnalBaik: 85, jurnalCukup: 60, nilaiLengkap: 80, kkm: 70, bukuBaik: 4, bukuCukup: 1, kegiatanBaik: 3, tikCukup: 1, refleksiMin: 30 },   // buku*: catatan per bulan; kegiatanBaik: jumlah kegiatan berbeda
     maksBaca: 5000                     // batas baca node nilai bila tahun ajaran tidak diketahui
   };
 
@@ -404,6 +404,56 @@
     });
   }
 
+  // ---------- 7) materi belajar & tugas daring -> indikator 14.6 (pemanfaatan TIK) ----------
+  // materi_belajar/{id} dan tugas/{id} = { kelas, mapel, judul, tanggal, tahunAjaran, inputBy (NAMA penulis), inputAt }.
+  // Usulan dibatasi maksimal 1: indikator 14.6 juga menyangkut TIK untuk PKB (tidak ada di data aplikasi).
+  function ambilTik(ctx) {
+    var ta = (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) ? currentTahunAjaran : null;
+    var batas = ctx.sampai > hariIni() ? hariIni() : ctx.sampai;
+    if (!ta) return Promise.resolve({ ok: false, alasan: 'Materi & tugas daring: tahun ajaran berjalan tidak diketahui.' });
+    if (ctx.dari > batas) return Promise.resolve({ ok: false, alasan: 'Materi & tugas daring: rentang ' + ctx.dari + ' s.d. ' + ctx.sampai + ' belum dimulai.' });
+    var nm = normNama(ctx.guruNama);
+    var baca = function (path) {
+      return ctx.db.ref(path).orderByChild('tahunAjaran').equalTo(ta).once('value').then(function (s) {
+        var a = []; if (s.exists()) s.forEach(function (c) { var v = c.val(); if (obj(v) && v.tanggal >= ctx.dari && v.tanggal <= batas && !!nm && normNama(v.inputBy) === nm) a.push(v); });
+        return a;
+      }, function () { return []; });
+    };
+    return Promise.all([baca(CFG.path.materi), baca(CFG.path.tugas)]).then(function (h) {
+      var m = h[0], t = h[1], n = m.length + t.length;
+      if (!n) return { ok: false, alasan: 'Materi & tugas daring: tidak ada materi belajar atau tugas atas nama guru ini pada rentang ' + ctx.dari + ' s.d. ' + batas + ' (pencocokan lewat nama penulis).' };
+      var kelas = {}, mapel = {};
+      m.concat(t).forEach(function (r) { if (r.kelas) kelas[r.kelas] = 1; if (r.mapel) mapel[r.mapel] = 1; });
+      var A = CFG.ambang;
+      return {
+        ok: true, path: CFG.path.materi + ' + ' + CFG.path.tugas, saran: n >= A.tikCukup ? 1 : 0,
+        dasar: 'Ada materi/tugas daring → 1. Skor 2 menunggu penilai memastikan pemanfaatan TIK untuk komunikasi dan PKB (jejak digital, bukti PKB) yang tidak ada di data aplikasi.',
+        ringkas: m.length + ' materi belajar dan ' + t.length + ' tugas diunggah (' + Object.keys(mapel).length + ' mapel, ' + Object.keys(kelas).length + ' kelas)',
+        rincian: ['Rentang: ' + ctx.dari + ' s.d. ' + batas, 'Sumber data: ' + CFG.path.materi + ' dan ' + CFG.path.tugas + ' (dicocokkan lewat nama penulis)', 'Mapel: ' + (Object.keys(mapel).slice(0, 6).join(', ') || '-')],
+        angka: { materi: m.length, tugas: t.length }
+      };
+    });
+  }
+
+  // ---------- 8) penilaian diri guru (refleksi) -> indikator 14.1 ----------
+  // Dibaca dari data PKG yang sudah dimuat aplikasi (ctx.diri = { r: {kode: teks}, kunciRefleksi: [kode...], butir: n, terjawab: n }).
+  // Hanya mengukur kelengkapan; kualitas (spesifik, ada contoh pengalaman) tetap dinilai penilai, jadi usulan dibatasi maksimal 1.
+  function ambilDiri(ctx) {
+    var d = ctx.diri;
+    if (!d || !d.kunciRefleksi || !d.kunciRefleksi.length) return Promise.resolve({ ok: false, alasan: 'Penilaian diri: modul angket/penilaian diri belum termuat.' });
+    var r = d.r || {}, min = CFG.ambang.refleksiMin, terisi = 0, panjang = 0;
+    d.kunciRefleksi.forEach(function (k) { var t = String(r[k] || '').trim(); if (t.length >= min) terisi++; panjang += t.length; });
+    if (!d.terjawab && !panjang) return Promise.resolve({ ok: false, alasan: 'Penilaian diri: guru ini belum mengisi penilaian diri pada periode ini.' });
+    var lengkap = terisi === d.kunciRefleksi.length && d.terjawab >= d.butir;
+    return Promise.resolve({
+      ok: true, path: 'pkg_v4_bukti (penilaian diri)', saran: lengkap ? 1 : 0,
+      dasar: 'Semua butir terjawab dan semua refleksi terisi (≥' + min + ' karakter) → 1; selain itu 0. Skor 2 menunggu penilai memastikan evaluasi diri spesifik dan didukung contoh pengalaman.',
+      ringkas: d.terjawab + ' dari ' + d.butir + ' butir terjawab; refleksi terisi ' + terisi + ' dari ' + d.kunciRefleksi.length,
+      rincian: ['Sumber data: penilaian diri guru pada periode PKG ini'],
+      angka: { butir: d.terjawab, refleksi: terisi }
+    });
+  }
+
   // ---------- registrasi sumber ----------
   // indikator: daftar EKSPLISIT indikator ("komponen_urut") yang benar-benar bisa dibuktikan sumber ini. Sebelum v20 dicocokkan lewat
   // regex pada teks bukti instrumen, sehingga mis. "daftar hadir guru" (bukti pendamping 9.1-9.5) ikut memberi usulan skor untuk
@@ -414,9 +464,11 @@
     nilai: { label: 'Nilai siswa', ikon: '📊', indikator: ['5_1', '7_1', '7_2', '7_3'], ambil: ambilNilai },
     perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '7_1', '13_2'], ambil: ambilPerangkat },
     buku: { label: 'Buku Penghubung (komunikasi dengan orang tua)', ikon: '💬', indikator: ['12_1'], ambil: ambilBuku },
-    kegiatan: { label: 'Kegiatan madrasah (rapat, lembur, ujian)', ikon: '🗓️', indikator: ['12_2'], ambil: ambilKegiatan }
+    kegiatan: { label: 'Kegiatan madrasah (rapat, lembur, ujian)', ikon: '🗓️', indikator: ['12_2'], ambil: ambilKegiatan },
+    tik: { label: 'Materi belajar & tugas daring (pemanfaatan TIK)', ikon: '💻', indikator: ['14_6'], ambil: ambilTik },
+    diri: { label: 'Penilaian diri guru', ikon: '📝', indikator: ['14_1'], ambil: ambilDiri }
   };
-  var URUT = ['absensi', 'jurnal', 'nilai', 'perangkat', 'buku', 'kegiatan'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
+  var URUT = ['absensi', 'jurnal', 'nilai', 'perangkat', 'buku', 'kegiatan', 'tik', 'diri'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
 
   function jalankan(ctx) {
     var hasil = {};
@@ -429,5 +481,5 @@
     }, Promise.resolve()).then(function () { return hasil; });
   }
 
-  window.PKG_SUMBER = { versi: 6, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
+  window.PKG_SUMBER = { versi: 7, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
 })();

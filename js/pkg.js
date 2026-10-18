@@ -16,6 +16,7 @@
      pkg_v4_nilai/{periodeId}/{guruKey}    : {skor:{"k_i":0|1|2}, catatan:{"k_i":".."},
                                               status, hasil:{...}, penilaiKey, penilaiNama,
                                               persetujuan:{...}, diperbarui, ...}
+     pkg_v4_rtl/{periodeId}/{guruKey}      : (BARU v34) rekomendasi & rencana tindak lanjut {kekuatan, perbaikan, rekomendasi, tindakLanjut, targetWaktu, diperbarui, diperbaruiOleh}; tulis penilai/Kepala/Admin sebelum ditetapkan; lihat rules-rtl-pkg.txt
      pkg_v4_bukti/{periodeId}/{guruKey}    : (BARU v7) isian + bukti yang diisi langsung di aplikasi
         item/{k_i}/{pushId}   : {jenis:'dokumen'|'observasi'|'wawancara', judul, tautan, ket, oleh, olehKey, at}
         (item observasi dari lembar penanda memuat tambahan pn:{t:'indeks,penanda,terlihat', n:jumlah, s:usulan skor 0|1|2})
@@ -56,7 +57,7 @@
   var P = window.PKG_MI;
   if (!P || !P.komponen || typeof P.hitungPKG !== 'function' || typeof P.totalIndikator !== 'function') { console.warn('[PKG] js/data-pkg-mi.js belum dimuat / tidak lengkap.'); return; }
 
-  var N = { periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon', angketJatah: 'pkg_v4_angket_jatah' };
+  var N = { rtl: 'pkg_v4_rtl', periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon', angketJatah: 'pkg_v4_angket_jatah' };
   var MAKS_ITEM = 10;                 // maks. bukti manual per indikator
   var JENIS_ITEM = { dokumen: '📄 Dokumen', observasi: '👁️ Observasi', wawancara: '🎤 Wawancara' };
   var MAKS_GURU_PER_PENILAI = 10;
@@ -68,7 +69,7 @@
     belum: '#6b7280', draft: '#b45309', diajukan: '#1d4ed8', disetujui: '#15803d', keberatan: '#b91c1c', ditetapkan: '#166534'
   };
 
-  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'ringkasan', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, angket: {}, jatah: [], jatahId: 0, otoDari: '', otoSampai: '' };
+  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'ringkasan', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, rtl: {}, rtlGagal: {}, rtlMuat: {}, angket: {}, jatah: [], jatahId: 0, otoDari: '', otoSampai: '' };
 
   // ---------- util ----------
   function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -335,14 +336,15 @@
     return { hariTgl: hariTgl, pada: pada, mapel: Object.keys(mapel) };
   }
   // Identitas guru untuk cetakan, dari data SI MAMBA: NIP (bila ada di data guru), jabatan, mata pelajaran (dari Jadwal), kelas.
-  // Data guru di aplikasi belum punya NIP/mapel sendiri, jadi NIP bertitik-titik untuk diisi tangan bila kosong.
+  // Data guru di aplikasi belum punya NIP/NUPTK sendiri, jadi barisnya tidak tampil sampai field `nip` atau `nuptk` ada di data guru.
   function identitasBaris(gk) {
     var g = guruAktif().filter(function (x) { return x.key === gk; })[0] || {};
-    var nip = String(g.nip || '').trim();
+    var nip = String(g.nip || '').trim(), nuptk = String(g.nuptk || '').trim();
     var kls = Array.isArray(g.kelas) ? g.kelas.filter(Boolean) : (g.kelas ? [String(g.kelas)] : []);
     var jab = g.waliKelasOf ? 'Guru / Wali Kelas ' + g.waliKelasOf : (g.role === 'wali_kelas' ? 'Guru / Wali Kelas' : 'Guru');
     var mp = jadwalAjar(gk).mapel;
-    return '<tr><td>NIP</td><td>' + (nip ? esc(nip) : '................................') + '</td></tr>' +
+    // Guru non-ASN tidak punya NIP: baris nomor induk hanya tampil bila datanya ada (NIP, atau NUPTK sebagai gantinya).
+    return (nip ? '<tr><td>NIP</td><td>' + esc(nip) + '</td></tr>' : (nuptk ? '<tr><td>NUPTK</td><td>' + esc(nuptk) + '</td></tr>' : '')) +
       '<tr><td>Jabatan</td><td>' + esc(jab) + '</td></tr>' +
       '<tr><td>Mata pelajaran</td><td>' + (mp.length ? mp.map(esc).join(', ') : '-') + '</td></tr>' +
       '<tr><td>Kelas diampu</td><td>' + (g.semuaKelas ? 'Semua kelas' : (kls.length ? kls.map(esc).join(', ') : '-')) + '</td></tr>';
@@ -500,6 +502,90 @@
   }
 
   // ----- Hasil (guru / penilai / kepala) -----
+  // ---------- rekomendasi & rencana tindak lanjut (RTL) ----------
+  var RTL_FIELD = [['kekuatan', 'Kekuatan / hal yang sudah baik', 1000], ['perbaikan', 'Hal yang perlu ditingkatkan', 1000], ['rekomendasi', 'Rekomendasi penilai', 1000], ['tindakLanjut', 'Rencana tindak lanjut / PKB (kegiatan yang akan dilakukan)', 1000], ['targetWaktu', 'Target waktu', 200]];
+  function muatRtl(gk, cb) {
+    if (!S.periodeId || typeof db === 'undefined') { if (cb) cb(); return; }
+    var kunci = kb(gk), pid = S.periodeId;
+    siapSesi().then(function () { return db.ref(nodeRtl(gk)).once('value'); }).then(function (s) {
+      if (pid !== S.periodeId) return; S.rtl[kunci] = s.val() || {}; S.rtlGagal[kunci] = false;
+    }).catch(function () { if (!S.rtl[kunci]) S.rtl[kunci] = {}; S.rtlGagal[kunci] = true; }).then(function () { if (cb) cb(); });
+  }
+  function bolehRtl(gk) {
+    var n = S.nilai[gk]; if (!n || !me()) return false;
+    return (bolehMenilai(gk) || lihatSemua()) && statusDari(n) !== 'ditetapkan' && hitung(n.skor || {}).lengkap;
+  }
+  // Usulan teks dari skor (fakta dari skor saja; penilai wajib memeriksa dan menyesuaikan).
+  function rtlSaran(gk) {
+    var n = S.nilai[gk]; if (!n || !n.skor) return null; var h = hitung(n.skor); if (!h.lengkap) return null;
+    var kmp = h.komponen.map(function (c, i) { return { k: P.komponen[i], p: c.persen }; });
+    var kuat = kmp.filter(function (x) { return x.p >= 75; }).sort(function (a, b) { return b.p - a.p; }).slice(0, 4);
+    var lemah = kmp.filter(function (x) { return x.p < 60; }).sort(function (a, b) { return a.p - b.p; }).slice(0, 4);
+    var nol = []; P.komponen.forEach(function (k) { k.indikator.forEach(function (x, i) { if (n.skor[k.no + '_' + (i + 1)] === 0) nol.push(k.no + '.' + (i + 1)); }); });
+    var fmt = function (x) { return x.k.no + '. ' + x.k.nama + ' (' + f1(x.p) + '%)'; };
+    return {
+      kekuatan: kuat.length ? 'Capaian baik (≥75%) pada: ' + kuat.map(fmt).join('; ') + '.' : '',
+      perbaikan: (lemah.length ? 'Capaian terendah (<60%) pada: ' + lemah.map(fmt).join('; ') + '.' : '') + (nol.length ? (lemah.length ? ' ' : '') + 'Indikator berskor 0: ' + nol.slice(0, 10).join(', ') + (nol.length > 10 ? ' dan ' + (nol.length - 10) + ' lainnya' : '') + '.' : ''),
+      rekomendasi: lemah.length ? 'Prioritaskan penguatan komponen ' + lemah.map(function (x) { return x.k.no; }).join(', ') + ' melalui PKB (KKG/MGMP, pelatihan, atau pendampingan sejawat).' : 'Pertahankan kinerja dan bagikan praktik baik kepada sejawat.'
+    };
+  }
+  function rtlIsi(gk) {
+    var sr = rtlSaran(gk); if (!sr) return pesan('Usulan hanya tersedia setelah penilaian lengkap.', true);
+    var n = 0; ['kekuatan', 'perbaikan', 'rekomendasi'].forEach(function (f) { var el = $('pkgRtl_' + f); if (el && !el.value.trim() && sr[f]) { el.value = sr[f]; n++; } });
+    pesan(n ? 'Usulan diisi dari skor. Periksa, sesuaikan, lalu simpan.' : 'Kolom yang sudah terisi tidak ditimpa.');
+  }
+  function rtlSimpan(gk) {
+    var u = me(); if (!u || !bolehRtl(gk)) return pesan('Tidak dapat menyimpan: penilaian sudah ditetapkan atau Anda tidak berhak.', true);
+    var val = {}, ada = false, salah = '';
+    RTL_FIELD.forEach(function (f) {
+      var el = $('pkgRtl_' + f[0]), t = el ? el.value.trim() : '';
+      if (t.length > f[2]) salah = f[1] + ' terlalu panjang (' + t.length + ' karakter; maksimal ' + f[2] + ').';
+      if (t) { val[f[0]] = t; ada = true; }
+    });
+    if (salah) return pesan(salah, true);
+    if (ada) { val.diperbarui = nowIso(); val.diperbaruiOleh = pengisi(u); }
+    var kunci = kb(gk);
+    kerjakan(function () { return db.ref(nodeRtl(gk)).set(ada ? aman(val) : null); }, function () {
+      S.rtl[kunci] = ada ? val : {}; S.rtlGagal[kunci] = false;
+      if (typeof addLog === 'function') addLog('PKG rekomendasi', namaGuru(gk));
+      pesan('Rekomendasi dan rencana tindak lanjut tersimpan.'); render();
+    }, 'Gagal menyimpan rekomendasi: ');
+  }
+  function rtlTeks(t) { return esc(t).replace(/\n/g, '<br>'); }
+  function rtlKartu(gk) {
+    var n = S.nilai[gk]; if (!n || !me()) return '';
+    var kunci = kb(gk), d = S.rtl[kunci], boleh = bolehRtl(gk);
+    if (d === undefined) {
+      if (!S.rtlMuat[kunci]) { S.rtlMuat[kunci] = 1; muatRtl(gk, function () { if (S.view === 'hasil' && S.gk === gk) render(); }); }
+      return boleh ? '<div class="card"><p class="text-muted">Memuat rekomendasi…</p></div>' : '';
+    }
+    var o = '<div class="card"><h4 style="margin:0 0 6px">🧭 Rekomendasi dan rencana tindak lanjut</h4>';
+    if (boleh) {
+      o += '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Diisi penilai sebelum hasil ditetapkan; ikut tercetak di Laporan PKG dan terlihat oleh guru. Tombol usulan hanya mengisi kolom yang masih kosong dari skor penilaian.</p>';
+      RTL_FIELD.forEach(function (f) {
+        var v = (d && d[f[0]]) || '';
+        o += '<label style="display:block;font-size:12.5px;font-weight:600;margin-top:8px">' + esc(f[1]) + '</label>' +
+          (f[0] === 'targetWaktu' ? '<input type="text" id="pkgRtl_' + f[0] + '" maxlength="' + f[2] + '" value="' + esc(v) + '" style="width:100%">'
+            : '<textarea id="pkgRtl_' + f[0] + '" rows="3" maxlength="' + f[2] + '" style="width:100%">' + esc(v) + '</textarea>');
+      });
+      o += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-soft" data-act="rtl-isi" data-gk="' + esc(gk) + '">✨ Isi usulan dari skor</button><button class="btn btn-success" data-act="rtl-simpan" data-gk="' + esc(gk) + '">💾 Simpan rekomendasi</button></div>';
+      if (S.rtlGagal[kunci]) o += '<div style="margin-top:8px;font-size:12px;color:#b91c1c">Data rekomendasi tidak terbaca. Pastikan Firebase Rules untuk pkg_v4_rtl sudah dipasang (lihat rules-rtl-pkg.txt).</div>';
+      return o + '</div>';
+    }
+    var ada = RTL_FIELD.filter(function (f) { return d && d[f[0]]; });
+    if (!ada.length) return '';
+    ada.forEach(function (f) { o += '<div style="margin-top:8px;font-size:13px"><b>' + esc(f[1]) + '</b><div>' + rtlTeks(d[f[0]]) + '</div></div>'; });
+    return o + '</div>';
+  }
+  // Cetakan: terisi bila sudah ada; bila kosong tetap tercetak sebagai kolom isian tulis tangan.
+  function rtlCetakHtml(gk) {
+    var d = S.rtl[kb(gk)] || {};
+    var rows = RTL_FIELD.map(function (f) {
+      var v = d[f[0]]; return '<tr style="page-break-inside:avoid"><td style="width:30%">' + esc(f[1]) + '</td><td' + (v ? '' : ' style="height:' + (f[0] === 'targetWaktu' ? 24 : 46) + 'px"') + '>' + (v ? rtlTeks(v) : '&nbsp;') + '</td></tr>';
+    }).join('');
+    return '<h4 style="margin:14px 0 4px;page-break-after:avoid">REKOMENDASI DAN RENCANA TINDAK LANJUT</h4><table>' + rows + '</table>';
+  }
+
   function hasilHtml(gk) {
     var n = S.nilai[gk], u = me();
     if (!u) return '';
@@ -522,13 +608,14 @@
     if (kep() && st === 'keberatan') o += '<button class="btn btn-soft" data-act="nilai" data-gk="' + esc(gk) + '">✏️ Buka untuk direvisi penilai</button>';
     o += '<button class="btn btn-soft" data-act="cetak" data-gk="' + esc(gk) + '">🖨️ Cetak Laporan</button></div>';
     if (st === 'keberatan' && n.persetujuan && n.persetujuan.alasan) o += '<div style="margin-top:10px;padding:10px;border-radius:10px;background:#fef2f2;font-size:13px"><b>Alasan keberatan guru:</b> ' + esc(n.persetujuan.alasan) + '<br><span class="text-muted">Juknis: difasilitasi internal oleh Kepala Madrasah; bila belum selesai, dilaporkan ke Kantor Kemenag untuk penilaian ulang.</span></div>';
-    return o + '</div>' + bandingKartuHasil(gk);
+    return o + '</div>' + rtlKartu(gk) + bandingKartuHasil(gk);
   }
 
   // ---------- BUKTI: isian dan bukti diisi langsung di aplikasi ----------
   function kb(gk) { return (S.periodeId || '') + '/' + gk; }
   function dataBukti(gk) { return S.bukti[kb(gk)] || null; }
   function nodeBukti(gk) { return N.bukti + '/' + S.periodeId + '/' + gk; }
+  function nodeRtl(gk) { return N.rtl + '/' + S.periodeId + '/' + gk; }
   function sumberDef() { return (window.PKG_SUMBER && window.PKG_SUMBER.daftar) || null; }
   function tglIso(d) { var m = d.getMonth() + 1, t = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (t < 10 ? '0' : '') + t; }
   function aman(o) { return JSON.parse(JSON.stringify(o)); }                  // buang undefined (ditolak Firebase)
@@ -680,7 +767,7 @@
     if (!def) o += '<p class="text-muted" style="font-size:12px;margin:0">Modul <code>js/pkg-sumber.js</code> belum dimuat, sehingga bukti otomatis tidak tersedia. Bukti manual tetap bisa diisi.</p>';
     else {
       var rg = rentangOto(), dr = S.otoDari || (d.otoDari || rg.dari), sp = S.otoSampai || (d.otoSampai || rg.sampai);
-      o += !adaPenilai(gk) ? '<p class="text-muted" style="font-size:12px;margin:0">Bukti otomatis (absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah) ditarik oleh penilai.</p>' : '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, <b>nilai siswa</b>, serta <b>perangkat pembelajaran dan modul ajar</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
+      o += !adaPenilai(gk) ? '<p class="text-muted" style="font-size:12px;margin:0">Bukti otomatis (absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah, materi/tugas daring, penilaian diri) ditarik oleh penilai.</p>' : '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, <b>nilai siswa</b>, serta <b>perangkat pembelajaran dan modul ajar</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><div><label class="label">Dari</label><input id="pkgOtoDari" type="date" class="field" value="' + esc(dr) + '"></div>' +
         '<div><label class="label">Sampai</label><input id="pkgOtoSampai" type="date" class="field" value="' + esc(sp) + '"></div>' +
         (boleh && adaPenilai(gk) ? '<button class="btn btn-success" data-act="bukti-tarik">🔄 Tarik bukti otomatis</button>' : '') + '</div>';
@@ -915,7 +1002,9 @@
     if (dari > sampai) return pesan('Tanggal "Dari" tidak boleh sesudah "Sampai".', true);
     S.otoDari = dari; S.otoSampai = sampai;
     var ctx = { db: db, guruKey: gk, guruNama: namaGuru(gk), dari: dari, sampai: sampai };
-    pesan('Menarik data absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, dan kegiatan madrasah…');
+    var AD = DR(), bd = dataBukti(gk) || {}, dj = (bd.diri && bd.diri.j) || {};
+    if (AD) ctx.diri = { r: (bd.diri && bd.diri.r) || {}, kunciRefleksi: AD.diri.refleksi.map(function (x) { return x[0]; }), butir: AD.diri.butir.length, terjawab: AD.diri.butir.filter(function (x) { return dj[x.k]; }).length };
+    pesan('Menarik data absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah, materi/tugas daring, dan penilaian diri…');
     kerjakan(function () {
       return SM.jalankan(ctx).then(function (hasil) {
         var peta = petaOto(), sumber = {}, oto = {}, waktu = nowIso(), adaOk = false;
@@ -1403,6 +1492,8 @@
       return;
     }
     if (act === 'cetak') return cetakLaporan(gk);
+    if (act === 'rtl-isi') return rtlIsi(gk);
+    if (act === 'rtl-simpan') return rtlSimpan(gk);
     if (act === 'cetak-rekap') return cetakRekap();
     if (act === 'simpan-draft') return simpanNilai('draft', function () { pesan('Draft tersimpan.'); });
     if (act === 'ajukan') {
@@ -1656,11 +1747,12 @@
     o += '<tr><td colspan="2"><b>Jumlah (hasil penilaian kinerja guru)</b></td><td style="text-align:center"><b>' + h.jumlah + '</b></td></tr></tbody></table>' +
       '<p>Nilai PKG (skala 100) = ' + h.jumlah + ' / ' + h.tertinggi + ' &times; 100 = <b>' + f1(h.nilai100) + '</b> &mdash; Sebutan: <b>' + esc(h.sebutan) + '</b> (NPK ' + h.npk + '%)</p>';
     o += '<p style="font-size:11px">Persetujuan: ' + (n.persetujuan && n.persetujuan.setuju ? 'guru yang dinilai telah menyatakan setuju pada ' + fmtTgl(n.persetujuan.tanggal) + '.' : 'belum ada persetujuan guru.') + '</p>';
+    o += '<!--RTL-->';
     o += '<div class="ttd"><div>Guru yang Dinilai<br><br><br><br>(' + esc(namaGuru(gk)) + ')</div><div>Penilai<br><br><br><br>(' + esc(tampil(n.penilaiNama) || namaGuru(n.penilaiKey)) + ')</div>' + blokKepalaCetak(statusDari(n) === 'ditetapkan', 'Laporan PKG', 'PKG ' + namaGuru(gk) + ' | ' + (per.nama || '') + ' | Nilai ' + f1(h.nilai100) + ' (' + h.sebutan + ')') + '</div>';
     bukaCetak('Laporan PKG - ' + namaGuru(gk), function () {
-      return Promise.all([new Promise(function (res) { muatBukti(gk, res); }), new Promise(function (res) { muatAngket(gk, res); })]).then(function () {
+      return Promise.all([new Promise(function (res) { muatBukti(gk, res); }), new Promise(function (res) { muatAngket(gk, res); }), new Promise(function (res) { muatRtl(gk, res); })]).then(function () {
         var bd = bandingLaporan(gk), lp = lampiranLaporan(gk);
-        return sampulLaporan(gk, n, h, per, { banding: !!bd, lampiran: !!lp }) + o.replace('<!--SISIP-->', bd) + lp;
+        return sampulLaporan(gk, n, h, per, { banding: !!bd, lampiran: !!lp }) + o.replace('<!--SISIP-->', bd).replace('<!--RTL-->', rtlCetakHtml(gk)) + lp;
       });
     });
   }
@@ -1676,7 +1768,7 @@
     });
     if (!rows) return '';
     return '<h3 style="page-break-before:always">LAMPIRAN: BUKTI KINERJA PER INDIKATOR</h3><table><thead><tr><th style="width:38px">No</th><th style="width:34%">Indikator</th><th>Bukti terlampir</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-      '<p class="ket">Bukti dihimpun melalui aplikasi SI MAMBA' + (d.otoAt ? '; data otomatis (absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah) ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ' untuk rentang ' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) : '') + '. Catatan wawancara bersifat rahasia dan tidak dilampirkan.</p>';
+      '<p class="ket">Bukti dihimpun melalui aplikasi SI MAMBA' + (d.otoAt ? '; data otomatis (absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah, materi/tugas daring, penilaian diri) ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ' untuk rentang ' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) : '') + '. Catatan wawancara bersifat rahasia dan tidak dilampirkan.</p>';
   }
 
   function cetakRekap() {
