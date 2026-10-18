@@ -91,8 +91,14 @@
     return (typeof allGuru !== 'undefined' ? allGuru : []).filter(function (g) { return g.role === 'guru' || g.role === 'wali_kelas'; })
       .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
   }
+  // Nama asli Kepala dari Pengaturan Madrasah (Profil > Kepala Sekolah). Kosong bila belum diisi.
+  function namaKepala() { var M = (typeof MADRASAH !== 'undefined' && MADRASAH) ? MADRASAH : {}; return String(M.kepala_sekolah || '').trim(); }
+  // Label jabatan generik (data lama / akun Kepala) -> nama orangnya bila sudah diisi; selain itu apa adanya.
+  function tampil(s) { return (s && /^(kepala (madrasah|sekolah)|kepsek)$/i.test(String(s).trim()) && namaKepala()) ? namaKepala() : s; }
+  // Nama yang dicatat sebagai pengisi/penilai: untuk Kepala = nama orangnya, bukan jabatan.
+  function pengisi(u) { return (kep() && !adm() && namaKepala()) ? namaKepala() : pengisi(u); }
   function namaGuru(key) {
-    if (key === 'kepsek' || key === (typeof KEPSEK_USER_KEY !== 'undefined' ? KEPSEK_USER_KEY : '__kepsek__')) return 'Kepala Madrasah';
+    if (key === 'kepsek' || key === (typeof KEPSEK_USER_KEY !== 'undefined' ? KEPSEK_USER_KEY : '__kepsek__')) return namaKepala() || 'Kepala Madrasah';
     var g = guruAktif().filter(function (x) { return x.key === key; })[0];
     return g ? g.name : key;
   }
@@ -231,6 +237,17 @@
   }
 
   // ---------- render ----------
+  // Status pengesahan Kepala untuk layar (guru melihat apakah dokumennya sudah berhak QR Kepala).
+  var KET_SAH = {
+    diajukan: ['#fffbeb', '#92400e', '⏳ Belum final — menunggu persetujuan guru, lalu penetapan Kepala Madrasah. QR Kepala belum terbit.'],
+    disetujui: ['#fffbeb', '#92400e', '⏳ Menunggu pengesahan Kepala Madrasah. QR Kepala pada cetakan baru terbit setelah ditetapkan.'],
+    keberatan: ['#fef2f2', '#b91c1c', '⚠️ Belum final — keberatan guru sedang ditindaklanjuti. QR Kepala belum terbit.'],
+    ditetapkan: ['#ecfdf5', '#047857', '✅ Sudah ditetapkan Kepala Madrasah. Cetakan resmi ber-QR dapat dicetak oleh Admin atau Kepala.']
+  };
+  function pengesahanHtml(st) {
+    var k = KET_SAH[st]; if (!k) return '';
+    return '<div style="margin-top:10px;padding:8px 12px;border-radius:10px;background:' + k[0] + ';color:' + k[1] + ';font-size:12.5px">' + k[2] + '</div>';
+  }
   function chip(st) { return '<span class="pkg-chip" style="background:' + (STATUS_WARNA[st] || '#6b7280') + '">' + esc(STATUS_LABEL[st] || st) + '</span>'; }
   function predChip(h) {
     var w = { 'Sangat Baik': '#15803d', 'Baik': '#2563eb', 'Cukup': '#b45309', 'Kurang': '#c2410c', 'Buruk': '#b91c1c' }[h.sebutan] || '#6b7280';
@@ -296,7 +313,57 @@
       return { g: g, n: n, t: t, st: st, h: hs };
     });
   }
-  function ringkasanHtml() {
+  // Notifikasi dalam aplikasi (best-effort; hasil tulis ditentukan Rules notifications_v4, kegagalan diabaikan).
+  function kabari(kunciTujuan, judul, isi) {
+    try {
+      var u = me(), kp = (typeof KEPSEK_USER_KEY !== 'undefined' ? KEPSEK_USER_KEY : '__kepsek__');
+      if (typeof v4Notify !== 'function' || !kunciTujuan || kunciTujuan === 'kepsek' || kunciTujuan === kp || (u && kunciTujuan === u.key)) return;
+      var p = v4Notify(judul, isi, 'INFO', kunciTujuan, 'pkg', S.periodeId || '');
+      if (p && typeof p.catch === 'function') p.catch(function () { });
+    } catch (e) { }
+  }
+  // Jadwal mengajar guru (allJadwal di app.js) untuk mengisi Lembar Observasi: pada hari jadwal pengamatan bila sudah ditentukan.
+  function jadwalAjar(gk) {
+    var all = (typeof allJadwal !== 'undefined' && Array.isArray(allJadwal)) ? allJadwal : [];
+    var g = guruAktif().filter(function (x) { return x.key === gk; })[0], gn = g ? g.name : '';
+    var norm = function (x) { return String(x || '').toLowerCase().replace(/[\s.,]+/g, ''); };
+    var milik = all.filter(function (j) { return j && (j.guruKey ? j.guruKey === gk : (!!gn && norm(j.guru) === norm(gn))); });
+    var t = tugasDari(gk) || {}, tgl = t.jadwal, nama = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'], hari = '', hariTgl = '';
+    if (tgl && /^\d{4}-\d{2}-\d{2}$/.test(tgl)) { var d = new Date(tgl + 'T00:00:00'); if (!isNaN(d)) { hari = nama[d.getDay()]; hariTgl = hari + ', ' + fmtTgl(tgl); } }
+    var pada = hari ? milik.filter(function (j) { return j.hari === hari; }).sort(function (a, b) { return (+a.jam || 0) - (+b.jam || 0); }) : [];
+    var mapel = {}; milik.forEach(function (j) { if (j.mapel) mapel[j.mapel] = 1; });
+    return { hariTgl: hariTgl, pada: pada, mapel: Object.keys(mapel) };
+  }
+  // Identitas guru untuk cetakan, dari data SI MAMBA: NIP (bila ada di data guru), jabatan, mata pelajaran (dari Jadwal), kelas.
+  // Data guru di aplikasi belum punya NIP/mapel sendiri, jadi NIP bertitik-titik untuk diisi tangan bila kosong.
+  function identitasBaris(gk) {
+    var g = guruAktif().filter(function (x) { return x.key === gk; })[0] || {};
+    var nip = String(g.nip || '').trim();
+    var kls = Array.isArray(g.kelas) ? g.kelas.filter(Boolean) : (g.kelas ? [String(g.kelas)] : []);
+    var jab = g.waliKelasOf ? 'Guru / Wali Kelas ' + g.waliKelasOf : (g.role === 'wali_kelas' ? 'Guru / Wali Kelas' : 'Guru');
+    var mp = jadwalAjar(gk).mapel;
+    return '<tr><td>NIP</td><td>' + (nip ? esc(nip) : '................................') + '</td></tr>' +
+      '<tr><td>Jabatan</td><td>' + esc(jab) + '</td></tr>' +
+      '<tr><td>Mata pelajaran</td><td>' + (mp.length ? mp.map(esc).join(', ') : '-') + '</td></tr>' +
+      '<tr><td>Kelas diampu</td><td>' + (g.semuaKelas ? 'Semua kelas' : (kls.length ? kls.map(esc).join(', ') : '-')) + '</td></tr>';
+  }
+  // Pengingat di layar: jadwal pengamatan hari ini / besok milik guru yang login (dinilai) atau yang ia nilai.
+  function pengingatJadwalHtml() {
+    var u = me(); if (!u) return '';
+    var fi = function (d) { var m = d.getMonth() + 1, t = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (t < 10 ? '0' : '') + t; };
+    var sk = new Date(), h0 = fi(sk), h1 = fi(new Date(sk.getTime() + 86400000)), baris = [];
+    Object.keys(S.tugas || {}).forEach(function (gk) {
+      var t = S.tugas[gk]; if (!t || (t.jadwal !== h0 && t.jadwal !== h1)) return;
+      var st = statusDari(S.nilai[gk]); if (st === 'diajukan' || selesai(st)) return;
+      var saya = u.key && gk === u.key;
+      if (!saya && !bolehMenilai(gk)) return;
+      baris.push((t.jadwal === h0 ? 'Hari ini' : 'Besok') + ': pengamatan pembelajaran ' + (saya ? 'Anda' : esc(namaGuru(gk))));
+    });
+    if (!baris.length) return '';
+    return '<div class="card" style="background:#fffbeb;border:1px solid #fde68a"><b>🔔 Pengingat jadwal pengamatan</b><ul style="margin:6px 0 0 18px;font-size:13px">' + baris.map(function (b) { return '<li>' + b + '</li>'; }).join('') + '</ul></div>';
+  }
+  function ringkasanHtml() { return pengingatJadwalHtml() + ringkasanIsiHtml(); }
+  function ringkasanIsiHtml() {
     var rows = barisGuru(), lengkap = rows.filter(function (x) { return x.h && x.h.lengkap; });
     var cnt = { belum: 0, proses: 0, selesai: 0 }, dist = { 'Sangat Baik': 0, 'Baik': 0, 'Cukup': 0, 'Kurang': 0, 'Buruk': 0 }, rata = 0;
     rows.forEach(function (x) {
@@ -364,8 +431,8 @@
       if (x.h && boleh) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="hasil" data-gk="' + esc(gk) + '">Lihat</button> ';
       if (x.h && boleh && (gk === u.key || bolehMenilai(gk) || lihatSemua())) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="cetak" data-gk="' + esc(gk) + '">🖨️</button> ';
       if (gk === u.key || bolehMenilai(gk) || lihatSemua()) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="bukti" data-gk="' + esc(gk) + '" title="Isi bukti di aplikasi">📂 Bukti</button> <button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="perangkat" data-gk="' + esc(gk) + '" title="Perangkat penilaian (cetak)">📋</button>';
-      h += '<tr><td>' + (i + 1) + '</td><td>' + esc(x.g.name) + '</td><td>' + (x.t ? esc(x.t.penilaiNama || namaGuru(x.t.penilaiKey)) : '<span class="text-muted">belum ditugaskan</span>') + '</td><td>' + (x.t && x.t.jadwal ? fmtTgl(x.t.jadwal) : '-') +
-        '</td><td>' + chip(x.st) + '</td><td>' + (x.h && boleh ? (x.h.lengkap ? f1(x.h.nilai100) : '<span class="text-muted">' + jumlahTerisi(x.n.skor) + '/' + P.totalIndikator() + ' terisi</span>' + (penilaiYa(gk) ? '<div class="pkg-bar" style="margin-top:4px;min-width:90px"><i style="width:' + Math.round(jumlahTerisi(x.n.skor) / P.totalIndikator() * 100) + '%"></i></div>' : '')) : (progresGuruHtml(x, boleh) || '-')) +
+      h += '<tr><td>' + (i + 1) + '</td><td>' + esc(x.g.name) + '</td><td>' + (x.t ? esc(tampil(x.t.penilaiNama) || namaGuru(x.t.penilaiKey)) : '<span class="text-muted">belum ditugaskan</span>') + '</td><td>' + (x.t && x.t.jadwal ? fmtTgl(x.t.jadwal) : '-') +
+        '</td><td>' + chip(x.st) + (x.st === 'disetujui' ? '<div class="text-muted" style="font-size:11px;margin-top:3px">menunggu pengesahan Kepala</div>' : '') + '</td><td>' + (x.h && boleh ? (x.h.lengkap ? f1(x.h.nilai100) : '<span class="text-muted">' + jumlahTerisi(x.n.skor) + '/' + P.totalIndikator() + ' terisi</span>' + (penilaiYa(gk) ? '<div class="pkg-bar" style="margin-top:4px;min-width:90px"><i style="width:' + Math.round(jumlahTerisi(x.n.skor) / P.totalIndikator() * 100) + '%"></i></div>' : '')) : (progresGuruHtml(x, boleh) || '-')) +
         '</td><td>' + (x.h && boleh && x.h.lengkap ? predChip(x.h) : '-') + '</td><td style="white-space:nowrap">' + tombol + '</td></tr>';
     });
     h += '</tbody></table></div>';
@@ -383,7 +450,7 @@
       '<button class="btn btn-success" style="margin-top:8px" data-act="buat-periode">💾 Buat Periode</button>' +
       '<p class="text-muted" style="font-size:11.5px;margin:8px 0 0">Menurut Juknis, PKG dilaksanakan sepanjang tahun; penilaian akhir mulai 8 minggu sebelum akhir tahun anggaran dan laporan dianjurkan selesai pertengahan Desember.</p></div>';
     if (!S.periodeId) return h;
-    var gurus = guruAktif(), opsi = [{ key: (typeof KEPSEK_USER_KEY !== 'undefined' ? KEPSEK_USER_KEY : '__kepsek__'), name: 'Kepala Madrasah' }].concat(gurus.map(function (g) { return { key: g.key, name: g.name }; }));
+    var gurus = guruAktif(), opsi = [{ key: (typeof KEPSEK_USER_KEY !== 'undefined' ? KEPSEK_USER_KEY : '__kepsek__'), name: (namaKepala() ? namaKepala() + ' (Kepala Madrasah)' : 'Kepala Madrasah') }].concat(gurus.map(function (g) { return { key: g.key, name: g.name }; }));
     h += '<div class="card" style="overflow-x:auto"><h4 style="margin:0 0 8px">👥 Penugasan Penilai &mdash; ' + esc(S.periodeList[S.periodeId].nama || '') + '</h4>' +
       '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Penilai tidak boleh menilai dirinya sendiri, dan satu penilai maksimal ' + MAKS_GURU_PER_PENILAI + ' guru (Juknis). Kepala Madrasah dapat menjadi penilai.</p>' +
       '<table><thead><tr><th>Guru</th><th>Penilai</th><th>Jadwal pengamatan</th></tr></thead><tbody>';
@@ -440,8 +507,8 @@
     var st = statusDari(n), h = hitung(n.skor);
     var lemah = h.komponen.map(function (c, i) { return { k: P.komponen[i], c: c }; }).filter(function (x) { return x.c.lengkap && x.c.nilai <= 2; });
     var o = '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><h4 style="margin:0">Hasil PKG: ' + esc(namaGuru(gk)) + '</h4>' +
-      '<div class="text-muted" style="font-size:12px">Penilai: ' + esc(n.penilaiNama || namaGuru(n.penilaiKey)) + ' &bull; ' + chip(st) + '</div></div>' +
-      '<button class="btn btn-soft" data-act="kembali">← Kembali</button></div>';
+      '<div class="text-muted" style="font-size:12px">Penilai: ' + esc(tampil(n.penilaiNama) || namaGuru(n.penilaiKey)) + ' &bull; ' + chip(st) + '</div></div>' +
+      '<button class="btn btn-soft" data-act="kembali">← Kembali</button></div>' + pengesahanHtml(st);
     if (h.lengkap) o += '<div class="pkg-grid" style="margin-top:10px">' + stat(h.jumlah + ' / ' + h.tertinggi, 'Jumlah nilai komponen') + stat(f1(h.nilai100), 'Nilai PKG (skala 100)') + '<div class="pkg-stat"><span>Predikat</span><br>' + predChip(h) + '</div>' + stat(h.npk + '%', 'NPK') + '</div>';
     else o += '<p class="text-muted">Penilaian belum lengkap (' + jumlahTerisi(n.skor) + '/' + P.totalIndikator() + ' indikator).</p>';
     o += '<table><thead><tr><th>No</th><th>Komponen</th><th>Skor</th><th>%</th><th>Nilai (1–4)</th></tr></thead><tbody>' + h.komponen.map(function (c, i) {
@@ -548,7 +615,7 @@
       (url ? ' <a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">🔗 buka</a>' : '') +
       (it.pn && typeof it.pn === 'object' ? '<div class="pkg-meta">Penanda terlihat ' + esc(String(it.pn.t ? String(it.pn.t).split(',').length : 0)) + ' dari ' + esc(String(it.pn.n || 0)) + ' &bull; usulan skor ' + esc(String(it.pn.s)) + '</div>' : '') +
       (it.ket ? '<div class="pkg-ket">' + esc(it.ket) + '</div>' : '') +
-      '<div class="pkg-meta">' + esc(it.oleh || '') + (it.at ? ' &bull; ' + fmtTgl(String(it.at).slice(0, 10)) : '') +
+      '<div class="pkg-meta">' + esc(tampil(it.oleh) || '') + (it.at ? ' &bull; ' + fmtTgl(String(it.at).slice(0, 10)) : '') +
       (boleh ? ' &bull; <a href="#" data-act="bukti-hapus" data-key="' + esc(it.key || '') + '" data-id="' + esc(it.id) + '" style="color:#b91c1c">hapus</a>' : '') + '</div></li>';
   }
   function otoBaris(d, o) {
@@ -613,7 +680,7 @@
     if (!def) o += '<p class="text-muted" style="font-size:12px;margin:0">Modul <code>js/pkg-sumber.js</code> belum dimuat, sehingga bukti otomatis tidak tersedia. Bukti manual tetap bisa diisi.</p>';
     else {
       var rg = rentangOto(), dr = S.otoDari || (d.otoDari || rg.dari), sp = S.otoSampai || (d.otoSampai || rg.sampai);
-      o += !adaPenilai(gk) ? '<p class="text-muted" style="font-size:12px;margin:0">Bukti otomatis (absensi, jurnal, nilai, perangkat pembelajaran) ditarik oleh penilai.</p>' : '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, <b>nilai siswa</b>, serta <b>perangkat pembelajaran dan modul ajar</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
+      o += !adaPenilai(gk) ? '<p class="text-muted" style="font-size:12px;margin:0">Bukti otomatis (absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah) ditarik oleh penilai.</p>' : '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Mengambil data <b>absensi guru</b>, <b>jurnal mengajar</b>, <b>nilai siswa</b>, serta <b>perangkat pembelajaran dan modul ajar</b> milik guru ini pada rentang tanggal di bawah, lalu menempelkannya sebagai bukti pada indikator yang relevan beserta usulan skor.</p>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><div><label class="label">Dari</label><input id="pkgOtoDari" type="date" class="field" value="' + esc(dr) + '"></div>' +
         '<div><label class="label">Sampai</label><input id="pkgOtoSampai" type="date" class="field" value="' + esc(sp) + '"></div>' +
         (boleh && adaPenilai(gk) ? '<button class="btn btn-success" data-act="bukti-tarik">🔄 Tarik bukti otomatis</button>' : '') + '</div>';
@@ -624,7 +691,7 @@
           return '<div style="margin:5px 0">' + def[id].ikon + ' <b>' + esc(def[id].label) + '</b> ' + (s.ok
             ? '<span style="color:#15803d">✔</span> ' + esc(s.ringkas) + (s.saran != null ? ' <span class="pkg-chip" style="background:#15803d">usulan skor ' + s.saran + '</span>' : '')
             : '<span style="color:#b45309">⚠ tidak terbaca</span> <span class="text-muted">' + esc(s.alasan || '') + '</span>') + '</div>';
-        }).join('') + '<div class="pkg-meta">Ditarik ' + (d.otoAt ? fmtTgl(String(d.otoAt).slice(0, 10)) : '-') + (d.otoOleh ? ' oleh ' + esc(d.otoOleh) : '') + '</div></div>';
+        }).join('') + '<div class="pkg-meta">Ditarik ' + (d.otoAt ? fmtTgl(String(d.otoAt).slice(0, 10)) : '-') + (d.otoOleh ? ' oleh ' + esc(tampil(d.otoOleh)) : '') + '</div></div>';
       }
     }
     o += '</div>';
@@ -719,7 +786,7 @@
     Array.prototype.forEach.call(box.querySelectorAll('textarea[data-pra]'), function (t) {
       var v = String(t.value || '').trim(); if (v) { pra[t.getAttribute('data-pra')] = potong(v, MAKS_PRA); n++; }
     });
-    var upd = aman({ pra: n ? pra : null, praAt: n ? nowIso() : null, praOleh: n ? (u.name || u.key) : null });
+    var upd = aman({ pra: n ? pra : null, praAt: n ? nowIso() : null, praOleh: n ? pengisi(u) : null });
     kerjakan(function () { return db.ref(nodeBukti(gk)).update(upd); }, function () {
       var d = S.bukti[kb(gk)] || (S.bukti[kb(gk)] = {});
       d.pra = upd.pra || null; d.praAt = upd.praAt || null; d.praOleh = upd.praOleh || null; S.praDraft = {};
@@ -780,7 +847,7 @@
     Array.prototype.forEach.call(box.querySelectorAll('textarea[data-diri-r]'), function (t) { var v = String(t.value || '').trim(); if (v) r[t.getAttribute('data-diri-r')] = potong(v, MAKS_DIRI); });
     if (n && n < A.diri.butir.length && !confirm('Baru ' + n + ' dari ' + A.diri.butir.length + ' butir terjawab. Simpan dulu?')) return;
     var ada = n || Object.keys(r).length;
-    var upd = aman({ diri: ada ? { j: n ? j : null, r: Object.keys(r).length ? r : null } : null, diriAt: ada ? nowIso() : null, diriOleh: ada ? (u.name || u.key) : null });
+    var upd = aman({ diri: ada ? { j: n ? j : null, r: Object.keys(r).length ? r : null } : null, diriAt: ada ? nowIso() : null, diriOleh: ada ? pengisi(u) : null });
     kerjakan(function () { return db.ref(nodeBukti(gk)).update(upd); }, function () {
       var d = S.bukti[kb(gk)] || (S.bukti[kb(gk)] = {});
       d.diri = upd.diri || null; d.diriAt = upd.diriAt || null; d.diriOleh = upd.diriOleh || null; S.diriDraft = {};
@@ -809,7 +876,7 @@
     if (url && url.length > 1000) return pesan('Tautan terlalu panjang (maksimal 1000 karakter). Pakai tautan pendek.', true);
     if (itemTotal(gk, key) >= MAKS_ITEM) return pesan('Maksimal ' + MAKS_ITEM + ' bukti per indikator.', true);
     var ref = db.ref(nodeBukti(gk) + '/item/' + key).push();
-    var item = { jenis: jenis, judul: potong(judul, 120), oleh: u.name || u.key, olehKey: u.key, at: nowIso() };
+    var item = { jenis: jenis, judul: potong(judul, 120), oleh: pengisi(u), olehKey: u.key, at: nowIso() };
     if (url) item.tautan = url;
     if (ket) item.ket = potong(ket, 500);
     kerjakan(function () { return ref.set(item); }, function () {
@@ -848,7 +915,7 @@
     if (dari > sampai) return pesan('Tanggal "Dari" tidak boleh sesudah "Sampai".', true);
     S.otoDari = dari; S.otoSampai = sampai;
     var ctx = { db: db, guruKey: gk, guruNama: namaGuru(gk), dari: dari, sampai: sampai };
-    pesan('Menarik data absensi, jurnal, nilai, dan perangkat pembelajaran…');
+    pesan('Menarik data absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, dan kegiatan madrasah…');
     kerjakan(function () {
       return SM.jalankan(ctx).then(function (hasil) {
         var peta = petaOto(), sumber = {}, oto = {}, waktu = nowIso(), adaOk = false;
@@ -863,7 +930,7 @@
           var sr = ids.map(function (id) { var hh = hasil[id], pi = hh && hh.perInd; return (pi && (pi[key] === 0 || pi[key] === 1 || pi[key] === 2)) ? pi[key] : sumber[id].saran; }).filter(function (x) { return x != null; });   // sumber yang menghitung per indikator (perInd) menimpa saran tunggal
           oto[key] = { s: ids.join(','), saran: sr.length ? Math.max.apply(null, sr) : null };   // bukti boleh alternatif -> ambil yang terkuat
         });
-        var upd = aman({ otomatis: Object.keys(oto).length ? oto : null, sumberOto: sumber, otoAt: waktu, otoOleh: u.name || u.key, otoDari: dari, otoSampai: sampai });
+        var upd = aman({ otomatis: Object.keys(oto).length ? oto : null, sumberOto: sumber, otoAt: waktu, otoOleh: pengisi(u), otoDari: dari, otoSampai: sampai });
         return db.ref(nodeBukti(gk)).update(upd).then(function () { return { upd: upd, adaOk: adaOk }; });
       });
     }, function (r) {
@@ -1199,7 +1266,7 @@
       if (c >= minS) sis[x.k] = { pct: Math.round(jm / c * 1000) / 10, n: c };   // per butir juga harus >= minimum (jawaban 'tidak tahu' tidak dihitung)
     });
     var waktu = nowIso();
-    var upd = aman({ angket: Object.keys(map).length ? map : null, angketBanding: Object.keys(ban).length ? ban : null, angketSiswa: Object.keys(sis).length ? sis : null, angketN: nn, angketAt: waktu, angketOleh: u.name || u.key });
+    var upd = aman({ angket: Object.keys(map).length ? map : null, angketBanding: Object.keys(ban).length ? ban : null, angketSiswa: Object.keys(sis).length ? sis : null, angketN: nn, angketAt: waktu, angketOleh: pengisi(u) });
     kerjakan(function () { return db.ref(nodeBukti(gk)).update(upd); }, function () {
       var d = S.bukti[kb(gk)] || (S.bukti[kb(gk)] = {});
       d.angket = upd.angket || null; d.angketBanding = upd.angketBanding || null; d.angketSiswa = upd.angketSiswa || null; d.angketN = upd.angketN; d.angketAt = upd.angketAt; d.angketOleh = upd.angketOleh;
@@ -1308,8 +1375,8 @@
     if (!u || !bolehMenilai(gk)) return pesan('Tidak berhak menilai guru ini.', true);
     var data = {
       skor: S.draft.skor, catatan: S.draft.catatan, status: status, hasil: rekamHasil(S.draft.skor),
-      penilaiKey: t.penilaiKey || u.key, penilaiNama: t.penilaiNama || namaGuru(t.penilaiKey || u.key),
-      diperbarui: nowIso(), diperbaruiOleh: u.name || u.key
+      penilaiKey: t.penilaiKey || u.key, penilaiNama: tampil(t.penilaiNama) || namaGuru(t.penilaiKey || u.key),
+      diperbarui: nowIso(), diperbaruiOleh: pengisi(u)
     };
     if (status === 'diajukan') { data.persetujuan = null; data.diajukanAt = nowIso(); }
     kerjakan(function () {
@@ -1318,6 +1385,7 @@
       S.nilai[gk] = baru;
       hapusLokal();
       if (typeof addLog === 'function') addLog('PKG ' + status, namaGuru(gk));
+      if (status === 'diajukan') kabari(gk, 'PKG: hasil penilaian diajukan', 'Hasil penilaian kinerja Anda sudah diajukan penilai. Mohon periksa lalu beri persetujuan atau keberatan di menu PKG Guru.');
       if (ok) ok();
     }, 'Gagal menyimpan: ');
   }
@@ -1344,9 +1412,9 @@
     }
     if (act === 'setuju') {
       if (!u) return;
-      var upd = { status: 'disetujui', persetujuan: { setuju: true, tanggal: nowIso(), oleh: u.name || u.key } };
+      var upd = { status: 'disetujui', persetujuan: { setuju: true, tanggal: nowIso(), oleh: pengisi(u) } };
       return kerjakan(function () { return ubahNilai(u.key, function (c) { return statusDari(c) === 'diajukan'; }, upd); },
-        function (baru) { S.nilai[u.key] = baru; if (typeof addLog === 'function') addLog('PKG setuju', namaGuru(u.key)); pesan('Terima kasih, persetujuan tercatat.'); render(); });
+        function (baru) { S.nilai[u.key] = baru; if (typeof addLog === 'function') addLog('PKG setuju', namaGuru(u.key)); kabari((tugasDari(u.key) || {}).penilaiKey, 'PKG: guru menyetujui hasil', namaGuru(u.key) + ' menyetujui hasil penilaiannya. Menunggu penetapan Kepala Madrasah.'); pesan('Terima kasih, persetujuan tercatat.'); render(); });
     }
     if (act === 'keberatan') {
       if (!u) return;
@@ -1354,15 +1422,15 @@
       if (alasan === null) return;
       alasan = alasan.trim(); if (!alasan) return pesan('Alasan keberatan wajib diisi.', true);
       if (alasan.length > 1000) return pesan('Alasan keberatan terlalu panjang (' + alasan.length + ' karakter; maksimal 1000). Mohon diringkas.', true);
-      var upd2 = { status: 'keberatan', persetujuan: { setuju: false, alasan: alasan, tanggal: nowIso(), oleh: u.name || u.key } };
+      var upd2 = { status: 'keberatan', persetujuan: { setuju: false, alasan: alasan, tanggal: nowIso(), oleh: pengisi(u) } };
       return kerjakan(function () { return ubahNilai(u.key, function (c) { return statusDari(c) === 'diajukan'; }, upd2); },
-        function (baru) { S.nilai[u.key] = baru; if (typeof addLog === 'function') addLog('PKG keberatan', namaGuru(u.key)); pesan('Keberatan tercatat dan diteruskan ke Kepala Madrasah.'); render(); });
+        function (baru) { S.nilai[u.key] = baru; if (typeof addLog === 'function') addLog('PKG keberatan', namaGuru(u.key)); kabari((tugasDari(u.key) || {}).penilaiKey, 'PKG: guru mengajukan keberatan', namaGuru(u.key) + ' mengajukan keberatan atas hasil penilaiannya. Lihat alasannya di menu PKG Guru.'); pesan('Keberatan tercatat dan diteruskan ke Kepala Madrasah.'); render(); });
     }
     if (act === 'tetapkan') {
       if (!u || !kep()) return;
-      var upd3 = { status: 'ditetapkan', ditetapkanAt: nowIso(), ditetapkanOleh: u.name || u.key };
+      var upd3 = { status: 'ditetapkan', ditetapkanAt: nowIso(), ditetapkanOleh: pengisi(u) };
       return kerjakan(function () { return ubahNilai(gk, function (c) { return statusDari(c) === 'disetujui'; }, upd3); },
-        function (baru) { S.nilai[gk] = baru; if (typeof addLog === 'function') addLog('PKG tetapkan', namaGuru(gk)); pesan('Hasil PKG ditetapkan.'); render(); });
+        function (baru) { S.nilai[gk] = baru; if (typeof addLog === 'function') addLog('PKG tetapkan', namaGuru(gk)); kabari(gk, 'PKG: hasil ditetapkan', 'Hasil PKG Anda telah ditetapkan Kepala Madrasah.'); kabari((tugasDari(gk) || {}).penilaiKey, 'PKG: hasil ditetapkan', 'Hasil PKG untuk ' + namaGuru(gk) + ' telah ditetapkan Kepala Madrasah.'); pesan('Hasil PKG ditetapkan.'); render(); });
     }
     if (act === 'perangkat') { if (!bolehPerangkat('bukti', gk)) return pesan('Tidak tersedia untuk Anda.', true); S.gk = gk; S.view = 'perangkat'; return render(); }
     if (act === 'cetak-perangkat') return cetakPerangkat(el.getAttribute('data-jenis'), gk);
@@ -1413,7 +1481,7 @@
     if (dobel && !confirm('Periode dengan nama dan jenis yang sama sudah ada. Tetap buat periode baru?')) return;
     var ref = db.ref(N.periode).push(), u = me();
     kerjakan(function () {
-      return ref.set({ nama: nama, jenis: jenis, mulai: mulai || null, selesai: sel || null, dibuatOleh: u.name || u.key, dibuatAt: nowIso() });
+      return ref.set({ nama: nama, jenis: jenis, mulai: mulai || null, selesai: sel || null, dibuatOleh: pengisi(u), dibuatAt: nowIso() });
     }, function () {
       S.periodeId = ref.key; if (typeof addLog === 'function') addLog('PKG buat periode', nama);
       pesan('Periode dibuat.'); muat();
@@ -1484,8 +1552,13 @@
     var nama = M.kepala_sekolah || '................................';
     var qr = (denganQr && window.TTD && typeof window.TTD.penanda === 'function')
       ? window.TTD.penanda('kepala', { jenis: jenis, ket: ket }, { hanyaPimpinan: true }) : '';
+    // Penanda status: cetakan tanpa QR Kepala diberi tulisan agar tidak dikira dokumen yang sudah disahkan.
+    var tanda = '';
+    if (!denganQr) tanda = 'BELUM FINAL &mdash; belum disahkan Kepala Madrasah';
+    else if (!(kep() || adm())) tanda = 'Tanpa QR pengesahan &mdash; cetak resmi oleh Admin / Kepala Madrasah';
     return '<div>Kepala Madrasah/Atasan Langsung<div style="min-height:22mm;display:flex;align-items:flex-end;justify-content:center">' + qr + '</div>(' + esc(nama) + ')' +
-      (M.nip_kepala_sekolah ? '<br>NIP. ' + esc(M.nip_kepala_sekolah) : '') + '</div>';
+      (M.nip_kepala_sekolah ? '<br>NIP. ' + esc(M.nip_kepala_sekolah) : '') +
+      (tanda ? '<div style="margin-top:6px;font-size:10px;font-weight:700;color:#b91c1c;border:1px solid #b91c1c;border-radius:4px;padding:2px 6px;display:inline-block">' + tanda + '</div>' : '') + '</div>';
   }
 
 
@@ -1535,7 +1608,7 @@
       (ref ? '<h4 style="margin:12px 0 2px">Refleksi guru</h4><table>' + ref + '</table>' : '');
   }
   function sampulLaporan(gk, n, h, per, ada) {
-    var M = (typeof MADRASAH !== 'undefined' && MADRASAH) ? MADRASAH : {}, pen = n.penilaiNama || namaGuru(n.penilaiKey);
+    var M = (typeof MADRASAH !== 'undefined' && MADRASAH) ? MADRASAH : {}, pen = tampil(n.penilaiNama) || namaGuru(n.penilaiKey);
     var daftar = ['Laporan dan evaluasi penilaian per indikator', 'Rekap hasil penilaian kinerja guru'];
     if (ada.banding) daftar.push('Hasil penilaian diri dan angket peserta didik');
     if (ada.lampiran) daftar.push('Lampiran: bukti kinerja per indikator');
@@ -1559,9 +1632,9 @@
     var per = S.periodeList[S.periodeId] || {}, h = hitung(n.skor), t = tugasDari(gk) || {};
     if (!h.lengkap) return pesan('Laporan belum bisa dicetak: penilaian belum lengkap (' + jumlahTerisi(n.skor) + '/' + P.totalIndikator() + ' indikator terisi).', true);
     var o = '<h3>LAPORAN DAN EVALUASI<br>PENILAIAN KINERJA GURU KELAS/MATA PELAJARAN</h3>' +
-      '<table><tr><td style="width:30%">Nama Guru</td><td>' + esc(namaGuru(gk)) + '</td></tr><tr><td>Nama Madrasah</td><td>' + esc((typeof MADRASAH !== 'undefined' && MADRASAH.nama) || '') + '</td></tr>' +
+      '<table><tr><td style="width:30%">Nama Guru</td><td>' + esc(namaGuru(gk)) + '</td></tr>' + identitasBaris(gk) + '<tr><td>Nama Madrasah</td><td>' + esc((typeof MADRASAH !== 'undefined' && MADRASAH.nama) || '') + '</td></tr>' +
       '<tr><td>Periode penilaian</td><td>' + esc(per.nama || '') + ' (' + esc(per.jenis || 'PKG') + ')' + (per.mulai ? ', ' + fmtTgl(per.mulai) + ' s.d. ' + fmtTgl(per.selesai) : '') + '</td></tr>' +
-      '<tr><td>Penilai</td><td>' + esc(n.penilaiNama || namaGuru(n.penilaiKey)) + '</td></tr>' +
+      '<tr><td>Penilai</td><td>' + esc(tampil(n.penilaiNama) || namaGuru(n.penilaiKey)) + '</td></tr>' +
       (t.jadwal ? '<tr><td>Tanggal pengamatan</td><td>' + fmtTgl(t.jadwal) + '</td></tr>' : '') + '</table>';
     o += '<table><thead><tr><th>No</th><th>Indikator kinerja</th><th style="width:40px">Skor</th><th style="width:30%">Catatan</th></tr></thead><tbody>';
     P.komponen.forEach(function (k, ki) {
@@ -1583,7 +1656,7 @@
     o += '<tr><td colspan="2"><b>Jumlah (hasil penilaian kinerja guru)</b></td><td style="text-align:center"><b>' + h.jumlah + '</b></td></tr></tbody></table>' +
       '<p>Nilai PKG (skala 100) = ' + h.jumlah + ' / ' + h.tertinggi + ' &times; 100 = <b>' + f1(h.nilai100) + '</b> &mdash; Sebutan: <b>' + esc(h.sebutan) + '</b> (NPK ' + h.npk + '%)</p>';
     o += '<p style="font-size:11px">Persetujuan: ' + (n.persetujuan && n.persetujuan.setuju ? 'guru yang dinilai telah menyatakan setuju pada ' + fmtTgl(n.persetujuan.tanggal) + '.' : 'belum ada persetujuan guru.') + '</p>';
-    o += '<div class="ttd"><div>Guru yang Dinilai<br><br><br><br>(' + esc(namaGuru(gk)) + ')</div><div>Penilai<br><br><br><br>(' + esc(n.penilaiNama || namaGuru(n.penilaiKey)) + ')</div>' + blokKepalaCetak(statusDari(n) === 'ditetapkan', 'Laporan PKG', 'PKG ' + namaGuru(gk) + ' | ' + (per.nama || '') + ' | Nilai ' + f1(h.nilai100) + ' (' + h.sebutan + ')') + '</div>';
+    o += '<div class="ttd"><div>Guru yang Dinilai<br><br><br><br>(' + esc(namaGuru(gk)) + ')</div><div>Penilai<br><br><br><br>(' + esc(tampil(n.penilaiNama) || namaGuru(n.penilaiKey)) + ')</div>' + blokKepalaCetak(statusDari(n) === 'ditetapkan', 'Laporan PKG', 'PKG ' + namaGuru(gk) + ' | ' + (per.nama || '') + ' | Nilai ' + f1(h.nilai100) + ' (' + h.sebutan + ')') + '</div>';
     bukaCetak('Laporan PKG - ' + namaGuru(gk), function () {
       return Promise.all([new Promise(function (res) { muatBukti(gk, res); }), new Promise(function (res) { muatAngket(gk, res); })]).then(function () {
         var bd = bandingLaporan(gk), lp = lampiranLaporan(gk);
@@ -1603,7 +1676,7 @@
     });
     if (!rows) return '';
     return '<h3 style="page-break-before:always">LAMPIRAN: BUKTI KINERJA PER INDIKATOR</h3><table><thead><tr><th style="width:38px">No</th><th style="width:34%">Indikator</th><th>Bukti terlampir</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-      '<p class="ket">Bukti dihimpun melalui aplikasi SI MAMBA' + (d.otoAt ? '; data otomatis (absensi, jurnal, nilai, perangkat pembelajaran) ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ' untuk rentang ' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) : '') + '. Catatan wawancara bersifat rahasia dan tidak dilampirkan.</p>';
+      '<p class="ket">Bukti dihimpun melalui aplikasi SI MAMBA' + (d.otoAt ? '; data otomatis (absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah) ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ' untuk rentang ' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) : '') + '. Catatan wawancara bersifat rahasia dan tidak dilampirkan.</p>';
   }
 
   function cetakRekap() {
@@ -1613,7 +1686,7 @@
       P.komponen.map(function (k) { return '<th>' + k.no + '</th>'; }).join('') + '<th>Jumlah</th><th>Nilai</th><th>Sebutan</th><th>Status</th></tr></thead><tbody>';
     rows.forEach(function (x, i) {
       var h = x.h;
-      o += '<tr><td>' + (i + 1) + '</td><td>' + esc(x.g.name) + '</td><td>' + esc(x.t ? (x.t.penilaiNama || namaGuru(x.t.penilaiKey)) : '-') + '</td>' +
+      o += '<tr><td>' + (i + 1) + '</td><td>' + esc(x.g.name) + '</td><td>' + esc(x.t ? (tampil(x.t.penilaiNama) || namaGuru(x.t.penilaiKey)) : '-') + '</td>' +
         P.komponen.map(function (k, ki) { return '<td style="text-align:center">' + (h && h.komponen[ki].terisi ? h.komponen[ki].nilai : '-') + '</td>'; }).join('') +
         '<td style="text-align:center">' + (h && h.lengkap ? h.jumlah : '-') + '</td><td style="text-align:center">' + (h && h.lengkap ? f1(h.nilai100) : '-') + '</td><td>' + (h && h.lengkap ? esc(h.sebutan) : '-') + '</td><td>' + esc(STATUS_LABEL[x.st] || x.st) + '</td></tr>';
     });
@@ -1745,7 +1818,7 @@
     Array.prototype.forEach.call(box.querySelectorAll('input[data-pn]'), function (c) { if (c.checked) t.push(c.getAttribute('data-pn')); });
     var n = arr.length, sk = skorDariPenanda(t.length, n);
     var ref = db.ref(nodeBukti(gk) + '/item/' + key).push();
-    var item = { jenis: 'observasi', judul: 'Pengamatan kelas (' + t.length + '/' + n + ' penanda)', ket: potong(cat, 400), pn: { t: t.join(','), n: n, s: sk }, oleh: u.name || u.key, olehKey: u.key, at: nowIso() };
+    var item = { jenis: 'observasi', judul: 'Pengamatan kelas (' + t.length + '/' + n + ' penanda)', ket: potong(cat, 400), pn: { t: t.join(','), n: n, s: sk }, oleh: pengisi(u), olehKey: u.key, at: nowIso() };
     kerjakan(function () { return ref.set(aman(item)); }, function () {
       var d = S.bukti[kb(gk)] || (S.bukti[kb(gk)] = {});
       d.item = d.item || {}; d.item[key] = d.item[key] || {}; d.item[key][ref.key] = item;
@@ -1772,17 +1845,21 @@
   }
   function perangkatHeader(gk, judul) {
     var per = S.periodeList[S.periodeId] || {}, t = tugasDari(gk) || {};
-    var pen = t.penilaiNama || (t.penilaiKey ? namaGuru(t.penilaiKey) : '');
-    return '<h3>' + judul + '</h3><table><tr><td style="width:30%">Nama Guru</td><td>' + esc(namaGuru(gk)) + '</td></tr>' +
+    var pen = tampil(t.penilaiNama) || (t.penilaiKey ? namaGuru(t.penilaiKey) : '');
+    return '<h3>' + judul + '</h3><table><tr><td style="width:30%">Nama Guru</td><td>' + esc(namaGuru(gk)) + '</td></tr>' + identitasBaris(gk) +
       '<tr><td>Nama Madrasah</td><td>' + esc((typeof MADRASAH !== 'undefined' && MADRASAH.nama) || '') + '</td></tr>' +
       '<tr><td>Periode penilaian</td><td>' + esc(per.nama || '') + ' (' + esc(per.jenis || 'PKG') + ')</td></tr>' +
       '<tr><td>Penilai</td><td>' + esc(pen) + '</td></tr>' +
       (t.jadwal ? '<tr><td>Jadwal pengamatan</td><td>' + fmtTgl(t.jadwal) + '</td></tr>' : '') + '</table>';
   }
-  function ttdPerangkat(gk, denganGuru) {
-    var t = tugasDari(gk) || {}, pen = t.penilaiNama || (t.penilaiKey ? namaGuru(t.penilaiKey) : '................................');
+  // QR Kepala hanya bila penilaian guru ini sudah FINAL (disetujui / ditetapkan) dan yang mencetak Admin/Kepala
+  // (ditegakkan blokKepalaCetak -> hanyaPimpinan). Selain itu ruang kosong untuk tanda tangan basah.
+  function ttdPerangkat(gk, denganGuru, judul) {
+    var t = tugasDari(gk) || {}, pen = tampil(t.penilaiNama) || (t.penilaiKey ? namaGuru(t.penilaiKey) : '................................');
+    var per = S.periodeList[S.periodeId] || {}, final = selesai(statusDari(S.nilai[gk]));
+    var kepala = blokKepalaCetak(final, judul || 'Perangkat PKG', (judul || 'Perangkat PKG') + ' | ' + namaGuru(gk) + ' | ' + (per.nama || ''));
     return '<div class="ttd">' + (denganGuru ? '<div>Guru yang Dinilai<br><br><br><br>(' + esc(namaGuru(gk)) + ')</div>' : '<div></div>') +
-      '<div></div><div>Penilai<br><br><br><br>(' + esc(pen) + ')</div></div>';
+      '<div>Penilai<br><br><br><br>(' + esc(pen) + ')</div>' + kepala + '</div>';
   }
   // Lampiran bukti per indikator untuk cetakan. Wawancara bersifat rahasia -> tidak pernah dicetak.
   function lampiranCetak(gk, key) {
@@ -1818,11 +1895,15 @@
       });
       o += '</tbody></table>';
     });
-    return o + ttdPerangkat(gk, true);
+    return o + ttdPerangkat(gk, true, 'Daftar Bukti PKG');
   }
   function observasiHtml(gk) {
     var o = perangkatHeader(gk, 'LEMBAR OBSERVASI PEMBELAJARAN');
-    o += '<table><tr><td style="width:30%">Kelas dan mata pelajaran</td><td>&nbsp;</td></tr><tr><td>Hari, tanggal, dan jam ke</td><td>&nbsp;</td></tr>' +
+    var ja = jadwalAjar(gk);
+    var isiKelas = ja.pada.length ? ja.pada.map(function (j) { return esc(j.kelas) + ' &mdash; ' + esc(j.mapel); }).join('<br>') + '<div style="font-size:10px;color:#64748b">Jadwal mengajar pada hari pengamatan; coret yang tidak diamati.</div>'
+      : (ja.mapel.length ? 'Mapel diampu: ' + ja.mapel.slice(0, 8).map(esc).join(', ') : '&nbsp;');
+    var isiHari = (ja.hariTgl ? esc(ja.hariTgl) : '&nbsp;') + (ja.pada.length ? '<div style="font-size:11px">Jam ke: ' + ja.pada.map(function (j) { return esc(j.jam); }).join(', ') + '</div>' : '');
+    o += '<table><tr><td style="width:30%">Kelas dan mata pelajaran</td><td>' + isiKelas + '</td></tr><tr><td>Hari, tanggal, dan jam ke</td><td>' + isiHari + '</td></tr>' +
       '<tr><td>Kompetensi dasar / materi</td><td>&nbsp;</td></tr><tr><td>Jumlah peserta didik hadir</td><td>&nbsp;</td></tr></table>' +
       '<p style="font-size:11px">Tulis <b>fakta yang teramati</b> (apa yang dikatakan dan dilakukan guru dan peserta didik), bukan kesimpulan. Skor: 0 = tidak ada bukti, 1 = terpenuhi sebagian, 2 = terpenuhi seluruhnya. Indikator yang tidak teramati dikosongkan, lalu dicari buktinya dari dokumen atau wawancara.</p>';
     P.komponen.forEach(function (k) {
@@ -1834,7 +1915,7 @@
     });
     o += '<table style="page-break-inside:avoid"><tr><td style="width:30%;height:44px">Hal yang sudah baik</td><td></td></tr><tr><td style="height:44px">Hal yang perlu diperbaiki</td><td></td></tr>' +
       '<tr><td style="height:44px">Kesepakatan tindak lanjut bersama guru</td><td></td></tr><tr><td>Tanggal pertemuan tindak lanjut</td><td></td></tr></table>';
-    return o + ttdPerangkat(gk, true);
+    return o + ttdPerangkat(gk, true, 'Lembar Observasi PKG');
   }
   function wawancaraHtml(gk) {
     var peta = petaIndikator(), o = perangkatHeader(gk, 'PEDOMAN WAWANCARA<br>PENILAIAN KINERJA GURU'), n = 0;
@@ -1852,7 +1933,7 @@
         '<table><tr><td style="width:30%">Nama narasumber</td><td>&nbsp;</td></tr><tr><td>Hari dan tanggal</td><td>&nbsp;</td></tr></table>' +
         '<table><thead><tr><th style="width:38px">No</th><th>Pertanyaan inti</th><th style="width:28%">Indikator</th><th>Catatan jawaban dan contoh</th></tr></thead><tbody>' + rows + '</tbody></table>';
     });
-    return n ? o + ttdPerangkat(gk, false) : '';
+    return n ? o + ttdPerangkat(gk, false, 'Pedoman Wawancara PKG') : '';
   }
 
   // ----- cetak: formulir angket kertas, rekap hasil angket, penilaian diri guru -----
@@ -1893,7 +1974,7 @@
       if (pk.length) o += '<p style="font-size:11px">Butir pembanding (tidak untuk usulan skor): ' + pk.sort(function (x, y) { return parseInt(x.slice(1), 10) - parseInt(y.slice(1), 10); }).map(function (k) { return k + ' (' + h.pembanding[k].ind + ') ' + f1(h.pembanding[k].pct) + '%'; }).join(', ') + '.</p>';
     });
     o += '<p style="font-size:11px">Skala: Ya = 1, Kadang-kadang = 0,5, Tidak = 0; &ldquo;Tidak tahu&rdquo; tidak dihitung. Usulan skor: &ge; ' + A.ambang.baik + '% = 2, &ge; ' + A.ambang.cukup + '% = 1, di bawahnya = 0. Penilai tetap yang memutuskan. Jawaban responden anonim.</p>';
-    return o + ttdPerangkat(gk, false);
+    return o + ttdPerangkat(gk, false, 'Rekap Hasil Angket PKG');
   }
   function diriHtml(gk) {
     var A = DR(); if (!A) return '';
@@ -1914,7 +1995,7 @@
         b.baris.map(function (x) { return '<tr style="page-break-inside:avoid"><td>' + x.k + (x.s ? ' / ' + x.s : ' (khusus guru)') + '</td><td style="text-align:center">' + x.ind + '</td><td style="text-align:center">' + (x.diri == null ? '-' : f1(x.diri) + '%') + '</td><td style="text-align:center">' + (x.siswa == null ? '-' : f1(x.siswa) + '%') + '</td><td style="text-align:center">' + (x.selisih == null ? '-' : (x.selisih > 0 ? '+' : '') + f1(x.selisih)) + '</td></tr>'; }).join('') + '</tbody></table>' +
         '<p style="font-size:11px">Berdasarkan ' + b.nSiswa + ' jawaban peserta didik. Selisih = diri dikurangi siswa. Hanya pembanding, tidak mengubah skor penilaian.</p>';
     }
-    return o + ttdPerangkat(gk, true);
+    return o + ttdPerangkat(gk, true, 'Penilaian Diri Guru');
   }
 
   function cetakPerangkat(jenis, gk) {

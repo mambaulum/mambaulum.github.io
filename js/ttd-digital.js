@@ -160,6 +160,13 @@
     var s = ''; for (var i = 0; i < b.length; i++) s += ABJAD.charAt(b[i] % ABJAD.length);
     return 'SM-' + s.slice(0, 5) + '-' + s.slice(5);
   }
+  // Nama pencetak untuk halaman verifikasi: akun Kepala = nama orangnya (Pengaturan Madrasah), bukan jabatan.
+  function namaPencetak() {
+    var u = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : null;
+    var kep = typeof isKepsek === 'function' && isKepsek(), adm = typeof isAdmin === 'function' && isAdmin();
+    var nk = String((typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.kepala_sekolah) || '').trim();
+    return (kep && !adm && nk) ? nk : ((u && u.name) || '');
+  }
   // Membuat kode + catatan verifikasi untuk satu penandatangan pada satu dokumen. Satu dokumen+role = satu kode.
   function buatQr(doc, role, meta) {
     doc.__ttdKode = doc.__ttdKode || {};
@@ -172,9 +179,9 @@
         penandatangan: String(meta.nama != null ? meta.nama : r.nama()).slice(0, 120),
         jabatan: String(meta.jabatan || r.jabatan()).slice(0, 120),
         nip: String(meta.nip != null ? meta.nip : (r.nip() || '')).slice(0, 40),
-        madrasah: MADRASAH.nama || '',
+        madrasah: String(MADRASAH.nama || '').slice(0, 150),
         tanggal: new Date().toISOString(),
-        dicetakOleh: (currentUser && currentUser.name) || ''
+        dicetakOleh: String(namaPencetak()).slice(0, 100)
       };
       if (/^[0-9A-F]{64}$/.test(meta.sidik || '')) rekam.sidik = meta.sidik;
       // Tidak ditunggu: saat offline Firebase menyimpan antrean dan mengirim begitu online (QR baru valid setelah tersinkron).

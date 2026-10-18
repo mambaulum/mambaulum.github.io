@@ -5,6 +5,8 @@
      2) jurnal mengajar -> jumlah jurnal dan hari berjurnal dibanding hari hadir
      3) nilai siswa     -> kelengkapan input, rata-rata nilai rapor, ketuntasan
      4) perangkat pembelajaran + modul ajar -> ATP/TP, Prota/Promes, kisi-kisi, kartu soal, modul ajar, persetujuan Kepala (v5)
+     5) buku penghubung -> komunikasi dengan orang tua (indikator 12.1; v6)
+     6) kegiatan madrasah -> kehadiran rapat/lembur/ujian (indikator 12.2; v6)
 
    WAJIB dimuat SEBELUM js/pkg.js (bila file ini tidak dimuat, isian bukti manual tetap jalan,
    hanya tombol "Tarik bukti otomatis" yang nonaktif).
@@ -36,11 +38,11 @@
   if (window.PKG_SUMBER) return;
 
   var CFG = {
-    path: { absensi: 'teacher_attendance', jurnal: 'journal', nilai: 'grades', kalender: 'kalender_akademik' },
+    path: { absensi: 'teacher_attendance', jurnal: 'journal', nilai: 'grades', kalender: 'kalender_akademik', buku: 'buku_penghubung', event: 'event_attendance', ujian: 'ujian_attendance' },
     hariLiburMingguan: [0],            // 0 = Minggu (sama dengan penanda Alpha otomatis di app.js: Senin-Sabtu)
     fieldNilai: ['h1', 'h2', 'h3', 'mid', 'pas'],
     // Ambang usulan skor (persen). Penilai tetap memutuskan.
-    ambang: { hadirBaik: 90, hadirCukup: 75, jurnalBaik: 85, jurnalCukup: 60, nilaiLengkap: 80, kkm: 70 },
+    ambang: { hadirBaik: 90, hadirCukup: 75, jurnalBaik: 85, jurnalCukup: 60, nilaiLengkap: 80, kkm: 70, bukuBaik: 4, bukuCukup: 1, kegiatanBaik: 3 },   // buku*: catatan per bulan; kegiatanBaik: jumlah kegiatan berbeda
     maksBaca: 5000                     // batas baca node nilai bila tahun ajaran tidak diketahui
   };
 
@@ -350,6 +352,58 @@
     }).catch(function (e) { return { ok: false, alasan: 'Perangkat pembelajaran: ' + kunci(e) }; });
   }
 
+  // ---------- 5) buku penghubung (komunikasi guru dengan orang tua) -> indikator 12.1 ----------
+  // buku_penghubung/{pushId} = { siswaKey, siswaNama, kelas, tanggal, catatan, tahunAjaran, inputBy (NAMA penulis, bukan kunci), inputAt }.
+  // Karena tidak ada guruKey, pencocokan memakai nama (normNama: abaikan spasi, titik, koma, huruf besar/kecil).
+  function ambilBuku(ctx) {
+    var ta = (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) ? currentTahunAjaran : null;
+    var batas = ctx.sampai > hariIni() ? hariIni() : ctx.sampai;
+    if (!ta) return Promise.resolve({ ok: false, alasan: 'Buku Penghubung: tahun ajaran berjalan tidak diketahui.' });
+    if (ctx.dari > batas) return Promise.resolve({ ok: false, alasan: 'Buku Penghubung: rentang ' + ctx.dari + ' s.d. ' + ctx.sampai + ' belum dimulai.' });
+    return ctx.db.ref(CFG.path.buku).orderByChild('tahunAjaran').equalTo(ta).once('value').then(function (s) {
+      var semua = []; if (s.exists()) s.forEach(function (c) { var v = c.val(); if (obj(v) && v.tanggal >= ctx.dari && v.tanggal <= batas) semua.push(v); });
+      if (!semua.length) return { ok: false, alasan: 'Buku Penghubung: tidak ada catatan pada rentang ' + ctx.dari + ' s.d. ' + batas + ' (tahun ajaran ' + ta + ').' };
+      var nm = normNama(ctx.guruNama);
+      var milik = semua.filter(function (r) { return !!nm && normNama(r.inputBy) === nm; });
+      if (!milik.length) return { ok: false, alasan: 'Buku Penghubung: ada ' + semua.length + ' catatan pada rentang ini, tetapi tidak satu pun ditulis atas nama guru ini (' + (ctx.guruNama || '-') + ').' };
+      var siswa = {}, hari = {}, kelas = {};
+      milik.forEach(function (r) { if (r.siswaKey) siswa[r.siswaKey] = 1; if (r.tanggal) hari[r.tanggal] = 1; if (r.kelas) kelas[r.kelas] = 1; });
+      var a = new Date(ctx.dari + 'T00:00:00'), b = new Date(batas + 'T00:00:00');
+      var bulan = Math.max(1, Math.round(((b - a) / 86400000 + 1) / 30)), per = milik.length / bulan, A = CFG.ambang;
+      var saran = per >= A.bukuBaik ? 2 : (per >= A.bukuCukup ? 1 : 0);
+      return {
+        ok: true, path: CFG.path.buku, saran: saran,
+        dasar: 'Rata-rata catatan per bulan ≥' + A.bukuBaik + ' → 2; ≥' + A.bukuCukup + ' → 1; di bawahnya → 0. Hanya mengukur catatan di Buku Penghubung (bukan telepon/pertemuan langsung); isi catatan tidak dinilai.',
+        ringkas: milik.length + ' catatan untuk ' + Object.keys(siswa).length + ' siswa pada ' + Object.keys(hari).length + ' hari (±' + f1(per) + ' per bulan, ' + bulan + ' bulan)',
+        rincian: ['Rentang: ' + ctx.dari + ' s.d. ' + batas, 'Sumber data: ' + CFG.path.buku + ' (dicocokkan lewat nama penulis)', 'Kelas: ' + (Object.keys(kelas).sort().join(', ') || '-')],
+        angka: { catatan: milik.length, siswa: Object.keys(siswa).length, hari: Object.keys(hari).length, perBulan: Math.round(per * 10) / 10 }
+      };
+    });
+  }
+
+  // ---------- 6) kegiatan madrasah di luar pembelajaran -> indikator 12.2 ----------
+  // event_attendance/{pushId} = { eventKey, eventNama, jenis ('Rapat'|'Lembur'|...), guruKey, tanggal, ... }
+  // ujian_attendance/{pushId} = { ujianKey, ujianNama, jenis, guruKey, tanggal, ... }. Dihitung kegiatan BERBEDA yang dihadiri.
+  function ambilKegiatan(ctx) {
+    var batas = ctx.sampai > hariIni() ? hariIni() : ctx.sampai;
+    if (ctx.dari > batas) return Promise.resolve({ ok: false, alasan: 'Kegiatan madrasah: rentang ' + ctx.dari + ' s.d. ' + ctx.sampai + ' belum dimulai.' });
+    var baca = function (path) { return bacaGuru(ctx.db, path, ctx, ctx.dari, batas).then(function (a) { return a.filter(function (r) { return milikGuru(r, ctx); }); }, function () { return []; }); };
+    return Promise.all([baca(CFG.path.event), baca(CFG.path.ujian)]).then(function (h) {
+      var ada = {}, perJenis = {}, n = 0;
+      h[0].forEach(function (r) { var k = 'e:' + (r.eventKey || r.__key); if (ada[k]) return; ada[k] = 1; n++; var j = r.jenis || 'Kegiatan'; perJenis[j] = (perJenis[j] || 0) + 1; });
+      h[1].forEach(function (r) { var k = 'u:' + (r.ujianKey || r.__key); if (ada[k]) return; ada[k] = 1; n++; var j = r.jenis || 'Ujian'; perJenis[j] = (perJenis[j] || 0) + 1; });
+      if (!n) return { ok: false, alasan: 'Kegiatan madrasah: tidak ada catatan kehadiran rapat/lembur/ujian atas nama guru ini pada rentang ' + ctx.dari + ' s.d. ' + batas + '.' };
+      var A = CFG.ambang, saran = n >= A.kegiatanBaik ? 2 : 1;
+      return {
+        ok: true, path: CFG.path.event + ' + ' + CFG.path.ujian, saran: saran,
+        dasar: 'Menghadiri ≥' + A.kegiatanBaik + ' kegiatan berbeda → 2; 1–' + (A.kegiatanBaik - 1) + ' kegiatan → 1. Tidak ada catatan = tanpa usulan (bisa jadi memang belum ada kegiatan). Peran dan kualitas keterlibatan dinilai penilai.',
+        ringkas: n + ' kegiatan berbeda dihadiri (' + Object.keys(perJenis).map(function (j) { return j + ' ' + perJenis[j]; }).join(', ') + ')',
+        rincian: ['Rentang: ' + ctx.dari + ' s.d. ' + batas, 'Sumber data: ' + CFG.path.event + ' (Rapat/Lembur) dan ' + CFG.path.ujian],
+        angka: { kegiatan: n }
+      };
+    });
+  }
+
   // ---------- registrasi sumber ----------
   // indikator: daftar EKSPLISIT indikator ("komponen_urut") yang benar-benar bisa dibuktikan sumber ini. Sebelum v20 dicocokkan lewat
   // regex pada teks bukti instrumen, sehingga mis. "daftar hadir guru" (bukti pendamping 9.1-9.5) ikut memberi usulan skor untuk
@@ -358,9 +412,11 @@
     absensi: { label: 'Absensi guru', ikon: '🕘', indikator: ['10_1', '10_3', '10_4'], ambil: ambilAbsensi },
     jurnal: { label: 'Jurnal mengajar', ikon: '📓', indikator: ['7_4', '14_2'], ambil: ambilJurnal },
     nilai: { label: 'Nilai siswa', ikon: '📊', indikator: ['5_1', '7_1', '7_2', '7_3'], ambil: ambilNilai },
-    perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '7_1', '13_2'], ambil: ambilPerangkat }
+    perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '7_1', '13_2'], ambil: ambilPerangkat },
+    buku: { label: 'Buku Penghubung (komunikasi dengan orang tua)', ikon: '💬', indikator: ['12_1'], ambil: ambilBuku },
+    kegiatan: { label: 'Kegiatan madrasah (rapat, lembur, ujian)', ikon: '🗓️', indikator: ['12_2'], ambil: ambilKegiatan }
   };
-  var URUT = ['absensi', 'jurnal', 'nilai', 'perangkat'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
+  var URUT = ['absensi', 'jurnal', 'nilai', 'perangkat', 'buku', 'kegiatan'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
 
   function jalankan(ctx) {
     var hasil = {};
@@ -373,5 +429,5 @@
     }, Promise.resolve()).then(function () { return hasil; });
   }
 
-  window.PKG_SUMBER = { versi: 5, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
+  window.PKG_SUMBER = { versi: 6, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
 })();
