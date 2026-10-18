@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/kredensial.js  (v1)
+   SI MAMBA - js/kredensial.js  (v2: + kredKepsekSiap untuk Rules PKG berperan)
    Pengamanan login guru (tahap 2 dari login-kode.js).
 
    MASALAH YANG DISELESAIKAN
@@ -165,6 +165,27 @@
     if (!paksa && Date.now() - adminSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
     return adminSiap(!!paksa).then(function (ok) { adminSiapTerakhir = Date.now(); return ok; }, function (e) { adminSiapTerakhir = 0; throw e; });
   };
+
+  // ---------- Sesi Kepala Madrasah (v2) ----------
+  // Kepala Madrasah memakai Kunci SENDIRI (rahasia/kunciKepsek, diisi lewat Firebase Console), terpisah dari Kunci Admin,
+  // karena PIN Kepala ada di source dan tidak bisa menjadi bukti. Rules membandingkan sesi_kepsek/{uid} dengan rahasia/kunciKepsek.
+  var KUNCI_KEP_LS = 'sim_kunci_kepsek';
+  function kunciKep() { try { return localStorage.getItem(KUNCI_KEP_LS) || ''; } catch (e) { return ''; } }
+  function setKunciKep(v) { try { if (v) localStorage.setItem(KUNCI_KEP_LS, v); else localStorage.removeItem(KUNCI_KEP_LS); } catch (e) {} }
+  var kepSiapTerakhir = 0;
+  window.kredKepsekSiap = function (paksa) {
+    if (typeof isKepsek !== 'function' || !isKepsek()) return Promise.reject(new Error('Hanya Kepala Madrasah.'));
+    if (!paksa && Date.now() - kepSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
+    var k = paksa ? '' : kunciKep();
+    if (!k) {
+      k = (window.prompt('Masukkan KUNCI KEPALA MADRASAH (string panjang yang diisi di Firebase Console pada rahasia/kunciKepsek). Disimpan hanya di perangkat ini:') || '').trim();
+      if (!k) { kepSiapTerakhir = 0; return Promise.reject(new Error('Kunci Kepala Madrasah belum diisi.')); }
+      setKunciKep(k);
+    }
+    return siapAuth().then(function (u) { return db.ref('sesi_kepsek/' + u).set(k); }).then(function () { kepSiapTerakhir = Date.now(); return true; },
+      function (e) { kepSiapTerakhir = 0; setKunciKep(''); throw galat(e); });   // kunci salah -> hapus agar ditanya ulang
+  };
+  window.kredKepsekGantiKunci = function () { setKunciKep(''); kepSiapTerakhir = 0; return window.kredKepsekSiap(true); };
 
   // Dipakai modul perangkat pembelajaran SEBELUM guru menulis ke node yang di Rules dikunci "pemilik" (perangkat_*_v4, NIP).
   // Rules membuktikan guru lewat rantai sesi_guru/{uid} -> login_kredensial/{hash} -> key guru. Hash itu sudah ada di perangkat
