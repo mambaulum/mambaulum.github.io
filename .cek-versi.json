@@ -1,6 +1,6 @@
 {
-  "appVersion": "v7.79",
-  "disimpan": "2026-10-19T00:39:07.089Z",
+  "appVersion": "v7.80",
+  "disimpan": "2026-10-19T00:43:22.579Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -147,8 +147,8 @@
       "hash": "32bdd97155653d07f4189eec3e99eaf683d4b5da"
     },
     "js/modul-ajar.js": {
-      "v": "v=14",
-      "hash": "027cdd9a9a9d59e732c6b90c8e8fb51fd51f3ebf"
+      "v": "v=15",
+      "hash": "f1824a8d5b3235c6fdca30c0012de6d16b17f207"
     },
     "js/buku-tamu.js": {
       "v": "v=5",
