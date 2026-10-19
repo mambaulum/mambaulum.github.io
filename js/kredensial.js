@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/kredensial.js  (v5: kunci di sessionStorage + kredBersihkanSesi; v2: + kredKepsekSiap untuk Rules PKG berperan)
+   SI MAMBA - js/kredensial.js  (v6: kunci diingat di perangkat INGAT_KUNCI_JAM jam & tidak dihapus saat logout; v5: kunci di sessionStorage + kredBersihkanSesi; v2: + kredKepsekSiap untuk Rules PKG berperan)
    Pengamanan login guru (tahap 2 dari login-kode.js).
 
    MASALAH YANG DISELESAIKAN
@@ -52,7 +52,7 @@
   }
   function galat(e) {
     var kode = e && e.code ? String(e.code) : '', pesan = e && e.message ? String(e.message) : String(e || 'galat');
-    if (/PERMISSION_DENIED/i.test(kode + pesan)) return new Error('Ditolak Firebase. Periksa Kunci Admin (tombol 🛡️ Keamanan Login) dan pastikan Rules tahap 1 sudah dipasang.');
+    if (/PERMISSION_DENIED/i.test(kode + pesan)) return new Error('Ditolak Firebase. Kunci salah, atau rahasia/kunciAdmin / rahasia/kunciKepsek belum diisi di Firebase Console, atau Rules belum dipasang.');
     return new Error(pesan);
   }
   function hashOk(h) { return typeof h === 'string' && /^[A-Za-z0-9]{16,100}$/.test(h); }
@@ -141,9 +141,36 @@
   // ---------- Kunci Admin ----------
   // v5: Kunci disimpan di sessionStorage (hilang saat tab ditutup) dan dihapus saat logout. Dulu di localStorage dan tidak pernah
   // dihapus, sehingga siapa pun yang memakai perangkat itu bisa membacanya lewat DevTools dan menulis sebagai Admin/Kepala.
-  try { localStorage.removeItem('sim_kunci_admin'); localStorage.removeItem('sim_kunci_kepsek'); } catch (e) { }   // buang salinan lama
-  function kunciAdmin() { try { return sessionStorage.getItem(KUNCI_LS) || ''; } catch (e) { return ''; } }
-  function setKunciAdmin(v) { try { if (v) sessionStorage.setItem(KUNCI_LS, v); else sessionStorage.removeItem(KUNCI_LS); } catch (e) {} }
+  // v6: Kunci diingat di perangkat selama INGAT_KUNCI_JAM jam (kedaluwarsa tetap, bukan sejak pemakaian terakhir), supaya tidak
+  // ditanya tiap login / tiap membuka PKG / tiap pindah akun Admin <-> Kepala di HP yang sama. Isi 0 untuk kembali ke perilaku v5
+  // (hanya sessionStorage: hilang saat tab/aplikasi ditutup). Logout TIDAK lagi menghapus Kunci (sesi_* di server tetap dihapus);
+  // tombol "Lupakan Kunci di perangkat ini" di panel Keamanan Login menghapusnya. Jangan aktifkan di perangkat bersama.
+  var INGAT_KUNCI_JAM = 12;
+  ['sim_kunci_admin', 'sim_kunci_kepsek'].forEach(function (n) {   // buang salinan lama v4 (teks polos, tanpa kedaluwarsa)
+    try { var r = localStorage.getItem(n); if (r && r.charAt(0) !== '{') localStorage.removeItem(n); } catch (e) { }
+  });
+  function bacaKunci(nama) {
+    var v = '';
+    try { v = sessionStorage.getItem(nama) || ''; } catch (e) { }
+    if (v) return v;
+    if (!INGAT_KUNCI_JAM) return '';
+    try {
+      var raw = localStorage.getItem(nama); if (!raw) return '';
+      var o = JSON.parse(raw);
+      if (o && typeof o.k === 'string' && o.k && o.exp > Date.now()) { try { sessionStorage.setItem(nama, o.k); } catch (e) { } return o.k; }
+      localStorage.removeItem(nama);
+    } catch (e) { try { localStorage.removeItem(nama); } catch (e2) { } }
+    return '';
+  }
+  function simpanKunci(nama, v) {
+    try { if (v) sessionStorage.setItem(nama, v); else sessionStorage.removeItem(nama); } catch (e) { }
+    try {
+      if (v && INGAT_KUNCI_JAM) localStorage.setItem(nama, JSON.stringify({ k: v, exp: Date.now() + INGAT_KUNCI_JAM * 3600000 }));
+      else localStorage.removeItem(nama);
+    } catch (e) { }
+  }
+  function kunciAdmin() { return bacaKunci(KUNCI_LS); }
+  function setKunciAdmin(v) { simpanKunci(KUNCI_LS, v); }
   function tanyaKunci(paksa) {
     var k = paksa ? '' : kunciAdmin();
     if (k) return k;
@@ -173,8 +200,8 @@
   // Kepala Madrasah memakai Kunci SENDIRI (rahasia/kunciKepsek, diisi lewat Firebase Console), terpisah dari Kunci Admin,
   // karena PIN Kepala ada di source dan tidak bisa menjadi bukti. Rules membandingkan sesi_kepsek/{uid} dengan rahasia/kunciKepsek.
   var KUNCI_KEP_LS = 'sim_kunci_kepsek';
-  function kunciKep() { try { return sessionStorage.getItem(KUNCI_KEP_LS) || ''; } catch (e) { return ''; } }
-  function setKunciKep(v) { try { if (v) sessionStorage.setItem(KUNCI_KEP_LS, v); else sessionStorage.removeItem(KUNCI_KEP_LS); } catch (e) {} }
+  function kunciKep() { return bacaKunci(KUNCI_KEP_LS); }
+  function setKunciKep(v) { simpanKunci(KUNCI_KEP_LS, v); }
   var kepSiapTerakhir = 0;
   window.kredKepsekSiap = function (paksa) {
     if (typeof isKepsek !== 'function' || !isKepsek()) return Promise.reject(new Error('Hanya Kepala Madrasah.'));
@@ -209,8 +236,8 @@
 
   // Dipanggil app.js saat logout / ganti akun: lupakan Kunci, reset cache "sesi siap", dan hapus entri sesi_* milik uid ini
   // (best-effort: bila Rules menolak penghapusan, kunci di perangkat tetap sudah terhapus). Login berikutnya menulis ulang sesi.
-  window.kredBersihkanSesi = function () {
-    setKunciAdmin(''); setKunciKep('');
+  window.kredBersihkanSesi = function (lupakanKunci) {
+    if (lupakanKunci === true || !INGAT_KUNCI_JAM) { setKunciAdmin(''); setKunciKep(''); }
     adminSiapTerakhir = 0; kepSiapTerakhir = 0; guruSiapTerakhir = 0; guruSiapKey = '';
     try {
       var u = uid();
@@ -331,6 +358,7 @@
       'Guru yang hash PIN-nya masih ada di data guru: <b id="kredStSisa">' + st.sisa + '</b> dari ' + st.total + '</p>' +
       '<div style="display:flex;flex-direction:column;gap:8px;">' +
       '<button class="btn btn-soft" id="kredBtnKunci">🔐 Atur / ganti Kunci Admin di perangkat ini</button>' +
+      '<button class="btn btn-soft" id="kredBtnLupa">🧹 Lupakan Kunci Admin &amp; Kepala di perangkat ini</button>' +
       '<button class="btn btn-primary" id="kredBtnMigrasi">1. Migrasi kredensial guru</button>' +
       '<button class="btn btn-soft" id="kredBtnBersih">2. Hapus hash lama dari data guru (setelah dites)</button>' +
       '</div>' +
@@ -365,6 +393,9 @@
       }).then(function () { lapor('✅ Kunci Admin dikenali Firebase.'); segarkan(); }, function (e) {
         lapor('❌ Kunci ditolak atau Rules belum dipasang: ' + (e && e.message ? e.message : e)); setKunciAdmin(''); segarkan();
       });
+    });
+    $('kredBtnLupa').addEventListener('click', function () {
+      window.kredBersihkanSesi(true); lap.textContent = ''; lapor('🧹 Kunci Admin & Kepala dihapus dari perangkat ini.'); segarkan();
     });
     $('kredBtnMigrasi').addEventListener('click', function () {
       if (!confirm('Migrasi akan mendaftarkan hash PIN setiap guru ke indeks kredensial. Data guru yang ada tidak dihapus. Lanjutkan?')) return;
