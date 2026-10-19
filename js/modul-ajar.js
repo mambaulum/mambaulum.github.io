@@ -58,7 +58,21 @@
   function sec(k) { return SECTIONS.filter(function (s) { return s.k === k; })[0]; }
   function canCreate() { return !!currentUser && (isAdmin() || isTeacher() || (typeof isWaliKelas === 'function' && isWaliKelas())); }
   function canView() { return canCreate() || isKepsek(); }
-  function isOwner(m) { return !!currentUser && m.ownerName === currentUser.name && (m.ownerKey || '') === (currentUser.key || ''); }
+  // v15: pemilik dikenali dari KUNCI guru. Dulu nama DAN kunci harus sama persis, sehingga modul "hilang" dari akun guru
+  // bila nama guru diedit / kunci akun berubah / modul lama tanpa ownerKey. Sekarang: kunci sama = pemilik; bila kunci pemilik
+  // sudah tidak ada di daftar guru (akun dibuat ulang) atau modul lama tanpa ownerKey, dicocokkan lewat nama (spasi/huruf besar diabaikan).
+  function normNama(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function isOwner(m) {
+    if (!currentUser || !m) return false;
+    var mk = m.ownerKey || '', uk = currentUser.key || '';
+    if (mk && uk) {
+      if (mk === uk) return true;
+      var masihAda = (typeof allGuru !== 'undefined' && allGuru ? allGuru : []).some(function (g) { return g && g.key === mk; });
+      if (masihAda) return false;            // pemilik lain yang masih aktif: jangan dicocokkan lewat nama
+    }
+    var n = normNama(m.ownerName);
+    return !!n && n === normNama(currentUser.name);
+  }
   function canEdit(m) { return isAdmin() || (canCreate() && isOwner(m)); }
 
   /* ---------- persetujuan kepala madrasah ----------

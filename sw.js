@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.79';
+const APP_VERSION = 'v7.80';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -103,7 +103,7 @@ const PRECACHE_URLS = [
   './js/perangkat-kisi.js?v=9',
   './js/perangkat-soal.js?v=8',
   './js/perangkat-pembelajaran.js?v=9',
-  './js/modul-ajar.js?v=14',
+  './js/modul-ajar.js?v=15',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=10',
