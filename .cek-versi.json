@@ -1,6 +1,6 @@
 {
-  "appVersion": "v7.80",
-  "disimpan": "2026-10-19T00:43:22.579Z",
+  "appVersion": "v7.81",
+  "disimpan": "2026-10-19T00:53:54.610Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -67,8 +67,8 @@
       "hash": "31a9e765af839dad3c6032d543cd91683c9adf7f"
     },
     "js/kredensial.js": {
-      "v": "v=5",
-      "hash": "5dea66282f60a9e613f5edab868563506a4826af"
+      "v": "v=6",
+      "hash": "6f0ee68badb668ee93252e69844b94bf98ffa5a3"
     },
     "js/ttd-digital.js": {
       "v": "v=5",
