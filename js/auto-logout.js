@@ -9,13 +9,13 @@
      (visibilitychange) pengecekan dijalankan langsung.
    - Hanya aktif kalau currentUser terisi; tidak perlu dipanggil dari login().
    - Batas tidak aktif BERBEDA PER PERAN (lihat AUTO_LOGOUT_MENIT_PER_PERAN): Admin & Kepala Madrasah
-     15 menit (akun berhak akses penuh), guru & wali kelas 30 menit (sering mengisi absensi/nilai sambil
+     30 menit (akun berhak akses penuh; samakan dengan ADMIN_SESI_MS di app.js), guru & wali kelas 30 menit (sering mengisi absensi/nilai sambil
      mengajar). Peran tak dikenal memakai AUTO_LOGOUT_MENIT_DEFAULT. Satu menit sebelum batas muncul
      peringatan; sentuhan/ketikan apa pun membatalkannya.
    - Kamera scan QR yang aktif dihitung sebagai aktivitas.
 ============================================================ */
 // Batas tidak aktif (menit) per nilai currentUser.role (lihat ROLES di app.js). Ubah angka di sini saja.
-const AUTO_LOGOUT_MENIT_PER_PERAN = { admin: 15, headmaster: 15, teacher: 30, wali_kelas: 30 };
+const AUTO_LOGOUT_MENIT_PER_PERAN = { admin: 30, headmaster: 30, teacher: 30, wali_kelas: 30 };
 const AUTO_LOGOUT_MENIT_DEFAULT = 15;
 const AUTO_LOGOUT_PERINGATAN_MS = 60 * 1000;    // peringatan sebelum logout
 const AUTO_LOGOUT_CEK_MS = 15 * 1000;           // interval pengecekan

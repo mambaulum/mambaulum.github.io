@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/kredensial.js  (v6: kunci diingat di perangkat INGAT_KUNCI_JAM jam & tidak dihapus saat logout; v5: kunci di sessionStorage + kredBersihkanSesi; v2: + kredKepsekSiap untuk Rules PKG berperan)
+   SI MAMBA - js/kredensial.js  (v7: kredGuruSiap memeriksa indeks login_kredensial & memberi pesan jelas; v6: kunci diingat di perangkat INGAT_KUNCI_JAM jam & tidak dihapus saat logout; v5: kunci di sessionStorage + kredBersihkanSesi; v2: + kredKepsekSiap untuk Rules PKG berperan)
    Pengamanan login guru (tahap 2 dari login-kode.js).
 
    MASALAH YANG DISELESAIKAN
@@ -229,7 +229,13 @@
     return bacaLokal().then(function (m) {
       var h = m[key];
       if (!hashOk(h)) throw new Error('Sesi guru belum siap di perangkat ini. Keluar lalu masuk lagi (online), kemudian coba simpan.');
-      return siapAuth().then(function (u) { return db.ref('sesi_guru/' + u).set(h); });
+      return siapAuth().then(function (u) { return db.ref('sesi_guru/' + u).set(h); }).then(function () {
+        // v7: pastikan hash ini benar-benar terdaftar di login_kredensial untuk key guru ini. Bila tidak, Rules menolak SEMUA tulis guru
+        // (PKG, perangkat pembelajaran, check-in) dengan galat samar. Akun yang belum dimigrasi (login lewat guru.pin lama) begini.
+        return db.ref('login_kredensial/' + h).once('value').then(function (s) {
+          if (s.val() !== key) throw new Error('Akun Anda belum terdaftar di indeks kredensial Firebase, sehingga penyimpanan ditolak. Minta Admin menjalankan "Migrasi kredensial" atau "Reset PIN" untuk akun Anda (menu 🛡️ Keamanan Login), lalu keluar dan masuk lagi.');
+        });
+      });
     }).then(function () { guruSiapKey = key; guruSiapTerakhir = Date.now(); return true; },
             function (e) { guruSiapTerakhir = 0; throw galat(e); });
   };

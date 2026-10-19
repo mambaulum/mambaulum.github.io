@@ -1417,7 +1417,7 @@
     // tab terakhir. Tujuannya: pindah tab/aplikasi lalu kembali dalam 15 menit tidak diminta PIN lagi, termasuk
     // saat browser HP membuang tab dari memori lalu memuatnya ulang. Tidak pernah masuk localStorage.
     const ADMIN_SESI_KEY = 'sim_session_adm';
-    const ADMIN_SESI_MS = 15 * 60 * 1000;
+    const ADMIN_SESI_MS = 30 * 60 * 1000;
     function saveSession(user) {
       try {
         const timestamp = Date.now();
