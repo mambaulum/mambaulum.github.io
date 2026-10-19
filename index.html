@@ -2247,7 +2247,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
   </div>
 
 
-  <!-- [DIAGNOSA RELOAD - sementara v2] Mencatat kejadian terakhir sebelum halaman dimuat ulang (disimpan di sessionStorage 'dx_log') dan
+  <!-- [DIAGNOSA RELOAD - sementara v3] Mencatat kejadian terakhir sebelum halaman dimuat ulang (disimpan di sessionStorage 'dx_log') dan
        menampilkannya 20 detik sebagai banner. Pola: ada 'beforeunload/pagehide' di akhir = kode/halaman yang memuat ulang; tidak ada = renderer
        dimatikan browser (memori habis) lalu dimuat ulang; ada 'controllerchange' = pembaruan service worker. Hapus blok ini setelah selesai. -->
   <script>
@@ -2263,9 +2263,17 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
       window.addEventListener('beforeunload', function () { catat('beforeunload'); });
       window.addEventListener('pagehide', function (e) { catat('pagehide' + (e.persisted ? '(bfcache)' : '')); });
       if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('controllerchange', function () { catat('controllerchange'); });
+      // v3: Navigation API (Chrome 102+). Muat ulang yang dipanggil SKRIP halaman (location.reload) tercatat sebagai 'nav:reload:skrip' beserta
+      // berkas:baris pemanggilnya. Muat ulang dari ekstensi/UI browser TIDAK memicu event ini (hanya beforeunload/pagehide).
+      try {
+        if (window.navigation && navigation.addEventListener) navigation.addEventListener('navigate', function (e) {
+          var st = (new Error().stack || '').split('\n').slice(1).map(function (l) { var m = l.match(/([A-Za-z0-9_.\-]+\.(?:js|html))[^:\s)]*:(\d+)/); return m ? m[1] + ':' + m[2] : ''; }).filter(Boolean).slice(0, 4).join('>');
+          catat('nav:' + e.navigationType + (e.userInitiated ? ':user' : ':skrip') + (st ? ' [' + st + ']' : ' [tanpa jejak]'));
+        });
+      } catch (e) { }
       if (tipe === 'navigate' && dibuang !== 'YA') return;
       window.addEventListener('DOMContentLoaded', function () {
-        var ur = lama.slice(-7).map(function (r) { return Math.round((r[0] - sekarang) / 1000) + 's ' + r[1]; }).join(' | ') || '(tidak ada catatan)';
+        var ur = lama.slice(-10).map(function (r) { return Math.round((r[0] - sekarang) / 1000) + 's ' + r[1]; }).join(' | ') || '(tidak ada catatan)';
         var d = document.createElement('div');
         d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#111;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:8px 10px;border-radius:8px;opacity:.94;word-break:break-word';
         d.textContent = 'ℹ️ Dimuat ulang • jenis: ' + tipe + ' • dibuang: ' + dibuang + ' • kejadian sebelumnya: ' + ur;
