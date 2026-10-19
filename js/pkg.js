@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -517,12 +517,18 @@
   }
 
   // ----- Pengaturan (admin / kepala) -----
+  // v55: nilai awal form Periode baru dari tahun ajaran berjalan (semester ganjil: 1 Juli s.d. 15 Desember; sesuai anjuran Juknis laporan selesai pertengahan Desember). Semua tetap bisa diubah.
+  function periodeAwal() {
+    var ta = (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) ? String(currentTahunAjaran) : '', m = /(\d{4})\s*[\/\-]\s*(\d{4})/.exec(ta);
+    return { nama: ta ? 'PKG ' + ta : '', mulai: m ? m[1] + '-07-01' : '', selesai: m ? m[1] + '-12-15' : '' };
+  }
   function pengaturanHtml() {
+    var pa = periodeAwal();
     var h = '<div class="card"><h4 style="margin:0 0 8px">➕ Periode PKG baru</h4><div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      '<div style="flex:2;min-width:170px"><label class="label">Nama periode</label><input id="pkgPerNama" class="field" placeholder="PKG ' + esc(typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : '') + '"></div>' +
+      '<div style="flex:2;min-width:170px"><label class="label">Nama periode</label><input id="pkgPerNama" class="field" maxlength="80" value="' + esc(pa.nama) + '" placeholder="PKG ' + esc(typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : '') + '"></div>' +
       '<div style="flex:1;min-width:130px"><label class="label">Jenis</label><select id="pkgPerJenis" class="field"><option value="PKG">PKG (tahunan)</option><option value="PKG Awal">PKG Awal (guru baru/mutasi)</option></select></div>' +
-      '<div style="flex:1;min-width:130px"><label class="label">Mulai</label><input id="pkgPerMulai" type="date" class="field"></div>' +
-      '<div style="flex:1;min-width:130px"><label class="label">Selesai</label><input id="pkgPerSelesai" type="date" class="field"></div></div>' +
+      '<div style="flex:1;min-width:130px"><label class="label">Mulai</label><input id="pkgPerMulai" type="date" class="field" value="' + esc(pa.mulai) + '"></div>' +
+      '<div style="flex:1;min-width:130px"><label class="label">Selesai</label><input id="pkgPerSelesai" type="date" class="field" value="' + esc(pa.selesai) + '"></div></div>' +
       '<button class="btn btn-success" style="margin-top:8px" data-act="buat-periode">💾 Buat Periode</button>' +
       '<p class="text-muted" style="font-size:11.5px;margin:8px 0 0">Menurut Juknis, PKG dilaksanakan sepanjang tahun; penilaian akhir mulai 8 minggu sebelum akhir tahun anggaran dan laporan dianjurkan selesai pertengahan Desember.</p></div>';
     if (!S.periodeId) return h;
@@ -536,7 +542,7 @@
         opsi.filter(function (o) { return o.key !== g.key; }).map(function (o) { return '<option value="' + esc(o.key) + '"' + (t.penilaiKey === o.key ? ' selected' : '') + '>' + esc(o.name) + '</option>'; }).join('') +
         '</select></td><td><input type="date" class="field" data-jad="' + esc(g.key) + '" value="' + esc(t.jadwal || '') + '"></td></tr>';
     });
-    h += '</tbody></table>' + salinTugasHtml() + '<button class="btn btn-success" style="margin-top:8px" data-act="simpan-tugas">💾 Simpan Penugasan</button></div>';
+    h += '</tbody></table>' + salinTugasHtml() + bagiTugasHtml() + '<button class="btn btn-success" style="margin-top:8px" data-act="simpan-tugas">💾 Simpan Penugasan</button></div>';
     h += skPenCardHtml() + skSetCardHtml();
     return h;
   }
@@ -546,6 +552,69 @@
     if (!lain.length) return '';
     return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><span style="font-size:12px">Salin penilai dari periode:</span><select id="pkgSalinDari" class="field" style="min-width:170px">' + lain.map(function (id) { return '<option value="' + esc(id) + '">' + esc(S.periodeList[id].nama || id) + '</option>'; }).join('') + '</select><button type="button" class="btn btn-soft" data-act="salin-tugas">📋 Salin ke isian</button></div><div class="text-muted" style="font-size:11px;margin-top:4px">Hanya mengisi yang masih kosong; jadwal tidak disalin. Periksa lalu tekan Simpan Penugasan.</div>';
   }
+  function bagiTugasHtml() {
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><button type="button" class="btn btn-soft" data-act="bagi-tugas">⚖️ Bagi otomatis penilai &amp; jadwal</button></div>' +
+      '<div class="text-muted" style="font-size:11px;margin-top:4px">Hanya mengisi baris yang masih kosong. Penilai: Kepala Madrasah lebih dulu sampai batas ' + MAKS_GURU_PER_PENILAI + ' guru, sisanya ke guru dengan beban paling sedikit; tidak ada yang menilai dirinya sendiri. Jadwal pengamatan disebar di hari Senin&ndash;Kamis dalam rentang periode, satu hari per penilai hanya satu guru. Tanggal merah/libur belum diperhitungkan; periksa lalu tekan Simpan Penugasan.</div>';
+  }
+  function bagiTugas() {
+    if (!bolehKelola() || !S.periodeId) return;
+    var r = root(); if (!r) return;
+    var selA = Array.prototype.slice.call(r.querySelectorAll('select[data-pen]')), jadA = {};
+    Array.prototype.forEach.call(r.querySelectorAll('input[data-jad]'), function (i) { jadA[i.getAttribute('data-jad')] = i; });
+    if (!selA.length) return pesan('Belum ada guru.', true);
+    var kepKey = (typeof KEPSEK_USER_KEY !== 'undefined' ? KEPSEK_USER_KEY : '__kepsek__');
+    var ada = function (sel, k) { return Array.prototype.some.call(sel.options, function (o) { return o.value === k; }); };
+    var beban = {}; selA.forEach(function (sel) { if (sel.value) beban[sel.value] = (beban[sel.value] || 0) + 1; });
+    var guruKeys = selA.map(function (sel) { return sel.getAttribute('data-pen'); });
+    var calon = [kepKey].concat(guruKeys);
+    var nPen = 0, penuh = 0;
+    selA.forEach(function (sel) {
+      var gk = sel.getAttribute('data-pen'), n = S.nilai[gk];
+      if (sel.value) return;
+      if (n && n.status === 'ditetapkan') return;               // terkunci: tidak disentuh
+      var pilih = null;
+      calon.forEach(function (k) {
+        if (k === gk || !ada(sel, k) || (beban[k] || 0) >= MAKS_GURU_PER_PENILAI) return;
+        if (!pilih) { pilih = k; return; }
+        if (pilih === kepKey) return;                           // Kepala didahulukan sampai penuh
+        if (k === kepKey || (beban[k] || 0) < (beban[pilih] || 0)) pilih = k;
+      });
+      if (!pilih) { penuh++; return; }
+      sel.value = pilih; beban[pilih] = (beban[pilih] || 0) + 1; nPen++;
+    });
+    // jadwal: hari kerja Senin-Kamis dalam rentang periode (mulai dari besok bila periode sudah berjalan)
+    var per = S.periodeList[S.periodeId] || {}, nJad = 0, tanpaRentang = false, hariIni = skHariIni();
+    var a = per.mulai || '', b = per.selesai || '';
+    if (a && b && a <= b) {
+      if (a <= hariIni) { var bs = new Date(); bs.setDate(bs.getDate() + 1); var besok = tglIso(bs); if (besok <= b) a = besok; }
+      var hari = [], d = new Date(a + 'T00:00:00'), akhir = new Date(b + 'T00:00:00');
+      while (d <= akhir && hari.length < 800) { var w = d.getDay(); if (w >= 1 && w <= 4) hari.push(tglIso(d)); d.setDate(d.getDate() + 1); }
+      if (hari.length) {
+        var perPen = {}, pakai = {};
+        selA.forEach(function (sel) {
+          var gk = sel.getAttribute('data-pen'), pk = sel.value; if (!pk) return;
+          var j = jadA[gk];
+          (perPen[pk] = perPen[pk] || []).push(gk);
+          if (j && j.value) (pakai[pk] = pakai[pk] || {})[j.value] = 1;
+        });
+        Object.keys(perPen).forEach(function (pk) {
+          var kosong = perPen[pk].filter(function (gk) { return jadA[gk] && !jadA[gk].value && !(S.nilai[gk] && S.nilai[gk].status === 'ditetapkan'); });
+          var m = kosong.length; if (!m) return;
+          var dipakai = pakai[pk] || (pakai[pk] = {});
+          kosong.forEach(function (gk, i) {
+            var idx = Math.min(hari.length - 1, Math.floor((i + 0.5) * hari.length / m)), tries = 0;
+            while (dipakai[hari[idx]] && tries < hari.length) { idx = (idx + 1) % hari.length; tries++; }
+            jadA[gk].value = hari[idx]; dipakai[hari[idx]] = 1; nJad++;
+          });
+        });
+      }
+    } else tanpaRentang = true;
+    var ket = [];
+    ket.push(nPen ? nPen + ' penilai diisi' : 'tidak ada penilai baru yang diisi');
+    ket.push(nJad ? nJad + ' jadwal diisi' : (tanpaRentang ? 'jadwal dilewati karena periode belum punya tanggal Mulai dan Selesai' : 'tidak ada jadwal baru'));
+    if (penuh) ket.push(penuh + ' guru belum kebagian karena semua penilai sudah mencapai batas ' + MAKS_GURU_PER_PENILAI);
+    pesan('Bagi otomatis: ' + ket.join('; ') + '. Periksa lalu tekan Simpan Penugasan.', !nPen && !nJad);
+  }
   // ----- Form penilaian -----
   function formHtml() {
     var gk = S.gk, g = guruAktif().filter(function (x) { return x.key === gk; })[0], d = S.draft;
@@ -553,13 +622,14 @@
       '<div class="text-muted" style="font-size:12px">Skor: 0 = tidak ada bukti &bull; 1 = terpenuhi sebagian &bull; 2 = terpenuhi seluruhnya</div></div>' +
       '<button class="btn btn-soft" data-act="kembali">← Kembali</button></div></div>';
     h += panelAtasForm(gk);
+    if (bolehMenilai(gk)) h += '<div class="card" style="padding:8px 12px"><button type="button" class="btn btn-soft" style="padding:5px 12px;font-size:12px" data-act="cat-isi-semua" title="Mengisi catatan yang masih kosong dari judul bukti yang sudah diunggah. Catatan yang sudah terisi tidak ditimpa; skor tidak diubah.">✨ Isi semua catatan kosong dari bukti</button></div>';
     P.komponen.forEach(function (k) {
       h += '<details class="pkg-komp"' + (k.no === 1 ? ' open' : '') + '><summary><span>' + k.no + '. ' + esc(k.nama) + ' <span class="text-muted" style="font-weight:400;font-size:11px">(' + esc(k.kompetensi) + ')</span></span><span id="pkgKomp' + k.no + '" class="pkg-chip" style="background:#6b7280">–</span></summary>';
       k.indikator.forEach(function (ind, i) {
         var key = k.no + '_' + (i + 1), label = k.no + '.' + (i + 1), v = d.skor[key];
         h += '<div class="pkg-ind"><p><b>' + label + '</b> ' + esc(ind.t) + '</p><ul class="pkg-bukti">' + ind.b.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join('') + '</ul>' + panelBuktiForm(gk, key) +
           [0, 1, 2].map(function (s) { return '<label class="pkg-opt"><input type="radio" name="sk_' + k.no + '_' + (i + 1) + '" data-k="' + k.no + '" data-i="' + (i + 1) + '" value="' + s + '"' + (v === s ? ' checked' : '') + '> ' + s + '</label>'; }).join('') +
-          '<input class="field pkg-cat" maxlength="1000" data-cat="' + key + '" placeholder="Catatan fakta / bukti yang ditemukan (opsional)" value="' + esc(d.catatan[key] || '') + '"></div>';
+          '<input class="field pkg-cat" maxlength="1000" data-cat="' + key + '" placeholder="Catatan fakta / bukti yang ditemukan (opsional)" value="' + esc(d.catatan[key] || '') + '">' + (bolehMenilai(gk) ? '<button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-top:4px" data-act="cat-isi" data-key="' + key + '" title="Menyusun catatan dari judul bukti yang sudah diunggah. Tidak menimpa catatan yang sudah ada.">✨ Isi dari bukti</button>' : '') + '</div>';
       });
       h += '</details>';
     });
@@ -1489,6 +1559,39 @@
     }
     return true;
   }
+  // v55: susun catatan indikator dari judul bukti manual yang sudah diunggah (bukan skor, bukan isi wawancara rahasia). Tidak menimpa catatan yang sudah ada.
+  var JENIS_KATA = { dokumen: 'dokumen', observasi: 'observasi' };
+  function catDariBukti(gk, key) {
+    var judul = [], seen = {};
+    daftarItem(gk, key).forEach(function (it) {
+      if (it.jenis === 'wawancara') return;                       // wawancara bersifat rahasia
+      var j = String(it.judul || '').trim(); if (!j || seen[j.toLowerCase()]) return; seen[j.toLowerCase()] = 1;
+      judul.push((JENIS_KATA[it.jenis] ? JENIS_KATA[it.jenis] + ' ' : '') + '"' + potong(j, 60) + '"');
+    });
+    if (!judul.length) return '';
+    var tampil3 = judul.slice(0, 3).join('; '), sisa = judul.length - 3;
+    return potong('Bukti terlampir: ' + tampil3 + (sisa > 0 ? '; dan ' + sisa + ' bukti lain' : '') + '.', 450);
+  }
+  function catTulis(key, teks) {
+    if (!S.draft || !teks || String(S.draft.catatan[key] || '').trim()) return false;
+    S.draft.catatan[key] = teks;
+    var r = root(), ci = r ? r.querySelector('input[data-cat="' + key + '"]') : null; if (ci) ci.value = teks;
+    return true;
+  }
+  function catIsi(key) {
+    if (!S.draft || !key || !bolehMenilai(S.gk)) return;
+    if (String(S.draft.catatan[key] || '').trim()) return pesan('Catatan indikator ' + key.replace('_', '.') + ' sudah terisi; tidak ditimpa.', true);
+    var t = catDariBukti(S.gk, key);
+    if (!t) return pesan('Indikator ' + key.replace('_', '.') + ' belum punya bukti terlampir untuk dirangkum.', true);
+    catTulis(key, t); simpanLokal(); pesan('Catatan diisi dari judul bukti. Periksa, lalu Simpan Draft.');
+  }
+  function catIsiSemua() {
+    if (!S.draft || !bolehMenilai(S.gk)) return;
+    var n = 0;
+    P.komponen.forEach(function (k) { k.indikator.forEach(function (_, i) { var key = k.no + '_' + (i + 1); if (catTulis(key, catDariBukti(S.gk, key))) n++; }); });
+    if (n) simpanLokal();
+    pesan(n ? n + ' catatan diisi dari judul bukti. Periksa, lalu Simpan Draft.' : 'Tidak ada yang diisi: catatan sudah terisi atau belum ada bukti terlampir.', !n);
+  }
   function pakaiSaran(el) {
     var key = el.getAttribute('data-key');
     if (terapkanSaran(key, true, el.getAttribute('data-src') || '')) { simpanLokal(); recalc(); pesan('Saran dipakai untuk indikator ' + key.replace('_', '.') + '. Jangan lupa Simpan Draft.'); }
@@ -1669,6 +1772,12 @@
       if (kirim && typeof addLog === 'function') addLog('PKG pengingat', kirim + ' pengingat');
       return pesan(kirim ? kirim + ' pengingat dikirim ke notifikasi aplikasi' + (lewat ? ' (' + lewat + ' dilewati: sudah diingatkan <12 jam lalu)' : '') + '.' : (lewat ? 'Semua sudah diingatkan kurang dari 12 jam lalu.' : 'Tidak ada yang perlu diingatkan.'));
     }
+    if (act === 'bagi-tugas') return bagiTugas();
+    if (act === 'skpen-sama') return skPenSama();
+    if (act === 'ww-tanggal') return wwIsiTanggal();
+    if (act === 'kd-j-usul') return kdTerapkanJ();
+    if (act === 'cat-isi') return catIsi(el.getAttribute('data-key'));
+    if (act === 'cat-isi-semua') return catIsiSemua();
     if (act === 'salin-tugas') {
       if (!bolehKelola()) return;
       var rsl = root(), sel = $('pkgSalinDari'); if (!rsl || !sel || !sel.value) return pesan('Pilih periode sumber dulu.', true);
@@ -1792,6 +1901,7 @@
     }
     if (act === 'sv-simpan') return svSimpan(S.gk);
     if (act === 'sv-usulan') return svIsiUsulan(S.gk);
+    if (act === 'sv-usulan3') return svIsiUsulan3(S.gk);
     if (act === 'sv-bukti') return svSimpan(S.gk, function () { svBuktiTulis(S.gk); });
     if (act === 'sv-rtl') return svSimpan(S.gk, function () { svKeRtl(S.gk); });
     if (act === 'sv-cetak') return cetakPerangkat('supervisi', S.gk);
@@ -1807,6 +1917,7 @@
       S.wwKotor = true; return wwSegar();
     }
     if (act === 'kd-acak') return kdAcak();
+    if (act === 'kd-usulan') return kdIsiUsulan();
     if (act === 'kd-simpan') return kdSimpan();
     if (act === 'kd-cetak') return kdCetak();
   }
@@ -2434,9 +2545,29 @@
         '<td><input type="date" class="field" data-ska="' + esc(k) + '" value="' + esc(s.akhir || '') + '"></td>' +
         '<td>' + skPenChip(k) + '</td></tr>';
     });
-    o += '</tbody></table><button class="btn btn-success" style="margin-top:8px" data-act="simpan-skpen">💾 Simpan SK Penilai</button>';
+    o += '</tbody></table><button class="btn btn-success" style="margin-top:8px" data-act="simpan-skpen">💾 Simpan SK Penilai</button>' + (ids.length > 1 ? ' <button type="button" class="btn btn-soft" style="margin-top:8px" data-act="skpen-sama" title="Menyalin Nomor, Tanggal, dan Berlaku s.d. dari baris pertama yang sudah terisi ke baris penilai lain yang masih kosong. Isian yang sudah ada tidak ditimpa.">📋 Isi sama untuk semua penilai</button>' : '');
     if (S.skGagal) o += '<div style="margin-top:8px;font-size:12px;color:#b91c1c">Data SK tidak terbaca/tersimpan. Pastikan Firebase Rules untuk pkg_v4_skpen sudah dipasang (lihat rules-sk-pkg.txt).</div>';
     return o + '</div>';
+  }
+  // v55: satu SK biasanya mencakup banyak penilai. Nomor SK tetap diketik manusia (di baris pertama); di sini hanya disalin ke baris kosong.
+  function skPenSama() {
+    if (!bolehKelola()) return;
+    var r = root(); if (!r) return;
+    var baris = [], ambil = function (sel, attr) { var m = {}; Array.prototype.forEach.call(r.querySelectorAll(sel), function (i) { m[i.getAttribute(attr)] = i; }); return m; };
+    var N1 = ambil('input[data-skn]', 'data-skn'), T1 = ambil('input[data-skt]', 'data-skt'), A1 = ambil('input[data-ska]', 'data-ska');
+    var keys = Object.keys(N1), sumber = null;
+    keys.forEach(function (k) { if (!sumber && N1[k].value.trim()) sumber = k; });
+    if (!sumber) return pesan('Isi dulu Nomor SK pada salah satu baris penilai, lalu tekan tombol ini.', true);
+    var n = 0, nom = N1[sumber].value.trim(), tg = T1[sumber] ? T1[sumber].value : '', ak = A1[sumber] ? A1[sumber].value : '';
+    keys.forEach(function (k) {
+      if (k === sumber) return;
+      var ubah = false;
+      if (!N1[k].value.trim()) { N1[k].value = nom; ubah = true; }
+      if (T1[k] && !T1[k].value && tg) { T1[k].value = tg; ubah = true; }
+      if (A1[k] && !A1[k].value && ak) { A1[k].value = ak; ubah = true; }
+      if (ubah) n++;
+    });
+    pesan(n ? 'SK dari ' + namaGuru(sumber) + ' disalin ke ' + n + ' penilai lain (yang sudah terisi tidak ditimpa). Periksa lalu tekan Simpan SK Penilai.' : 'Tidak ada yang disalin: semua baris penilai sudah terisi.', !n);
   }
   function simpanSkPen() {
     if (!bolehKelola()) return;
@@ -2464,14 +2595,20 @@
     }, 'Gagal menyimpan SK penilai: ');
   }
 
+  // v54: nilai awal SK Penetapan. Tempat diambil dari profil madrasah (Kabupaten/Kota); dasar hukum awal boleh diedit Admin.
+  var SK_DASAR_AWAL = 'Undang-Undang Nomor 14 Tahun 2005 tentang Guru dan Dosen\nPeraturan Pemerintah Nomor 74 Tahun 2008 tentang Guru';
+  function skTempatProfil() {
+    var M = (typeof MADRASAH !== 'undefined' && MADRASAH) ? MADRASAH : {};
+    return String(M.kabupaten || M.kota || M.kabupaten_kota || M.kab || '').trim().replace(/^(kabupaten|kab\.?|kota)\s+/i, '').slice(0, 60);
+  }
   function skSetCardHtml() {
     var d = S.skset || {}, ada = guruAktif().filter(function (g) { var n = S.nilai[g.key]; return n && n.status === 'ditetapkan'; }).length;
     return '<div class="card"><h4 style="margin:0 0 8px">📄 SK Kepala Madrasah: Penetapan Hasil PKG</h4>' +
-      '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Menurut Juknis (Bab IV.D.9), hasil PKG ditetapkan dengan SK Kepala Madrasah. Surat memuat daftar guru yang statusnya sudah Ditetapkan (saat ini ' + ada + ' guru). Nomor dan tanggal boleh dikosongkan, nanti diisi tulis tangan.</p>' +
+      '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Menurut Juknis (Bab IV.D.9), hasil PKG ditetapkan dengan SK Kepala Madrasah. Surat memuat daftar guru yang statusnya sudah Ditetapkan (saat ini ' + ada + ' guru). Nomor SK diisi manual sesuai penomoran madrasah (boleh dikosongkan, nanti ditulis tangan). Tempat terisi awal dari profil madrasah.</p>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><div style="flex:2;min-width:170px"><label class="label">Nomor SK</label><input id="pkgSkNomor" class="field" maxlength="100" value="' + esc(d.nomor || '') + '"></div>' +
       '<div style="flex:1;min-width:130px"><label class="label">Tanggal SK</label><input id="pkgSkTgl" type="date" class="field" value="' + esc(d.tanggal || '') + '"></div>' +
-      '<div style="flex:1;min-width:130px"><label class="label">Ditetapkan di</label><input id="pkgSkTempat" class="field" maxlength="60" placeholder="Kota/kabupaten" value="' + esc(d.tempat || '') + '"></div></div>' +
-      '<label class="label" style="margin-top:8px">Dasar hukum tambahan (opsional, satu per baris)</label><textarea id="pkgSkDasar" class="field" rows="3" maxlength="600" style="width:100%">' + esc(d.dasar || '') + '</textarea>' +
+      '<div style="flex:1;min-width:130px"><label class="label">Ditetapkan di</label><input id="pkgSkTempat" class="field" maxlength="60" placeholder="Kota/kabupaten" value="' + esc(d.tempat || skTempatProfil()) + '"></div></div>' +
+      '<label class="label" style="margin-top:8px">Dasar hukum tambahan (satu per baris; sudah terisi awal, silakan ubah)</label><textarea id="pkgSkDasar" class="field" rows="3" maxlength="600" style="width:100%">' + esc(d.dasar || SK_DASAR_AWAL) + '</textarea>' +
       '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-success" data-act="simpan-skset">💾 Simpan</button><button class="btn btn-soft" data-act="cetak-skset">🖨️ Cetak SK Penetapan</button></div>' +
       (S.skGagal ? '<div style="margin-top:8px;font-size:12px;color:#b91c1c">Data SK tidak terbaca/tersimpan. Pastikan Firebase Rules untuk pkg_v4_skset sudah dipasang (lihat rules-sk-pkg.txt).</div>' : '') + '</div>';
   }
@@ -2498,9 +2635,9 @@
     var belum = semua.length - rows.length;
     if (belum > 0 && !confirm(belum + ' guru belum berstatus Ditetapkan dan tidak dimasukkan ke lampiran. Tetap cetak?')) return;
     var titik = '................', nama = String(M.nama || 'MADRASAH'), NAMA = esc(nama.toUpperCase()), perNama = esc(per.nama || '');
-    var nomor = d.nomor ? esc(d.nomor) : titik, tgl = d.tanggal ? fmtTgl(d.tanggal) : titik, tempat = d.tempat ? esc(d.tempat) : titik;
+    var nomor = d.nomor ? esc(d.nomor) : titik, tgl = d.tanggal ? fmtTgl(d.tanggal) : titik, tempat = (d.tempat || skTempatProfil()) ? esc(d.tempat || skTempatProfil()) : titik;
     var dasar = ['Keputusan Direktur Jenderal Pendidikan Islam Nomor 1843 Tahun 2021 tentang Petunjuk Teknis Penilaian Kinerja Guru Madrasah'];
-    String(d.dasar || '').split(/\r?\n/).forEach(function (s) { s = s.trim(); if (s) dasar.push(s); });
+    String(d.dasar || SK_DASAR_AWAL).split(/\r?\n/).forEach(function (s) { s = s.trim(); if (s) dasar.push(s); });
     var nb = 'border:0;padding:2px 4px;vertical-align:top';
     var judul = '<div style="text-align:center;font-weight:700;line-height:1.5">KEPUTUSAN KEPALA ' + NAMA + '<br>NOMOR ' + nomor + '<br>TENTANG<br>PENETAPAN HASIL PENILAIAN KINERJA GURU<br>' + perNama + '</div>' +
       '<div style="text-align:center;font-weight:700;margin:10px 0 6px">KEPALA ' + NAMA + ',</div>';
@@ -2623,7 +2760,7 @@
     SV_T3.forEach(function (x) { o += f('pkgSv3_', '', t3, x[0], x[1], x[2]); });
     o += '<label style="display:block;font-size:12.5px;font-weight:600;margin-top:8px">Tanggal pertemuan umpan balik / supervisi ulang</label><input type="date" id="pkgSv3_tanggal" value="' + esc(svTanggal(t3.tanggal)) + '"' + dis + '></div>';
     o += '<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">';
-    if (boleh) o += '<button class="btn btn-success" data-act="sv-simpan">💾 Simpan</button><button class="btn btn-soft" data-act="sv-usulan">✨ Isi usulan Tahap 1</button><button class="btn btn-soft" data-act="sv-bukti" title="Menyimpan catatan fakta tiap komponen sebagai bukti observasi pada indikator pengamatan">📎 Simpan + jadikan bukti observasi</button><button class="btn btn-soft" data-act="sv-rtl" title="Menyalin Tahap 3 ke kolom Rekomendasi yang masih kosong">🧭 Simpan + salin ke Rekomendasi</button>';
+    if (boleh) o += '<button class="btn btn-success" data-act="sv-simpan">💾 Simpan</button><button class="btn btn-soft" data-act="sv-usulan">✨ Isi usulan Tahap 1</button><button class="btn btn-soft" data-act="sv-usulan3" title="Menyusun kalimat Hal yang sudah baik, Hal yang perlu ditingkatkan, dan Kesepakatan tindak lanjut dari nilai Tahap 2. Kolom yang sudah terisi tidak ditimpa.">✨ Isi usulan Tahap 3</button><button class="btn btn-soft" data-act="sv-bukti" title="Menyimpan catatan fakta tiap komponen sebagai bukti observasi pada indikator pengamatan">📎 Simpan + jadikan bukti observasi</button><button class="btn btn-soft" data-act="sv-rtl" title="Menyalin Tahap 3 ke kolom Rekomendasi yang masih kosong">🧭 Simpan + salin ke Rekomendasi</button>';
     o += '<button class="btn btn-soft" data-act="sv-cetak">🖨️ Cetak (terisi)</button></div>';
     if (S.svGagal[kunci]) o += '<div style="font-size:12px;color:#b91c1c;margin:0 4px">Data supervisi tidak terbaca/tersimpan. Pastikan Firebase Rules untuk pkg_v4_supervisi sudah dipasang (lihat rules-supervisi-kendali-pkg.txt).</div>';
     return o;
@@ -2658,11 +2795,75 @@
       if (sesudah) sesudah(); else { pesan('Supervisi tersimpan.'); render(); }
     }, 'Gagal menyimpan supervisi: ');
   }
+  // v55: usulan tanggal. Pertemuan awal: hari ini, atau tanggal jadwal pengamatan bila jadwal lebih awal. Umpan balik: hari ini, atau jadwal pengamatan bila jadwal lebih akhir (selalu tidak sebelum pengamatan).
+  function svIsiTanggal(gk, tahap) {
+    var e = $(tahap === 1 ? 'pkgSv1_tanggal' : 'pkgSv3_tanggal'); if (!e || e.value || e.disabled) return 0;
+    var jd = svTanggal((tugasDari(gk) || {}).jadwal), hari = skHariIni(), tg = hari;
+    if (jd) tg = tahap === 1 ? (jd < hari ? jd : hari) : (jd > hari ? jd : hari);
+    e.value = tg; return 1;
+  }
   function svIsiUsulan(gk) {
     var us = svUsulan(gk), n = 0;
+    n += svIsiTanggal(gk, 1);
     [['pkgSv1_fokus', us.fokus], ['pkgSv1_perangkat', us.perangkat]].forEach(function (p) { var e = $(p[0]); if (e && !e.value.trim() && p[1]) { e.value = p[1]; n++; } });
     S.svKotor = S.svKotor || n > 0;
     pesan(n ? 'Usulan diisi dari data aplikasi. Periksa, sesuaikan, lalu simpan.' : 'Tidak ada usulan baru (kolom sudah terisi atau data bukti belum cukup).');
+  }
+  // v53: usulan kalimat Tahap 3 (umpan balik) dari isian Tahap 2 di layar. Kalimat templat berbasis aturan, bukan AI;
+  // penilai wajib memeriksa & mengubah. Hanya mengisi kolom yang masih kosong. "Refleksi guru" TIDAK diisi (itu jawaban guru sendiri).
+  function svPilih(daftar, n) {
+    var out = [], pakai = {};
+    daftar.forEach(function (x) { if (out.length < n && !pakai[x.no]) { out.push(x); pakai[x.no] = 1; } });
+    daftar.forEach(function (x) { if (out.length < n && out.indexOf(x) < 0) out.push(x); });
+    return out;
+  }
+  function svUsulanT3(v) {
+    var kuat = [], lemah = [], k = v.k || {}, ada = false;
+    P.komponen.forEach(function (km) {
+      var x = k[String(km.no)]; if (!x) return;
+      var h = svHitung(km, x.b), cat = x.c ? potong(x.c, 110) : '';
+      if (h.isi) {
+        ada = true;
+        svButir(km).forEach(function (y) {
+          var n = x.b ? x.b[String(y.n)] : undefined, it = { no: km.no, p: n, txt: potong(y.t, 110), cat: cat, km: km.nama };
+          if (n === 2) kuat.push(it); else if (n === 0 || n === 1) lemah.push(it);
+        });
+      } else if (x.s === 0 || x.s === 1 || x.s === 2) {
+        ada = true;
+        var it2 = { no: km.no, p: x.s, txt: 'komponen ' + km.no + '. ' + km.nama, cat: cat, km: km.nama };
+        if (x.s === 2) kuat.push(it2); else lemah.push(it2);
+      }
+    });
+    if (!ada) return null;
+    lemah.sort(function (a, b) { return a.p - b.p; });
+    var pk = svPilih(kuat, 3), pl = svPilih(lemah, 3);
+    var baik = 'Terima kasih atas kesediaan Bapak/Ibu dalam pengamatan pembelajaran. ' + (pk.length
+      ? 'Dari pengamatan, yang sudah baik dan perlu dipertahankan: ' + pk.map(function (x, i) { return (i + 1) + ') ' + x.txt; }).join('; ') + '.'
+      : 'Belum ada butir yang terlihat sepenuhnya; mohon disampaikan secara membangun dan dimulai dari upaya yang sudah dilakukan guru.');
+    var catPakai = {};
+    var perbaikan = pl.length
+      ? 'Hal yang perlu ditingkatkan: ' + pl.map(function (x, i) { var c = x.cat && !catPakai[x.no]; catPakai[x.no] = 1; return (i + 1) + ') ' + x.txt + (x.p === 0 ? ' (belum terlihat)' : ' (baru sebagian terlihat)') + (c ? ' (catatan: ' + x.cat + ')' : ''); }).join('; ') + '.'
+      : 'Dari pengamatan ini tidak ada butir yang menonjol perlu diperbaiki; tetap jaga konsistensi pada kegiatan sehari-hari.';
+    var tindak, kom = pl.map(function (x) { return x.no; }).filter(function (n, i, a) { return a.indexOf(n) === i; });
+    if (!pl.length) tindak = 'Guru diminta berbagi praktik baik pada KKG atau rapat guru. Pembinaan berkala tetap berjalan sesuai jadwal madrasah.';
+    else if (pl.some(function (x) { return x.p === 0; })) tindak = 'Disepakati pembinaan pada komponen ' + kom.join(', ') + ': pendampingan penyusunan/penerapan langkah yang belum terlihat, mengamati praktik baik rekan sejawat atau berdiskusi di KKG, lalu supervisi ulang untuk melihat perkembangan.';
+    else tindak = 'Disepakati penguatan pada komponen ' + kom.join(', ') + ': guru melengkapi bagian yang baru sebagian terlihat, dengan umpan balik singkat dari penilai pada pengamatan berikutnya.';
+    var tg = svTanggal(($('pkgSv3_tanggal') || {}).value);
+    if (tg) tindak += ' Rencana pembinaan / supervisi ulang: ' + fmtTgl(tg) + '.';
+    var ref = 'Pertanyaan pemandu (tanyakan lisan, lalu tulis jawaban guru sendiri): Menurut Bapak/Ibu, bagian mana yang paling berhasil hari ini? ' +
+      (pl.length ? 'Apa yang membuat "' + potong(pl[0].txt, 80) + '" belum optimal, dan bantuan apa yang dibutuhkan? ' : '') + 'Apa rencana Bapak/Ibu untuk pembelajaran berikutnya?';
+    return { baik: potong(baik, 800), perbaikan: potong(perbaikan, 800), tindak: potong(tindak, 800), refleksi: ref };
+  }
+  function svIsiUsulan3(gk) {
+    if (!bolehSvTulis(gk)) return pesan('Tidak dapat mengisi: penilaian sudah ditetapkan atau Anda tidak berhak.', true);
+    var us = svUsulanT3(svAmbil().v);
+    if (!us) return pesan('Isi dulu nilai Tahap 2 (butir atau penilaian aspek), baru usulan Tahap 3 bisa disusun.', true);
+    var n = 0;
+    [['pkgSv3_baik', us.baik], ['pkgSv3_perbaikan', us.perbaikan], ['pkgSv3_tindak', us.tindak]].forEach(function (q) { var e = $(q[0]); if (e && !e.value.trim() && q[1]) { e.value = q[1]; n++; } });
+    var r = $('pkgSv3_refleksi'); if (r && !r.value.trim()) r.placeholder = us.refleksi;
+    n += svIsiTanggal(gk, 3);                                 // setelah kalimat tindak lanjut disusun, agar tanggal otomatis tidak ikut tertulis sebagai "rencana supervisi ulang"
+    S.svKotor = S.svKotor || n > 0;
+    pesan(n ? 'Usulan Tahap 3 diisi dari nilai Tahap 2. Periksa, sesuaikan dengan hasil diskusi, lalu simpan.' : 'Tidak ada yang diisi: kolom Tahap 3 sudah berisi (tidak ditimpa).');
   }
   // Catatan fakta per komponen -> satu bukti observasi (kunci tetap "supervisi") pada indikator pengamatan pertama komponen itu.
   function svBuktiTulis(gk) {
@@ -2801,7 +3002,7 @@
     WAWANCARA.forEach(function (gr, gi) {
       var nn = n['g' + gi] || {}, adaPra = gi === 0 && Object.keys(pra).length;
       o += '<div class="card"><h4 style="margin:0 0 4px">Narasumber: ' + esc(gr.who) + '</h4>' +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="field" id="pkgWwN_' + gi + '" maxlength="' + WW_MAKS_N + '" placeholder="' + (gi === 0 ? 'Nama narasumber' : 'Nama / kode / inisial narasumber') + '" value="' + esc(nn.nama || '') + '" style="flex:1;min-width:180px"' + dis + '><input class="field" type="date" id="pkgWwT_' + gi + '" value="' + esc(svTanggal(nn.tgl)) + '" style="max-width:170px"' + dis + '></div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="field" id="pkgWwN_' + gi + '" maxlength="' + WW_MAKS_N + '" placeholder="' + (gi === 0 ? 'Nama narasumber' : 'Nama / kode / inisial narasumber') + '" value="' + esc(nn.nama || (gi === 0 && boleh ? namaGuru(gk) : '')) + '" style="flex:1;min-width:180px"' + dis + '><input class="field" type="date" id="pkgWwT_' + gi + '" value="' + esc(svTanggal(nn.tgl)) + '" style="max-width:170px"' + dis + '></div>' +
         '<div id="pkgWwR_' + gi + '" class="text-muted" style="font-size:12px;margin:6px 0">' + wwRingkasG(gi, j) + '</div>';
       semua.filter(function (b) { return b.g === gi; }).forEach(function (b) {
         var v = j[b.key] || {}, pj = gi === 0 && pra[b.ind];
@@ -2817,7 +3018,7 @@
     });
     o += '<div class="card"><h4 style="margin:0 0 4px">Usulan skor per indikator</h4><p class="text-muted" style="font-size:12px;margin:0 0 6px">Gabungan butir dari semua narasumber untuk indikator yang sama. Hanya usulan; skor akhir dipilih penilai di form penilaian.</p><div id="pkgWwU">' + wwUsulanHtml(j) + '</div></div>';
     o += '<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">';
-    if (boleh) o += '<button class="btn btn-success" data-act="ww-simpan">💾 Simpan</button><button class="btn btn-soft" data-act="ww-bukti" title="Menyimpan ringkasan tiap indikator sebagai bukti wawancara (rahasia, tidak tampil ke guru dan tidak tercetak di Laporan)">📎 Simpan + jadikan bukti wawancara</button>';
+    if (boleh) o += '<button class="btn btn-success" data-act="ww-simpan">💾 Simpan</button><button class="btn btn-soft" data-act="ww-tanggal" title="Mengisi tanggal wawancara dengan hari ini untuk narasumber yang sudah ada nama atau skornya. Tanggal yang sudah terisi tidak ditimpa.">📅 Isi tanggal hari ini</button><button class="btn btn-soft" data-act="ww-bukti" title="Menyimpan ringkasan tiap indikator sebagai bukti wawancara (rahasia, tidak tampil ke guru dan tidak tercetak di Laporan)">📎 Simpan + jadikan bukti wawancara</button>';
     o += '<button class="btn btn-soft" data-act="ww-cetak">🖨️ Cetak (terisi)</button></div>';
     if (S.wwGagal[kunci]) o += '<div style="font-size:12px;color:#b91c1c;margin:0 4px">Data wawancara tidak terbaca/tersimpan. Pastikan Firebase Rules untuk pkg_v4_wawancara sudah dipasang (lihat rules-wawancara-pkg.txt).</div>';
     return o;
@@ -2851,6 +3052,18 @@
       if (typeof addLog === 'function') addLog('PKG wawancara', namaGuru(gk));
       if (sesudah) sesudah(); else { pesan('Wawancara tersimpan.'); render(); }
     }, 'Gagal menyimpan wawancara: ');
+  }
+  // v55: tanggal wawancara = hari ini untuk narasumber yang sudah ada isinya (nama atau skor) dan tanggalnya masih kosong.
+  function wwIsiTanggal() {
+    var gk = S.gk; if (!bolehWwTulis(gk)) return pesan('Tidak dapat mengisi: penilaian sudah ditetapkan atau Anda tidak berhak.', true);
+    var j = wwBacaJ(), n = 0, hari = skHariIni();
+    WAWANCARA.forEach(function (gr, gi) {
+      var e = $('pkgWwT_' + gi), nm = $('pkgWwN_' + gi); if (!e || e.value) return;
+      var adaSkor = wwButir().some(function (b) { return b.g === gi && j[b.key]; });
+      if ((nm && nm.value.trim() && gi !== 0) || adaSkor) { e.value = hari; n++; }
+    });
+    if (n) S.wwKotor = true;
+    pesan(n ? 'Tanggal diisi hari ini untuk ' + n + ' narasumber. Ubah bila wawancara dilakukan di hari lain, lalu simpan.' : 'Tidak ada yang diisi: tanggal sudah terisi, atau narasumber belum ada nama/skornya.', !n);
   }
   // Salin jawaban pra-wawancara guru ke catatan butir yang masih kosong (tidak menimpa, skor tidak ikut terisi).
   function wwSalin(gk, satuKey) {
@@ -2965,6 +3178,80 @@
     tambah('II.E.3', 'Hasil PKG semua guru sudah Ditetapkan (laporan dianjurkan selesai pertengahan Desember)', !belum.length, belum.length ? belum.length + ' dari ' + gurus.length + ' guru belum Ditetapkan; ' + (sisa >= 0 ? 'sisa ' + sisa + ' hari menuju ' + fmtTgl(batas) + '.' : 'sudah lewat ' + (-sisa) + ' hari dari ' + fmtTgl(batas) + '.') : 'Semua hasil sudah Ditetapkan.');
     return out;
   }
+  // ---------- v54: usulan otomatis Pengendalian Internal (bagian C catatan sampel, bagian D temuan & tindak lanjut) ----------
+  // Hanya mengisi kolom yang masih kosong. Tidak menyebut nama penilai; yang disebut hanya jumlah guru dan nomor komponen.
+  function kdGabung(a) { a = a.map(String); return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' dan ' + a[a.length - 1]; }
+  function kdBukti(gk) {            // null bila data bukti guru belum terbaca
+    if (S.bukti[kb(gk)] === undefined) return null;
+    var per = {}, belum = 0, b = indikatorBerbukti(gk);
+    P.komponen.forEach(function (km) { km.indikator.forEach(function (_, i) {
+      var key = km.no + '_' + (i + 1);
+      if (!daftarItem(gk, key).length && !adaOto(gk, key)) { per[km.no] = (per[km.no] || 0) + 1; belum++; }
+    }); });
+    return { n: b.n, total: b.total, per: per, belum: belum };
+  }
+  function kdNoKomp(per) { return Object.keys(per).map(Number).sort(function (x, y) { return x - y; }); }
+  function kdCatatanSampel(gk) {
+    var r = kdBukti(gk); if (!r) return '';
+    var t = r.n + '/' + r.total + ' indikator berbukti';
+    var ks = kdNoKomp(r.per);
+    t += ks.length ? '; belum berbukti pada komponen ' + kdGabung(ks) : '; semua indikator berbukti';
+    return potong(t, 300);
+  }
+  function kdUsulanD(sam, otm) {
+    var gk = Object.keys(sam), sesuai = 0, perlu = 0, tanpa = 0, jmlN = 0, jmlT = 0, perAll = {}, perPerlu = {};
+    gk.forEach(function (k) {
+      var h = sam[k] && sam[k].h;
+      if (h === 'sesuai') sesuai++; else if (h === 'perlu') perlu++; else tanpa++;
+      var r = kdBukti(k); if (!r) return;
+      jmlN += r.n; jmlT += r.total;
+      Object.keys(r.per).forEach(function (no) { perAll[no] = (perAll[no] || 0) + r.per[no]; if (h === 'perlu') perPerlu[no] = (perPerlu[no] || 0) + r.per[no]; });
+    });
+    var tm = [], tl = [];
+    if (gk.length) {
+      tm.push('Verifikasi atas ' + gk.length + ' guru sampel acak: ' + sesuai + ' Sesuai' + (perlu ? ', ' + perlu + ' Perlu dilengkapi' : '') + (tanpa ? ', ' + tanpa + ' belum diverifikasi' : '') + '.');
+      if (jmlT) {
+        var ks = Object.keys(perAll).map(Number).sort(function (a, b) { return perAll[b] - perAll[a] || a - b; });
+        tm.push(ks.length ? 'Pada sampel, ' + jmlN + ' dari ' + jmlT + ' indikator berbukti; indikator yang belum berbukti terbanyak pada komponen ' + kdGabung(ks.slice(0, 4).sort(function (a, b) { return a - b; })) + '.' : 'Pada sampel, seluruh indikator (' + jmlT + ') berbukti.');
+      }
+    }
+    var gagal = otm.filter(function (x) { return !x.ok; });
+    if (otm.length) {
+      tm.push('Pemeriksaan otomatis: ' + (otm.length - gagal.length) + ' dari ' + otm.length + ' butir sesuai' + (gagal.length ? '; perlu perhatian pada ' + gagal.slice(0, 3).map(function (x) { return x.j.charAt(0).toLowerCase() + x.j.slice(1); }).join('; ') + (gagal.length > 3 ? ' dan ' + (gagal.length - 3) + ' butir lain' : '') : '') + '.');
+    }
+    if (perlu) {
+      var kp = kdNoKomp(perPerlu);
+      tl.push('Penilai terkait diminta melengkapi bukti pada indikator yang belum berbukti' + (kp.length ? ' (komponen ' + kdGabung(kp) + ')' : '') + ', lalu dilakukan verifikasi ulang kepada guru sampel.');
+    }
+    if (tanpa) tl.push('Verifikasi guru sampel yang belum diverifikasi diselesaikan.');
+    if (gagal.length) tl.push('Butir pemeriksaan otomatis yang perlu perhatian ditindaklanjuti Kepala Madrasah bersama penilai.');
+    if (!tl.length && gk.length) tl.push('Tidak ada tindak lanjut khusus; hasil verifikasi sampel sesuai.');
+    return { temuan: potong(tm.join(' '), 1000), tindak: potong(tl.join(' '), 1000) };
+  }
+  // v55: butir j (verifikasi sampel) hanya DIUSULKAN; Kepala menekan tombol, tidak dicentang diam-diam.
+  function kdTerapkanJ() {
+    if (!bolehKelola() || !S.kd || S.kd.pid !== S.periodeId) return;
+    var a = kdAmbil(), sam = a.v.sampel || {}, ks = Object.keys(sam);
+    if (!ks.length) return pesan('Belum ada sampel verifikasi. Ambil sampel acak dulu.', true);
+    var belum = ks.filter(function (k) { return !sam[k].h; }), perlu = ks.filter(function (k) { return sam[k].h === 'perlu'; }).length;
+    if (belum.length) return pesan(belum.length + ' dari ' + ks.length + ' guru sampel belum diverifikasi (' + belum.slice(0, 3).map(namaGuru).join(', ') + (belum.length > 3 ? ', dst.' : '') + '). Isi hasil verifikasinya dulu.', true);
+    var r = root(), cb = null, nt = null;
+    Array.prototype.forEach.call(r ? r.querySelectorAll('input[data-kc]') : [], function (e) { if (e.getAttribute('data-kc') === 'j') cb = e; });
+    Array.prototype.forEach.call(r ? r.querySelectorAll('input[data-kn]') : [], function (e) { if (e.getAttribute('data-kn') === 'j') nt = e; });
+    if (!cb) return;
+    cb.checked = true;
+    if (nt && !nt.value.trim()) nt.value = potong('Verifikasi ' + ks.length + ' guru sampel: ' + (ks.length - perlu) + ' sesuai' + (perlu ? ', ' + perlu + ' perlu dilengkapi' : '') + '.', 300);
+    pesan('Butir verifikasi sampel dicentang. Periksa, lalu tekan Simpan.');
+  }
+  function kdIsiUsulan() {
+    if (!bolehKelola() || !S.kd || S.kd.pid !== S.periodeId) return;
+    var a = kdAmbil(), sam = a.v.sampel || {}, u = kdUsulanD(sam, kdOtomatis()), n = 0, r = root();
+    Array.prototype.forEach.call(r ? r.querySelectorAll('input[data-sc]') : [], function (e) {
+      if (e.value.trim()) return; var c = kdCatatanSampel(e.getAttribute('data-sc')); if (c) { e.value = c; n++; }
+    });
+    [['pkgKdTemuan', u.temuan], ['pkgKdTindak', u.tindak]].forEach(function (q) { var e = $(q[0]); if (e && !e.value.trim() && q[1]) { e.value = q[1]; n++; } });
+    pesan(n ? 'Usulan diisi dari hasil verifikasi sampel dan data bukti (' + n + ' kolom). Periksa dan sesuaikan, lalu tekan Simpan.' : 'Tidak ada yang diisi: kolom sudah berisi (tidak ditimpa) atau belum ada sampel/hasil yang bisa dirangkum.');
+  }
   function kendaliHtml() {
     var pid = S.periodeId;
     if (!S.kd || S.kd.pid !== pid) {
@@ -2978,7 +3265,7 @@
       otm.map(function (x) { return '<tr><td>' + esc(x.j) + '</td><td style="white-space:nowrap;font-size:11px">' + esc(x.rj) + '</td><td>' + (x.ok ? '<span class="pkg-chip" style="background:#15803d">Sesuai</span>' : '<span class="pkg-chip" style="background:#b45309">Perlu perhatian</span>') + '</td><td style="font-size:12px">' + x.d + '</td></tr>'; }).join('') + '</tbody></table>' +
       (S.kd.buktiGagal ? '<div style="margin-top:6px;font-size:12px;color:#b91c1c">Bukti ' + S.kd.buktiGagal + ' guru tidak terbaca (periksa Rules pkg_v4_bukti dan sesi login).</div>' : '') + '</div>';
     o += '<div class="card" style="overflow-x:auto"><h4 style="margin:0 0 6px">B. Daftar periksa dan catatan pertemuan</h4><table><thead><tr><th style="width:34px">Ya</th><th>Butir</th><th>Tanggal</th><th>Catatan</th></tr></thead><tbody>' +
-      KD_CEK.map(function (c) { var x = cek[c[0]] || {}; return '<tr><td style="text-align:center"><input type="checkbox" data-kc="' + c[0] + '"' + (x.ok ? ' checked' : '') + '></td><td style="font-size:12.5px">' + esc(c[1]) + '</td><td>' + (c[2] ? '<input type="date" data-kt="' + c[0] + '" value="' + esc(svTanggal(x.t)) + '">' : '') + '</td><td><input class="field" data-kn="' + c[0] + '" maxlength="300" value="' + esc(x.c || '') + '" placeholder="Catatan"></td></tr>'; }).join('') + '</tbody></table></div>';
+      KD_CEK.map(function (c) { var x = cek[c[0]] || {}; return '<tr><td style="text-align:center"><input type="checkbox" data-kc="' + c[0] + '"' + (x.ok ? ' checked' : '') + '></td><td style="font-size:12.5px">' + esc(c[1]) + (c[0] === 'j' && Object.keys(sam).length && !x.ok ? '<div style="margin-top:4px"><button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px" data-act="kd-j-usul" title="Usulan: centang bila semua guru sampel sudah punya hasil verifikasi. Tidak dicentang otomatis; Kepala yang memutuskan.">💡 Usulan: terapkan setelah semua sampel diverifikasi</button></div>' : '') + '</td><td>' + (c[2] ? '<input type="date" data-kt="' + c[0] + '" value="' + esc(svTanggal(x.t)) + '">' : '') + '</td><td><input class="field" data-kn="' + c[0] + '" maxlength="300" value="' + esc(x.c || '') + '" placeholder="Catatan"></td></tr>'; }).join('') + '</tbody></table></div>';
     var ks = Object.keys(sam);
     o += '<div class="card" style="overflow-x:auto"><h4 style="margin:0 0 6px">C. Sampel verifikasi acak</h4>' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><label class="label" style="margin:0">Jumlah guru</label><input id="pkgKdJml" type="number" min="1" max="10" value="' + (ks.length || 3) + '" style="width:70px"><button class="btn btn-soft" data-act="kd-acak">🎲 Ambil sampel acak</button>' + (d.sampelAt ? '<span class="text-muted" style="font-size:11px">diambil ' + fmtTgl(String(d.sampelAt).slice(0, 10)) + '</span>' : '') + '</div>';
@@ -2995,7 +3282,7 @@
     }
     o += '</div><div class="card"><h4 style="margin:0 0 6px">D. Temuan dan tindak lanjut</h4><label style="display:block;font-size:12.5px;font-weight:600">Temuan (tanpa menunjuk penilai tertentu bila disampaikan di pertemuan kedua)</label><textarea id="pkgKdTemuan" rows="3" maxlength="1000" style="width:100%">' + esc(d.temuan || '') + '</textarea>' +
       '<label style="display:block;font-size:12.5px;font-weight:600;margin-top:8px">Tindak lanjut</label><textarea id="pkgKdTindak" rows="3" maxlength="1000" style="width:100%">' + esc(d.tindak || '') + '</textarea>' +
-      '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-success" data-act="kd-simpan">💾 Simpan</button><button class="btn btn-soft" data-act="kd-cetak">🖨️ Cetak Lembar Pengendalian</button></div>' +
+      '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-success" data-act="kd-simpan">💾 Simpan</button><button class="btn btn-soft" data-act="kd-usulan" title="Menyusun kalimat Temuan dan Tindak lanjut serta Catatan tiap guru sampel dari hasil verifikasi dan data bukti. Kolom yang sudah terisi tidak ditimpa.">✨ Isi usulan dari hasil verifikasi</button><button class="btn btn-soft" data-act="kd-cetak">🖨️ Cetak Lembar Pengendalian</button></div>' +
       (S.kd.gagal ? '<div style="margin-top:8px;font-size:12px;color:#b91c1c">Data pengendalian tidak terbaca/tersimpan. Pastikan Firebase Rules untuk pkg_v4_kendali sudah dipasang (lihat rules-supervisi-kendali-pkg.txt).</div>' : '') + '</div>';
     return o;
   }
@@ -3090,6 +3377,9 @@
         if (S.view === 'supervisi' && t.getAttribute) {
           if (t.getAttribute('data-svb')) return svSegar(t.getAttribute('data-svb'), true);
           if (String(t.name || '').indexOf('pkgSvS_') === 0) { (S.svAuto = S.svAuto || {})[t.name.slice(7)] = false; return; }
+        }
+        if (S.tab === 'kendali' && t.matches && t.matches('input[type=checkbox][data-kc]') && t.checked) {   // v55: tanggal butir yang bertanggal terisi hari ini saat dicentang
+          var kc = t.getAttribute('data-kc'), rr = root(); Array.prototype.forEach.call(rr ? rr.querySelectorAll('input[data-kt]') : [], function (e) { if (e.getAttribute('data-kt') === kc && !e.value) e.value = skHariIni(); });
         }
         if (t.getAttribute && t.getAttribute('data-act') === 'wa-jenis' && S.gk) { var w1 = waState(S.gk); w1.jenis = t.value === 'ortu' ? 'ortu' : 'siswa'; w1.kelas = ''; w1.ant = null; return render(); }
         if (t.getAttribute && t.getAttribute('data-act') === 'wa-kelas' && S.gk) { var w0 = waState(S.gk); w0.kelas = t.value; w0.ant = null; return render(); }
