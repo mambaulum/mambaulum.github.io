@@ -1243,7 +1243,7 @@
       'table{width:100%;border-collapse:collapse}td{border:1px solid #999;padding:5px 8px;vertical-align:top}td.k{width:32%;background:#f3f4f6;font-weight:600}' +
       '.kop{display:flex;align-items:center;gap:14px;border-bottom:3px double #333;padding-bottom:10px}.kop img{width:64px;height:64px;object-fit:contain}.kop .n{font-weight:700;font-size:16px}.kop .a{font-size:12px}' +
       '.b{border:1px solid #ddd;border-radius:6px;padding:8px 10px;white-space:normal}.ttd{display:flex;justify-content:space-between;margin-top:36px;text-align:center}' +
-      '.tip{background:#fef3c7;border:1px solid #f59e0b;padding:8px 12px;border-radius:8px;margin-bottom:12px}@media print{.tip{display:none}}';
+      '.tip{background:#fef3c7;border:1px solid #f59e0b;padding:8px 12px;border-radius:8px;margin-bottom:12px}@page{size:A4;margin:14mm}@media print{body{padding:0}.tip{display:none}}';
     var tip = pdf ? '<div class="tip">Untuk menyimpan sebagai PDF: pada dialog cetak, pilih tujuan <b>Simpan sebagai PDF</b>.</div>' : '';
     var htmlModul = '<html><head><base href="' + esc(document.baseURI) + '"><title>Modul ' + esc(judulModul(m)) + '</title><style>' + css + '</style></head><body>' + tip + docHtml(m) + '</body></html>';
     var tulisModul = function (h) { w.document.open(); w.document.write(h); w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400); };
