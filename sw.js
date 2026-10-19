@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.80';
+const APP_VERSION = 'v7.81';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -83,7 +83,7 @@ const PRECACHE_URLS = [
   './js/app.js?v=87',
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
-  './js/kredensial.js?v=5',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
+  './js/kredensial.js?v=6',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=5',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=10',
   './js/menu-polish.js?v=30',
