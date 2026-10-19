@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/kredensial.js  (v7: kredGuruSiap memeriksa indeks login_kredensial & memberi pesan jelas; v6: kunci diingat di perangkat INGAT_KUNCI_JAM jam & tidak dihapus saat logout; v5: kunci di sessionStorage + kredBersihkanSesi; v2: + kredKepsekSiap untuk Rules PKG berperan)
+   SI MAMBA - js/kredensial.js  (v8: kunci Admin yang dibatalkan tidak ditanyakan lagi selama 60 dtk + teks prompt sesuai masa simpan; v7: kredGuruSiap memeriksa indeks login_kredensial & memberi pesan jelas; v6: kunci diingat di perangkat INGAT_KUNCI_JAM jam & tidak dihapus saat logout; v5: kunci di sessionStorage + kredBersihkanSesi; v2: + kredKepsekSiap untuk Rules PKG berperan)
    Pengamanan login guru (tahap 2 dari login-kode.js).
 
    MASALAH YANG DISELESAIKAN
@@ -169,12 +169,13 @@
       else localStorage.removeItem(nama);
     } catch (e) { }
   }
+  function teksSimpanKunci() { return INGAT_KUNCI_JAM ? 'Disimpan di perangkat ini selama ' + INGAT_KUNCI_JAM + ' jam.' : 'Disimpan hanya selama tab ini terbuka.'; }
   function kunciAdmin() { return bacaKunci(KUNCI_LS); }
   function setKunciAdmin(v) { simpanKunci(KUNCI_LS, v); }
   function tanyaKunci(paksa) {
     var k = paksa ? '' : kunciAdmin();
     if (k) return k;
-    var v = window.prompt('Masukkan KUNCI ADMIN (string panjang yang Anda isi di Firebase Console pada rahasia/kunciAdmin). Disimpan hanya selama tab ini terbuka:');
+    var v = window.prompt('Masukkan KUNCI ADMIN (string panjang yang Anda isi di Firebase Console pada rahasia/kunciAdmin). ' + teksSimpanKunci());
     v = (v || '').trim();
     if (!v) return '';
     setKunciAdmin(v);
@@ -190,10 +191,16 @@
   // Dipakai modul lain (tarif honor, rapat, dinas luar Kepala) SEBELUM menulis ke node yang di Rules dikunci "hanya sesi Admin".
   // Pertama kali di tiap perangkat Admin diminta Kunci Admin (disimpan di perangkat ini); sesudah itu sesi_admin/{uid} cukup
   // diperbarui diam-diam. Hasil sukses diingat 5 menit supaya beruntun tidak menulis sesi berulang.
-  var adminSiapTerakhir = 0;
+  var adminSiapTerakhir = 0, adminBatalSampai = 0;
   window.kredAdminSiap = function (paksa) {
     if (!paksa && Date.now() - adminSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
-    return adminSiap(!!paksa).then(function (ok) { adminSiapTerakhir = Date.now(); return ok; }, function (e) { adminSiapTerakhir = 0; throw e; });
+    // v8: bila prompt Kunci Admin baru saja dibatalkan, jangan tanya lagi tiap muat data (satu layar bisa memanggil ini 2-3 kali).
+    if (!paksa && Date.now() < adminBatalSampai && !kunciAdmin()) return Promise.reject(new Error('Kunci Admin belum diisi. Isi lewat menu 🛡️ Keamanan Login, atau coba lagi sebentar lagi.'));
+    return adminSiap(!!paksa).then(function (ok) { adminSiapTerakhir = Date.now(); adminBatalSampai = 0; return ok; }, function (e) {
+      adminSiapTerakhir = 0;
+      if (e && /belum diisi/i.test(String(e.message || ''))) adminBatalSampai = Date.now() + 60 * 1000;
+      throw e;
+    });
   };
 
   // ---------- Sesi Kepala Madrasah (v2) ----------
@@ -208,7 +215,7 @@
     if (!paksa && Date.now() - kepSiapTerakhir < 5 * 60 * 1000) return Promise.resolve(true);
     var k = paksa ? '' : kunciKep();
     if (!k) {
-      k = (window.prompt('Masukkan KUNCI KEPALA MADRASAH (string panjang yang diisi di Firebase Console pada rahasia/kunciKepsek). Disimpan hanya selama tab ini terbuka:') || '').trim();
+      k = (window.prompt('Masukkan KUNCI KEPALA MADRASAH (string panjang yang diisi di Firebase Console pada rahasia/kunciKepsek). ' + teksSimpanKunci()) || '').trim();
       if (!k) { kepSiapTerakhir = 0; return Promise.reject(new Error('Kunci Kepala Madrasah belum diisi.')); }
       setKunciKep(k);
     }
