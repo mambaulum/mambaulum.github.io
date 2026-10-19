@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -1571,6 +1571,23 @@
     });
   }
 
+  // Dipanggil hanya bila simpan draf ditolak Firebase: menulis per bagian supaya kelihatan bagian mana yang ditolak Rules
+  // (dan menyimpan bagian yang diterima). Semua bagian lolos -> dianggap tersimpan.
+  function diagnosaDraf(gk, data) {
+    var ref = db.ref(N.nilai + '/' + S.periodeId + '/' + gk), gagal = [];
+    var coba = function (nama, perubahan) { return ref.update(perubahan).then(function () { return true; }, function () { gagal.push(nama); return false; }); };
+    var inti = { status: data.status, penilaiKey: data.penilaiKey, penilaiNama: data.penilaiNama, diperbarui: data.diperbarui, diperbaruiOleh: data.diperbaruiOleh };
+    return coba('data dasar', inti).then(function (ok) {
+      if (!ok) return { ok: false, pesan: 'Bagian dasar (status & penilai) ditolak Rules: akun ini belum dikenali Firebase sebagai penilai/Kepala untuk guru ini. Periksa sesi (keluar lalu masuk lagi), Kunci Kepala, dan penugasan penilai.' };
+      var kerja = [coba('hasil', { hasil: data.hasil })];
+      Object.keys(data.skor || {}).forEach(function (k) { var o = {}; o['skor/' + k] = data.skor[k]; kerja.push(coba('skor ' + k.replace('_', '.'), o)); });
+      Object.keys(data.catatan || {}).forEach(function (k) { var o = {}; o['catatan/' + k] = data.catatan[k]; kerja.push(coba('catatan ' + k.replace('_', '.'), o)); });
+      return Promise.all(kerja).then(function () {
+        if (!gagal.length) return { ok: true };
+        return { ok: false, pesan: 'Sebagian tersimpan. Bagian yang ditolak Rules: ' + gagal.slice(0, 8).join(', ') + (gagal.length > 8 ? ' (+' + (gagal.length - 8) + ' lagi)' : '') + '. Periksa isian tersebut (nilai harus 0/1/2, catatan maks. 1000 karakter) atau kirim pesan ini ke pengembang.' };
+      });
+    });
+  }
   function simpanNilai(status, ok) {
     var gk = S.gk, u = me(), t = tugasDari(gk) || {};
     if (!u || !bolehMenilai(gk)) return pesan('Tidak berhak menilai guru ini.', true);
@@ -1583,14 +1600,17 @@
     };
     if (status === 'diajukan') { data.persetujuan = null; data.diajukanAt = nowIso(); }
     kerjakan(function () {
-      return ubahNilai(gk, function (cur) { var st = statusDari(cur); return !(selesai(st) || st === 'diajukan'); }, data);
+      return ubahNilai(gk, function (cur) { var st = statusDari(cur); return !(selesai(st) || st === 'diajukan'); }, data).catch(function (e) {
+        if (status !== 'draft' || !/permission_denied|permission denied/i.test(String((e && e.message) || e))) throw e;
+        return diagnosaDraf(gk, data).then(function (r) { if (r.ok) return Object.assign({}, S.nilai[gk] || {}, data); throw new Error(r.pesan); });
+      });
     }, function (baru) {
       S.nilai[gk] = baru;
       hapusLokal();
       if (typeof addLog === 'function') addLog('PKG ' + status, namaGuru(gk));
       if (status === 'diajukan') kabari(gk, 'PKG: hasil penilaian diajukan', 'Hasil penilaian kinerja Anda sudah diajukan penilai. Mohon periksa lalu beri persetujuan atau keberatan di menu PKG Guru.');
       if (ok) ok();
-    }, 'Gagal menyimpan: ');
+    }, 'Gagal menyimpan: ', 45000);
   }
 
   function aksi(act, el) {
