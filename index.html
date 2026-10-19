@@ -92,7 +92,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=88"></script>
+  <script defer src="js/app.js?v=89"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=22"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
@@ -115,7 +115,7 @@
   <script defer src="js/pkg-sumber.js?v=7"></script>
   <!-- Butir angket PKG (peserta didik / orang tua / sejawat) + rumus rekap; dipakai pkg.js dan angket.html. WAJIB sebelum pkg.js. -->
   <script defer src="js/data-pkg-angket.js?v=4"></script>
-  <script defer src="js/pkg.js?v=38"></script>
+  <script defer src="js/pkg.js?v=39"></script>
   <!-- Tab Analisis PKG (dasbor, RTL, perbandingan periode, ekspor Excel). WAJIB sesudah pkg.js. -->
   <script defer src="js/pkg-analisis.js?v=3"></script>
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.
@@ -2247,27 +2247,32 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
   </div>
 
 
-  <!-- [DIAGNOSA RELOAD - sementara] Menampilkan banner 10 detik bila halaman dimuat ulang (bukan buka biasa): jenis navigasi,
-       apakah tab dibuang browser (document.wasDiscarded, Chrome), dan berapa detik tab ditinggalkan. Hapus blok ini setelah penyebab diketahui. -->
+  <!-- [DIAGNOSA RELOAD - sementara v2] Mencatat kejadian terakhir sebelum halaman dimuat ulang (disimpan di sessionStorage 'dx_log') dan
+       menampilkannya 20 detik sebagai banner. Pola: ada 'beforeunload/pagehide' di akhir = kode/halaman yang memuat ulang; tidak ada = renderer
+       dimatikan browser (memori habis) lalu dimuat ulang; ada 'controllerchange' = pembaruan service worker. Hapus blok ini setelah selesai. -->
   <script>
   (function () {
     try {
-      var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
-      var tipe = nav.type || (performance.navigation && ['navigate','reload','back_forward'][performance.navigation.type]) || '?';
-      var dibuang = (typeof document.wasDiscarded === 'boolean') ? (document.wasDiscarded ? 'YA' : 'tidak') : 'tidak diketahui';
-      var t0 = parseInt(sessionStorage.getItem('dx_hidden') || '0', 10);
-      var jeda = t0 ? Math.round((Date.now() - t0) / 1000) + ' dtk' : '-';
-      document.addEventListener('visibilitychange', function () { if (document.hidden) { try { sessionStorage.setItem('dx_hidden', String(Date.now())); } catch (e) {} } });
-      window.addEventListener('pagehide', function () { try { sessionStorage.setItem('dx_hidden', String(Date.now())); } catch (e) {} });
-      if (tipe === 'navigate' && dibuang !== 'YA' && !t0) return;     // buka pertama kali: tidak perlu banner
+      var KEY = 'dx_log', nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+      var tipe = nav.type || '?', dibuang = (typeof document.wasDiscarded === 'boolean') ? (document.wasDiscarded ? 'YA' : 'tidak') : '?';
+      function ambil() { try { return JSON.parse(sessionStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+      function catat(x) { try { var a = ambil(); a.push([Date.now(), x]); if (a.length > 14) a = a.slice(-14); sessionStorage.setItem(KEY, JSON.stringify(a)); } catch (e) { } }
+      var lama = ambil(), sekarang = Date.now();
+      catat('muat:' + tipe);
+      document.addEventListener('visibilitychange', function () { catat(document.hidden ? 'hidden' : 'visible'); });
+      window.addEventListener('beforeunload', function () { catat('beforeunload'); });
+      window.addEventListener('pagehide', function (e) { catat('pagehide' + (e.persisted ? '(bfcache)' : '')); });
+      if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('controllerchange', function () { catat('controllerchange'); });
+      if (tipe === 'navigate' && dibuang !== 'YA') return;
       window.addEventListener('DOMContentLoaded', function () {
+        var ur = lama.slice(-7).map(function (r) { return Math.round((r[0] - sekarang) / 1000) + 's ' + r[1]; }).join(' | ') || '(tidak ada catatan)';
         var d = document.createElement('div');
-        d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#111;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:8px 10px;border-radius:8px;opacity:.92';
-        d.textContent = 'ℹ️ Dimuat ulang • jenis: ' + tipe + ' • dibuang browser: ' + dibuang + ' • ditinggal: ' + jeda;
-        document.body.appendChild(d); setTimeout(function () { d.remove(); }, 10000);
-        try { sessionStorage.removeItem('dx_hidden'); } catch (e) {}
+        d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#111;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:8px 10px;border-radius:8px;opacity:.94;word-break:break-word';
+        d.textContent = 'ℹ️ Dimuat ulang • jenis: ' + tipe + ' • dibuang: ' + dibuang + ' • kejadian sebelumnya: ' + ur;
+        d.onclick = function () { d.remove(); };
+        document.body.appendChild(d); setTimeout(function () { d.remove(); }, 20000);
       });
-    } catch (e) {}
+    } catch (e) { }
   })();
   </script>
 </body>

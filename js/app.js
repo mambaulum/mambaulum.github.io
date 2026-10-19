@@ -996,6 +996,7 @@
         // tab memakai app shell yang sama (dipicu dari showUpdateAvailableToast).
         let reloadedForUpdate = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!window._swUserUpdate) return;   // dulu: reload otomatis tiap SW baru mengambil alih (mis. dipicu tab/jendela lain)
           if (reloadedForUpdate) return;
           reloadedForUpdate = true;
           window.location.reload();
@@ -1015,6 +1016,7 @@
     let _updateDialogDitunda = false;
     // Aktifkan versi baru. Bila controllerchange (reload otomatis) tak terpicu dalam 4 dtk, muat ulang manual.
     function terapkanUpdateSW(reg) {
+      window._swUserUpdate = true;   // controllerchange hanya me-reload bila pengguna sendiri menekan Perbarui
       if (reg.waiting) { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); setTimeout(() => window.location.reload(), 4000); }
       else window.location.reload();
     }
