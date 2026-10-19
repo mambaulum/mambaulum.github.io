@@ -406,7 +406,7 @@
 
   // Kemajuan penilaian untuk guru yang dinilai SEBELUM diajukan: hanya JUMLAH indikator yang sudah diisi penilai,
   // tidak pernah skor/predikat. Murni tampilan (tanpa Rules baru). Mode: 'angka' | 'bar' | 'keduanya'.
-  var PROGRES_GURU_MODE = 'angka';
+  var PROGRES_GURU_MODE = 'keduanya';
   function progresGuruHtml(x, boleh) {
     var u = me();
     if (!u || x.g.key !== u.key || boleh || !x.n || !x.n.skor) return null;
@@ -493,7 +493,8 @@
     });
     h += '<div class="pkg-sticky"><div id="pkgTotal" style="font-size:13px"></div><div style="display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn btn-soft" data-act="simpan-draft">💾 Simpan Draft</button>' +
-      '<button class="btn btn-success" data-act="ajukan">📨 Ajukan ke Guru</button></div></div>';
+      '<button class="btn btn-success" data-act="ajukan">📨 Ajukan ke Guru</button></div>' +
+      '<div class="text-muted" style="flex-basis:100%;font-size:11px">ℹ️ Progres penilaian baru terlihat oleh guru yang dinilai setelah draft disimpan.</div></div>';
     return h;
   }
 
@@ -1668,7 +1669,7 @@
     }, 'Gagal menyimpan: ');
   }
 
-  // ---------- cetak (F4) ----------
+  // ---------- cetak (A4) ----------
   // isiAtauFn: string HTML, atau fungsi yang mengembalikan string / Promise<string> (mis. perlu memuat bukti dulu).
   // Jendela tetap dibuka SINKRON dari klik supaya tidak diblokir popup; isinya ditulis sesudah siap.
   function bukaCetak(judul, isiAtauFn) {
@@ -1679,7 +1680,7 @@
     var kop = '<div style="display:flex;gap:12px;align-items:center;border-bottom:3px double #000;padding-bottom:8px;margin-bottom:12px">' +
       (logo ? '<img src="' + esc(logo) + '" style="width:64px;height:64px;object-fit:contain" onerror="this.style.display=\'none\'">' : '') +
       '<div style="text-align:center;flex:1"><div style="font-weight:700;font-size:15px">' + esc(M.nama) + '</div><div style="font-size:11px">' + esc(M.alamat || M.jalan || '') + '</div></div></div>';
-    var rakit = function (isi) { return ('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(judul) + '</title><style>@page{size:215mm 330mm;margin:14mm}body{font-family:Arial,sans-serif;font-size:12px;color:#000}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #000;padding:4px 6px;vertical-align:top}th{background:#eee}h3{text-align:center;margin:6px 0 10px;font-size:14px}.ttd{display:flex;justify-content:space-around;margin-top:28px;text-align:center}.ttd>div{width:30%}.noprint{margin-bottom:10px}.ket{font-size:10.5px;color:#333}@media print{.noprint{display:none}}</style></head><body><div class="noprint"><button onclick="window.print()">🖨️ Cetak</button></div>' + kop + isi + '</body></html>'); };
+    var rakit = function (isi) { return ('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(judul) + '</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;font-size:12px;color:#000}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #000;padding:4px 6px;vertical-align:top}th{background:#eee}h3{text-align:center;margin:6px 0 10px;font-size:14px}.ttd{display:flex;justify-content:space-around;margin-top:28px;text-align:center}.ttd>div{width:30%}.noprint{margin-bottom:10px}.ket{font-size:10.5px;color:#333}@media print{.noprint{display:none}}</style></head><body><div class="noprint"><button onclick="window.print()">🖨️ Cetak</button></div>' + kop + isi + '</body></html>'); };
     // Tanda tangan QR (ttd-digital.js): penanda [[TTD:...]] diganti QR/gambar. Jendela sudah dibuka sinkron
     // di atas supaya tidak diblokir popup; isinya ditulis setelah QR selesai dibuat.
     var tanpaTtd = function (t) { return t.replace(/\[\[TTD:[a-z_]+:[^\]\s]+\]\]/g, ''); };
