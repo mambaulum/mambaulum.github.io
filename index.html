@@ -115,7 +115,7 @@
   <script defer src="js/pkg-sumber.js?v=7"></script>
   <!-- Butir angket PKG (peserta didik / orang tua / sejawat) + rumus rekap; dipakai pkg.js dan angket.html. WAJIB sebelum pkg.js. -->
   <script defer src="js/data-pkg-angket.js?v=4"></script>
-  <script defer src="js/pkg.js?v=51"></script>
+  <script defer src="js/pkg.js?v=55"></script>
   <!-- Tab Analisis PKG (dasbor, RTL, perbandingan periode, ekspor Excel). WAJIB sesudah pkg.js. -->
   <script defer src="js/pkg-analisis.js?v=3"></script>
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.
@@ -2246,42 +2246,5 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
     <div id="debugContent" style="background:#f1f5f9;padding:12px;border-radius:8px;font-size:12px;white-space:pre-wrap;max-height:300px;overflow:auto;">Loading...</div>
   </div>
 
-
-  <!-- [DIAGNOSA RELOAD - sementara v3] Mencatat kejadian terakhir sebelum halaman dimuat ulang (disimpan di sessionStorage 'dx_log') dan
-       menampilkannya 20 detik sebagai banner. Pola: ada 'beforeunload/pagehide' di akhir = kode/halaman yang memuat ulang; tidak ada = renderer
-       dimatikan browser (memori habis) lalu dimuat ulang; ada 'controllerchange' = pembaruan service worker. Hapus blok ini setelah selesai. -->
-  <script>
-  (function () {
-    try {
-      var KEY = 'dx_log', nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
-      var tipe = nav.type || '?', dibuang = (typeof document.wasDiscarded === 'boolean') ? (document.wasDiscarded ? 'YA' : 'tidak') : '?';
-      function ambil() { try { return JSON.parse(sessionStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
-      function catat(x) { try { var a = ambil(); a.push([Date.now(), x]); if (a.length > 14) a = a.slice(-14); sessionStorage.setItem(KEY, JSON.stringify(a)); } catch (e) { } }
-      var lama = ambil(), sekarang = Date.now();
-      catat('muat:' + tipe);
-      document.addEventListener('visibilitychange', function () { catat(document.hidden ? 'hidden' : 'visible'); });
-      window.addEventListener('beforeunload', function () { catat('beforeunload'); });
-      window.addEventListener('pagehide', function (e) { catat('pagehide' + (e.persisted ? '(bfcache)' : '')); });
-      if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('controllerchange', function () { catat('controllerchange'); });
-      // v3: Navigation API (Chrome 102+). Muat ulang yang dipanggil SKRIP halaman (location.reload) tercatat sebagai 'nav:reload:skrip' beserta
-      // berkas:baris pemanggilnya. Muat ulang dari ekstensi/UI browser TIDAK memicu event ini (hanya beforeunload/pagehide).
-      try {
-        if (window.navigation && navigation.addEventListener) navigation.addEventListener('navigate', function (e) {
-          var st = (new Error().stack || '').split('\n').slice(1).map(function (l) { var m = l.match(/([A-Za-z0-9_.\-]+\.(?:js|html))[^:\s)]*:(\d+)/); return m ? m[1] + ':' + m[2] : ''; }).filter(Boolean).slice(0, 4).join('>');
-          catat('nav:' + e.navigationType + (e.userInitiated ? ':user' : ':skrip') + (st ? ' [' + st + ']' : ' [tanpa jejak]'));
-        });
-      } catch (e) { }
-      if (tipe === 'navigate' && dibuang !== 'YA') return;
-      window.addEventListener('DOMContentLoaded', function () {
-        var ur = lama.slice(-10).map(function (r) { return Math.round((r[0] - sekarang) / 1000) + 's ' + r[1]; }).join(' | ') || '(tidak ada catatan)';
-        var d = document.createElement('div');
-        d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#111;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:8px 10px;border-radius:8px;opacity:.94;word-break:break-word';
-        d.textContent = 'ℹ️ Dimuat ulang • jenis: ' + tipe + ' • dibuang: ' + dibuang + ' • kejadian sebelumnya: ' + ur;
-        d.onclick = function () { d.remove(); };
-        document.body.appendChild(d); setTimeout(function () { d.remove(); }, 20000);
-      });
-    } catch (e) { }
-  })();
-  </script>
 </body>
 </html>
