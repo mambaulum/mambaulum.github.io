@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js
+   SI MAMBA - js/pkg.js  (v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -74,7 +74,7 @@
     belum: '#6b7280', draft: '#b45309', diajukan: '#1d4ed8', disetujui: '#15803d', keberatan: '#b91c1c', ditetapkan: '#166534'
   };
 
-  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'ringkasan', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, rtl: {}, rtlGagal: {}, rtlMuat: {}, angket: {}, jatah: [], jatahId: 0, otoDari: '', otoSampai: '', skpen: {}, skset: null, skGagal: false, sv: {}, svGagal: {}, svKotor: false, kd: null, kdMuat: false, ww: {}, wwGagal: {}, wwKotor: false };
+  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'daftar', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, rtl: {}, rtlGagal: {}, rtlMuat: {}, angket: {}, jatah: [], jatahId: 0, otoDari: '', otoSampai: '', skpen: {}, skset: null, skGagal: false, sv: {}, svGagal: {}, svKotor: false, kd: null, kdMuat: false, ww: {}, wwGagal: {}, wwKotor: false };
 
   // ---------- util ----------
   function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -293,11 +293,12 @@
     if (S.view === 'supervisi') { r.innerHTML = h + svForm(S.gk); return; }
     if (S.view === 'wawancara') { r.innerHTML = h + wwForm(S.gk); return; }
     h += tabsHtml();
-    if (S.tab === 'pengaturan' && bolehKelola()) h += pengaturanHtml();
-    else if (S.tab === 'analisis' && bolehKelola()) h += analisisHtml();
-    else if (S.tab === 'kendali' && bolehKelola()) h += kendaliHtml();
-    else if (S.tab === 'daftar') h += daftarHtml();
-    else h += jatahKartu() + ringkasanHtml();
+    var tb = bolehKelola() ? S.tab : 'daftar';
+    if (tb === 'pengaturan') h += pengaturanHtml();
+    else if (tb === 'analisis') h += analisisHtml();
+    else if (tb === 'kendali') h += kendaliHtml();
+    else if (tb === 'ringkasan') h += ringkasanHtml();
+    else h += jatahKartu() + pengingatJadwalHtml() + langkahHtml() + daftarHtml();
     r.innerHTML = h;
   }
 
@@ -309,11 +310,12 @@
     }).join('') + '</select>';
   }
   function tabsHtml() {
-    var t = [['ringkasan', '🏠 Ringkasan'], ['daftar', '👨‍🏫 Daftar Guru']];
-    if (bolehKelola()) t.push(['analisis', '📊 Analisis']);
-    if (bolehKelola()) t.push(['kendali', '🧪 Pengendalian']);
-    if (bolehKelola()) t.push(['pengaturan', '⚙️ Pengaturan']);
-    return '<div class="pkg-tabs">' + t.map(function (x) { return '<button type="button" class="pkg-tab' + (S.tab === x[0] ? ' on' : '') + '" data-act="tab" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    if (!bolehKelola()) return '';
+    var t = [['daftar', '👨‍🏫 Guru'], ['ringkasan', '📊 Ringkasan'], ['pengaturan', '⚙️ Pengaturan'], ['analisis', '🧰 Lainnya']];
+    var tmb = function (x, on) { return '<button type="button" class="pkg-tab' + (on ? ' on' : '') + '" data-act="tab" data-tab="' + x[0] + '">' + x[1] + '</button>'; };
+    var h = '<div class="pkg-tabs">' + t.map(function (x) { return tmb(x, S.tab === x[0] || (x[0] === 'analisis' && S.tab === 'kendali')); }).join('') + '</div>';
+    if (S.tab === 'analisis' || S.tab === 'kendali') h += '<div class="pkg-tabs">' + [['analisis', '📊 Analisis'], ['kendali', '🧪 Pengendalian']].map(function (x) { return tmb(x, S.tab === x[0]); }).join('') + '</div>';
+    return h;
   }
 
   // ----- Ringkasan -----
@@ -430,21 +432,60 @@
       '<div class="pkg-bar" style="margin-top:6px"><i style="width:' + pct + '%"></i></div></div>';
   }
 
-  // ----- Daftar guru -----
+  // ----- Daftar guru (v45: satu tombol utama per baris; sisanya di menu "Lainnya") -----
+  function aksiUtama(x, u) {
+    var gk = x.g.key, boleh = hasilTerlihat(gk, x.st);
+    if (gk === u.key && x.st === 'diajukan') return ['hasil', '✅ Tinjau & Setujui', 'btn-success'];
+    if (kep() && x.st === 'disetujui') return ['hasil', '📌 Tinjau & Tetapkan', 'btn-success'];
+    if (bolehMenilai(gk) && !selesai(x.st) && x.st !== 'diajukan') return ['nilai', x.st === 'belum' ? '✏️ Nilai' : (x.st === 'keberatan' ? '✏️ Revisi' : '✏️ Lanjut'), 'btn-primary'];
+    if (x.h && boleh) return ['hasil', '👁️ Lihat', 'btn-soft'];
+    if (gk === u.key) return ['bukti', '📂 Isi Bukti', 'btn-soft'];
+    return null;
+  }
+  function aksiLain(x, u, ut) {
+    var gk = x.g.key, boleh = hasilTerlihat(gk, x.st), akses = gk === u.key || bolehMenilai(gk) || lihatSemua(), a = [];
+    var tmb = function (act, teks) { return (ut && ut[0] === act) ? '' : '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="' + act + '" data-gk="' + esc(gk) + '">' + teks + '</button>'; };
+    if (x.h && boleh) a.push(tmb('hasil', '👁️ Lihat hasil'));
+    if (x.h && boleh && akses) a.push(tmb('cetak', '🖨️ Cetak laporan'));
+    if (bolehMenilai(gk) && x.st === 'diajukan') a.push(tmb('tarik', '↩️ Tarik kembali'));
+    if (akses) { a.push(tmb('bukti', '📂 Bukti')); a.push(tmb('perangkat', '📋 Perangkat cetak')); }
+    return a.join('');
+  }
+  // Satu kotak "Langkah berikutnya": apa yang perlu dilakukan pengguna ini sekarang.
+  function langkahHtml() {
+    var u = me(); if (!u) return '';
+    var rows = barisGuru(), p = [], nilai = 0, tetap = 0;
+    rows.forEach(function (x) {
+      var gk = x.g.key;
+      if (gk === u.key) {
+        if (x.st === 'diajukan') p.push('Hasil penilaian Anda sudah masuk. Tekan <b>Tinjau &amp; Setujui</b>, lalu pilih Setuju atau Keberatan.');
+        else if (x.st === 'belum' || x.st === 'draft') p.push('Siapkan bukti Anda lewat tombol <b>Isi Bukti</b>' + (x.t && x.t.jadwal ? ' sebelum pengamatan ' + fmtTgl(x.t.jadwal) : '') + '. Penilai akan menilai sesudahnya.');
+        else if (x.st === 'keberatan') p.push('Keberatan Anda sedang ditinjau penilai dan Kepala Madrasah.');
+        else if (x.st === 'disetujui') p.push('Anda sudah setuju. Menunggu penetapan Kepala Madrasah.');
+        else if (x.st === 'ditetapkan') p.push('PKG Anda sudah ditetapkan. Laporan bisa dicetak lewat <b>Lihat</b>.');
+      }
+      if (penilaiYa(gk) && !selesai(x.st) && x.st !== 'diajukan') nilai++;
+      if (kep() && x.st === 'disetujui') tetap++;
+    });
+    if (nilai) p.push('Anda perlu menilai <b>' + nilai + '</b> guru. Tekan tombol <b>Nilai</b> / <b>Lanjut</b> pada barisnya.');
+    if (tetap) p.push('<b>' + tetap + '</b> hasil menunggu penetapan Anda.');
+    if (!p.length) return '';
+    return '<div class="card" style="background:#ecfdf5;border:1px solid #a7f3d0"><b>📌 Langkah berikutnya</b><ul style="margin:6px 0 0 18px;font-size:13px">' + p.map(function (b) { return '<li>' + b + '</li>'; }).join('') + '</ul></div>';
+  }
   function daftarHtml() {
     var rows = barisGuru(), u = me();
     if (!rows.length) return '<div class="card"><p class="text-muted">Tidak ada guru yang bisa ditampilkan untuk Anda pada periode ini.</p></div>';
-    var h = ringkasanPenilaiHtml(rows) + '<div class="card" style="overflow-x:auto"><table><thead><tr><th>No</th><th>Nama Guru</th><th>Penilai</th><th>Jadwal</th><th>Status</th><th>Nilai</th><th>Predikat</th><th></th></tr></thead><tbody>';
-    rows.forEach(function (x, i) {
-      var gk = x.g.key, tombol = '';
-      if (bolehMenilai(gk) && !selesai(x.st) && x.st !== 'diajukan') tombol += '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px" data-act="nilai" data-gk="' + esc(gk) + '">' + (x.st === 'belum' ? 'Nilai' : 'Lanjut') + '</button> ';
-      var boleh = hasilTerlihat(gk, x.st);
-      if (x.h && boleh) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="hasil" data-gk="' + esc(gk) + '">Lihat</button> ';
-      if (x.h && boleh && (gk === u.key || bolehMenilai(gk) || lihatSemua())) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="cetak" data-gk="' + esc(gk) + '">🖨️</button> ';
-      if (gk === u.key || bolehMenilai(gk) || lihatSemua()) tombol += '<button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="bukti" data-gk="' + esc(gk) + '" title="Isi bukti di aplikasi">📂 Bukti</button> <button class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="perangkat" data-gk="' + esc(gk) + '" title="Perangkat penilaian (cetak)">📋</button>';
-      h += '<tr><td>' + (i + 1) + '</td><td>' + esc(x.g.name) + '</td><td>' + (x.t ? esc(tampil(x.t.penilaiNama) || namaGuru(x.t.penilaiKey)) : '<span class="text-muted">belum ditugaskan</span>') + '</td><td>' + (x.t && x.t.jadwal ? fmtTgl(x.t.jadwal) : '-') +
-        '</td><td>' + chip(x.st) + (x.st === 'disetujui' ? '<div class="text-muted" style="font-size:11px;margin-top:3px">menunggu pengesahan Kepala</div>' : '') + '</td><td>' + (x.h && boleh ? (x.h.lengkap ? f1(x.h.nilai100) : '<span class="text-muted">' + jumlahTerisi(x.n.skor) + '/' + P.totalIndikator() + ' terisi</span>' + (penilaiYa(gk) ? '<div class="pkg-bar" style="margin-top:4px;min-width:90px"><i style="width:' + Math.round(jumlahTerisi(x.n.skor) / P.totalIndikator() * 100) + '%"></i></div>' : '')) : (progresGuruHtml(x, boleh) || '-')) +
-        '</td><td>' + (x.h && boleh && x.h.lengkap ? predChip(x.h) : '-') + '</td><td style="white-space:nowrap">' + tombol + '</td></tr>';
+    var h = ringkasanPenilaiHtml(rows) + '<div class="card" style="overflow-x:auto"><table><thead><tr><th>Guru</th><th>Status</th><th></th></tr></thead><tbody>';
+    rows.forEach(function (x) {
+      var gk = x.g.key, boleh = hasilTerlihat(gk, x.st), ut = aksiUtama(x, u), lain = aksiLain(x, u, ut), info = [], nl = '';
+      info.push(x.t ? 'Penilai: ' + esc(tampil(x.t.penilaiNama) || namaGuru(x.t.penilaiKey)) : 'belum ditugaskan');
+      if (x.t && x.t.jadwal) info.push('Jadwal: ' + fmtTgl(x.t.jadwal));
+      if (x.h && boleh) nl = x.h.lengkap ? '<div style="font-size:12px;margin-top:3px"><b>' + f1(x.h.nilai100) + '</b> ' + predChip(x.h) + '</div>' : '<div class="text-muted" style="font-size:11px;margin-top:3px">' + jumlahTerisi(x.n.skor) + '/' + P.totalIndikator() + ' terisi</div>';
+      else { var pg = progresGuruHtml(x, boleh); if (pg) nl = '<div style="margin-top:3px">' + pg + '</div>'; }
+      h += '<tr><td><b>' + esc(x.g.name) + '</b><div class="text-muted" style="font-size:11px">' + info.join(' &bull; ') + '</div></td>' +
+        '<td>' + chip(x.st) + (x.st === 'disetujui' ? '<div class="text-muted" style="font-size:11px;margin-top:3px">menunggu pengesahan Kepala</div>' : '') + nl + '</td>' +
+        '<td style="white-space:nowrap">' + (ut ? '<button class="btn ' + ut[2] + '" style="padding:5px 12px;font-size:12px" data-act="' + ut[0] + '" data-gk="' + esc(gk) + '">' + ut[1] + '</button>' : '') +
+        (lain ? ' <details style="display:inline-block;position:relative;vertical-align:middle"><summary style="cursor:pointer;list-style:none;padding:5px 9px;border-radius:8px;background:#f3f4f6;font-size:12px">⋯ Lainnya</summary><div style="position:absolute;right:0;z-index:5;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:170px;box-shadow:0 4px 14px rgba(0,0,0,.12)">' + lain + '</div></details>' : '') + '</td></tr>';
     });
     h += '</tbody></table></div>';
     if (lihatSemua()) h += '<div style="margin-top:8px"><button class="btn btn-success" data-act="cetak-rekap">🖨️ Cetak Rekap Nilai (semua guru)</button> <button class="btn btn-soft" data-act="cetak-skset">📄 Cetak SK Penetapan Hasil PKG</button></div>';
@@ -489,7 +530,7 @@
         var key = k.no + '_' + (i + 1), label = k.no + '.' + (i + 1), v = d.skor[key];
         h += '<div class="pkg-ind"><p><b>' + label + '</b> ' + esc(ind.t) + '</p><ul class="pkg-bukti">' + ind.b.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join('') + '</ul>' + panelBuktiForm(gk, key) +
           [0, 1, 2].map(function (s) { return '<label class="pkg-opt"><input type="radio" name="sk_' + k.no + '_' + (i + 1) + '" data-k="' + k.no + '" data-i="' + (i + 1) + '" value="' + s + '"' + (v === s ? ' checked' : '') + '> ' + s + '</label>'; }).join('') +
-          '<input class="field pkg-cat" data-cat="' + key + '" placeholder="Catatan fakta / bukti yang ditemukan (opsional)" value="' + esc(d.catatan[key] || '') + '"></div>';
+          '<input class="field pkg-cat" maxlength="1000" data-cat="' + key + '" placeholder="Catatan fakta / bukti yang ditemukan (opsional)" value="' + esc(d.catatan[key] || '') + '"></div>';
       });
       h += '</details>';
     });
@@ -614,9 +655,10 @@
     }).join('') + '</tbody></table>';
     if (lemah.length) o += '<div style="margin-top:10px;font-size:13px"><b>Komponen yang perlu diprioritaskan dalam PKB</b> (nilai 1–2): ' + lemah.map(function (x) { return x.k.no + '. ' + esc(x.k.nama); }).join('; ') + '.</div>';
     o += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
-    if (gk === u.key && st === 'diajukan') o += '<button class="btn btn-success" data-act="setuju">✅ Saya Setuju</button><button class="btn btn-warning" data-act="keberatan">⚠️ Ajukan Keberatan</button>';
+    if (gk === u.key && st === 'diajukan') o += '<button class="btn btn-success" data-act="setuju">✅ Saya Setuju</button><button class="btn btn-warning" data-act="kb-buka">⚠️ Ajukan Keberatan</button>' + (S.kbForm ? '<div style="flex-basis:100%;padding:10px;border-radius:10px;background:#fffbeb"><label class="label">Alasan keberatan (wajib, maks. 1000 karakter)</label><textarea id="pkgKbAlasan" class="field" rows="4" maxlength="1000" style="width:100%">' + esc(S.kbTeks || '') + '</textarea><div style="margin-top:6px;display:flex;gap:6px"><button class="btn btn-warning" data-act="keberatan">Kirim Keberatan</button><button class="btn btn-soft" data-act="kb-batal">Batal</button></div></div>' : '');
     if (kep() && st === 'disetujui') o += '<button class="btn btn-success" data-act="tetapkan" data-gk="' + esc(gk) + '">📌 Tetapkan (Kepala Madrasah)</button>';
     if (kep() && st === 'keberatan') o += '<button class="btn btn-soft" data-act="nilai" data-gk="' + esc(gk) + '">✏️ Buka untuk direvisi penilai</button>';
+    if (bolehMenilai(gk) && st === 'diajukan') o += '<button class="btn btn-soft" data-act="tarik" data-gk="' + esc(gk) + '">↩️ Tarik Kembali</button>';
     o += '<button class="btn btn-soft" data-act="cetak" data-gk="' + esc(gk) + '">🖨️ Cetak Laporan</button></div>';
     if (st === 'keberatan' && n.persetujuan && n.persetujuan.alasan) o += '<div style="margin-top:10px;padding:10px;border-radius:10px;background:#fef2f2;font-size:13px"><b>Alasan keberatan guru:</b> ' + esc(n.persetujuan.alasan) + '<br><span class="text-muted">Juknis: difasilitasi internal oleh Kepala Madrasah; bila belum selesai, dilaporkan ke Kantor Kemenag untuk penilaian ulang.</span></div>';
     return o + '</div>' + rtlKartu(gk) + bandingKartuHasil(gk);
@@ -1525,11 +1567,13 @@
   function aksi(act, el) {
     var gk = el.getAttribute('data-gk') || S.gk, u = me();
     if (act === 'tab') { S.tab = el.getAttribute('data-tab'); S.view = 'list'; return render(); }
-    if (act === 'kembali') { S.view = 'list'; return render(); }
+    if (act === 'kembali') { S.view = 'list'; S.kbForm = false; return render(); }
+    if (act === 'kb-buka') { S.kbForm = true; return render(); }
+    if (act === 'kb-batal') { S.kbForm = false; return render(); }
     if (act === 'nilai') return bukaForm(gk);
     if (act === 'hasil') {
       if (!hasilTerlihat(gk, statusDari(S.nilai[gk]))) return pesan('Hasil belum diajukan oleh penilai.', true);
-      S.gk = gk; S.view = 'hasil'; render();
+      S.gk = gk; S.view = 'hasil'; S.kbForm = false; S.kbTeks = ''; render();
       muatBukti(gk, function () { if (S.view === 'hasil' && S.gk === gk) render(); });
       muatAngket(gk, function () { if (S.view === 'hasil' && S.gk === gk) render(); });
       return;
@@ -1544,6 +1588,13 @@
       if (terisi < P.totalIndikator()) return pesan('Masih ada ' + (P.totalIndikator() - terisi) + ' indikator yang belum diberi skor.', true);
       return simpanNilai('diajukan', function () { pesan('Hasil diajukan ke guru untuk persetujuan.'); S.view = 'hasil'; render(); });
     }
+    if (act === 'tarik') {
+      if (!u || !bolehMenilai(gk)) return pesan('Anda tidak berhak menarik pengajuan ini.', true);
+      if (!confirm('Tarik kembali hasil yang sudah diajukan? Hasil kembali menjadi draft dan tidak terlihat oleh guru sampai Anda mengajukan ulang.')) return;
+      var upd4 = { status: 'draft', persetujuan: null, diajukanAt: null, diperbarui: nowIso(), diperbaruiOleh: pengisi(u) };
+      return kerjakan(function () { return ubahNilai(gk, function (c) { return statusDari(c) === 'diajukan'; }, upd4); },
+        function (baru) { S.nilai[gk] = baru; if (typeof addLog === 'function') addLog('PKG tarik pengajuan', namaGuru(gk)); kabari(gk, 'PKG: pengajuan ditarik', 'Penilai menarik kembali hasil penilaian untuk diperbaiki. Anda akan diberi tahu saat diajukan ulang.'); S.view = 'list'; render(); pesan('Pengajuan ditarik; kembali ke draft.'); }, 'Gagal menarik kembali: ');
+    }
     if (act === 'setuju') {
       if (!u) return;
       var upd = { status: 'disetujui', persetujuan: { setuju: true, tanggal: nowIso(), oleh: pengisi(u) } };
@@ -1552,13 +1603,12 @@
     }
     if (act === 'keberatan') {
       if (!u) return;
-      var alasan = prompt('Tuliskan alasan keberatan Anda atas hasil penilaian:');
-      if (alasan === null) return;
-      alasan = alasan.trim(); if (!alasan) return pesan('Alasan keberatan wajib diisi.', true);
+      var ta = $('pkgKbAlasan'); if (!ta) { S.kbForm = true; return render(); }
+      var alasan = ta.value.trim(); if (!alasan) return pesan('Alasan keberatan wajib diisi.', true);
       if (alasan.length > 1000) return pesan('Alasan keberatan terlalu panjang (' + alasan.length + ' karakter; maksimal 1000). Mohon diringkas.', true);
       var upd2 = { status: 'keberatan', persetujuan: { setuju: false, alasan: alasan, tanggal: nowIso(), oleh: pengisi(u) } };
       return kerjakan(function () { return ubahNilai(u.key, function (c) { return statusDari(c) === 'diajukan'; }, upd2); },
-        function (baru) { S.nilai[u.key] = baru; if (typeof addLog === 'function') addLog('PKG keberatan', namaGuru(u.key)); kabari((tugasDari(u.key) || {}).penilaiKey, 'PKG: guru mengajukan keberatan', namaGuru(u.key) + ' mengajukan keberatan atas hasil penilaiannya. Lihat alasannya di menu PKG Guru.'); pesan('Keberatan tercatat dan diteruskan ke Kepala Madrasah.'); render(); });
+        function (baru) { S.nilai[u.key] = baru; S.kbForm = false; S.kbTeks = ''; if (typeof addLog === 'function') addLog('PKG keberatan', namaGuru(u.key)); kabari((tugasDari(u.key) || {}).penilaiKey, 'PKG: guru mengajukan keberatan', namaGuru(u.key) + ' mengajukan keberatan atas hasil penilaiannya. Lihat alasannya di menu PKG Guru.'); pesan('Keberatan tercatat dan diteruskan ke Kepala Madrasah.'); render(); });
     }
     if (act === 'tetapkan') {
       if (!u || !kep()) return;
@@ -2935,6 +2985,7 @@
       });
       div.addEventListener('input', function (ev) {
         var t = ev.target; if (S.view === 'supervisi') S.svKotor = true; if (S.view === 'wawancara') S.wwKotor = true;
+        if (t.id === 'pkgKbAlasan') S.kbTeks = t.value;
         if (t.getAttribute && t.getAttribute('data-cat') && S.draft) { S.draft.catatan[t.getAttribute('data-cat')] = t.value; simpanLokal(); }
         if (t.getAttribute && t.getAttribute('data-diri-r') && S.gk) { (S.diriDraft = S.diriDraft || {})[S.gk + '|r|' + t.getAttribute('data-diri-r')] = t.value; }
         if (t.getAttribute && t.getAttribute('data-pra') && S.gk) { (S.praDraft = S.praDraft || {})[S.gk + '|' + t.getAttribute('data-pra')] = t.value; }
@@ -2965,9 +3016,9 @@
     var t = $('pageTitle'); if (t) t.textContent = 'PKG Guru';
     var u = me();
     // Pengguna berganti (logout/login) di tab yang sama: jangan bawa data/draft pengguna sebelumnya.
-    if (u && S.userKey !== u.key) { S.userKey = u.key; S.periodeList = {}; S.periodeId = null; S.tugas = {}; S.nilai = {}; S.bukti = {}; S.skpen = {}; S.skset = null; S.sv = {}; S.ww = {}; S.kd = null; S.kdMuat = false; S.draft = null; S.gk = null; S.tab = 'ringkasan'; }
+    if (u && S.userKey !== u.key) { S.userKey = u.key; S.periodeList = {}; S.periodeId = null; S.tugas = {}; S.nilai = {}; S.bukti = {}; S.skpen = {}; S.skset = null; S.sv = {}; S.ww = {}; S.kd = null; S.kdMuat = false; S.draft = null; S.gk = null; S.tab = 'daftar'; }
     S.view = 'list';
-    if (u && !bolehKelola() && (S.tab === 'pengaturan' || S.tab === 'analisis' || S.tab === 'kendali')) S.tab = 'ringkasan';
+    if (u && !bolehKelola() && (S.tab === 'pengaturan' || S.tab === 'analisis' || S.tab === 'kendali')) S.tab = 'daftar';
     muat();
   }
 
