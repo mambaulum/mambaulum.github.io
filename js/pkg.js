@@ -882,6 +882,7 @@
       var v = String(t.value || '').trim(); if (v) { pra[t.getAttribute('data-pra')] = potong(v, MAKS_PRA); n++; }
     });
     var upd = aman({ pra: n ? pra : null, praAt: n ? nowIso() : null, praOleh: n ? pengisi(u) : null });
+    pesan('Menyimpan isian…');
     kerjakan(function () { return db.ref(nodeBukti(gk)).update(upd); }, function () {
       var d = S.bukti[kb(gk)] || (S.bukti[kb(gk)] = {});
       d.pra = upd.pra || null; d.praAt = upd.praAt || null; d.praOleh = upd.praOleh || null; S.praDraft = {};
@@ -1471,11 +1472,20 @@
   }
   // Satu aksi tulis pada satu waktu (cegah klik ganda / simpan ganda).
   function kerjakan(buat, ok, awalan, batasMs) {
-    if (S.menyimpan) return;
-    S.menyimpan = true;
+    if (S.menyimpan) {   // dulu diam saja: kini selalu ada keterangan, dan kunci yang macet >25 dtk dilepas
+      if (Date.now() - (S.menyimpanSejak || 0) < 25000) { pesan('Masih menyimpan, tunggu sebentar lalu coba lagi.', true); return; }
+      S.menyimpan = false;
+    }
+    S.menyimpan = true; S.menyimpanSejak = Date.now();
     var p; try { p = denganBatas(siapSesi().then(function () { return buat(); }), batasMs || 20000); } catch (e) { p = Promise.reject(e); }
     return p.then(function (v) { S.menyimpan = false; if (ok) ok(v); },
-      function (e) { S.menyimpan = false; pesan((awalan || 'Gagal: ') + ((e && e.message) || e), true); });
+      function (e) {
+        S.menyimpan = false;
+        try { console.error('[SI MAMBA][PKG] simpan gagal:', e); } catch (x) { }
+        var m = String((e && e.message) || e);
+        if (/permission_denied|permission denied/i.test(m)) m = 'Ditolak Firebase (hak akses). Keluar lalu masuk lagi; bila tetap, minta Admin memeriksa kredensial akun ini (🛡️ Keamanan Login) dan Rules. Rincian: ' + m;
+        pesan((awalan || 'Gagal: ') + m, true);
+      });
   }
   // Baca ulang data terbaru, pastikan perubahan status MASIH diizinkan, baru tulis. Mencegah menimpa status
   // yang sudah berubah dari perangkat lain (mis. guru sudah menyetujui, penilai masih memegang form lama).
