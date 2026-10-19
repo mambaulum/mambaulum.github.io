@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -1574,6 +1574,8 @@
   function simpanNilai(status, ok) {
     var gk = S.gk, u = me(), t = tugasDari(gk) || {};
     if (!u || !bolehMenilai(gk)) return pesan('Tidak berhak menilai guru ini.', true);
+    var cp = S.draft.catatan || {}, pj = Object.keys(cp).filter(function (k) { return String(cp[k] || '').length > 1000; });
+    if (pj.length) return pesan('Catatan indikator ' + pj.map(function (k) { return k.replace('_', '.'); }).join(', ') + ' lebih dari 1000 karakter (batas Rules). Persingkat dulu agar bisa disimpan.', true);
     var data = {
       skor: S.draft.skor, catatan: S.draft.catatan, status: status, hasil: rekamHasil(S.draft.skor),
       penilaiKey: t.penilaiKey || u.key, penilaiNama: tampil(t.penilaiNama) || namaGuru(t.penilaiKey || u.key),
