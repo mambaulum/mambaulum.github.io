@@ -742,7 +742,7 @@
     // ============================================================
     function updateLogoByMode() {
       const logoLight = 'logo/logo-lembaga.png';
-      const logoDark = 'logo/logo-lembaga-white.png';
+      const logoDark = 'logo/logo-lembaga.png'; // versi putih belum ada di repo; pakai logo biasa
       const sidebarLogo = document.getElementById('sidebarLogo');
       const dashboardLogo = document.getElementById('dashboardLogo');
       

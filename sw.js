@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v7.87';
+const APP_VERSION = 'v7.88';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -80,7 +80,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=3',
-  './js/app.js?v=89',
+  './js/app.js?v=90',
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=7',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
@@ -126,7 +126,6 @@ const PRECACHE_URLS = [
   './icons/icon-v2-maskable-512x512.png',
   './icons/apple-touch-icon-v2-180x180.png',
   './logo/logo-lembaga.png',
-  './logo/logo-lembaga-white.png',
 ];
 
 // Domain Firebase (Realtime Database, Auth, Storage) & domain lain yang
