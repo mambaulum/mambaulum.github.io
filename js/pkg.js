@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -190,6 +190,7 @@
       .catch(function (e) {
         if (basi()) return;
         S.memuat = false; render();
+        if (/permission_denied/i.test(String((e && e.message) || e))) tawarGantiKunciKepala();
         pesan('PKG: gagal memuat data (' + ((e && e.message) || e) + '). Pastikan Rules pkg_v4_* sudah dipublikasikan dan sesi login Anda aktif (keluar lalu masuk lagi bila perlu).', true);
       });
   }
@@ -510,6 +511,7 @@
     });
     h += '</tbody></table></div>';
     if (kep() && rows.some(function (x) { return x.st === 'disetujui'; })) h += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-soft" data-act="pilih-semua">☑️ Pilih semua yang siap</button><button class="btn btn-success" data-act="tetapkan-pilih">📌 Tetapkan yang dipilih</button></div>';
+    if (kep() && !adm()) h += '<div style="margin-top:8px"><button class="btn btn-soft" data-act="ganti-kunci-kepala">🔑 Ganti Kunci Kepala</button></div>';
     if (lihatSemua()) h += '<div style="margin-top:8px"><button class="btn btn-success" data-act="cetak-rekap">🖨️ Cetak Rekap Nilai (semua guru)</button> <button type="button" class="btn btn-soft" data-pa="excel">📥 Unduh Excel</button> <button type="button" class="btn btn-soft" data-act="ingatkan-semua">🔔 Ingatkan yang tertunda</button> <button class="btn btn-soft" data-act="cetak-skset">📄 Cetak SK Penetapan Hasil PKG</button></div>';
     return h;
   }
@@ -720,6 +722,7 @@
       S.bukti[kunci] = s.val() || {};
     }).catch(function (e) {
       if (!S.bukti[kunci]) S.bukti[kunci] = {};
+      if (/permission_denied/i.test(String((e && e.message) || e))) tawarGantiKunciKepala();
       pesan('Bukti PKG: gagal memuat (' + ((e && e.message) || e) + '). Pastikan Firebase Rules untuk pkg_v4_bukti sudah ditambahkan.', true);
     }).then(function () { if (cb) cb(); });
   }
@@ -1543,6 +1546,16 @@
     });
   }
   // Satu aksi tulis pada satu waktu (cegah klik ganda / simpan ganda).
+  // Kepala ditolak Firebase hampir selalu karena Kunci Kepala di perangkat salah/berubah (panel Keamanan Login hanya untuk Admin).
+  function tawarGantiKunciKepala() {
+    if (!kep() || adm() || typeof window.kredKepsekGantiKunci !== 'function') return;
+    if (S.tawarSejak && Date.now() - S.tawarSejak < 60000) return;
+    S.tawarSejak = Date.now();
+    setTimeout(function () {
+      if (!confirm('Akses ditolak Firebase. Kunci Kepala di perangkat ini mungkin salah atau sudah berubah.\n\nMasukkan ulang Kunci Kepala sekarang?')) return;
+      window.kredKepsekGantiKunci().then(function () { pesan('Kunci Kepala diperbarui. Silakan coba lagi.'); muat(); }, function (e) { pesan((e && e.message) || 'Gagal memperbarui Kunci Kepala.', true); });
+    }, 600);
+  }
   function kerjakan(buat, ok, awalan, batasMs) {
     if (S.menyimpan) {   // dulu diam saja: kini selalu ada keterangan, dan kunci yang macet >25 dtk dilepas
       if (Date.now() - (S.menyimpanSejak || 0) < 25000) { pesan('Masih menyimpan, tunggu sebentar lalu coba lagi.', true); return; }
@@ -1557,6 +1570,7 @@
         var m = String((e && e.message) || e);
         if (/permission_denied|permission denied/i.test(m)) m = 'Ditolak Firebase (hak akses). Keluar lalu masuk lagi; bila tetap, minta Admin memeriksa kredensial akun ini (🛡️ Keamanan Login) dan Rules. Rincian: ' + m;
         pesan((awalan || 'Gagal: ') + m, true);
+        if (/Ditolak Firebase \(hak akses\)|Bagian dasar/.test(m)) tawarGantiKunciKepala();
       });
   }
   // Baca ulang data terbaru, pastikan perubahan status MASIH diizinkan, baru tulis. Mencegah menimpa status
@@ -1636,6 +1650,10 @@
       var terisi = jumlahTerisi(S.draft.skor);
       if (terisi < P.totalIndikator()) return pesan('Masih ada ' + (P.totalIndikator() - terisi) + ' indikator yang belum diberi skor.', true);
       return simpanNilai('diajukan', function () { pesan('Hasil diajukan ke guru untuk persetujuan.'); S.view = 'hasil'; render(); });
+    }
+    if (act === 'ganti-kunci-kepala') {
+      if (typeof window.kredKepsekGantiKunci !== 'function') return pesan('Fitur belum tersedia (js/kredensial.js).', true);
+      return window.kredKepsekGantiKunci().then(function () { pesan('Kunci Kepala diperbarui.'); muat(); }, function (e) { pesan((e && e.message) || 'Gagal memperbarui Kunci Kepala.', true); });
     }
     if (act === 'ingatkan' || act === 'ingatkan-semua') {
       if (!bolehKelola()) return;
