@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -433,6 +433,13 @@
   }
 
   // ----- Daftar guru (v45: satu tombol utama per baris; sisanya di menu "Lainnya") -----
+  // Siapa yang perlu diingatkan untuk baris ini (null bila tidak ada yang menunggu).
+  function targetIngat(x) {
+    var gk = x.g.key, t = x.t;
+    if (x.st === 'diajukan') return { k: gk, j: 'PKG: menunggu persetujuan Anda', i: 'Hasil penilaian kinerja Anda sudah diajukan. Mohon buka menu PKG Guru lalu pilih Setuju atau Keberatan.' };
+    if ((x.st === 'belum' || x.st === 'draft' || x.st === 'keberatan') && t && t.penilaiKey) return { k: t.penilaiKey, j: 'PKG: penilaian ' + namaGuru(gk) + ' menunggu Anda', i: (x.st === 'keberatan' ? namaGuru(gk) + ' mengajukan keberatan; mohon direvisi di menu PKG Guru.' : 'Mohon lanjutkan penilaian ' + namaGuru(gk) + ' di menu PKG Guru.') };
+    return null;
+  }
   function aksiUtama(x, u) {
     var gk = x.g.key, boleh = hasilTerlihat(gk, x.st);
     if (gk === u.key && x.st === 'diajukan') return ['hasil', '✅ Tinjau & Setujui', 'btn-success'];
@@ -448,6 +455,7 @@
     if (x.h && boleh) a.push(tmb('hasil', '👁️ Lihat hasil'));
     if (x.h && boleh && akses) a.push(tmb('cetak', '🖨️ Cetak laporan'));
     if (bolehMenilai(gk) && x.st === 'diajukan') a.push(tmb('tarik', '↩️ Tarik kembali'));
+    if (lihatSemua() && targetIngat(x)) a.push(tmb('ingatkan', '🔔 Ingatkan'));
     if (akses) { a.push(tmb('bukti', '📂 Bukti')); a.push(tmb('perangkat', '📋 Perangkat cetak')); }
     return a.join('');
   }
@@ -468,7 +476,20 @@
       if (kep() && x.st === 'disetujui') tetap++;
     });
     if (nilai) p.push('Anda perlu menilai <b>' + nilai + '</b> guru. Tekan tombol <b>Nilai</b> / <b>Lanjut</b> pada barisnya.');
-    if (tetap) p.push('<b>' + tetap + '</b> hasil menunggu penetapan Anda.');
+    if (tetap) p.push('<b>' + tetap + '</b> hasil menunggu penetapan Anda. Centang lalu tekan <b>Tetapkan yang dipilih</b> di bawah daftar.');
+    if (bolehKelola()) {
+      var cn = function (f) { return rows.filter(f).length; };
+      var tbn = function (tab, teks) { return ' <button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:12px" data-act="tab" data-tab="' + tab + '">' + teks + '</button>'; };
+      var bp = cn(function (x) { return !x.t; }), bm = cn(function (x) { return x.t && x.st === 'belum'; }), bd = cn(function (x) { return x.st === 'draft'; });
+      var bj = cn(function (x) { return x.st === 'diajukan'; }), bk = cn(function (x) { return x.st === 'keberatan'; }), ds = cn(function (x) { return x.st === 'disetujui'; });
+      if (bp) p.push('<b>' + bp + '</b> guru belum punya penilai.' + tbn('pengaturan', 'Atur penilai'));
+      if (bm) p.push(bm + ' guru belum mulai dinilai.');
+      if (bd) p.push(bd + ' guru sedang dinilai (draft).');
+      if (bj) p.push(bj + ' hasil menunggu persetujuan guru.');
+      if (bk) p.push('<b>' + bk + '</b> guru mengajukan keberatan; penilai perlu merevisi.');
+      if (ds && !kep()) p.push(ds + ' hasil menunggu penetapan Kepala Madrasah.');
+      if (rows.length && cn(function (x) { return x.st === 'ditetapkan'; }) === rows.length) p.push('✅ Semua guru sudah ditetapkan. <button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:12px" data-act="cetak-skset">Cetak SK Penetapan</button>');
+    }
     if (!p.length) return '';
     return '<div class="card" style="background:#ecfdf5;border:1px solid #a7f3d0"><b>📌 Langkah berikutnya</b><ul style="margin:6px 0 0 18px;font-size:13px">' + p.map(function (b) { return '<li>' + b + '</li>'; }).join('') + '</ul></div>';
   }
@@ -482,13 +503,14 @@
       if (x.t && x.t.jadwal) info.push('Jadwal: ' + fmtTgl(x.t.jadwal));
       if (x.h && boleh) nl = x.h.lengkap ? '<div style="font-size:12px;margin-top:3px"><b>' + f1(x.h.nilai100) + '</b> ' + predChip(x.h) + '</div>' : '<div class="text-muted" style="font-size:11px;margin-top:3px">' + jumlahTerisi(x.n.skor) + '/' + P.totalIndikator() + ' terisi</div>';
       else { var pg = progresGuruHtml(x, boleh); if (pg) nl = '<div style="margin-top:3px">' + pg + '</div>'; }
-      h += '<tr><td><b>' + esc(x.g.name) + '</b><div class="text-muted" style="font-size:11px">' + info.join(' &bull; ') + '</div></td>' +
+      h += '<tr><td>' + (kep() && x.st === 'disetujui' ? '<input type="checkbox" data-pilih="' + esc(gk) + '" style="margin-right:6px">' : '') + '<b>' + esc(x.g.name) + '</b><div class="text-muted" style="font-size:11px">' + info.join(' &bull; ') + '</div></td>' +
         '<td>' + chip(x.st) + (x.st === 'disetujui' ? '<div class="text-muted" style="font-size:11px;margin-top:3px">menunggu pengesahan Kepala</div>' : '') + nl + '</td>' +
         '<td style="white-space:nowrap">' + (ut ? '<button class="btn ' + ut[2] + '" style="padding:5px 12px;font-size:12px" data-act="' + ut[0] + '" data-gk="' + esc(gk) + '">' + ut[1] + '</button>' : '') +
         (lain ? ' <details style="display:inline-block;position:relative;vertical-align:middle"><summary style="cursor:pointer;list-style:none;padding:5px 9px;border-radius:8px;background:#f3f4f6;font-size:12px">⋯ Lainnya</summary><div style="position:absolute;right:0;z-index:5;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:170px;box-shadow:0 4px 14px rgba(0,0,0,.12)">' + lain + '</div></details>' : '') + '</td></tr>';
     });
     h += '</tbody></table></div>';
-    if (lihatSemua()) h += '<div style="margin-top:8px"><button class="btn btn-success" data-act="cetak-rekap">🖨️ Cetak Rekap Nilai (semua guru)</button> <button class="btn btn-soft" data-act="cetak-skset">📄 Cetak SK Penetapan Hasil PKG</button></div>';
+    if (kep() && rows.some(function (x) { return x.st === 'disetujui'; })) h += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-soft" data-act="pilih-semua">☑️ Pilih semua yang siap</button><button class="btn btn-success" data-act="tetapkan-pilih">📌 Tetapkan yang dipilih</button></div>';
+    if (lihatSemua()) h += '<div style="margin-top:8px"><button class="btn btn-success" data-act="cetak-rekap">🖨️ Cetak Rekap Nilai (semua guru)</button> <button type="button" class="btn btn-soft" data-pa="excel">📥 Unduh Excel</button> <button type="button" class="btn btn-soft" data-act="ingatkan-semua">🔔 Ingatkan yang tertunda</button> <button class="btn btn-soft" data-act="cetak-skset">📄 Cetak SK Penetapan Hasil PKG</button></div>';
     return h;
   }
 
@@ -512,11 +534,16 @@
         opsi.filter(function (o) { return o.key !== g.key; }).map(function (o) { return '<option value="' + esc(o.key) + '"' + (t.penilaiKey === o.key ? ' selected' : '') + '>' + esc(o.name) + '</option>'; }).join('') +
         '</select></td><td><input type="date" class="field" data-jad="' + esc(g.key) + '" value="' + esc(t.jadwal || '') + '"></td></tr>';
     });
-    h += '</tbody></table><button class="btn btn-success" style="margin-top:8px" data-act="simpan-tugas">💾 Simpan Penugasan</button></div>';
+    h += '</tbody></table>' + salinTugasHtml() + '<button class="btn btn-success" style="margin-top:8px" data-act="simpan-tugas">💾 Simpan Penugasan</button></div>';
     h += skPenCardHtml() + skSetCardHtml();
     return h;
   }
 
+  function salinTugasHtml() {
+    var lain = Object.keys(S.periodeList).filter(function (id) { return id !== S.periodeId; }).sort().reverse();
+    if (!lain.length) return '';
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><span style="font-size:12px">Salin penilai dari periode:</span><select id="pkgSalinDari" class="field" style="min-width:170px">' + lain.map(function (id) { return '<option value="' + esc(id) + '">' + esc(S.periodeList[id].nama || id) + '</option>'; }).join('') + '</select><button type="button" class="btn btn-soft" data-act="salin-tugas">📋 Salin ke isian</button></div><div class="text-muted" style="font-size:11px;margin-top:4px">Hanya mengisi yang masih kosong; jadwal tidak disalin. Periksa lalu tekan Simpan Penugasan.</div>';
+  }
   // ----- Form penilaian -----
   function formHtml() {
     var gk = S.gk, g = guruAktif().filter(function (x) { return x.key === gk; })[0], d = S.draft;
@@ -1587,6 +1614,54 @@
       var terisi = jumlahTerisi(S.draft.skor);
       if (terisi < P.totalIndikator()) return pesan('Masih ada ' + (P.totalIndikator() - terisi) + ' indikator yang belum diberi skor.', true);
       return simpanNilai('diajukan', function () { pesan('Hasil diajukan ke guru untuk persetujuan.'); S.view = 'hasil'; render(); });
+    }
+    if (act === 'ingatkan' || act === 'ingatkan-semua') {
+      if (!bolehKelola()) return;
+      var dI = act === 'ingatkan' ? barisGuru().filter(function (x) { return x.g.key === gk; }) : barisGuru(), kirim = 0, lewat = 0;
+      dI.forEach(function (x) {
+        var tg = targetIngat(x); if (!tg) return;
+        var lk = 'pkgIng_' + S.periodeId + '_' + x.g.key, t0 = 0;
+        try { t0 = parseInt(localStorage.getItem(lk) || '0', 10) || 0; } catch (e) { }
+        if (Date.now() - t0 < 12 * 3600 * 1000) { lewat++; return; }
+        kabari(tg.k, tg.j, tg.i); kirim++;
+        try { localStorage.setItem(lk, String(Date.now())); } catch (e) { }
+      });
+      if (kirim && typeof addLog === 'function') addLog('PKG pengingat', kirim + ' pengingat');
+      return pesan(kirim ? kirim + ' pengingat dikirim ke notifikasi aplikasi' + (lewat ? ' (' + lewat + ' dilewati: sudah diingatkan <12 jam lalu)' : '') + '.' : (lewat ? 'Semua sudah diingatkan kurang dari 12 jam lalu.' : 'Tidak ada yang perlu diingatkan.'));
+    }
+    if (act === 'salin-tugas') {
+      if (!bolehKelola()) return;
+      var rsl = root(), sel = $('pkgSalinDari'); if (!rsl || !sel || !sel.value) return pesan('Pilih periode sumber dulu.', true);
+      return kerjakan(function () { return db.ref(N.tugas + '/' + sel.value).once('value'); }, function (sn) {
+        var t = sn.val() || {}, n = 0, lw = 0;
+        Array.prototype.forEach.call(rsl.querySelectorAll('select[data-pen]'), function (e) {
+          var pk = t[e.getAttribute('data-pen')] && t[e.getAttribute('data-pen')].penilaiKey;
+          if (e.value || !pk) return;
+          if (Array.prototype.some.call(e.options, function (o) { return o.value === pk; })) { e.value = pk; n++; } else lw++;
+        });
+        pesan(n ? n + ' penilai disalin' + (lw ? ' (' + lw + ' dilewati: penilai sudah tidak aktif)' : '') + '. Periksa lalu tekan Simpan Penugasan.' : 'Tidak ada yang bisa disalin.', !n);
+      }, 'Gagal membaca periode sumber: ');
+    }
+    if (act === 'pilih-semua') { var rs = root(); if (rs) Array.prototype.forEach.call(rs.querySelectorAll('input[data-pilih]'), function (c) { c.checked = true; }); return; }
+    if (act === 'tetapkan-pilih') {
+      if (!u || !kep()) return;
+      var rt = root(), pilih = [];
+      if (rt) Array.prototype.forEach.call(rt.querySelectorAll('input[data-pilih]:checked'), function (c) { pilih.push(c.getAttribute('data-pilih')); });
+      if (!pilih.length) return pesan('Centang dulu guru yang akan ditetapkan.', true);
+      if (!confirm('Tetapkan hasil PKG untuk ' + pilih.length + ' guru?\n' + pilih.map(namaGuru).join(', ') + '\n\nSetelah ditetapkan, hasil tidak bisa diubah lagi.')) return;
+      var pid2 = S.periodeId, tt = nowIso(), oleh = pengisi(u);
+      return kerjakan(function () {
+        return Promise.all(pilih.map(function (k) { return db.ref(N.nilai + '/' + pid2 + '/' + k + '/status').once('value'); })).then(function (sn) {
+          var upd = {}, ok = [];
+          sn.forEach(function (x, i) { if (x.val() === 'disetujui') { var k = pilih[i]; upd[k + '/status'] = 'ditetapkan'; upd[k + '/ditetapkanAt'] = tt; upd[k + '/ditetapkanOleh'] = oleh; ok.push(k); } });
+          if (!ok.length) throw new Error('Tidak ada yang berstatus disetujui (mungkin sudah berubah). Muat ulang halaman.');
+          return db.ref(N.nilai + '/' + pid2).update(upd).then(function () { return ok; });
+        });
+      }, function (ok) {
+        if (typeof addLog === 'function') addLog('PKG tetapkan massal', ok.length + ' guru');
+        ok.forEach(function (k) { kabari(k, 'PKG: hasil ditetapkan', 'Hasil PKG Anda telah ditetapkan Kepala Madrasah.'); kabari((tugasDari(k) || {}).penilaiKey, 'PKG: hasil ditetapkan', 'Hasil PKG ' + namaGuru(k) + ' telah ditetapkan Kepala Madrasah.'); });
+        pesan(ok.length + ' hasil ditetapkan.'); muat();
+      }, 'Gagal menetapkan: ', 30000);
     }
     if (act === 'tarik') {
       if (!u || !bolehMenilai(gk)) return pesan('Anda tidak berhak menarik pengajuan ini.', true);
