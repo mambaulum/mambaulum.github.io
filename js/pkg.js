@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v78: kolom Skor Lembar Observasi memakai skor akhir penilai (usulan penanda bertanda * bila belum dinilai), semua 37 indikator pengamatan terisi; logo/logo-lembaga.png diganti versi kecil (20 KB, sebelumnya 831 KB) sehingga kop cetak ringan; v77: tombol Cetak skor sementara (menu Lainnya di daftar guru & bar bawah form penilaian; draft/belum lengkap, tanda air, tanpa QR); v75: cetak Lembar Observasi memuat bukti dulu & mengisi kolom Skor/Catatan dari hasil pengamatan; Kesimpulan observasi kini di Firebase pkg_v4_obskes/{periodeId}/{guruKey} {baik, perbaikan, tindak, diperbarui, diperbaruiOleh} (lihat rules-obskes-pkg.txt); v73/v72: Observasi, kartu Kesimpulan observasi dengan usulan otomatis dari lembar penanda dan tercetak di Lembar Observasi; catatan kejadian di lembar penanda pengamatan kelas terisi otomatis dari penanda yang dicentang (tidak menimpa ketikan sendiri); tombol Isi otomatis pada form Tambah catatan observasi (judul + kerangka catatan dari jadwal, data SI MAMBA, indikator); v71: kolom progres khusus di tab Supervisi, Wawancara, Observasi, Angket, dan tab baru Penilaian Diri (dibaca per bagian, bukan seluruh Kelengkapan); tanda umur data ("data dimuat 25 menit lalu") di Kelengkapan dan tab; tab terakhir diingat per pengguna di perangkat; cadangan JSON per periode di tab Pengaturan; v70: kolom Teman sejawat di Kelengkapan (Ringkasan) diperbarui otomatis: saat tab Ringkasan dibuka, saat sejawat ditunjuk atau dibatalkan, dan saat form Wawancara guru itu dibuka; v69: tab Bukti (Isian Bukti langsung dari menu PKG, daftar guru + kotak cari nama); v68: tab Observasi dan tab Angket langsung dari menu PKG (daftar guru + tombol Buka, pola sama dengan Supervisi/Wawancara; halaman Observasi berisi indikator pengamatan + lembar penanda + catatan fakta, halaman Angket berisi pengelolaan angket online); tanpa perubahan Rules; v66: Kelengkapan PKG: tombol Unduh Excel, tampil kartu per guru di HP, tombol Ingatkan hanya bila ada tujuan nyata + jeda 6 jam, kolom tidak terbaca (Rules) tidak dihitung lengkap; v58-v65: pembaruan lain yang tidak dicatat di header ini; v57: tabel Kelengkapan PKG per guru di tab Ringkasan (Admin/Kepala); tab Supervisi dan Wawancara langsung dari menu PKG; bilah tombol Simpan/Cetak supervisi dan wawancara menempel di bawah layar (sticky); Tahap 1 supervisi punya pilihan cepat + isian otomatis Perangkat dan Waktu/cara pengamatan, nama sejawat tersimpan otomatis setelah Tunjuk; memilih guru di dropdown Tunjuk sejawat tidak lagi dianggap perubahan belum disimpan + nama otomatis mengisi kolom nama narasumber sejawat; v56: wawancara teman sejawat diisi sendiri oleh guru yang ditunjuk, Kepala/wakil tetap diwawancarai; v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v79: Lembar Observasi: skor usulan juga diambil dari butir Supervisi (Tahap 2) bila indikator tak punya lembar penanda, indikator yang tidak teramati diberi keterangan "dinilai dari dokumen atau wawancara", catatan pengamatan ganda tidak lagi tercetak (hanya yang terbaru) dan simpan pengamatan yang sama dua kali ditolak; v78: kolom Skor Lembar Observasi memakai skor akhir penilai (usulan penanda bertanda * bila belum dinilai), semua 37 indikator pengamatan terisi; logo/logo-lembaga.png diganti versi kecil (20 KB, sebelumnya 831 KB) sehingga kop cetak ringan; v77: tombol Cetak skor sementara (menu Lainnya di daftar guru & bar bawah form penilaian; draft/belum lengkap, tanda air, tanpa QR); v75: cetak Lembar Observasi memuat bukti dulu & mengisi kolom Skor/Catatan dari hasil pengamatan; Kesimpulan observasi kini di Firebase pkg_v4_obskes/{periodeId}/{guruKey} {baik, perbaikan, tindak, diperbarui, diperbaruiOleh} (lihat rules-obskes-pkg.txt); v73/v72: Observasi, kartu Kesimpulan observasi dengan usulan otomatis dari lembar penanda dan tercetak di Lembar Observasi; catatan kejadian di lembar penanda pengamatan kelas terisi otomatis dari penanda yang dicentang (tidak menimpa ketikan sendiri); tombol Isi otomatis pada form Tambah catatan observasi (judul + kerangka catatan dari jadwal, data SI MAMBA, indikator); v71: kolom progres khusus di tab Supervisi, Wawancara, Observasi, Angket, dan tab baru Penilaian Diri (dibaca per bagian, bukan seluruh Kelengkapan); tanda umur data ("data dimuat 25 menit lalu") di Kelengkapan dan tab; tab terakhir diingat per pengguna di perangkat; cadangan JSON per periode di tab Pengaturan; v70: kolom Teman sejawat di Kelengkapan (Ringkasan) diperbarui otomatis: saat tab Ringkasan dibuka, saat sejawat ditunjuk atau dibatalkan, dan saat form Wawancara guru itu dibuka; v69: tab Bukti (Isian Bukti langsung dari menu PKG, daftar guru + kotak cari nama); v68: tab Observasi dan tab Angket langsung dari menu PKG (daftar guru + tombol Buka, pola sama dengan Supervisi/Wawancara; halaman Observasi berisi indikator pengamatan + lembar penanda + catatan fakta, halaman Angket berisi pengelolaan angket online); tanpa perubahan Rules; v66: Kelengkapan PKG: tombol Unduh Excel, tampil kartu per guru di HP, tombol Ingatkan hanya bila ada tujuan nyata + jeda 6 jam, kolom tidak terbaca (Rules) tidak dihitung lengkap; v58-v65: pembaruan lain yang tidak dicatat di header ini; v57: tabel Kelengkapan PKG per guru di tab Ringkasan (Admin/Kepala); tab Supervisi dan Wawancara langsung dari menu PKG; bilah tombol Simpan/Cetak supervisi dan wawancara menempel di bawah layar (sticky); Tahap 1 supervisi punya pilihan cepat + isian otomatis Perangkat dan Waktu/cara pengamatan, nama sejawat tersimpan otomatis setelah Tunjuk; memilih guru di dropdown Tunjuk sejawat tidak lagi dianggap perubahan belum disimpan + nama otomatis mengisi kolom nama narasumber sejawat; v56: wawancara teman sejawat diisi sendiri oleh guru yang ditunjuk, Kepala/wakil tetap diwawancarai; v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -373,6 +373,7 @@
     S.gk = gk; S.view = 'observasi';
     render();
     muatBukti(gk, function () { if (S.view === 'observasi' && S.gk === gk) render(); });
+    if (!(kb(gk) in S.sv)) muatSv(gk, function () { if (S.view === 'observasi' && S.gk === gk) render(); });   // v79: butir Supervisi dipakai untuk usulan skor
   }
   function bukaAngket(gk) {
     if (!bolehPerangkat('observasi', gk)) return pesan('Tidak tersedia untuk Anda.', true);
@@ -1723,13 +1724,21 @@
       pesan('Kesimpulan observasi tersimpan.'); render();
     }, 'Gagal menyimpan kesimpulan observasi: ');
   }
+  // v79: usulan skor satu indikator pengamatan. Hasil lembar penanda terbaru diutamakan; bila tidak ada dipakai butir Supervisi (Tahap 2).
+  // Mengembalikan {s: 0|1|2, dari: 'penanda'|'supervisi'} atau null bila belum ada.
+  function usulanSkorObs(gk, no, idx) {
+    var key = no + '_' + (idx + 1), s = null;
+    daftarItem(gk, key).forEach(function (it) { if (it.jenis === 'observasi' && it.pn && (it.pn.s === 0 || it.pn.s === 1 || it.pn.s === 2)) s = it.pn.s; });   // terurut waktu: yang terakhir dipakai
+    if (s !== null) return { s: s, dari: 'penanda' };
+    var sv = S.sv[kb(gk)], kk = sv && sv.k && sv.k[String(no)], v = (kk && kk.b) ? kk.b[String(idx + 1)] : undefined;
+    return (v === 0 || v === 1 || v === 2) ? { s: v, dari: 'supervisi' } : null;
+  }
   function obsKesUsulan(gk) {
     var penuh = [], sebagian = [], belum = [], kosong = [];
     P.komponen.forEach(function (k) {
       k.indikator.forEach(function (ind, i) {
         if (!ind.b.some(function (b) { return RE_OBS.test(b); })) return;
-        var key = k.no + '_' + (i + 1), lab = k.no + '.' + (i + 1) + ' ' + potong(ind.t, 70), sk = null;
-        daftarItem(gk, key).forEach(function (it) { if (it.jenis === 'observasi' && it.pn && (it.pn.s === 0 || it.pn.s === 1 || it.pn.s === 2)) sk = it.pn.s; });   // terurut waktu: yang terakhir dipakai
+        var key = k.no + '_' + (i + 1), lab = k.no + '.' + (i + 1) + ' ' + potong(ind.t, 70), us = usulanSkorObs(gk, k.no, i), sk = us ? us.s : null;   // v79: penanda, lalu butir Supervisi
         if (sk === 2) penuh.push(lab); else if (sk === 1) sebagian.push(lab); else if (sk === 0) belum.push(lab);
         else if (!daftarItem(gk, key).some(function (it) { return it.jenis === 'observasi'; })) kosong.push(lab);
       });
@@ -3096,6 +3105,13 @@
     var t = [];
     Array.prototype.forEach.call(box.querySelectorAll('input[data-pn]'), function (c) { if (c.checked) t.push(c.getAttribute('data-pn')); });
     var n = arr.length, sk = skorDariPenanda(t.length, n);
+    // v79: cegah catatan ganda. Hasil yang persis sama ditolak; hasil berbeda perlu konfirmasi (yang terbaru dipakai untuk skor dan cetakan).
+    var lama = daftarItem(gk, key).filter(function (it) { return it.jenis === 'observasi' && it.pn; });
+    if (lama.length) {
+      var lt = lama[lama.length - 1];
+      if (String(lt.pn.t || '') === t.join(',') && String(lt.ket || '') === potong(cat, 400)) return pesan('Hasil pengamatan yang sama sudah tersimpan untuk indikator ini.', true);
+      if (!window.confirm('Indikator ini sudah punya ' + lama.length + ' hasil pengamatan tersimpan. Hasil yang baru akan dipakai untuk skor usulan dan catatan di Lembar Observasi (yang lama tidak ikut tercetak). Simpan hasil baru?')) return;
+    }
     var ref = db.ref(nodeBukti(gk) + '/item/' + key).push();
     var item = { jenis: 'observasi', judul: 'Pengamatan kelas (' + t.length + '/' + n + ' penanda)', ket: potong(cat, 400), pn: { t: t.join(','), n: n, s: sk }, oleh: pengisi(u), olehKey: u.key, at: nowIso() };
     kerjakan(function () { return ref.set(aman(item)); }, function () {
@@ -3192,17 +3208,29 @@
         if (x.b.some(function (b) { return RE_OBS.test(b); })) {
           // v75: skor & catatan diambil dari hasil pengamatan yang tersimpan (item jenis observasi); kosong bila belum ada
           var its = daftarItem(gk, k.no + '_' + (i + 1)).filter(function (it) { return it.jenis === 'observasi'; });
-          // v78: skor akhir penilai (tab Penilaian) diutamakan; bila belum dinilai, dipakai usulan dari lembar penanda (diberi tanda *)
+          // v78/v79: skor akhir penilai (tab Penilaian) diutamakan; bila belum dinilai, dipakai usulan (lembar penanda, lalu butir Supervisi) diberi tanda *
           var skorO = '', catO = '', nl = S.nilai[gk], sf = nl && nl.skor ? nl.skor[k.no + '_' + (i + 1)] : null;
           if (sf === 0 || sf === 1 || sf === 2) skorO = String(sf);
-          else its.forEach(function (it) { if (it.pn && (it.pn.s === 0 || it.pn.s === 1 || it.pn.s === 2)) { skorO = String(it.pn.s) + '*'; adaUsulanO = true; } });   // terbaru menang (daftarItem terurut waktu)
-          catO = its.map(function (it) { return esc(it.ket || it.judul || ''); }).filter(Boolean).join('<br>');
+          else { var us = usulanSkorObs(gk, k.no, i); if (us) { skorO = String(us.s) + '*'; adaUsulanO = true; } }
+          // v79: hasil lembar penanda lebih dari satu -> hanya yang terbaru yang tercetak (sama dengan yang dipakai untuk skor); "Fakta teramati:" kosong dibuang
+          var idxPn = -1; its.forEach(function (it, j) { if (it.pn) idxPn = j; });
+          var cats = [];
+          its.forEach(function (it, j) {
+            if (it.pn && j !== idxPn) return;
+            var tx = String(it.ket || it.judul || '').replace(/\s*Fakta teramati:\s*$/i, '').trim();
+            if (tx && cats.indexOf(tx) < 0) cats.push(tx);
+          });
+          catO = cats.map(esc).join('<br>');
+          if (!skorO) {   // v79: tidak ada skor dari sumber mana pun -> beri keterangan agar tidak tampak terlupa
+            skorO = '&ndash;';
+            catO += (catO ? '<br>' : '') + '<i style="color:#64748b">Tidak diskor dari pengamatan kelas; dinilai dari dokumen atau wawancara.</i>';
+          }
           rows += '<tr style="page-break-inside:avoid"><td>' + k.no + '.' + (i + 1) + '</td><td>' + esc(x.t) + '</td><td style="width:50px;text-align:center;font-weight:bold">' + skorO + '</td><td style="width:32%;height:38px;font-size:11px">' + catO + '</td></tr>';
         }
       });
       if (rows) o += '<h4 style="margin:10px 0 2px">Komponen ' + k.no + '. ' + esc(k.nama) + '</h4><table><thead><tr><th style="width:38px">No</th><th>Aspek yang diamati</th><th>Skor</th><th>Catatan fakta yang teramati</th></tr></thead><tbody>' + rows + '</tbody></table>';
     });
-    if (adaUsulanO) o += '<p style="font-size:10.5px;margin:4px 0">* Usulan skor dari lembar penanda pengamatan; penilai belum menetapkan skor akhir indikator ini.</p>';
+    if (adaUsulanO) o += '<p style="font-size:10.5px;margin:4px 0">* Usulan skor dari lembar penanda pengamatan atau butir Supervisi; penilai belum menetapkan skor akhir indikator ini.</p>';
     o += '<table style="page-break-inside:avoid"><tr><td style="width:30%;height:44px">Hal yang sudah baik</td><td>' + esc(obsKesAmbil(gk).baik || '') + '</td></tr><tr><td style="height:44px">Hal yang perlu diperbaiki</td><td>' + esc(obsKesAmbil(gk).perbaikan || '') + '</td></tr>' +
       '<tr><td style="height:44px">Kesepakatan tindak lanjut bersama guru</td><td>' + esc(obsKesAmbil(gk).tindak || '') + '</td></tr><tr><td>Tanggal pertemuan tindak lanjut</td><td></td></tr></table>';
     return o + ttdPerangkat(gk, true, 'Lembar Observasi PKG');
