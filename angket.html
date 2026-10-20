@@ -30,6 +30,11 @@
   button.sekunder { background:transparent; color:var(--aksen); border:2px solid var(--aksen); margin-top:10px; }
   .galat { color:var(--err); font-weight:600; margin:10px 0 0; }
   .sukses { color:var(--ok); font-size:18px; font-weight:700; }
+  .baris { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--garis); font-size:15px; }
+  .baris b { text-align:right; }
+  .kode { font:700 26px/1.2 ui-monospace,Menlo,Consolas,monospace; letter-spacing:3px; text-align:center; padding:12px; border:2px dashed var(--aksen); border-radius:10px; margin:12px 0; }
+  #gambar img { display:block; width:100%; height:auto; margin-top:10px; border:1px solid var(--garis); border-radius:8px; }
+  @media print { main > :not(#bukti) { display:none !important; } #bukti button, #bukti #gambar { display:none !important; } body { background:#fff; color:#000; } }
 </style>
 </head>
 <body>
@@ -38,7 +43,7 @@
 <script defer src="vendor/firebase-app-compat.js?v=10.12.0"></script>
 <script defer src="vendor/firebase-database-compat.js?v=10.12.0"></script>
 <script defer src="vendor/firebase-auth-compat.js?v=10.12.0"></script>
-<script defer src="js/data-pkg-angket.js?v=4"></script>
+<script defer src="js/data-pkg-angket.js?v=5"></script>
 <script defer>
 (function () {
   'use strict';
@@ -54,6 +59,60 @@
   function tampil(judul, teks, galat) {
     app.textContent = '';
     app.appendChild(el('div', { class: 'kartu' }, [el('h1', { text: judul }), el('p', { class: galat ? 'galat' : 'redup', text: teks })]));
+  }
+  // ----- Bukti pengisian (tanpa isi jawaban): kartu di layar, bisa disimpan sebagai gambar, dicetak, atau kodenya disalin -----
+  function waktuId(iso) {
+    try { return new Date(iso).toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB'; } catch (e) { return String(iso); }
+  }
+  function kodeTampil(k) { return String(k).slice(0, 4) + '-' + String(k).slice(4); }
+  function gambarBukti(b) {
+    var c = document.createElement('canvas'), W = 720, H = 400, x = c.getContext('2d');
+    c.width = W; c.height = H;
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, W, H);
+    x.strokeStyle = '#0f766e'; x.lineWidth = 6; x.strokeRect(3, 3, W - 6, H - 6);
+    function muat(t, lebar) { t = String(t); while (t.length > 1 && x.measureText(t).width > lebar) t = t.slice(0, -2) + '\u2026'; return t; }
+    x.fillStyle = '#0f766e'; x.font = 'bold 30px sans-serif'; x.fillText('BUKTI PENGISIAN ANGKET PKG', 36, 66);
+    x.fillStyle = '#111827'; x.font = '22px sans-serif'; x.fillText('MI Mambaul Ulum', 36, 102);
+    var baris = [['Angket', b.judul], ['Untuk', b.nama], ['Dikirim', waktuId(b.at)]], y = 156;
+    baris.forEach(function (r) {
+      x.fillStyle = '#6b7280'; x.font = '20px sans-serif'; x.fillText(r[0], 36, y);
+      x.fillStyle = '#111827'; x.font = 'bold 20px sans-serif'; x.fillText(muat(r[1], W - 190), 160, y); y += 42;
+    });
+    x.fillStyle = '#111827'; x.font = 'bold 20px sans-serif'; x.fillText('Kode bukti', 36, y + 16);
+    x.strokeStyle = '#0f766e'; x.lineWidth = 3; x.setLineDash([8, 6]); x.strokeRect(160, y - 14, 330, 56); x.setLineDash([]);
+    x.fillStyle = '#0f766e'; x.font = 'bold 34px monospace'; x.fillText(kodeTampil(b.kode), 178, y + 26);
+    x.fillStyle = '#6b7280'; x.font = '16px sans-serif'; x.fillText('Jawaban bersifat rahasia. Kode ini bukan isi jawaban.', 36, H - 30);
+    return c.toDataURL('image/png');
+  }
+  function buktiKartu(b, lagi) {
+    app.textContent = '';
+    var wadah = el('div', { class: 'kartu', id: 'bukti' }, [
+      el('p', { class: 'sukses', text: '\u2714 Terima kasih, jawaban sudah terkirim.' }),
+      el('p', { class: 'redup', text: 'Simpan bukti ini bila madrasah memintanya. Madrasah hanya mencatat bahwa tautan ini sudah dipakai; isi jawaban tidak ikut tercantum dan tidak ditampilkan per orang.' }),
+      el('div', { class: 'baris' }, [el('span', { class: 'redup', text: 'Angket' }), el('b', { text: b.judul })]),
+      el('div', { class: 'baris' }, [el('span', { class: 'redup', text: 'Untuk' }), el('b', { text: b.nama })]),
+      el('div', { class: 'baris' }, [el('span', { class: 'redup', text: 'Dikirim' }), el('b', { text: waktuId(b.at) })]),
+      el('div', { class: 'kode', text: kodeTampil(b.kode), 'aria-label': 'Kode bukti' })
+    ]);
+    var info = el('p', { class: 'redup', text: '' });
+    var gbr = el('div', { id: 'gambar' });
+    var simpan = el('button', { type: 'button', text: '\ud83d\udcbe Simpan bukti sebagai gambar' });
+    simpan.addEventListener('click', function () {
+      var url; try { url = gambarBukti(b); } catch (e) { info.textContent = 'Gambar tidak bisa dibuat di perangkat ini. Silakan catat kode di atas.'; return; }
+      gbr.textContent = ''; gbr.appendChild(el('img', { src: url, alt: 'Bukti pengisian angket' }));
+      info.textContent = 'Bila gambar tidak otomatis terunduh, tekan lama pada gambar lalu pilih Simpan.';
+      try { var a = document.createElement('a'); a.href = url; a.download = 'bukti-angket-' + b.kode + '.png'; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { }
+    });
+    var cetak = el('button', { type: 'button', class: 'sekunder', text: '\ud83d\udda8\ufe0f Cetak / simpan PDF' });
+    cetak.addEventListener('click', function () { window.print(); });
+    var salin = el('button', { type: 'button', class: 'sekunder', text: '\ud83d\udccb Salin kode' });
+    salin.addEventListener('click', function () {
+      var t = kodeTampil(b.kode);
+      try { navigator.clipboard.writeText(t).then(function () { info.textContent = 'Kode ' + t + ' disalin.'; }, function () { info.textContent = 'Catat kode: ' + t; }); } catch (e) { info.textContent = 'Catat kode: ' + t; }
+    });
+    [simpan, cetak, salin, info, gbr].forEach(function (n) { wadah.appendChild(n); });
+    app.appendChild(wadah);
+    if (lagi) app.appendChild(lagi);
   }
   function mulai() {
     var A = window.PKG_ANGKET, def = A && A.jenis[J];
@@ -76,7 +135,11 @@
       if (info.kupon) {                                       // tautan sekali pakai: wajib membawa token milik responden
         if (!/^[A-Za-z0-9]{20,40}$/.test(T)) return tampil('Tautan tidak lengkap', 'Angket ini memakai tautan pribadi sekali pakai. Mohon minta tautan Anda sendiri kepada madrasah.', true);
         var sudah = false; try { sudah = localStorage.getItem('pkgAngket_' + T) === '1'; } catch (e) { }
-        if (sudah) return tampil('Jawaban sudah terkirim', 'Tautan ini sudah dipakai di perangkat ini. Terima kasih.', false);
+        if (sudah) {
+          var tersimpan = null; try { tersimpan = JSON.parse(localStorage.getItem('pkgBukti_' + T) || 'null'); } catch (e) { }
+          if (tersimpan && tersimpan.kode && tersimpan.at) return buktiKartu(tersimpan, null);   // tampilkan lagi bukti yang pernah dibuat di perangkat ini
+          return tampil('Jawaban sudah terkirim', 'Tautan ini sudah dipakai di perangkat ini. Terima kasih.', false);
+        }
       }
       formulir(db, def, info);
     }).catch(function (e) {
@@ -124,14 +187,15 @@
       var ref = info.kupon ? db.ref('pkg_v4_angket/' + P + '/' + G + '/' + J + '/' + T) : db.ref('pkg_v4_angket/' + P + '/' + G + '/' + J).push();
       ref.set(rec).then(function () {
         if (info.kupon) { try { localStorage.setItem('pkgAngket_' + T, '1'); } catch (e) { } }
-        app.textContent = '';
-        var k2 = el('div', { class: 'kartu' }, [el('p', { class: 'sukses', text: '✔ Terima kasih, jawabanmu sudah terkirim.' }), el('p', { class: 'redup', text: 'Jawaban bersifat rahasia dan tidak memuat namamu.' })]);
+        // bukti: kode = 8 karakter pertama tautan sekali pakai (mode terbuka: 8 karakter terakhir id jawaban); isi jawaban tidak ikut
+        var kunciBukti = info.kupon ? T : String(ref.key || ''), b = { kode: info.kupon ? kunciBukti.slice(0, 8) : kunciBukti.slice(-8), at: rec.at, judul: def.judul, nama: info.nama || 'guru' };
+        if (info.kupon) { try { localStorage.setItem('pkgBukti_' + T, JSON.stringify(b)); } catch (e) { } }
+        var lagi = null;
         if (!info.kupon) {                                    // tautan terbuka (warisan): boleh isi lagi; tautan sekali pakai tidak
-          var lagi = el('button', { type: 'button', class: 'sekunder', text: 'Isi untuk responden lain' });
+          lagi = el('button', { type: 'button', class: 'sekunder', text: 'Isi untuk responden lain' });
           lagi.addEventListener('click', function () { formulir(db, def, info); window.scrollTo(0, 0); });
-          k2.appendChild(lagi);
         }
-        app.appendChild(k2);
+        buktiKartu(b, lagi); window.scrollTo(0, 0);
       }).catch(function (e) {
         kirim.disabled = false; kirim.textContent = 'Kirim jawaban';
         galat.textContent = (e && e.code === 'PERMISSION_DENIED') ? (info.kupon ? 'Tautan ini sudah dipakai, tidak berlaku, atau angket sudah ditutup.' : 'Angket sudah ditutup oleh madrasah.') : 'Gagal mengirim. Periksa koneksi lalu coba lagi.';

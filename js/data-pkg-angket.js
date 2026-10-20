@@ -28,7 +28,7 @@
     siswa: {
       judul: 'Angket Peserta Didik',
       sasaran: 'Peserta didik kelas 4\u20136 (kelas 1\u20133 dibacakan oleh guru lain, bukan guru yang dinilai)',
-      pembuka: 'Jawablah sesuai yang kamu rasakan dan alami. Ini bukan ulangan, tidak ada jawaban benar atau salah. Namamu tidak ditanyakan dan gurumu tidak akan melihat jawaban pribadimu.',
+      pembuka: 'Jawablah sesuai yang kamu rasakan dan alami. Ini bukan ulangan, tidak ada jawaban benar atau salah. Gurumu tidak akan melihat jawaban pribadimu. Madrasah hanya mencatat apakah tautanmu sudah dipakai, bukan isi jawabanmu.',
       min: 10,
       butir: [
         b('S1', 'Guruku membuat aku semangat belajar, misalnya dengan cerita, permainan, atau pujian.', '2.4'),
@@ -48,7 +48,7 @@
     ortu: {
       judul: 'Angket Orang Tua / Komite Madrasah',
       sasaran: 'Orang tua peserta didik atau anggota komite madrasah',
-      pembuka: 'Mohon jawab sesuai yang Bapak/Ibu ketahui sendiri. Pilih \u201cTidak tahu\u201d bila belum pernah mengalami atau mengetahuinya. Jawaban bersifat rahasia dan tidak mencantumkan nama.',
+      pembuka: 'Mohon jawab sesuai yang Bapak/Ibu ketahui sendiri. Pilih \u201cTidak tahu\u201d bila belum pernah mengalami atau mengetahuinya. Madrasah hanya mencatat sudah atau belum mengisi; jawaban hanya ditampilkan sebagai rekap, tidak per orang.',
       min: 5,
       butir: [
         b('O1', 'Guru menyampaikan perkembangan belajar anak saya (lewat rapor, WhatsApp, buku penghubung, atau pertemuan).', '12.1', { x: true }),
@@ -61,7 +61,7 @@
     sejawat: {
       judul: 'Angket Teman Sejawat / Kepala Madrasah',
       sasaran: 'Guru lain, wakil kepala madrasah, atau kepala madrasah',
-      pembuka: 'Mohon jawab sesuai yang Bapak/Ibu ketahui sendiri. Pilih \u201cTidak tahu\u201d bila belum pernah melihat atau mengalaminya. Jawaban bersifat rahasia dan tidak mencantumkan nama.',
+      pembuka: 'Mohon jawab sesuai yang Bapak/Ibu ketahui sendiri. Pilih \u201cTidak tahu\u201d bila belum pernah melihat atau mengalaminya. Madrasah hanya mencatat sudah atau belum mengisi; jawaban hanya ditampilkan sebagai rekap, tidak per orang.',
       min: 3,
       butir: [
         b('K1', 'Guru ini menghargai dan mencontohkan nilai Pancasila dalam kegiatan madrasah.', '8.1', { x: true }),

@@ -21,6 +21,7 @@
      pkg_v4_supervisi/{periodeId}/{guruKey}: (BARU v37) supervisi digital {t1:{fokus,perangkat,waktu,tanggal}, k:{"1":{s:0|1|2,c,b:{"1":0|1|2}}}, t3:{refleksi,baik,perbaikan,tindak,tanggal}}; tulis penilai/Kepala/Admin
      pkg_v4_wawancara/{periodeId}/{guruKey}: (BARU v44) wawancara digital 5 narasumber (g4 = teman sejawat, v56) {n:{g0..g4:{nama,tgl}}, j:{"g_k_i":{s:0|1|2,c}}}; hanya penilai/Kepala/Admin (rahasia, guru tidak membaca); lihat rules-wawancara-pkg.txt
      pkg_v4_wsejawat/{periodeId}/{guruDinilai}/{guruSejawat}: (BARU v56) wawancara teman sejawat: penilai/Kepala/Admin menunjuk SATU guru ({tunjuk,oleh,nama}); guru itu mengisi sendiri jawabannya di akunnya ({a:{"k_i":teks}, isi}); rahasia, guru yang dinilai tidak membaca; lihat rules-wawancara-sejawat.txt
+     pkg_v4_angket_penerima/{periodeId}/{guruDinilai}/{siswa|ortu}/{token}: (BARU v56) siapa menerima tautan sekali pakai {sk,n,kls,at}; dipakai daftar Sudah/Belum mengisi + pengingat WA; hanya penilai/Kepala/Admin; lihat rules-angket-penerima.txt
      pkg_v4_kendali/{periodeId}            : (BARU v37) pengendalian internal (Juknis III.F.1) {cek, sampel, temuan, tindak}; hanya Admin/Kepala; lihat rules-supervisi-kendali-pkg.txt
      pkg_v4_skset/{periodeId}              : (BARU v35) data SK Kepala Madrasah penetapan hasil PKG {nomor, tanggal, tempat, dasar, ...}
      pkg_v4_bukti/{periodeId}/{guruKey}    : (BARU v7) isian + bukti yang diisi langsung di aplikasi
@@ -63,7 +64,7 @@
   var P = window.PKG_MI;
   if (!P || !P.komponen || typeof P.hitungPKG !== 'function' || typeof P.totalIndikator !== 'function') { console.warn('[PKG] js/data-pkg-mi.js belum dimuat / tidak lengkap.'); return; }
 
-  var N = { rtl: 'pkg_v4_rtl', periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon', angketJatah: 'pkg_v4_angket_jatah', skpen: 'pkg_v4_skpen', skset: 'pkg_v4_skset', sv: 'pkg_v4_supervisi', kendali: 'pkg_v4_kendali', ww: 'pkg_v4_wawancara', wsj: 'pkg_v4_wsejawat' };
+  var N = { rtl: 'pkg_v4_rtl', periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon', angketJatah: 'pkg_v4_angket_jatah', skpen: 'pkg_v4_skpen', skset: 'pkg_v4_skset', sv: 'pkg_v4_supervisi', kendali: 'pkg_v4_kendali', ww: 'pkg_v4_wawancara', wsj: 'pkg_v4_wsejawat', penerima: 'pkg_v4_angket_penerima' };
   var MAKS_ITEM = 10;                 // maks. bukti manual per indikator
   var JENIS_ITEM = { dokumen: '📄 Dokumen', observasi: '👁️ Observasi', wawancara: '🎤 Wawancara' };
   var MAKS_GURU_PER_PENILAI = 10;
@@ -1231,7 +1232,8 @@
       if (!mentah) return Promise.all([info, null, null, null]);
       return Promise.all([info, db.ref(N.angket + '/' + pid + '/' + gk).once('value'),
         db.ref(N.angketKupon + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return {}; }),
-        db.ref(N.angketJatah + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return null; })]);   // null = Rules jatah belum dipublikasikan
+        db.ref(N.angketJatah + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return null; }),   // null = Rules jatah belum dipublikasikan
+        db.ref(N.penerima + '/' + pid + '/' + gk).once('value').then(function (x) { return x.val() || {}; }, function () { return null; })]);     // null = Rules penerima belum dipublikasikan
     }).then(function (h) {
       if (pid !== S.periodeId) return;
       var resp = (h[1] && h[1].val()) || {}, daftar = {}, ids = {};
@@ -1239,7 +1241,7 @@
         var m = resp[j] || {}; ids[j] = {};
         daftar[j] = Object.keys(m).filter(function (id) { return m[id] && typeof m[id] === 'object'; }).map(function (id) { ids[j][id] = 1; return m[id]; });
       });
-      S.angket[kunci] = { info: h[0].val() || null, resp: daftar, ids: ids, kupon: h[2] || {}, jatah: h[3] || {}, jatahOk: !!mentah && h[3] !== null && h[3] !== undefined, mentah: mentah };
+      S.angket[kunci] = { info: h[0].val() || null, resp: daftar, ids: ids, kupon: h[2] || {}, jatah: h[3] || {}, jatahOk: !!mentah && h[3] !== null && h[3] !== undefined, mentah: mentah, penerima: h[4] };
     }).catch(function (e) {
       console.warn('[PKG] angket gagal dimuat:', e);
       S.angket[kunci] = { info: null, resp: { siswa: [], ortu: [], sejawat: [] }, galat: true };
@@ -1264,7 +1266,7 @@
   function angketKartu(gk) {
     var A = AK(); if (!A || !adaPenilai(gk)) return '';
     var a = dataAngket(gk), boleh = bolehUbahBukti(gk), d = dataBukti(gk);
-    var o = '<div class="card"><h4 style="margin:0 0 4px">📝 Angket online</h4><p class="text-muted" style="font-size:12px;margin:0 0 8px">Bagikan tautan ke peserta didik, orang tua/komite, atau sejawat. Jawaban anonim dan hanya penilai yang melihat rekapnya.</p>';
+    var o = '<div class="card"><h4 style="margin:0 0 4px">📝 Angket online</h4><p class="text-muted" style="font-size:12px;margin:0 0 8px">Bagikan tautan ke peserta didik, orang tua/komite, atau sejawat. Madrasah hanya mencatat sudah atau belum mengisi; jawaban hanya tampil sebagai rekap, tidak per orang.</p>';
     if (!a) return o + '<p class="text-muted" style="margin:0">Memuat angket…</p></div>';
     if (a.galat) o += '<p style="color:#b91c1c;font-size:12.5px;margin:0 0 6px">Data angket belum bisa dibaca. Pastikan firebase-rules-pkg.json (versi berperan) sudah dipublikasikan dan Anda penilai guru ini / Kepala / Admin.</p>';
     var aktif = !!(a.info && a.info.aktif);
@@ -1284,6 +1286,8 @@
           '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="kupon-salin" data-j="' + j + '" data-m="satu"' + (sisa ? '' : ' disabled') + '>📋 Salin 1 tautan</button>' +
           '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="kupon-salin" data-j="' + j + '" data-m="semua"' + (sisa ? '' : ' disabled') + '>📋 Salin semua tersisa</button></div>';
       }
+      if (aktif && kup && a.info && a.mentah && j !== 'sejawat') o += penerimaHtml(gk, a, j);
+      if (aktif && a.info && a.mentah) o += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center"><input type="text" class="field" data-kode="' + j + '" maxlength="12" placeholder="Kode bukti, mis. ABCD-EFGH" style="width:190px;padding:4px;font-size:12px" aria-label="Kode bukti pengisian"><button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="kode-cek" data-j="' + j + '">🔎 Cek kode bukti</button></div>';
       if (aktif && kup && a.info && j === 'sejawat') o += jatahPenilaiHtml(gk, a, boleh);
       o += '</div>';
     });
@@ -1323,8 +1327,8 @@
   function waPesan(x, gk, tok, jenis) {
     var nm = (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) ? MADRASAH.nama : 'Madrasah';
     var isi = jenis === 'ortu'
-      ? 'Dalam rangka penilaian kinerja guru, mohon Bapak/Ibu mengisi angket singkat tentang guru *' + namaGuru(gk) + '* berikut (sekitar 3 menit, tanpa nama, jawaban dirahasiakan; tautan ini khusus untuk satu kali pengisian). Pilih \u201cTidak tahu\u201d bila belum mengetahuinya:\n'
-      : 'Dalam rangka penilaian kinerja guru, mohon ananda dibantu mengisi angket singkat tentang guru *' + namaGuru(gk) + '* berikut (sekitar 3 menit, tanpa nama, jawaban dirahasiakan; tautan ini khusus untuk satu kali pengisian). Mohon ananda menjawab jujur sesuai yang ia rasakan:\n';
+      ? 'Dalam rangka penilaian kinerja guru, mohon Bapak/Ibu mengisi angket singkat tentang guru *' + namaGuru(gk) + '* berikut (sekitar 3 menit; madrasah hanya mencatat sudah atau belum mengisi, jawaban hanya tampil sebagai rekap; tautan ini khusus untuk satu kali pengisian). Pilih \u201cTidak tahu\u201d bila belum mengetahuinya:\n'
+      : 'Dalam rangka penilaian kinerja guru, mohon ananda dibantu mengisi angket singkat tentang guru *' + namaGuru(gk) + '* berikut (sekitar 3 menit; madrasah hanya mencatat sudah atau belum mengisi, jawaban hanya tampil sebagai rekap; tautan ini khusus untuk satu kali pengisian). Mohon ananda menjawab jujur sesuai yang ia rasakan:\n';
     return 'Assalamu\u2019alaikum, Bapak/Ibu wali dari ananda *' + x.name + '* (' + x.kelas + ').\n\n' + isi + tautanAngket(gk, jenis === 'ortu' ? 'ortu' : 'siswa', tok) + '\n\nTerima kasih.\nWassalamu\u2019alaikum warahmatullahi wabarakatuh.\n\n- ' + nm;
   }
   function waPanel(gk) {
@@ -1353,6 +1357,52 @@
     }
     return o + '</div>';
   }
+  // ----- v56: catatan penerima tautan -> daftar Sudah/Belum mengisi + pengingat (isi jawaban tidak pernah ditampilkan per orang) -----
+  function catatPenerima(gk, jenis, tok, x) {
+    var pid = S.periodeId, rec = { sk: potong(x.key, 60), n: potong(x.name, 120), kls: potong(x.kelas, 40), at: nowIso() }, ak = dataAngket(gk);
+    if (ak) { if (!ak.penerima) ak.penerima = {}; (ak.penerima[jenis] = ak.penerima[jenis] || {})[tok] = rec; }
+    siapSesi().then(function () { return db.ref(N.penerima + '/' + pid + '/' + gk + '/' + jenis + '/' + tok).set(aman(rec)); }).catch(function (e) {
+      console.warn('[PKG] catat penerima gagal:', e);
+      pesan('Penerima tidak tercatat (daftar Sudah/Belum tidak akan lengkap). Pasang Rules pkg_v4_angket_penerima (lihat rules-angket-penerima.txt).', true);
+    });
+  }
+  function urutPenerima(m) { return Object.keys(m).sort(function (a, b) { return String(m[a].kls || '').localeCompare(String(m[b].kls || '')) || String(m[a].n || '').localeCompare(String(m[b].n || '')); }); }
+  function penerimaHtml(gk, a, j) {
+    if (a.penerima === null) return '<div style="font-size:12px;color:#b91c1c;margin-top:4px">Catatan penerima belum bisa dibaca. Pasang Rules pkg_v4_angket_penerima (lihat rules-angket-penerima.txt).</div>';
+    if (a.penerima === undefined) return '';
+    var m = a.penerima[j] || {}, ids = (a.ids && a.ids[j]) || {}, toks = urutPenerima(m);
+    if (!toks.length) return '<div class="pkg-meta" style="margin-top:4px">Belum ada penerima tercatat. Penerima tercatat otomatis saat tautan dikirim lewat tombol WhatsApp di bawah.</div>';
+    var sudah = toks.filter(function (t) { return ids[t]; }).length, belum = toks.length - sudah, bisaIngat = !!(a.info && a.info.aktif) && waSiap();
+    var o = '<details' + (S.pnBuka && S.pnBuka[j] ? ' open' : '') + ' style="margin-top:6px"><summary style="font-size:12.5px;cursor:pointer"><b>👥 Status pengisian</b>: ' + sudah + ' dari ' + toks.length + ' sudah mengisi</summary>' +
+      '<div class="pkg-meta" style="margin:4px 0">Hanya status sudah atau belum; isi jawaban tidak ditampilkan per orang. Bila baru ada yang mengisi, tekan Muat ulang.</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0"><button type="button" class="btn btn-soft" style="padding:3px 10px;font-size:12px" data-act="angket-muat">🔄 Muat ulang</button>' +
+      (belum && bisaIngat ? '<button type="button" class="btn" style="padding:3px 10px;font-size:12px;background:#25D366;color:#fff" data-act="ingat-wa" data-j="' + j + '" data-t="">💬 Ingatkan berikutnya (' + belum + ' belum)</button>' : '') + '</div>';
+    toks.forEach(function (t) {
+      var r = m[t], ok = !!ids[t];
+      o += '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:3px 0;border-top:1px solid #f3f4f6;font-size:12.5px"><span>' + (ok ? '✔' : '⏳') + ' wali dari <b>' + esc(r.n || '-') + '</b> <span class="text-muted">(' + esc(r.kls || '') + ')</span>' + (!ok && S.ingat && S.ingat[t] ? ' <span class="pkg-meta">sudah diingatkan</span>' : '') + '</span>' +
+        (!ok && bisaIngat ? '<button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px" data-act="ingat-wa" data-j="' + j + '" data-t="' + esc(t) + '">💬 Ingatkan</button>' : '') + '</div>';
+    });
+    return o + '</details>';
+  }
+  function ingatWa(el) {
+    var gk = S.gk, j = el.getAttribute('data-j'), t = el.getAttribute('data-t'), a = dataAngket(gk);
+    if (!a || !a.penerima || !adaPenilai(gk)) return pesan('Tidak tersedia untuk Anda.', true);
+    if (!(a.info && a.info.aktif)) return pesan('Angket sedang ditutup. Buka angket dulu bila ingin mengingatkan.', true);
+    if (!waSiap()) return pesan('Fitur WhatsApp belum tersedia.', true);
+    var m = a.penerima[j] || {}, ids = (a.ids && a.ids[j]) || {}; S.ingat = S.ingat || {};
+    if (!t) { t = urutPenerima(m).filter(function (k) { return !ids[k] && !S.ingat[k]; })[0]; if (!t) return pesan('Semua yang belum mengisi sudah diingatkan pada sesi ini. Muat ulang untuk melihat yang terbaru.'); }
+    var r = m[t]; if (!r) return; if (ids[t]) return pesan('Responden ini sudah mengisi.');
+    var x = allSiswa.filter(function (y) { return y && y.key === r.sk; })[0];
+    if (!x || !waAdaNo(x)) return pesan('Nomor WA wali tidak ditemukan atau tidak valid.', true);
+    S.ingat[t] = true; (S.pnBuka = S.pnBuka || {})[j] = true;
+    kirimWA(x.noWaOrtu, waIngatPesan(x, gk, t, j));
+    try { if (typeof addLog === 'function') addLog('PKG angket ingatkan', (j === 'ortu' ? 'ortu ' : '') + x.kelas + ' - ' + x.name); } catch (e) { }
+    render();
+  }
+  function waIngatPesan(x, gk, tok, jenis) {
+    var nm = (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) ? MADRASAH.nama : 'Madrasah';
+    return 'Assalamu\u2019alaikum, Bapak/Ibu wali dari ananda *' + x.name + '* (' + x.kelas + ').\n\nMengingatkan dengan hormat: angket penilaian kinerja guru *' + namaGuru(gk) + '* belum terisi. ' + (jenis === 'ortu' ? 'Mohon Bapak/Ibu berkenan mengisinya' : 'Mohon ananda dibantu mengisinya') + ' (sekitar 3 menit) lewat tautan khusus berikut:\n' + tautanAngket(gk, jenis === 'ortu' ? 'ortu' : 'siswa', tok) + '\n\nMadrasah hanya mencatat sudah atau belum mengisi; jawaban hanya tampil sebagai rekap.\nTerima kasih.\n\n- ' + nm;
+  }
   function waBuka() {
     var gk = S.gk, st = waState(gk), a = st.ant, ak = dataAngket(gk);
     if (!a || a.i >= a.items.length) return;
@@ -1363,6 +1413,7 @@
     var tokS = a.tok ? a.tok[key] : '';
     if (a.tok && !tokS) { a.i++; a.lewat++; return render(); }
     a.i++; a.kirim++; st.sent[a.jenis][a.jenis === 'ortu' ? 'n' + waNo(x) : key] = true;   // maju dulu, lalu buka WA (harus di dalam klik agar tidak diblokir popup)
+    if (tokS) catatPenerima(gk, a.jenis, tokS, x);
     kirimWA(x.noWaOrtu, waPesan(x, gk, tokS, a.jenis));
     try { if (typeof addLog === 'function') addLog('PKG angket WA', (a.jenis === 'ortu' ? 'ortu ' : '') + x.kelas + ' - ' + x.name); } catch (e) { console.error('[PKG] addLog angket WA gagal:', e); }
     render();
@@ -1378,7 +1429,24 @@
     var o = '<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(15,118,110,.08)"><div style="font-size:12.5px"><b>\ud83d\udc65 Tautan otomatis di akun guru</b>: ' + ada + ' dari ' + lain.length + ' guru lain sudah mendapat tautan sendiri. Tautan muncul di menu PKG masing-masing guru.</div>';
     if (!a.jatahOk) o += '<div style="font-size:12px;color:#b91c1c;margin-top:4px">Data jatah belum bisa dibaca. Publikasikan firebase-rules-pkg.json (versi v22, node pkg_v4_angket_jatah) lebih dulu.</div>';
     else if (boleh && kurang > 0) o += '<button type="button" class="btn btn-soft" style="margin-top:6px;padding:4px 10px;font-size:12px" data-act="jatah-buat">\ud83d\udc65 Bagikan ke ' + kurang + ' guru</button>';
+    if (a.jatahOk) {
+      var tok = (a.jatah || {}), ids = (a.ids && a.ids.sejawat) || {}, ada2 = lain.filter(function (g) { return tok[g.key]; }), blm = ada2.filter(function (g) { return !ids[tok[g.key]]; });
+      if (ada2.length) o += '<details style="margin-top:6px"><summary style="font-size:12.5px;cursor:pointer"><b>👥 Status pengisian</b>: ' + (ada2.length - blm.length) + ' dari ' + ada2.length + ' guru sudah mengisi</summary>' +
+        '<div class="pkg-meta" style="margin:4px 0">Hanya status sudah atau belum; isi jawaban tidak ditampilkan per orang.</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0"><button type="button" class="btn btn-soft" style="padding:3px 10px;font-size:12px" data-act="angket-muat">🔄 Muat ulang</button>' + (blm.length && boleh ? '<button type="button" class="btn btn-soft" style="padding:3px 10px;font-size:12px" data-act="jatah-ingat">🔔 Ingatkan ' + blm.length + ' guru yang belum</button>' : '') + '</div>' +
+        ada2.map(function (g) { return '<div style="padding:3px 0;border-top:1px solid #f3f4f6;font-size:12.5px">' + (ids[tok[g.key]] ? '✔' : '⏳') + ' ' + esc(g.name || g.key) + '</div>'; }).join('') + '</details>';
+    }
     return o + '</div>';
+  }
+  function jatahIngat() {
+    var gk = S.gk, a = dataAngket(gk);
+    if (!a || !a.jatahOk || !adaPenilai(gk)) return pesan('Tidak tersedia untuk Anda.', true);
+    var ids = (a.ids && a.ids.sejawat) || {}, blm = guruAktif().filter(function (g) { return g.key && g.key !== gk && a.jatah && a.jatah[g.key] && !ids[a.jatah[g.key]]; });
+    if (!blm.length) return pesan('Semua guru sudah mengisi.');
+    if (!confirm('Kirim pengingat dalam aplikasi ke ' + blm.length + ' guru yang belum mengisi angket sejawat untuk ' + namaGuru(gk) + '?')) return;
+    blm.forEach(function (g) { kabari(g.key, 'PKG: angket sejawat belum diisi', 'Mohon isi angket sejawat untuk ' + namaGuru(gk) + ' di menu PKG Guru (kartu \"Angket sejawat untuk Anda isi\"). Sekitar 3 menit.'); });
+    if (typeof addLog === 'function') addLog('PKG angket ingatkan sejawat', namaGuru(gk) + ' x' + blm.length);
+    pesan('Pengingat dikirim ke ' + blm.length + ' guru.');
   }
   function jatahBuat() {
     var gk = S.gk, a = dataAngket(gk), pid = S.periodeId;
@@ -1862,6 +1930,15 @@
       }, 'Gagal membuat tautan sekali pakai: ');
     }
     if (act === 'jatah-buat') return jatahBuat();
+    if (act === 'ingat-wa') return ingatWa(el);
+    if (act === 'jatah-ingat') return jatahIngat();
+    if (act === 'kode-cek') {             // v56: cocokkan kode bukti dari responden dengan jawaban yang tercatat (isi jawaban tidak dibuka)
+      var jk = el.getAttribute('data-j'), ak = dataAngket(S.gk), rk = root(), inp = rk ? rk.querySelector('input[data-kode="' + jk + '"]') : null;
+      var kd = String(inp ? inp.value : '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+      if (!ak || !ak.ids || kd.length < 8) return pesan('Ketik kode bukti lengkap (8 karakter).', true);
+      var cocok = Object.keys(ak.ids[jk] || {}).filter(function (id) { var l = id.toLowerCase(); return l.slice(0, 8) === kd || l.slice(-8) === kd; });
+      return pesan(cocok.length === 1 ? '✔ Kode ' + kd.slice(0, 4).toUpperCase() + '-' + kd.slice(4).toUpperCase() + ' tercatat sebagai jawaban terkirim.' : (cocok.length > 1 ? 'Kode cocok dengan lebih dari satu jawaban; mintalah responden menunjukkan kode lengkapnya.' : 'Kode tidak ditemukan pada angket ini.'), cocok.length !== 1);
+    }
     if (act === 'angket-mode') return angketMode();
     if (act === 'kupon-buat') return kuponBuatAksi(el);
     if (act === 'kupon-salin') return kuponSalin(el);
@@ -1870,7 +1947,7 @@
     if (act === 'wa-tutup') { waState(S.gk).ant = null; return render(); }
     if (act === 'angket-salin') return angketSalin(el);
     if (act === 'angket-wa') return angketWa(el);
-    if (act === 'angket-muat') return muatAngket(S.gk, function () { pesan('Jawaban angket dimuat ulang.'); render(); });
+    if (act === 'angket-muat') { S.pnBuka = { siswa: true, ortu: true }; } if (act === 'angket-muat') return muatAngket(S.gk, function () { pesan('Jawaban angket dimuat ulang.'); render(); });
     if (act === 'angket-tarik') return tarikAngket();
     if (act === 'bukti-hapus') return hapusBukti(el);
     if (act === 'bukti-tarik') return tarikOtomatis();
@@ -3129,6 +3206,12 @@
       return esc(x.judul) + ' <b>' + f1(x.pct) + '%</b> (' + x.n + ' responden) ' + (x.saran != null ? '→ usulan skor <b>' + x.saran + '</b>' : '→ <i>belum cukup responden (min. ' + x.min + ')</i>');
     }).join(' &bull; ') + '</div>';
   }
+  // v58: usulan OTOMATIS dari data SI MAMBA (absensi, jurnal, kegiatan, TIK, buku penghubung, dst.) untuk indikator butir, hasil "Tarik bukti otomatis".
+  function wwOtoHtml(bk, ind) {
+    var o = bk && bk.otomatis && bk.otomatis[ind]; if (!o) return '';
+    var t = otoBaris(bk, o); if (!t) return '';
+    return '<div class="pkg-oto" style="margin:2px 0">🤖 <b>Data SI MAMBA (otomatis)</b>' + t + (o.saran != null ? '<div style="margin-top:2px">Usulan skor <b>' + o.saran + '</b></div>' : '') + '</div>';
+  }
   function wwForm(gk) {
     var kunci = kb(gk), d = S.ww[kunci];
     if (d === undefined) return '<div class="card"><p class="text-muted">Memuat wawancara…</p></div>';
@@ -3148,7 +3231,7 @@
       semua.filter(function (b) { return b.g === gi; }).forEach(function (b) {
         var v = j[b.key] || {}, pj = (gi === 0 && pra[b.ind]) || (gr.sejawat && sjw[b.ind]);
         o += '<div style="border-top:1px dashed #e5e7eb;padding:8px 0"><div style="font-size:13px"><b>' + esc(b.no) + '</b> ' + esc(b.q) + '</div>' +
-          '<div class="text-muted" style="font-size:11px">Indikator: ' + esc(potong((peta[b.no] || {}).t || '', 140)) + '</div>' + wwAngketHtml(angPeta, b.no) +
+          '<div class="text-muted" style="font-size:11px">Indikator: ' + esc(potong((peta[b.no] || {}).t || '', 140)) + '</div>' + wwAngketHtml(angPeta, b.no) + wwOtoHtml(bk, b.ind) +
           (pj ? '<div class="pkg-oto" style="background:#fffbeb">🗣️ <b>' + (gr.sejawat ? 'Jawaban teman sejawat (diisi sendiri)' : 'Jawaban guru (pra-wawancara)') + '</b><div style="white-space:pre-wrap;margin-top:2px">' + esc(pj) + '</div></div>' : '') +
           '<div style="display:flex;gap:14px;flex-wrap:wrap;margin:6px 0">' + WW_NILAI.map(function (sv) { return '<label style="font-size:13px"><input type="radio" name="pkgWwS_' + b.key + '" value="' + sv[0] + '" data-wws="1" data-wwg="' + gi + '"' + (v.s === sv[0] ? ' checked' : '') + dis + '> ' + sv[1] + '</label>'; }).join('') + '</div>' +
           '<textarea id="pkgWwC_' + b.key + '" rows="2" maxlength="' + WW_MAKS_C + '" placeholder="Jawaban nyata dan contoh kejadian" style="width:100%"' + dis + '>' + esc(v.c || '') + '</textarea>' +
