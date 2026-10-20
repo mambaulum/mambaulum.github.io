@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v71: kolom progres khusus di tab Supervisi, Wawancara, Observasi, Angket, dan tab baru Penilaian Diri (dibaca per bagian, bukan seluruh Kelengkapan); tanda umur data ("data dimuat 25 menit lalu") di Kelengkapan dan tab; tab terakhir diingat per pengguna di perangkat; cadangan JSON per periode di tab Pengaturan; v70: kolom Teman sejawat di Kelengkapan (Ringkasan) diperbarui otomatis: saat tab Ringkasan dibuka, saat sejawat ditunjuk atau dibatalkan, dan saat form Wawancara guru itu dibuka; v69: tab Bukti (Isian Bukti langsung dari menu PKG, daftar guru + kotak cari nama); v68: tab Observasi dan tab Angket langsung dari menu PKG (daftar guru + tombol Buka, pola sama dengan Supervisi/Wawancara; halaman Observasi berisi indikator pengamatan + lembar penanda + catatan fakta, halaman Angket berisi pengelolaan angket online); tanpa perubahan Rules; v66: Kelengkapan PKG: tombol Unduh Excel, tampil kartu per guru di HP, tombol Ingatkan hanya bila ada tujuan nyata + jeda 6 jam, kolom tidak terbaca (Rules) tidak dihitung lengkap; v58-v65: pembaruan lain yang tidak dicatat di header ini; v57: tabel Kelengkapan PKG per guru di tab Ringkasan (Admin/Kepala); tab Supervisi dan Wawancara langsung dari menu PKG; bilah tombol Simpan/Cetak supervisi dan wawancara menempel di bawah layar (sticky); Tahap 1 supervisi punya pilihan cepat + isian otomatis Perangkat dan Waktu/cara pengamatan, nama sejawat tersimpan otomatis setelah Tunjuk; memilih guru di dropdown Tunjuk sejawat tidak lagi dianggap perubahan belum disimpan + nama otomatis mengisi kolom nama narasumber sejawat; v56: wawancara teman sejawat diisi sendiri oleh guru yang ditunjuk, Kepala/wakil tetap diwawancarai; v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v73/v72: Observasi, kartu Kesimpulan observasi dengan usulan otomatis dari lembar penanda dan tercetak di Lembar Observasi; catatan kejadian di lembar penanda pengamatan kelas terisi otomatis dari penanda yang dicentang (tidak menimpa ketikan sendiri); tombol Isi otomatis pada form Tambah catatan observasi (judul + kerangka catatan dari jadwal, data SI MAMBA, indikator); v71: kolom progres khusus di tab Supervisi, Wawancara, Observasi, Angket, dan tab baru Penilaian Diri (dibaca per bagian, bukan seluruh Kelengkapan); tanda umur data ("data dimuat 25 menit lalu") di Kelengkapan dan tab; tab terakhir diingat per pengguna di perangkat; cadangan JSON per periode di tab Pengaturan; v70: kolom Teman sejawat di Kelengkapan (Ringkasan) diperbarui otomatis: saat tab Ringkasan dibuka, saat sejawat ditunjuk atau dibatalkan, dan saat form Wawancara guru itu dibuka; v69: tab Bukti (Isian Bukti langsung dari menu PKG, daftar guru + kotak cari nama); v68: tab Observasi dan tab Angket langsung dari menu PKG (daftar guru + tombol Buka, pola sama dengan Supervisi/Wawancara; halaman Observasi berisi indikator pengamatan + lembar penanda + catatan fakta, halaman Angket berisi pengelolaan angket online); tanpa perubahan Rules; v66: Kelengkapan PKG: tombol Unduh Excel, tampil kartu per guru di HP, tombol Ingatkan hanya bila ada tujuan nyata + jeda 6 jam, kolom tidak terbaca (Rules) tidak dihitung lengkap; v58-v65: pembaruan lain yang tidak dicatat di header ini; v57: tabel Kelengkapan PKG per guru di tab Ringkasan (Admin/Kepala); tab Supervisi dan Wawancara langsung dari menu PKG; bilah tombol Simpan/Cetak supervisi dan wawancara menempel di bawah layar (sticky); Tahap 1 supervisi punya pilihan cepat + isian otomatis Perangkat dan Waktu/cara pengamatan, nama sejawat tersimpan otomatis setelah Tunjuk; memilih guru di dropdown Tunjuk sejawat tidak lagi dianggap perubahan belum disimpan + nama otomatis mengisi kolom nama narasumber sejawat; v56: wawancara teman sejawat diisi sendiri oleh guru yang ditunjuk, Kepala/wakil tetap diwawancarai; v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -420,6 +420,7 @@
             '<input class="field" data-f="judul" maxlength="120" placeholder="Judul / ringkasan pengamatan (wajib)" style="flex:1;min-width:180px"></div>' +
             '<input class="field" data-f="tautan" placeholder="Tautan foto atau dokumen (opsional)" style="margin-top:6px">' +
             '<textarea class="field" data-f="ket" rows="2" maxlength="500" placeholder="Catatan fakta yang teramati (opsional)" style="margin-top:6px"></textarea>' +
+            '<button type="button" class="btn btn-soft" style="margin-top:6px;margin-right:6px;padding:5px 14px;font-size:12.5px" data-act="obs-isi" data-key="' + esc(key) + '" title="Mengisi judul dan kerangka catatan dari jadwal mengajar, data SI MAMBA, dan indikator. Kolom yang sudah terisi tidak ditimpa.">✨ Isi otomatis</button>' +
             '<button type="button" class="btn btn-success" style="margin-top:6px;padding:5px 14px;font-size:12.5px" data-act="bukti-tambah" data-key="' + esc(key) + '">💾 Simpan catatan</button></div></details>';
           if (pen) o += penandaHtml(key);
         }
@@ -427,6 +428,12 @@
       });
       o += '</details>';
     });
+    if (boleh) {   // v73: kesimpulan observasi (usulan otomatis dari hasil lembar penanda; tersimpan di perangkat ini dan ikut tercetak di Lembar Observasi)
+      var kes = obsKesAmbil(gk);
+      o += '<div class="card"><h4 style="margin:0 0 4px">Kesimpulan observasi</h4><div class="pkg-meta" style="margin-bottom:6px">Usulan disusun dari hasil lembar penanda (terpenuhi seluruhnya, sebagian, atau belum ada bukti). Periksa dan sesuaikan bersama guru. Tersimpan di perangkat ini dan tercetak pada Lembar Observasi.</div>' +
+        OBS_KES.map(function (x) { return '<label style="display:block;font-size:12.5px;font-weight:600;margin-top:8px">' + x[1] + '</label><textarea class="field" id="pkgObsK_' + x[0] + '" rows="3" maxlength="' + OBS_KES_MAKS + '" style="width:100%">' + esc(kes[x[0]] || '') + '</textarea>'; }).join('') +
+        '<button type="button" class="btn btn-soft" style="margin-top:8px" data-act="obs-kes-isi" data-gk="' + esc(gk) + '" title="Mengisi kolom yang masih kosong dari hasil lembar penanda. Kolom yang sudah terisi tidak ditimpa.">✨ Isi usulan kesimpulan</button></div>';
+    }
     return o;
   }
   function angketForm(gk) {
@@ -1671,6 +1678,70 @@
     muatBukti(gk, function () { if (S.view === 'bukti' && S.gk === gk) render(); });
     muatAngket(gk, function () { if (S.view === 'bukti' && S.gk === gk) render(); });
   }
+  // v73: kesimpulan observasi. Kalimat templat berbasis aturan dari skor lembar penanda (item.pn.s: 2 seluruhnya, 1 sebagian, 0 tidak ada); bukan AI.
+  var OBS_KES = [['baik', 'Hal yang sudah baik'], ['perbaikan', 'Hal yang perlu diperbaiki'], ['tindak', 'Kesepakatan tindak lanjut bersama guru']];
+  var OBS_KES_MAKS = 800;
+  function obsKesKunci(gk) { var u = me(); return 'pkg_obskes_' + kb(gk) + '_' + (u ? u.key : ''); }
+  function obsKesAmbil(gk) {
+    var v = {}; try { v = JSON.parse(localStorage.getItem(obsKesKunci(gk)) || '{}') || {}; } catch (e) { v = {}; }
+    return v;
+  }
+  function obsKesSimpan(gk, v) { try { localStorage.setItem(obsKesKunci(gk), JSON.stringify(v)); } catch (e) { } }
+  function obsKesUsulan(gk) {
+    var penuh = [], sebagian = [], belum = [], kosong = [];
+    P.komponen.forEach(function (k) {
+      k.indikator.forEach(function (ind, i) {
+        if (!ind.b.some(function (b) { return RE_OBS.test(b); })) return;
+        var key = k.no + '_' + (i + 1), lab = k.no + '.' + (i + 1) + ' ' + potong(ind.t, 70), sk = null;
+        daftarItem(gk, key).forEach(function (it) { if (it.jenis === 'observasi' && it.pn && (it.pn.s === 0 || it.pn.s === 1 || it.pn.s === 2)) sk = it.pn.s; });   // terurut waktu: yang terakhir dipakai
+        if (sk === 2) penuh.push(lab); else if (sk === 1) sebagian.push(lab); else if (sk === 0) belum.push(lab);
+        else if (!daftarItem(gk, key).some(function (it) { return it.jenis === 'observasi'; })) kosong.push(lab);
+      });
+    });
+    var gab = function (a, m) { return a.slice(0, m).join('; ') + (a.length > m ? '; dan ' + (a.length - m) + ' indikator lain' : ''); };
+    var r = { baik: '', perbaikan: '', tindak: '' }, perlu = sebagian.concat(belum);
+    if (penuh.length) r.baik = potong('Pada pengamatan kelas, indikator berikut terpenuhi seluruhnya: ' + gab(penuh, 4) + '.', OBS_KES_MAKS);
+    if (perlu.length || kosong.length) {
+      var q = [];
+      if (sebagian.length) q.push('terpenuhi sebagian: ' + gab(sebagian, 3));
+      if (belum.length) q.push('belum terlihat pada pengamatan: ' + gab(belum, 3));
+      if (kosong.length) q.push(kosong.length + ' indikator pengamatan belum dicatat');
+      r.perbaikan = potong('Perlu ditingkatkan atau dilengkapi: ' + q.join('; ') + '.', OBS_KES_MAKS);
+    }
+    if (perlu.length) r.tindak = potong('Guru dan penilai membahas indikator ' + gab(perlu.map(function (x) { return x.split(' ')[0]; }), 4) + ' (contoh praktik dan dukungan yang dibutuhkan), lalu dilakukan pengamatan ulang pada pertemuan berikutnya.', OBS_KES_MAKS);
+    else if (kosong.length) r.tindak = 'Penilai melengkapi catatan pengamatan pada indikator yang belum dicatat, lalu hasilnya dibahas bersama guru.';
+    return r;
+  }
+  function obsKesIsi(gk) {
+    if (!bolehUbahBukti(gk)) return;
+    var us = obsKesUsulan(gk), v = obsKesAmbil(gk), n = 0;
+    OBS_KES.forEach(function (x) {
+      var e = $('pkgObsK_' + x[0]);
+      if (e && !String(e.value || '').trim() && us[x[0]]) { e.value = us[x[0]]; v[x[0]] = e.value; n++; }
+    });
+    obsKesSimpan(gk, v);
+    pesan(n ? 'Usulan kesimpulan diisi dari hasil lembar penanda. Periksa dan sesuaikan.' : 'Tidak ada usulan baru: kolom sudah terisi, atau belum ada hasil pengamatan yang bisa dirangkum.', !n);
+  }
+  // v72: tombol "Isi otomatis" pada form Tambah catatan observasi. Hanya kerangka dari data yang sudah ada (jadwal, data SI MAMBA, indikator);
+  // fakta pengamatan tetap ditulis penilai. Kolom yang sudah terisi tidak ditimpa.
+  function obsIsi(el) {
+    var gk = S.gk, key = el.getAttribute('data-key'), box = el.closest('[data-bform]');
+    if (!box || !key || !bolehUbahBukti(gk)) return;
+    var ind = petaIndikator()[String(key).replace('_', '.')];
+    if (!ind) return;
+    var je = box.querySelector('[data-f="judul"]'), ke = box.querySelector('[data-f="ket"]'), n = 0;
+    if (je && !String(je.value || '').trim()) { je.value = 'Pengamatan kelas: ' + potong(ind.t, 90); n++; }
+    if (ke && !String(ke.value || '').trim()) {
+      var p = [], ja = { pada: [], hariTgl: '' }, d = dataBukti(gk);
+      try { ja = jadwalAjar(gk) || ja; } catch (e) { }
+      if (ja.pada && ja.pada.length) p.push('Kelas/mapel: ' + ja.pada.map(function (j) { return String(j.kelas || '') + (j.mapel ? ' ' + j.mapel : ''); }).join(', ') + (ja.hariTgl ? ' (' + ja.hariTgl + ')' : '') + '.');
+      var o = d && d.otomatis && d.otomatis[key], to = o ? teksOto(d, o) : '';
+      if (to) p.push(to + '.');
+      ke.value = potong(p.join(' '), 440) + (p.length ? ' ' : '') + 'Fakta teramati: '; n++;
+      try { ke.focus(); ke.setSelectionRange(ke.value.length, ke.value.length); } catch (e) { }
+    }
+    pesan(n ? 'Kerangka catatan diisi. Lengkapi dengan fakta yang teramati, lalu Simpan catatan.' : 'Judul dan catatan sudah terisi; tidak ditimpa.', !n);
+  }
   function tambahBukti(el) {
     var gk = S.gk, u = me(), key = el.getAttribute('data-key'), box = el.closest('[data-bform]');
     if (!u || !box || !key) return;
@@ -2477,6 +2548,8 @@
     if (act === 'cetak-perangkat') return cetakPerangkat(el.getAttribute('data-jenis'), gk);
     if (act === 'bukti') return bukaBukti(gk);
     if (act === 'bukti-tambah') return tambahBukti(el);
+    if (act === 'obs-isi') return obsIsi(el);
+    if (act === 'obs-kes-isi') return obsKesIsi(el.getAttribute('data-gk') || S.gk);
     if (act === 'pra-simpan') return simpanPra(el);
     if (act === 'diri-simpan') return simpanDiri(el);
     if (act === 'bukti-pengamatan') return simpanPengamatan(el);
@@ -2917,13 +2990,22 @@
     '13.3': ['Informasi dan konsep yang disampaikan tepat dan mutakhir', 'Penjelasan membantu murid memahami konsep']
   };
   function skorDariPenanda(t, n) { return n > 0 && t >= n ? 2 : (t > 0 ? 1 : 0); }
+  // v72: catatan kejadian pada lembar penanda terisi otomatis dari penanda yang dicentang (bisa diedit; tidak menimpa ketikan penilai)
+  function catatanDariPenanda(arr, t) {
+    var on = {}, ada = [], belum = [];
+    t.forEach(function (i) { on[i] = 1; });
+    arr.forEach(function (p, i) { (on[i] ? ada : belum).push(p); });
+    var o = ada.length ? 'Teramati: ' + ada.join('; ') + '.' : 'Belum ada penanda yang teramati.';
+    if (ada.length && belum.length) o += ' Belum teramati: ' + belum.join('; ') + '.';
+    return potong(o, 400);
+  }
   function penandaHtml(key) {
     var lab = key.replace('_', '.'), arr = PENANDA[lab];
     if (!arr) return '';
     return '<details class="pkg-add"><summary>👁️ Lembar penanda pengamatan kelas</summary><div data-pform="' + esc(key) + '">' +
       '<div class="pkg-meta" style="margin:4px 0">Centang penanda yang <b>terlihat</b> saat Anda mengamati pembelajaran.</div>' +
       arr.map(function (p, i) { return '<label style="display:flex;gap:6px;align-items:flex-start;margin:3px 0;font-size:13px"><input type="checkbox" data-pn="' + i + '" style="margin-top:3px"><span>' + esc(p) + '</span></label>'; }).join('') +
-      '<textarea class="field" data-f="catatan" rows="2" maxlength="400" placeholder="Catatan kejadian satu kalimat (wajib): apa yang dilihat/didengar" style="margin-top:6px"></textarea>' +
+      '<textarea class="field" data-f="catatan" rows="2" maxlength="400" placeholder="Catatan kejadian (wajib): terisi otomatis dari penanda yang dicentang. Tambahkan apa yang dilihat/didengar" style="margin-top:6px"></textarea>' +
       '<button type="button" class="btn btn-success" style="margin-top:6px;padding:5px 14px;font-size:12.5px" data-act="bukti-pengamatan" data-key="' + esc(key) + '">💾 Simpan hasil pengamatan</button></div></details>';
   }
   function simpanPengamatan(el) {
@@ -3032,8 +3114,8 @@
       });
       if (rows) o += '<h4 style="margin:10px 0 2px">Komponen ' + k.no + '. ' + esc(k.nama) + '</h4><table><thead><tr><th style="width:38px">No</th><th>Aspek yang diamati</th><th>Skor</th><th>Catatan fakta yang teramati</th></tr></thead><tbody>' + rows + '</tbody></table>';
     });
-    o += '<table style="page-break-inside:avoid"><tr><td style="width:30%;height:44px">Hal yang sudah baik</td><td></td></tr><tr><td style="height:44px">Hal yang perlu diperbaiki</td><td></td></tr>' +
-      '<tr><td style="height:44px">Kesepakatan tindak lanjut bersama guru</td><td></td></tr><tr><td>Tanggal pertemuan tindak lanjut</td><td></td></tr></table>';
+    o += '<table style="page-break-inside:avoid"><tr><td style="width:30%;height:44px">Hal yang sudah baik</td><td>' + esc(obsKesAmbil(gk).baik || '') + '</td></tr><tr><td style="height:44px">Hal yang perlu diperbaiki</td><td>' + esc(obsKesAmbil(gk).perbaikan || '') + '</td></tr>' +
+      '<tr><td style="height:44px">Kesepakatan tindak lanjut bersama guru</td><td>' + esc(obsKesAmbil(gk).tindak || '') + '</td></tr><tr><td>Tanggal pertemuan tindak lanjut</td><td></td></tr></table>';
     return o + ttdPerangkat(gk, true, 'Lembar Observasi PKG');
   }
   function wawancaraHtml(gk) {
@@ -4246,6 +4328,14 @@
         if (t.getAttribute && t.getAttribute('data-act') === 'wa-jenis' && S.gk) { var w1 = waState(S.gk); w1.jenis = t.value === 'ortu' ? 'ortu' : 'siswa'; w1.kelas = ''; w1.ant = null; return render(); }
         if (t.getAttribute && t.getAttribute('data-act') === 'wa-kelas' && S.gk) { var w0 = waState(S.gk); w0.kelas = t.value; w0.ant = null; return render(); }
         if (t.getAttribute && t.getAttribute('data-act') === 'ganti-periode') { S.periodeId = t.value; S.view = 'list'; S.bukti = {}; S.sv = {}; S.ww = {}; S.wsj = {}; S.wsjDraft = {}; S.kd = null; S.kdMuat = false; return muat(); }
+        if (t.matches && t.matches('input[type=checkbox][data-pn]')) {   // v72: catatan pengamatan otomatis dari penanda yang dicentang
+          var pbx = t.closest('[data-pform]'), pta = pbx ? pbx.querySelector('textarea[data-f="catatan"]') : null, parr = pbx ? PENANDA[String(pbx.getAttribute('data-pform') || '').replace('_', '.')] : null;
+          if (pta && parr && (!String(pta.value || '').trim() || pta.getAttribute('data-auto') === '1')) {
+            var pcs = []; Array.prototype.forEach.call(pbx.querySelectorAll('input[data-pn]'), function (c) { if (c.checked) pcs.push(parseInt(c.getAttribute('data-pn'), 10)); });
+            pta.value = pcs.length ? catatanDariPenanda(parr, pcs) : ''; pta.setAttribute('data-auto', '1');
+          }
+          return;
+        }
         if (t.matches && t.matches('input[type=checkbox][data-siap]') && S.view === 'bukti') return simpanSiap(t.getAttribute('data-siap'), t.checked);
         if (t.matches && t.matches('input[type=radio][data-diri]') && S.gk) { (S.diriDraft = S.diriDraft || {})[S.gk + '|j|' + t.getAttribute('data-diri')] = t.value; return render(); }
         if (t.matches && t.matches('input[type=radio][data-k]') && S.draft) { S.draft.skor[t.getAttribute('data-k') + '_' + t.getAttribute('data-i')] = parseInt(t.value, 10); simpanLokal(); recalc(); }
@@ -4258,6 +4348,8 @@
           if (tb) Array.prototype.forEach.call(tb.querySelectorAll('tr[data-nama]'), function (tr) { tr.style.display = !q || tr.getAttribute('data-nama').indexOf(q) >= 0 ? '' : 'none'; });
           return;
         }
+        if (t.getAttribute && t.getAttribute('data-f') === 'catatan' && t.closest && t.closest('[data-pform]')) t.removeAttribute('data-auto');   // v72: penilai mengetik sendiri -> tidak ditimpa lagi
+        if (t.id && t.id.indexOf('pkgObsK_') === 0 && S.gk) { var vk = obsKesAmbil(S.gk); vk[t.id.slice(8)] = t.value; obsKesSimpan(S.gk, vk); }   // v73: kesimpulan observasi
         if (t.getAttribute && t.getAttribute('data-cat') && S.draft) { S.draft.catatan[t.getAttribute('data-cat')] = t.value; simpanLokal(); }
         if (t.getAttribute && t.getAttribute('data-diri-r') && S.gk) { (S.diriDraft = S.diriDraft || {})[S.gk + '|r|' + t.getAttribute('data-diri-r')] = t.value; }
         if (t.getAttribute && t.getAttribute('data-wsj') && S.gk) { S.wsjDraft[S.gk + '|' + t.getAttribute('data-wsj')] = t.value; }

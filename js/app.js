@@ -12553,17 +12553,17 @@
     function checkFirebase() {
       const statusEl = document.getElementById('firebaseStatus'), connStatus = document.getElementById('connectionStatus');
       statusEl.className = 'status-badge'; statusEl.textContent = '⏳ Mengecek...';
-      connStatus.textContent = '⏳ Menghubungkan ke Firebase...'; connStatus.style.background = '#fef3c7'; connStatus.style.color = '#92400e';
+      connStatus.textContent = '⏳ Menghubungkan ke SI MAMBA...'; connStatus.style.background = '#fef3c7'; connStatus.style.color = '#92400e';
       db.ref('.info/connected').on('value', snap => {
         if (snap.val()) {
-          statusEl.className = 'status-badge'; statusEl.textContent = '✅ Terhubung';
-          connStatus.textContent = '✅ Terhubung ke Firebase'; connStatus.style.background = '#dcfce7'; connStatus.style.color = '#065f46';
+          statusEl.className = 'status-badge'; statusEl.textContent = '✅ Terhubung ke SI MAMBA';
+          connStatus.textContent = '✅ Terhubung ke SI MAMBA'; connStatus.style.background = '#dcfce7'; connStatus.style.color = '#065f46';
           if (!document.getElementById('loginGuru').innerHTML.includes('Admin')) loadGuruListForLogin();
           if (currentUser && !dataLoaded) { loadAllData(() => { hideLoading(); toast('Data dimuat ulang'); }); }
           // Auto backup 6 jam DINONAKTIFKAN (hemat bandwidth Firebase). Backup dilakukan manual 1x/minggu lewat Firebase Console.
         } else {
-          statusEl.className = 'status-badge disconnected'; statusEl.textContent = '❌ Putus';
-          connStatus.textContent = '❌ Tidak terhubung ke Firebase'; connStatus.style.background = '#fee2e2'; connStatus.style.color = '#991b1b';
+          statusEl.className = 'status-badge disconnected'; statusEl.textContent = '❌ Tidak terhubung ke SI MAMBA';
+          connStatus.textContent = '❌ Tidak terhubung ke SI MAMBA'; connStatus.style.background = '#fee2e2'; connStatus.style.color = '#991b1b';
         }
       });
     }
