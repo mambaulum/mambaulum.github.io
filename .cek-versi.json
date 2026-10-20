@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.23",
-  "disimpan": "2026-10-20T10:09:28.893Z",
+  "appVersion": "v8.26",
+  "disimpan": "2026-10-20T13:13:27.754Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -55,8 +55,8 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=90",
-      "hash": "05794830c21eed56e9cd3beb73d5f1b9ce9bbcf8"
+      "v": "v=91",
+      "hash": "80f1a4bc3db9637f5bd23c1aa9a176f7d427eb1d"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
@@ -103,8 +103,8 @@
       "hash": "03e6fa045d67ca99ad0f3882b69da509cbac7b9e"
     },
     "js/pkg.js": {
-      "v": "v=71",
-      "hash": "8ef74c302ef5c09ad4b4eb540f4100434052a7c0"
+      "v": "v=74",
+      "hash": "f171d7853f68cdccad2e3c22448275b702b38314"
     },
     "js/pkg-analisis.js": {
       "v": "v=3",
