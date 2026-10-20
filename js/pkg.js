@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v56: wawancara teman sejawat diisi sendiri oleh guru yang ditunjuk, Kepala/wakil tetap diwawancarai; v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -19,7 +19,8 @@
      pkg_v4_rtl/{periodeId}/{guruKey}      : (BARU v34) rekomendasi & rencana tindak lanjut {kekuatan, perbaikan, rekomendasi, tindakLanjut, targetWaktu, diperbarui, diperbaruiOleh}; tulis penilai/Kepala/Admin sebelum ditetapkan; lihat rules-rtl-pkg.txt
      pkg_v4_skpen/{penilaiKey}             : (BARU v35) SK penugasan penilai {nomor, tanggal, akhir, diperbarui, diperbaruiOleh}; berlaku 4 tahun; Admin/Kepala menulis; lihat rules-sk-pkg.txt
      pkg_v4_supervisi/{periodeId}/{guruKey}: (BARU v37) supervisi digital {t1:{fokus,perangkat,waktu,tanggal}, k:{"1":{s:0|1|2,c,b:{"1":0|1|2}}}, t3:{refleksi,baik,perbaikan,tindak,tanggal}}; tulis penilai/Kepala/Admin
-     pkg_v4_wawancara/{periodeId}/{guruKey}: (BARU v44) wawancara digital 4 narasumber {n:{g0..g3:{nama,tgl}}, j:{"g_k_i":{s:0|1|2,c}}}; hanya penilai/Kepala/Admin (rahasia, guru tidak membaca); lihat rules-wawancara-pkg.txt
+     pkg_v4_wawancara/{periodeId}/{guruKey}: (BARU v44) wawancara digital 5 narasumber (g4 = teman sejawat, v56) {n:{g0..g4:{nama,tgl}}, j:{"g_k_i":{s:0|1|2,c}}}; hanya penilai/Kepala/Admin (rahasia, guru tidak membaca); lihat rules-wawancara-pkg.txt
+     pkg_v4_wsejawat/{periodeId}/{guruDinilai}/{guruSejawat}: (BARU v56) wawancara teman sejawat: penilai/Kepala/Admin menunjuk SATU guru ({tunjuk,oleh,nama}); guru itu mengisi sendiri jawabannya di akunnya ({a:{"k_i":teks}, isi}); rahasia, guru yang dinilai tidak membaca; lihat rules-wawancara-sejawat.txt
      pkg_v4_kendali/{periodeId}            : (BARU v37) pengendalian internal (Juknis III.F.1) {cek, sampel, temuan, tindak}; hanya Admin/Kepala; lihat rules-supervisi-kendali-pkg.txt
      pkg_v4_skset/{periodeId}              : (BARU v35) data SK Kepala Madrasah penetapan hasil PKG {nomor, tanggal, tempat, dasar, ...}
      pkg_v4_bukti/{periodeId}/{guruKey}    : (BARU v7) isian + bukti yang diisi langsung di aplikasi
@@ -62,7 +63,7 @@
   var P = window.PKG_MI;
   if (!P || !P.komponen || typeof P.hitungPKG !== 'function' || typeof P.totalIndikator !== 'function') { console.warn('[PKG] js/data-pkg-mi.js belum dimuat / tidak lengkap.'); return; }
 
-  var N = { rtl: 'pkg_v4_rtl', periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon', angketJatah: 'pkg_v4_angket_jatah', skpen: 'pkg_v4_skpen', skset: 'pkg_v4_skset', sv: 'pkg_v4_supervisi', kendali: 'pkg_v4_kendali', ww: 'pkg_v4_wawancara' };
+  var N = { rtl: 'pkg_v4_rtl', periode: 'pkg_v4_periode', tugas: 'pkg_v4_tugas', nilai: 'pkg_v4_nilai', bukti: 'pkg_v4_bukti', angket: 'pkg_v4_angket', angketInfo: 'pkg_v4_angket_info', angketKupon: 'pkg_v4_angket_kupon', angketJatah: 'pkg_v4_angket_jatah', skpen: 'pkg_v4_skpen', skset: 'pkg_v4_skset', sv: 'pkg_v4_supervisi', kendali: 'pkg_v4_kendali', ww: 'pkg_v4_wawancara', wsj: 'pkg_v4_wsejawat' };
   var MAKS_ITEM = 10;                 // maks. bukti manual per indikator
   var JENIS_ITEM = { dokumen: '📄 Dokumen', observasi: '👁️ Observasi', wawancara: '🎤 Wawancara' };
   var MAKS_GURU_PER_PENILAI = 10;
@@ -74,7 +75,7 @@
     belum: '#6b7280', draft: '#b45309', diajukan: '#1d4ed8', disetujui: '#15803d', keberatan: '#b91c1c', ditetapkan: '#166534'
   };
 
-  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'daftar', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, rtl: {}, rtlGagal: {}, rtlMuat: {}, angket: {}, jatah: [], jatahId: 0, otoDari: '', otoSampai: '', skpen: {}, skset: null, skGagal: false, sv: {}, svGagal: {}, svKotor: false, kd: null, kdMuat: false, ww: {}, wwGagal: {}, wwKotor: false };
+  var S = { periodeList: {}, periodeId: null, tugas: {}, nilai: {}, tab: 'daftar', view: 'list', gk: null, draft: null, memuat: false, reqId: 0, userKey: null, menyimpan: false, bukti: {}, rtl: {}, rtlGagal: {}, rtlMuat: {}, angket: {}, jatah: [], jatahId: 0, otoDari: '', otoSampai: '', skpen: {}, skset: null, skGagal: false, sv: {}, svGagal: {}, svKotor: false, kd: null, kdMuat: false, ww: {}, wwGagal: {}, wwKotor: false, wsj: {}, wsjGagal: {}, tunjuk: [], tunjukId: 0, wsjDraft: {} };
 
   // ---------- util ----------
   function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -186,7 +187,7 @@
         });
       });
     }).then(function () { if (basi()) return; return muatSk(); })
-    .then(function () { if (basi()) return; S.memuat = false; render(); muatJatah(); if (cb) cb(); })
+    .then(function () { if (basi()) return; S.memuat = false; render(); muatJatah(); muatTunjuk(); if (cb) cb(); })
       .catch(function (e) {
         if (basi()) return;
         S.memuat = false; render();
@@ -293,13 +294,14 @@
     if (S.view === 'perangkat') { r.innerHTML = h + perangkatHtml(S.gk); return; }
     if (S.view === 'supervisi') { r.innerHTML = h + svForm(S.gk); return; }
     if (S.view === 'wawancara') { r.innerHTML = h + wwForm(S.gk); return; }
+    if (S.view === 'wsejawat') { r.innerHTML = h + wsjForm(S.gk); return; }
     h += tabsHtml();
     var tb = bolehKelola() ? S.tab : 'daftar';
     if (tb === 'pengaturan') h += pengaturanHtml();
     else if (tb === 'analisis') h += analisisHtml();
     else if (tb === 'kendali') h += kendaliHtml();
     else if (tb === 'ringkasan') h += ringkasanHtml();
-    else h += jatahKartu() + pengingatJadwalHtml() + langkahHtml() + daftarHtml();
+    else h += jatahKartu() + tunjukKartu() + pengingatJadwalHtml() + langkahHtml() + daftarHtml();
     r.innerHTML = h;
   }
 
@@ -830,7 +832,7 @@
   }
   function pertanyaanWawancara(key) {
     var lab = key.replace('_', '.'), r = [];
-    WAWANCARA.forEach(function (g) { g.q.forEach(function (x) { if (x[0] === lab) r.push({ who: g.who, q: x[1] }); }); });
+    WAWANCARA.forEach(function (g) { if (g.sembunyi) return; g.q.forEach(function (x) { if (x[0] === lab) r.push({ who: g.who, q: x[1] }); }); });
     return r;
   }
   function teksOto(d, o) {
@@ -1908,7 +1910,12 @@
     if (act === 'wawancara') return bukaWw(gk);
     if (act === 'ww-kembali') { S.view = 'perangkat'; return render(); }
     if (act === 'ww-simpan') return wwSimpan(S.gk);
-    if (act === 'ww-salin') return wwSalin(S.gk, el.getAttribute('data-key') || '');
+    if (act === 'ww-salin') return wwSalin(S.gk, el.getAttribute('data-key') || '', el.getAttribute('data-g'));
+    if (act === 'wsj-tunjuk') return wsjTunjuk();
+    if (act === 'wsj-batal') return wsjBatal();
+    if (act === 'wsj-buka') { if (!S.tunjuk.some(function (t) { return t.gk === gk; })) return pesan('Penunjukan tidak ditemukan.', true); S.gk = gk; S.view = 'wsejawat'; return render(); }
+    if (act === 'wsj-kembali') { S.view = 'list'; return render(); }
+    if (act === 'wsj-simpan') return wsjSimpan(el);
     if (act === 'ww-bukti') return wwSimpan(S.gk, function () { wwBuktiTulis(S.gk); });
     if (act === 'ww-cetak') return cetakPerangkat('wawancara', S.gk);
     if (act === 'ww-kosong') {
@@ -2193,7 +2200,7 @@
       ['14.5', 'Penelitian, karya inovasi, atau kegiatan ilmiah apa yang pernah Anda ikuti atau hasilkan?'],
       ['14.6', 'Bagaimana Bapak/Ibu memanfaatkan TIK untuk berkomunikasi dan mengikuti kegiatan PKB?']
     ] },
-    { who: 'Kepala madrasah, wakil kepala madrasah, atau teman sejawat', q: [
+    { who: 'Kepala madrasah atau wakil kepala madrasah (diwawancarai penilai)', q: [
       ['8.1', 'Bagaimana sikap guru ini terhadap nilai-nilai Pancasila dalam kegiatan madrasah, misalnya upacara dan peringatan hari nasional?'],
       ['8.2', 'Bagaimana kerja sama guru ini dengan rekan tanpa membedakan suku, agama, atau latar belakang?'],
       ['9.1', 'Bagaimana kesantunan guru ini dalam berbicara dan berpenampilan terhadap peserta didik, orang tua, dan rekan?'],
@@ -2217,6 +2224,13 @@
       ['12.2', 'Bagaimana peran guru ini dalam kegiatan madrasah dan masyarakat yang Anda ketahui?']
     ] }
   ];
+  // v56: teman sejawat = SATU guru yang ditunjuk penilai; mengisi sendiri di akunnya (bukan diwawancarai). Indeks 4 (ditambah di belakang
+  // agar kunci data lama g0..g3 tidak bergeser). Pertanyaan sama dengan narasumber Kepala/wakil, kecuali butir khusus wakil kepala (10.5).
+  var WW_SEJ = 4;
+  // v56 (opsi C): wawancara hanya dengan Guru yang dinilai dan Teman sejawat (diisi sendiri). Kepala = penilai sendiri, orang tua/komite
+  // sudah tercakup angket, jadi keduanya disembunyikan (tetap di array agar indeks g0..g4 tidak bergeser; data lama tidak dibaca lagi).
+  WAWANCARA[1].sembunyi = true; WAWANCARA[2].sembunyi = true; WAWANCARA[3].sembunyi = true;   // peserta didik juga disembunyikan: seluruh butirnya (2.4, 11.1, 11.3, 14.4, 14.6) sudah dicakup angket siswa kelas 4-6
+  WAWANCARA.push({ who: 'Teman sejawat (satu guru yang ditunjuk; mengisi sendiri di akunnya)', sejawat: true, q: WAWANCARA[1].q.filter(function (x) { return x[0] !== '10.5'; }) });
 
 
   // Penanda pengamatan kelas per indikator (diisi PENILAI saat melihat langsung). Tiap penanda yang terlihat dicentang.
@@ -2375,6 +2389,7 @@
     var peta = petaIndikator(), o = perangkatHeader(gk, 'PEDOMAN WAWANCARA<br>PENILAIAN KINERJA GURU'), n = 0;
     o += '<p style="font-size:11px">Catat <b>jawaban nyata dan contoh kejadian</b>. Jawaban umum tanpa contoh belum cukup menjadi dasar skor 2. Wawancara dilakukan di tempat yang tenang dan tidak didengar guru yang dinilai; identitas peserta didik, orang tua, dan sejawat dirahasiakan dalam laporan.</p>';
     WAWANCARA.forEach(function (g) {
+      if (g.sembunyi) return;
       var rows = '';
       g.q.forEach(function (x) {
         var ind = peta[x[0]]; if (!ind) return;
@@ -2485,7 +2500,7 @@
       ['bukti', '📂 Daftar Bukti (cetak)', 'Bukti yang perlu disiapkan per penyedia dan per indikator. Bila bukti sudah diisi di aplikasi, kotak dan lampiran tercetak terisi.'],
       ['observasi', '👁️ Lembar Observasi Pembelajaran', 'Lembar pengamatan kelas berisi indikator yang diukur lewat pengamatan, dengan kolom skor dan catatan fakta.'],
       ['supervisi', '🔎 Lembar Supervisi Guru (cetak)', 'Lembar tiga tahap: pertemuan awal, pengamatan kelas per komponen, dan umpan balik. Tercetak terisi bila sudah diisi di aplikasi; bila belum, kolomnya kosong untuk tulis tangan.'],
-      ['wawancara', '🎤 Pedoman Wawancara', 'Pertanyaan inti per narasumber (guru, kepala madrasah atau sejawat, peserta didik, orang tua atau komite).'],
+      ['wawancara', '🎤 Pedoman Wawancara', 'Pertanyaan inti per narasumber (guru yang dinilai dan teman sejawat yang ditunjuk; peserta didik dan orang tua dicakup angket online).'],
       ['angkethasil', '📊 Rekap Hasil Angket', 'Jumlah responden, persentase per indikator, dan usulan skor dari angket online (peserta didik, orang tua/komite, sejawat).'],
       ['diri', '🪞 Penilaian Diri Guru', 'Jawaban penilaian diri, refleksi, dan perbandingan dengan angket peserta didik (perbandingan hanya tercetak untuk penilai).'],
       ['angketkertas', '📝 Angket Kertas (siswa, orang tua, sejawat)', 'Formulir angket kosong untuk responden yang tidak memakai HP. Jawaban kertas belum bisa dimasukkan ke aplikasi.']
@@ -2929,17 +2944,17 @@
   }
 
   // ---------- v44: Wawancara digital seperti angket (pkg_v4_wawancara) ----------
-  // 25 butir dari WAWANCARA (4 narasumber). Hanya penilai/Kepala/Admin yang membaca dan menulis: wawancara rahasia, guru yang dinilai tidak membacanya.
+  // butir dari WAWANCARA (5 narasumber sejak v56). Hanya penilai/Kepala/Admin yang membaca dan menulis: wawancara rahasia, guru yang dinilai tidak membacanya.
   // Skor tiap butir memakai skala indikator PKG (2/1/0). Jawaban pra-wawancara guru hanya bahan; skor dipilih penilai sesudah bertemu.
   var WW_MAKS_C = 1200, WW_MAKS_N = 100;
   var WW_NILAI = [[2, 'Seluruhnya, ada contoh nyata'], [1, 'Sebagian / jawaban umum'], [0, 'Tidak ada bukti']];
   var WW_LAB = ['Tidak ada bukti', 'Sebagian', 'Seluruhnya'];
-  var WW_SINGKAT = ['Guru', 'Kepala/sejawat', 'Peserta didik', 'Orang tua/komite'];
+  var WW_SINGKAT = ['Guru', 'Kepala/wakil', 'Peserta didik', 'Orang tua/komite', 'Sejawat'];
   function nodeWw(gk) { return N.ww + '/' + S.periodeId + '/' + gk; }
   function wwKey(g, no) { return g + '_' + String(no).replace('.', '_'); }
   function wwButir() {
     var peta = petaIndikator(), r = [];
-    WAWANCARA.forEach(function (gr, gi) { gr.q.forEach(function (x) { if (peta[x[0]]) r.push({ g: gi, no: x[0], q: x[1], key: wwKey(gi, x[0]), ind: String(x[0]).replace('.', '_') }); }); });
+    WAWANCARA.forEach(function (gr, gi) { if (gr.sembunyi) return; gr.q.forEach(function (x) { if (peta[x[0]]) r.push({ g: gi, no: x[0], q: x[1], key: wwKey(gi, x[0]), ind: String(x[0]).replace('.', '_') }); }); });
     return r;
   }
   function muatWw(gk, cb) {
@@ -2947,7 +2962,113 @@
     var kunci = kb(gk), pid = S.periodeId;
     siapSesi().then(function () { return db.ref(nodeWw(gk)).once('value'); }).then(function (sn) {
       if (pid !== S.periodeId) return; S.ww[kunci] = sn.val() || {}; S.wwGagal[kunci] = false;
-    }).catch(function () { if (!S.ww[kunci]) S.ww[kunci] = {}; S.wwGagal[kunci] = true; }).then(function () { if (cb) cb(); });
+    }).catch(function () { if (!S.ww[kunci]) S.ww[kunci] = {}; S.wwGagal[kunci] = true; })
+    .then(function () { return db.ref(nodeWsj(gk)).once('value').then(function (sn) { if (pid === S.periodeId) { S.wsj[kunci] = sn.val() || {}; S.wsjGagal[kunci] = false; } }, function () { if (!S.wsj[kunci]) S.wsj[kunci] = {}; S.wsjGagal[kunci] = true; }); })
+    .then(function () { if (cb) cb(); });
+  }
+  // ----- v56: wawancara teman sejawat (satu guru ditunjuk, mengisi sendiri di akunnya) -----
+  function nodeWsj(gk) { return N.wsj + '/' + S.periodeId + '/' + gk; }
+  function wsjRec(gk) {                       // penunjukan aktif (satu guru) -> {key, nama, tunjuk, a, isi} atau null
+    var m = S.wsj[kb(gk)] || {}, ks = Object.keys(m).filter(function (k) { return m[k] && m[k].tunjuk; });
+    if (!ks.length) return null; var r = m[ks[0]]; return { key: ks[0], nama: r.nama || namaGuru(ks[0]), tunjuk: r.tunjuk, a: r.a || {}, isi: r.isi || null };
+  }
+  function wsjJawab(gk) { var r = wsjRec(gk); return (r && r.a) || {}; }
+  function wsjPenilaiHtml(gk, boleh) {
+    var rec = wsjRec(gk), o = '<div id="pkgWsjBox" style="margin:6px 0 8px;padding:8px 10px;border-radius:8px;background:rgba(15,118,110,.08);font-size:12.5px">';
+    o += '<div><b>👥 Teman sejawat mengisi sendiri di akunnya.</b> Tunjuk <b>satu</b> guru; pertanyaannya muncul di menu PKG guru itu dan jawabannya tampil di bawah tiap pertanyaan di sini.</div>';
+    if (S.wsjGagal[kb(gk)]) o += '<div style="color:#b91c1c;margin-top:4px">Data penunjukan sejawat tidak terbaca. Pasang Firebase Rules pkg_v4_wsejawat (lihat rules-wawancara-sejawat.txt).</div>';
+    if (rec) o += '<div style="margin-top:6px">Ditunjuk: <b>' + esc(rec.nama) + '</b> &bull; ' + (rec.isi ? '<b style="color:#15803d">✔ sudah mengisi</b> (' + fmtTgl(String(rec.isi).slice(0, 10)) + ')' : '<b style="color:#b45309">belum mengisi</b>') + '</div>';
+    if (boleh) {
+      var lain = guruAktif().filter(function (g) { return g.key && g.key !== gk && AMAN_KEY.test(g.key) && (!rec || g.key !== rec.key); });
+      o += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><select class="field" id="pkgWsjPilih" style="min-width:200px"><option value="">' + (rec ? '— Ganti dengan guru lain —' : '— Pilih teman sejawat —') + '</option>' + lain.map(function (g) { return '<option value="' + esc(g.key) + '">' + esc(g.name || g.key) + '</option>'; }).join('') + '</select>' +
+        '<button type="button" class="btn btn-success" style="padding:4px 10px;font-size:12px" data-act="wsj-tunjuk">' + (rec ? 'Ganti' : 'Tunjuk') + '</button>' +
+        (rec ? '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="wsj-batal">Batalkan penunjukan</button>' : '') + '</div>';
+    }
+    return o + '</div>';
+  }
+  function wsjTunjuk() {
+    var gk = S.gk, u = me(); if (!bolehWwTulis(gk)) return pesan('Tidak dapat menunjuk: penilaian sudah ditetapkan atau Anda tidak berhak.', true);
+    if (S.wwKotor) return pesan('Simpan dulu isian wawancara (tombol Simpan di bawah), lalu tunjuk teman sejawat.', true);
+    if (S.wsjGagal[kb(gk)]) return pesan('Data penunjukan sejawat belum terbaca. Periksa koneksi dan Firebase Rules (rules-wawancara-sejawat.txt).', true);
+    var sel = $('pkgWsjPilih'), pk = sel ? sel.value : ''; if (!pk || !AMAN_KEY.test(pk) || pk === gk) return pesan('Pilih satu guru sebagai teman sejawat.', true);
+    var lama = wsjRec(gk);
+    if (lama && lama.isi && !confirm('Guru yang ditunjuk sebelumnya (' + lama.nama + ') sudah mengisi. Jawabannya akan terhapus bila diganti. Lanjutkan?')) return;
+    var nama = potong(namaGuru(pk), 120), upd = {}; if (lama) upd[lama.key] = null;
+    upd[pk] = { tunjuk: nowIso(), oleh: pengisi(u), nama: nama };
+    kerjakan(function () { return db.ref(nodeWsj(gk)).update(aman(upd)); }, function () {
+      var m = {}; m[pk] = upd[pk]; S.wsj[kb(gk)] = m;
+      if (typeof addLog === 'function') addLog('PKG wawancara sejawat tunjuk', namaGuru(gk) + ' -> ' + nama);
+      kabari(pk, 'PKG: Anda diminta mengisi wawancara sejawat', 'Anda ditunjuk sebagai teman sejawat untuk penilaian ' + namaGuru(gk) + '. Buka menu PKG Guru untuk mengisinya.');
+      pesan('Teman sejawat ditunjuk: ' + nama + '. Ia mengisi dari menu PKG di akunnya.'); render();
+    }, 'Gagal menunjuk teman sejawat: ');
+  }
+  function wsjBatal() {
+    var gk = S.gk, rec = wsjRec(gk); if (!rec) return;
+    if (!bolehWwTulis(gk)) return pesan('Tidak dapat membatalkan: penilaian sudah ditetapkan atau Anda tidak berhak.', true);
+    if (S.wwKotor) return pesan('Simpan dulu isian wawancara (tombol Simpan di bawah), lalu batalkan penunjukan.', true);
+    if (!confirm('Batalkan penunjukan ' + rec.nama + (rec.isi ? ' dan hapus jawabannya?' : '?'))) return;
+    kerjakan(function () { return db.ref(nodeWsj(gk) + '/' + rec.key).remove(); }, function () {
+      S.wsj[kb(gk)] = {}; if (typeof addLog === 'function') addLog('PKG wawancara sejawat batal', namaGuru(gk));
+      pesan('Penunjukan dibatalkan.'); render();
+    }, 'Gagal membatalkan penunjukan: ');
+  }
+  // sisi guru sejawat: cari penunjukan atas dirinya pada guru lain yang sedang dinilai
+  function muatTunjuk() {
+    var u = me(), pid = S.periodeId, id = ++S.tunjukId;
+    S.tunjuk = [];
+    if (!u || adm() || kep() || !pid) return;
+    var daftar = Object.keys(S.tugas || {}).filter(function (g) { var t = S.tugas[g]; return g !== u.key && t && t.penilaiKey && AMAN_KEY.test(g); });
+    if (!daftar.length) return;
+    siapSesi().then(function () {
+      return Promise.all(daftar.map(function (g) {
+        return db.ref(N.wsj + '/' + pid + '/' + g + '/' + u.key).once('value').then(function (x) {
+          var v = x.val(); return (v && v.tunjuk) ? { gk: g, nama: namaGuru(g), rec: v } : null;
+        }).catch(function () { return null; });       // ditolak Rules / belum ada: lewati
+      }));
+    }).then(function (hasil) {
+      if (id !== S.tunjukId || pid !== S.periodeId) return;
+      S.tunjuk = hasil.filter(Boolean).sort(function (x, y) { return String(x.nama).localeCompare(String(y.nama)); });
+      if (S.tunjuk.length && S.view === 'list') render();
+    }).catch(function (e) { console.warn('[PKG] penunjukan wawancara sejawat gagal dimuat:', e); });
+  }
+  function tunjukKartu() {
+    if (!S.tunjuk || !S.tunjuk.length || bolehKelola()) return '';
+    var sisa = S.tunjuk.filter(function (x) { return !x.rec.isi; }).length;
+    var o = '<div class="card" style="border:1px solid #0f766e"><h4 style="margin:0 0 4px">🎤 Wawancara sejawat untuk Anda isi' + (sisa ? ' <span class="pkg-chip" style="background:#0f766e">' + sisa + '</span>' : '') + '</h4>' +
+      '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Anda ditunjuk sebagai teman sejawat dalam penilaian kinerja rekan berikut. Jawab pertanyaan singkat dengan contoh nyata. Jawaban hanya dibaca penilai, Kepala Madrasah, dan Admin; rekan yang dinilai tidak membacanya.</p>';
+    S.tunjuk.forEach(function (x) {
+      o += '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:6px 0;border-top:1px solid #f3f4f6"><span style="font-size:13px"><b>' + esc(x.nama) + '</b>' + (x.rec.isi ? ' <span class="pkg-meta">✔ sudah diisi (' + fmtTgl(String(x.rec.isi).slice(0, 10)) + ')</span>' : '') + '</span>' +
+        '<button type="button" class="btn ' + (x.rec.isi ? 'btn-soft' : 'btn-success') + '" style="padding:5px 12px;font-size:12px" data-act="wsj-buka" data-gk="' + esc(x.gk) + '">' + (x.rec.isi ? 'Lihat / ubah jawaban' : 'Isi sekarang') + '</button></div>';
+    });
+    return o + '</div>';
+  }
+  function wsjSoal() { return (WAWANCARA[WW_SEJ] && WAWANCARA[WW_SEJ].q) || []; }
+  function wsjForm(gk) {
+    var u = me(), x = S.tunjuk.filter(function (t) { return t.gk === gk; })[0];
+    if (!u || !x) return '<div class="card"><p class="text-muted">Penunjukan tidak ditemukan.</p><button class="btn btn-soft" data-act="wsj-kembali">← Kembali</button></div>';
+    var a = x.rec.a || {}, o = '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><h4 style="margin:0">🎤 Wawancara sejawat: ' + esc(x.nama) + '</h4>' +
+      '<div class="text-muted" style="font-size:12px">Anda diminta mengisi sebagai teman sejawat.</div></div><button class="btn btn-soft" data-act="wsj-kembali">← Kembali</button></div>' +
+      '<p class="text-muted" style="font-size:12px;margin:8px 0 0">Jawab dengan jujur dan sertakan <b>contoh nyata</b> (siapa, kapan, apa yang terjadi). Jawaban umum tanpa contoh kurang membantu penilai. Jawaban ini <b>rahasia</b>: hanya dibaca penilai, Kepala Madrasah, dan Admin. Tidak ada jawaban benar atau salah; kosongkan bila Anda tidak mengetahuinya.</p></div>' +
+      '<div class="card" data-wsjform="1">' + wsjSoal().map(function (q) {
+        var key = q[0].replace('.', '_'), dr = S.wsjDraft[gk + '|' + key], v = dr != null ? dr : (a[key] || '');
+        return '<div style="margin:8px 0"><div style="font-size:13px"><b>' + esc(q[0]) + '</b> ' + esc(q[1]) + '</div><textarea class="field" data-wsj="' + esc(key) + '" rows="3" maxlength="' + MAKS_PRA + '" placeholder="Tulis jawaban dan contoh kejadian…" style="margin-top:4px">' + esc(v) + '</textarea></div>';
+      }).join('') +
+      '<button type="button" class="btn btn-success" data-act="wsj-simpan" data-gk="' + esc(gk) + '" style="margin-top:4px">💾 Simpan jawaban</button>' + (x.rec.isi ? ' <span class="pkg-meta">Terakhir disimpan ' + fmtTgl(String(x.rec.isi).slice(0, 10)) + '</span>' : '') + '</div>';
+    return o;
+  }
+  function wsjSimpan(el) {
+    var gk = el.getAttribute('data-gk') || S.gk, u = me(), x = S.tunjuk.filter(function (t) { return t.gk === gk; })[0];
+    if (!u || !x) return pesan('Penunjukan tidak ditemukan.', true);
+    var box = el.closest('[data-wsjform]'); if (!box) return;
+    var a = {}, n = 0;
+    Array.prototype.forEach.call(box.querySelectorAll('textarea[data-wsj]'), function (t) { var v = String(t.value || '').trim(); if (v) { a[t.getAttribute('data-wsj')] = potong(v, MAKS_PRA); n++; } });
+    var isi = n ? nowIso() : null, upd = aman({ a: n ? a : null, isi: isi });
+    pesan('Menyimpan jawaban…');
+    kerjakan(function () { return db.ref(N.wsj + '/' + S.periodeId + '/' + gk + '/' + u.key).update(upd); }, function () {
+      x.rec.a = upd.a || null; x.rec.isi = isi; S.wsjDraft = {};
+      if (typeof addLog === 'function') addLog('PKG wawancara sejawat isi', namaGuru(gk));
+      pesan(n ? 'Jawaban tersimpan (' + n + ' jawaban). Terima kasih.' : 'Jawaban dikosongkan.'); S.view = 'list'; render();
+    }, 'Gagal menyimpan jawaban: ');
   }
   function bolehWwTulis(gk) { return !!me() && (bolehMenilai(gk) || lihatSemua()) && statusDari(S.nilai[gk]) !== 'ditetapkan'; }
   function wwSkorValid(v) { return v === 0 || v === 1 || v === 2; }
@@ -2987,8 +3108,26 @@
   function wwSegar() {
     if (!root()) return;
     var j = wwBacaJ();
-    WAWANCARA.forEach(function (gr, gi) { var e = $('pkgWwR_' + gi); if (e) e.innerHTML = wwRingkasG(gi, j); });
+    WAWANCARA.forEach(function (gr, gi) { if (gr.sembunyi) return; var e = $('pkgWwR_' + gi); if (e) e.innerHTML = wwRingkasG(gi, j); });
     var u = $('pkgWwU'); if (u) u.innerHTML = wwUsulanHtml(j);
+  }
+  // v56: usulan skor OTOMATIS dari angket online (siswa/ortu/sejawat) untuk indikator yang sama, ditampilkan di tiap butir wawancara sebagai pembanding.
+  function wwAngketPeta(gk) {
+    var A = AK(), a = dataAngket(gk), peta = {};
+    if (!A || !a || !a.resp) return null;
+    (A.urut || []).forEach(function (j) {
+      var rs = a.resp[j] || []; if (!rs.length) return;
+      var h = A.hitung(j, rs); if (!h) return;
+      Object.keys(h.indikator).forEach(function (ind) { (peta[ind] = peta[ind] || []).push({ j: j, judul: A.jenis[j].judul.replace(/^Angket\s+/, ''), pct: h.indikator[ind].pct, n: h.indikator[ind].n, saran: h.indikator[ind].saran, min: h.min }); });
+    });
+    return peta;
+  }
+  function wwAngketHtml(peta, no) {
+    if (!peta) return '';
+    var l = peta[no]; if (!l || !l.length) return '<div class="text-muted" style="font-size:11px">📊 Angket online: belum ada jawaban untuk indikator ini.</div>';
+    return '<div style="font-size:11.5px;margin:2px 0;padding:3px 8px;border-radius:6px;background:rgba(15,118,110,.08)">📊 <b>Angket online (otomatis)</b>: ' + l.map(function (x) {
+      return esc(x.judul) + ' <b>' + f1(x.pct) + '%</b> (' + x.n + ' responden) ' + (x.saran != null ? '→ usulan skor <b>' + x.saran + '</b>' : '→ <i>belum cukup responden (min. ' + x.min + ')</i>');
+    }).join(' &bull; ') + '</div>';
   }
   function wwForm(gk) {
     var kunci = kb(gk), d = S.ww[kunci];
@@ -2997,23 +3136,25 @@
     var o = '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><h4 style="margin:0">🎤 Wawancara: ' + esc(namaGuru(gk)) + '</h4>' +
       '<div class="text-muted" style="font-size:12px">Penilai: ' + esc(tampil(t.penilaiNama) || (t.penilaiKey ? namaGuru(t.penilaiKey) : '-')) + ' &bull; SK: ' + skPenTeks(t.penilaiKey) + '</div></div>' +
       '<button class="btn btn-soft" data-act="ww-kembali">← Kembali</button></div>' +
-      '<p class="text-muted" style="font-size:12px;margin:8px 0 0">Tiap butir dinilai dari jawaban nyata dan contoh kejadian: <b>2</b> bila ada contoh nyata, <b>1</b> bila jawaban umum, <b>0</b> bila tidak ada bukti. Pra-wawancara hanya bahan; skor dipilih sesudah bertemu narasumber. Data ini rahasia, hanya terbaca penilai, Kepala, dan Admin. Untuk peserta didik, orang tua, dan sejawat tulis kode atau inisial, bukan nama lengkap. ' + (boleh ? 'Tersimpan ke server hanya setelah tombol Simpan ditekan.' : 'Penilaian sudah ditetapkan atau Anda tidak berhak mengubah; tampilan hanya baca.') + '</p></div>';
-    var peta = petaIndikator(), semua = wwButir();
+      '<p class="text-muted" style="font-size:12px;margin:8px 0 0">Tiap butir dinilai dari jawaban nyata dan contoh kejadian: <b>2</b> bila ada contoh nyata, <b>1</b> bila jawaban umum, <b>0</b> bila tidak ada bukti. Pra-wawancara hanya bahan; skor dipilih sesudah bertemu narasumber. Data ini rahasia, hanya terbaca penilai, Kepala, dan Admin. Untuk teman sejawat tulis nama atau inisial seperlunya. ' + (boleh ? 'Tersimpan ke server hanya setelah tombol Simpan ditekan.' : 'Penilaian sudah ditetapkan atau Anda tidak berhak mengubah; tampilan hanya baca.') + '</p></div>';
+    var peta = petaIndikator(), semua = wwButir(), angPeta = wwAngketPeta(gk);
     WAWANCARA.forEach(function (gr, gi) {
-      var nn = n['g' + gi] || {}, adaPra = gi === 0 && Object.keys(pra).length;
+      if (gr.sembunyi) return;
+      var nn = n['g' + gi] || {}, sjw = gr.sejawat ? wsjJawab(gk) : {}, adaPra = (gi === 0 && Object.keys(pra).length) || (gr.sejawat && Object.keys(sjw).length);
       o += '<div class="card"><h4 style="margin:0 0 4px">Narasumber: ' + esc(gr.who) + '</h4>' +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="field" id="pkgWwN_' + gi + '" maxlength="' + WW_MAKS_N + '" placeholder="' + (gi === 0 ? 'Nama narasumber' : 'Nama / kode / inisial narasumber') + '" value="' + esc(nn.nama || (gi === 0 && boleh ? namaGuru(gk) : '')) + '" style="flex:1;min-width:180px"' + dis + '><input class="field" type="date" id="pkgWwT_' + gi + '" value="' + esc(svTanggal(nn.tgl)) + '" style="max-width:170px"' + dis + '></div>' +
+        (gr.sejawat ? wsjPenilaiHtml(gk, boleh) : '') +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="field" id="pkgWwN_' + gi + '" maxlength="' + WW_MAKS_N + '" placeholder="' + (gi === 0 ? 'Nama narasumber' : 'Nama / kode / inisial narasumber') + '" value="' + esc(nn.nama || (gi === 0 && boleh ? namaGuru(gk) : (gr.sejawat && wsjRec(gk) ? wsjRec(gk).nama : ''))) + '" style="flex:1;min-width:180px"' + dis + '><input class="field" type="date" id="pkgWwT_' + gi + '" value="' + esc(svTanggal(nn.tgl)) + '" style="max-width:170px"' + dis + '></div>' +
         '<div id="pkgWwR_' + gi + '" class="text-muted" style="font-size:12px;margin:6px 0">' + wwRingkasG(gi, j) + '</div>';
       semua.filter(function (b) { return b.g === gi; }).forEach(function (b) {
-        var v = j[b.key] || {}, pj = gi === 0 && pra[b.ind];
+        var v = j[b.key] || {}, pj = (gi === 0 && pra[b.ind]) || (gr.sejawat && sjw[b.ind]);
         o += '<div style="border-top:1px dashed #e5e7eb;padding:8px 0"><div style="font-size:13px"><b>' + esc(b.no) + '</b> ' + esc(b.q) + '</div>' +
-          '<div class="text-muted" style="font-size:11px">Indikator: ' + esc(potong((peta[b.no] || {}).t || '', 140)) + '</div>' +
-          (pj ? '<div class="pkg-oto" style="background:#fffbeb">🗣️ <b>Jawaban guru (pra-wawancara)</b><div style="white-space:pre-wrap;margin-top:2px">' + esc(pj) + '</div></div>' : '') +
+          '<div class="text-muted" style="font-size:11px">Indikator: ' + esc(potong((peta[b.no] || {}).t || '', 140)) + '</div>' + wwAngketHtml(angPeta, b.no) +
+          (pj ? '<div class="pkg-oto" style="background:#fffbeb">🗣️ <b>' + (gr.sejawat ? 'Jawaban teman sejawat (diisi sendiri)' : 'Jawaban guru (pra-wawancara)') + '</b><div style="white-space:pre-wrap;margin-top:2px">' + esc(pj) + '</div></div>' : '') +
           '<div style="display:flex;gap:14px;flex-wrap:wrap;margin:6px 0">' + WW_NILAI.map(function (sv) { return '<label style="font-size:13px"><input type="radio" name="pkgWwS_' + b.key + '" value="' + sv[0] + '" data-wws="1" data-wwg="' + gi + '"' + (v.s === sv[0] ? ' checked' : '') + dis + '> ' + sv[1] + '</label>'; }).join('') + '</div>' +
           '<textarea id="pkgWwC_' + b.key + '" rows="2" maxlength="' + WW_MAKS_C + '" placeholder="Jawaban nyata dan contoh kejadian" style="width:100%"' + dis + '>' + esc(v.c || '') + '</textarea>' +
-          (pj && boleh ? '<button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-top:3px" data-act="ww-salin" data-key="' + esc(b.key) + '">📥 Salin jawaban guru ke catatan</button>' : '') + '</div>';
+          (pj && boleh ? '<button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-top:3px" data-act="ww-salin" data-key="' + esc(b.key) + '">📥 Salin jawaban ' + (gr.sejawat ? 'sejawat' : 'guru') + ' ke catatan</button>' : '') + '</div>';
       });
-      if (boleh) o += '<button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px" data-act="ww-kosong" data-g="' + gi + '">✖ Kosongkan skor narasumber ini</button>' + (adaPra ? ' <button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px" data-act="ww-salin" data-key="">📥 Salin semua jawaban pra-wawancara</button>' : '');
+      if (boleh) o += '<button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px" data-act="ww-kosong" data-g="' + gi + '">✖ Kosongkan skor narasumber ini</button>' + (adaPra ? ' <button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px" data-act="ww-salin" data-key="" data-g="' + gi + '">📥 Salin semua jawaban ' + (gr.sejawat ? 'teman sejawat' : 'pra-wawancara') + '</button>' : '');
       o += '</div>';
     });
     o += '<div class="card"><h4 style="margin:0 0 4px">Usulan skor per indikator</h4><p class="text-muted" style="font-size:12px;margin:0 0 6px">Gabungan butir dari semua narasumber untuk indikator yang sama. Hanya usulan; skor akhir dipilih penilai di form penilaian.</p><div id="pkgWwU">' + wwUsulanHtml(j) + '</div></div>';
@@ -3026,6 +3167,7 @@
   function wwBaca() {
     var r = root(), v = { n: {}, j: {} }, salah = '', g = function (id) { var e = $(id); return e ? String(e.value || '').trim() : ''; };
     WAWANCARA.forEach(function (gr, gi) {
+      if (gr.sembunyi) return;
       var nm = g('pkgWwN_' + gi), tg = svTanggal(g('pkgWwT_' + gi)), x = {};
       if (nm.length > WW_MAKS_N) salah = salah || ('Nama narasumber (' + gr.who + ') terlalu panjang (maksimal ' + WW_MAKS_N + ' karakter).');
       if (nm) x.nama = nm; if (tg) x.tgl = tg;
@@ -3058,6 +3200,7 @@
     var gk = S.gk; if (!bolehWwTulis(gk)) return pesan('Tidak dapat mengisi: penilaian sudah ditetapkan atau Anda tidak berhak.', true);
     var j = wwBacaJ(), n = 0, hari = skHariIni();
     WAWANCARA.forEach(function (gr, gi) {
+      if (gr.sembunyi) return;
       var e = $('pkgWwT_' + gi), nm = $('pkgWwN_' + gi); if (!e || e.value) return;
       var adaSkor = wwButir().some(function (b) { return b.g === gi && j[b.key]; });
       if ((nm && nm.value.trim() && gi !== 0) || adaSkor) { e.value = hari; n++; }
@@ -3066,16 +3209,16 @@
     pesan(n ? 'Tanggal diisi hari ini untuk ' + n + ' narasumber. Ubah bila wawancara dilakukan di hari lain, lalu simpan.' : 'Tidak ada yang diisi: tanggal sudah terisi, atau narasumber belum ada nama/skornya.', !n);
   }
   // Salin jawaban pra-wawancara guru ke catatan butir yang masih kosong (tidak menimpa, skor tidak ikut terisi).
-  function wwSalin(gk, satuKey) {
+  function wwSalin(gk, satuKey, gSaja) {
     var d = dataBukti(gk); if (!d) return pesan('Data pra-wawancara masih dimuat, coba lagi sebentar.', true);
-    var pra = d.pra || {}, n = 0;
+    var pra = d.pra || {}, sjw = wsjJawab(gk), n = 0;
     wwButir().forEach(function (b) {
-      if (b.g !== 0 || (satuKey && b.key !== satuKey)) return;
-      var tx = pra[b.ind], e = $('pkgWwC_' + b.key);
-      if (e && !e.disabled && tx && !String(e.value).trim()) { e.value = potong('Jawaban tertulis guru: ' + tx, WW_MAKS_C); n++; }
+      if ((b.g !== 0 && b.g !== WW_SEJ) || (satuKey && b.key !== satuKey) || (gSaja !== '' && gSaja != null && String(b.g) !== String(gSaja))) return;
+      var tx = (b.g === 0 ? pra : sjw)[b.ind], e = $('pkgWwC_' + b.key);
+      if (e && !e.disabled && tx && !String(e.value).trim()) { e.value = potong((b.g === 0 ? 'Jawaban tertulis guru: ' : 'Jawaban tertulis teman sejawat: ') + tx, WW_MAKS_C); n++; }
     });
     if (n) S.wwKotor = true;
-    pesan(n ? n + ' catatan diisi dari pra-wawancara. Lengkapi dengan hasil wawancara tatap muka, lalu pilih skor tiap butir.' : 'Tidak ada yang disalin: jawaban pra-wawancara kosong atau catatan sudah terisi.', !n);
+    pesan(n ? n + ' catatan diisi dari jawaban tertulis. Lengkapi dengan hasil wawancara/konfirmasi, lalu pilih skor tiap butir.' : 'Tidak ada yang disalin: jawaban tertulis kosong atau catatan sudah terisi.', !n);
   }
   // Ringkasan tiap indikator -> satu bukti wawancara (kunci tetap "wawancara"); rahasia: tidak tampil ke guru dan tidak tercetak di Laporan.
   function wwBuktiTulis(gk) {
@@ -3102,7 +3245,7 @@
     if (!bolehPerangkat('wawancara', gk)) return pesan('Tidak tersedia untuk Anda.', true);
     S.gk = gk; S.view = 'wawancara'; S.wwKotor = false; render();
     var lagi = function () { if (S.view === 'wawancara' && S.gk === gk && !S.wwKotor) render(); };
-    muatBukti(gk, lagi); muatWw(gk, lagi);
+    muatBukti(gk, lagi); muatWw(gk, lagi); if (adaPenilai(gk)) muatAngket(gk, lagi);
   }
   // Cetak Pedoman Wawancara: terisi bila sudah ada data tersimpan (dokumen kerja penilai, simpan sebagai arsip internal).
   function wwDataCetak(gk, g, x) { var d = S.ww[kb(gk)] || {}; return d.j && d.j[wwKey(WAWANCARA.indexOf(g), x[0])]; }
@@ -3383,7 +3526,7 @@
         }
         if (t.getAttribute && t.getAttribute('data-act') === 'wa-jenis' && S.gk) { var w1 = waState(S.gk); w1.jenis = t.value === 'ortu' ? 'ortu' : 'siswa'; w1.kelas = ''; w1.ant = null; return render(); }
         if (t.getAttribute && t.getAttribute('data-act') === 'wa-kelas' && S.gk) { var w0 = waState(S.gk); w0.kelas = t.value; w0.ant = null; return render(); }
-        if (t.getAttribute && t.getAttribute('data-act') === 'ganti-periode') { S.periodeId = t.value; S.view = 'list'; S.bukti = {}; S.sv = {}; S.ww = {}; S.kd = null; S.kdMuat = false; return muat(); }
+        if (t.getAttribute && t.getAttribute('data-act') === 'ganti-periode') { S.periodeId = t.value; S.view = 'list'; S.bukti = {}; S.sv = {}; S.ww = {}; S.wsj = {}; S.wsjDraft = {}; S.kd = null; S.kdMuat = false; return muat(); }
         if (t.matches && t.matches('input[type=checkbox][data-siap]') && S.view === 'bukti') return simpanSiap(t.getAttribute('data-siap'), t.checked);
         if (t.matches && t.matches('input[type=radio][data-diri]') && S.gk) { (S.diriDraft = S.diriDraft || {})[S.gk + '|j|' + t.getAttribute('data-diri')] = t.value; return render(); }
         if (t.matches && t.matches('input[type=radio][data-k]') && S.draft) { S.draft.skor[t.getAttribute('data-k') + '_' + t.getAttribute('data-i')] = parseInt(t.value, 10); simpanLokal(); recalc(); }
@@ -3393,6 +3536,7 @@
         if (t.id === 'pkgKbAlasan') S.kbTeks = t.value;
         if (t.getAttribute && t.getAttribute('data-cat') && S.draft) { S.draft.catatan[t.getAttribute('data-cat')] = t.value; simpanLokal(); }
         if (t.getAttribute && t.getAttribute('data-diri-r') && S.gk) { (S.diriDraft = S.diriDraft || {})[S.gk + '|r|' + t.getAttribute('data-diri-r')] = t.value; }
+        if (t.getAttribute && t.getAttribute('data-wsj') && S.gk) { S.wsjDraft[S.gk + '|' + t.getAttribute('data-wsj')] = t.value; }
         if (t.getAttribute && t.getAttribute('data-pra') && S.gk) { (S.praDraft = S.praDraft || {})[S.gk + '|' + t.getAttribute('data-pra')] = t.value; }
       });
     }
@@ -3421,7 +3565,7 @@
     var t = $('pageTitle'); if (t) t.textContent = 'PKG Guru';
     var u = me();
     // Pengguna berganti (logout/login) di tab yang sama: jangan bawa data/draft pengguna sebelumnya.
-    if (u && S.userKey !== u.key) { S.userKey = u.key; S.periodeList = {}; S.periodeId = null; S.tugas = {}; S.nilai = {}; S.bukti = {}; S.skpen = {}; S.skset = null; S.sv = {}; S.ww = {}; S.kd = null; S.kdMuat = false; S.draft = null; S.gk = null; S.tab = 'daftar'; }
+    if (u && S.userKey !== u.key) { S.userKey = u.key; S.periodeList = {}; S.periodeId = null; S.tugas = {}; S.nilai = {}; S.bukti = {}; S.skpen = {}; S.skset = null; S.sv = {}; S.ww = {}; S.wsj = {}; S.wsjDraft = {}; S.tunjuk = []; S.kd = null; S.kdMuat = false; S.draft = null; S.gk = null; S.tab = 'daftar'; }
     S.view = 'list';
     if (u && !bolehKelola() && (S.tab === 'pengaturan' || S.tab === 'analisis' || S.tab === 'kendali')) S.tab = 'daftar';
     muat();
