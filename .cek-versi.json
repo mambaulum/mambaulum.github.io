@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.29",
-  "disimpan": "2026-10-20T14:45:15.839Z",
+  "appVersion": "v8.30",
+  "disimpan": "2026-10-20T14:46:20.276Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -103,8 +103,8 @@
       "hash": "03e6fa045d67ca99ad0f3882b69da509cbac7b9e"
     },
     "js/pkg.js": {
-      "v": "v=77",
-      "hash": "b01b1da58902d66442191997c7efda270ad7b11c"
+      "v": "v=78",
+      "hash": "058d4ef83b8af6ecb41d24f4a3e2232e67f065b1"
     },
     "js/pkg-analisis.js": {
       "v": "v=3",
