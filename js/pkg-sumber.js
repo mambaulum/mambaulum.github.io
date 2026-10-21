@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg-sumber.js  (v2 - disesuaikan dengan struktur asli app.js)
+   SI MAMBA - js/pkg-sumber.js  (v2 - disesuaikan dengan struktur asli app.js; v8: absensi menampilkan hari tanpa catatan dan tidak mengusulkan skor bila hadir 0 tetapi ada hari tanpa catatan; v9: sumber baru tugasadm untuk indikator 10.5; v10: sumber baru rapat untuk indikator 12.2; v11: RPE ikut dihitung pada indikator 13.2; v12: tugasadm menyertakan penunjukan sebagai PJ kegiatan Amalan Yaumiyah)
    Pembaca data SI MAMBA yang dijadikan BUKTI OTOMATIS untuk menu "PKG Guru" (js/pkg.js):
      1) absensi guru    -> kehadiran, keterlambatan, izin/sakit/alpa
      2) jurnal mengajar -> jumlah jurnal dan hari berjurnal dibanding hari hadir
@@ -38,11 +38,12 @@
   if (window.PKG_SUMBER) return;
 
   var CFG = {
-    path: { absensi: 'teacher_attendance', jurnal: 'journal', nilai: 'grades', kalender: 'kalender_akademik', buku: 'buku_penghubung', materi: 'materi_belajar', tugas: 'tugas', event: 'event_attendance', ujian: 'ujian_attendance' },
+    path: { absensi: 'teacher_attendance', jurnal: 'journal', nilai: 'grades', kalender: 'kalender_akademik', buku: 'buku_penghubung', materi: 'materi_belajar', tugas: 'tugas', event: 'event_attendance', ujian: 'ujian_attendance', checkin: 'activity_checkin_v4', jenisKegiatan: 'activity_types_v4', rapat: 'rapat', rapatHadir: 'rapat_hadir' },
     hariLiburMingguan: [0],            // 0 = Minggu (sama dengan penanda Alpha otomatis di app.js: Senin-Sabtu)
     fieldNilai: ['h1', 'h2', 'h3', 'mid', 'pas'],
     // Ambang usulan skor (persen). Penilai tetap memutuskan.
     ambang: { hadirBaik: 90, hadirCukup: 75, jurnalBaik: 85, jurnalCukup: 60, nilaiLengkap: 80, kkm: 70, bukuBaik: 4, bukuCukup: 1, kegiatanBaik: 3, tikCukup: 1, refleksiMin: 30 },   // buku*: catatan per bulan; kegiatanBaik: jumlah kegiatan berbeda
+    petugasMulai: '2026-10-15',        // check-in petugas shalat via QR berlaku sejak tanggal ini (sama dengan HONOR_SHOLAT_MULAI_CHECKIN di app.js; data sebelumnya tidak ada)
     maksBaca: 5000                     // batas baca node nilai bila tahun ajaran tidak diketahui
   };
 
@@ -142,16 +143,21 @@
       });
       var n = efektif.length, p = pct(c.hadir, n), A = CFG.ambang, perkiraan = !kal.diketahui;
       var saran = (perkiraan || n === 0) ? null : (p >= A.hadirBaik ? 2 : (p >= A.hadirCukup ? 1 : 0));
+      // v8: tidak ada satu pun catatan Datang. Bila masih ada hari tanpa catatan apa pun, kemungkinan data absensi tidak terbaca atas nama guru ini
+      // (kunci/nama berbeda, atau guru tidak memakai absensi QR), sehingga skor 0 dari persen kehadiran bisa merugikan guru: usulan dikosongkan.
+      var hadirNol = n > 0 && c.hadir === 0, tanpaUsulan = hadirNol && c.tanpaCatatan > 0;
+      if (tanpaUsulan) saran = null;
       ctx.hari = { efektif: n, hadir: c.hadir, tanggalHadir: tglHadir, perkiraan: perkiraan };
       var rincian = ['Rentang: ' + ctx.dari + ' s.d. ' + batas + (batas !== ctx.sampai ? ' (dipotong sampai hari ini)' : ''), 'Sumber data: ' + CFG.path.absensi + '; hari efektif = Senin-Sabtu dikurangi libur di kalender akademik'];
       if (c.tanpaPulang) rincian.push('Hari hadir tanpa absen Pulang: ' + c.tanpaPulang);
       if (c.tanpaCatatan) rincian.push('Hari efektif tanpa catatan apa pun (belum ditandai Alpha oleh sistem): ' + c.tanpaCatatan);
+      if (hadirNol) rincian.push('Peringatan: tidak ada satu pun catatan Datang atas nama guru ini pada rentang ini. Periksa apakah guru ini memakai absensi QR dan apakah kunci guru (' + ctx.guruKey + ') sama dengan yang tercatat di ' + CFG.path.absensi + ' sebelum memakai angka ini sebagai bukti.');
       if (diabaikan) rincian.push('Catatan di hari libur/Minggu tidak dihitung: ' + diabaikan);
       if (perkiraan) rincian.push('Peringatan: ' + kal.catatan + ', jadi libur tidak diketahui dan hari efektif hanya perkiraan.');
       return {
         ok: true, path: CFG.path.absensi, saran: saran,
-        dasar: perkiraan ? 'Tidak ada usulan skor: ' + kal.catatan + ', sehingga hari efektif tidak bisa dipastikan.' : (n === 0 ? 'Tidak ada hari efektif pada rentang ini.' : 'Kehadiran ≥' + A.hadirBaik + '% → 2; ' + A.hadirCukup + '–' + (A.hadirBaik - 0.1) + '% → 1; di bawahnya → 0'),
-        ringkas: 'Hadir ' + c.hadir + ' dari ' + n + ' hari efektif' + (perkiraan ? ' (perkiraan)' : '') + ' = ' + f1(p) + '%; terlambat ' + c.terlambat + 'x; izin ' + c.izin + ', sakit ' + c.sakit + ', alpa ' + c.alpa,
+        dasar: perkiraan ? 'Tidak ada usulan skor: ' + kal.catatan + ', sehingga hari efektif tidak bisa dipastikan.' : (tanpaUsulan ? 'Tidak ada usulan skor: tidak ada catatan Datang sama sekali dan ' + c.tanpaCatatan + ' hari efektif tanpa catatan, sehingga data absensi perlu diperiksa dulu (penilai menetapkan skor).' : n === 0 ? 'Tidak ada hari efektif pada rentang ini.' : 'Kehadiran ≥' + A.hadirBaik + '% → 2; ' + A.hadirCukup + '–' + (A.hadirBaik - 0.1) + '% → 1; di bawahnya → 0'),
+        ringkas: 'Hadir ' + c.hadir + ' dari ' + n + ' hari efektif' + (perkiraan ? ' (perkiraan)' : '') + ' = ' + f1(p) + '%; terlambat ' + c.terlambat + 'x; izin ' + c.izin + ', sakit ' + c.sakit + ', alpa ' + c.alpa + (c.tanpaCatatan ? ', tanpa catatan ' + c.tanpaCatatan : ''),
         rincian: rincian,
         angka: { hadir: c.hadir, izin: c.izin, sakit: c.sakit, alpa: c.alpa, terlambat: c.terlambat, efektif: n, persen: p }
       };
@@ -168,6 +174,7 @@
       if (!milik.length) return { ok: false, alasan: 'Jurnal mengajar: ada ' + semua.length + ' jurnal pada rentang ini, tetapi tidak satu pun atas nama guru ini (kunci ' + ctx.guruKey + (ctx.guruNama ? ', nama ' + ctx.guruNama : '') + ').' };
       var sah = milik.filter(function (r) { return !r.status || r.status === 'approved'; });
       var menunggu = milik.filter(function (r) { return r.status === 'pending'; }).length, ditolak = milik.filter(function (r) { return r.status === 'ditolak'; }).length;
+      ctx.admin = ctx.admin || {}; ctx.admin.jurnal = { sah: sah.length, menunggu: menunggu, ditolak: ditolak };   // v9: dipakai sumber tugasadm (10.5)
       if (!sah.length) return { ok: false, alasan: 'Jurnal mengajar: ' + milik.length + ' jurnal milik guru ini belum ada yang berstatus disetujui (menunggu ' + menunggu + ', ditolak ' + ditolak + ').' };
       var h = ctx.hari, hari = {}, mapel = {}, jenis = {};
       sah.forEach(function (r) {
@@ -220,6 +227,7 @@
       var kapasitas = milik.length * F.length, kelengkapan = pct(terisi, kapasitas), A = CFG.ambang;
       var rata = lengkap.length ? lengkap.reduce(function (a, b) { return a + b; }, 0) / lengkap.length : null;
       var tuntas = lengkap.filter(function (x) { return x >= A.kkm; }).length;
+      ctx.admin = ctx.admin || {}; ctx.admin.nilai = { rekaman: milik.length, kelengkapan: kelengkapan };   // v9: dipakai sumber tugasadm (10.5)
       var saran = kelengkapan >= A.nilaiLengkap ? 1 : 0;
       var rincian = ['Sumber data: ' + CFG.path.nilai + (ta ? ' (tahun ajaran ' + ta + ', tanpa batas tanggal)' : ' (semua tahun ajaran, tanpa batas tanggal)'),
         'Komponen dinilai: h1, h2, h3, mid, pas; nilai rapor = 40% rata-rata harian + 30% mid + 30% pas',
@@ -244,10 +252,10 @@
   // (modul_ajar). Usulan skor DIHITUNG PER INDIKATOR (hasil.perInd), bukan satu skor untuk semua indikator sumber ini.
   // Satuan penilaian = (mapel + kelas + semester) yang masuk rentang tanggal. Tingkat per satuan: 2 = ada DAN disetujui Kepala,
   // 1 = ada tetapi belum disetujui / hanya sebagian, 0 = belum ada. Usulan indikator: semua satuan 2 -> 2; ada yang >= 1 -> 1; selain itu 0.
-  // RPE tidak disimpan sebagai data (hanya dicetak), jadi tidak dipakai kecuali ada tautannya.
+  // RPE (v11): dihitung dari tautan perangkat_v4.docs.rpe atau dari jpPerPekan tersimpan + kalender efektif perangkat_rpe_kaldik_v4 (dituntut hanya bila kalender semester itu sudah diisi).
   var PERANGKAT_IND = {
     '3_1': 'Silabus/ATP-TP sesuai kurikulum', '3_2': 'Rencana pembelajaran (modul ajar) sesuai ATP/TP', '3_3': 'Materi untuk mencapai tujuan (modul ajar, Prota/Promes)',
-    '3_4': 'Urutan materi (Prota/Promes)', '7_1': 'Alat penilaian (kisi-kisi, kartu soal)', '13_2': 'Pemetaan CP/TP dan alokasi waktu (ATP/TP, Promes)'
+    '3_4': 'Urutan materi (Prota/Promes)', '7_1': 'Alat penilaian (kisi-kisi, kartu soal)', '13_2': 'Pemetaan CP/TP dan alokasi waktu (ATP/TP, Promes, RPE)'
   };
   function slugKey(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'x'; }   // sama dengan slug() di perangkat-pembelajaran.js
   function normMapel(x) { return String(x || '').toLowerCase().replace(/[’'`´ʻʼ]/g, '').replace(/[^a-z0-9؀-ۿ]+/g, ' ').trim(); }
@@ -288,11 +296,13 @@
     var awSem = sems.map(function (x) { return tas + '_' + x + '_' + gs + '_'; });
     return Promise.all([bacaAwalan(ctx.db, 'perangkat_v4', awSem, ctx), bacaAwalan(ctx.db, 'perangkat_tp_v4', [tas + '_' + gs + '_'], ctx),
       bacaAwalan(ctx.db, 'perangkat_materi_v4', awSem, ctx), bacaAwalan(ctx.db, 'perangkat_kisi_v4', awSem, ctx),
-      bacaAwalan(ctx.db, 'perangkat_soal_v4', awSem, ctx), bacaModul(ctx.db, ctx)]).then(function (r) {
+      bacaAwalan(ctx.db, 'perangkat_soal_v4', awSem, ctx), bacaModul(ctx.db, ctx),
+      Promise.all(sems.map(function (sm) { return ctx.db.ref('perangkat_rpe_kaldik_v4/' + tas + '_' + sm).once('value').then(function (x) { return { sm: sm, v: x.val() }; }, function () { return { sm: sm, v: null }; }); }))]).then(function (r) {
       var G = { v4: r[0], tp: r[1], materi: r[2], kisi: r[3], soal: r[4], modul: r[5] }, galat = [];
       Object.keys(G).forEach(function (k) { if (G[k].e) galat.push(G[k].e); });
       var ok = function () { for (var i = 0; i < arguments.length; i++) if (G[arguments[i]].e) return false; return true; };
       if (G.v4.e) return { ok: false, alasan: 'Perangkat pembelajaran tidak terbaca (' + galat.join('; ') + '). Biasanya Rules membatasi baca perangkat_v4 untuk penilai; lihat catatan paket.' };
+      var kald = {}; (r[6] || []).forEach(function (x) { if (obj(x.v) && x.v.mulai && x.v.selesai) kald[x.sm] = x.v; });   // v11: kalender efektif RPE (diisi Admin/Kepala per semester)
       var ta0 = normMapel(ta).replace(/\s+/g, '');
       var modul = G.modul.d.filter(function (m) {
         return m.status !== 'arsip' && semNama(m.semester) && sems.indexOf(semNama(m.semester)) > -1 && (!m.tahunAjaran || normMapel(m.tahunAjaran).replace(/\s+/g, '') === ta0);
@@ -314,8 +324,10 @@
         else if (jk === 'prota' || jk === 'promes') gen = !!(materi[key] && arr(materi[key].materi).length);
         else if (jk === 'kisi') gen = !!(kisi[key] && arr(kisi[key].items).some(function (it) { return it && ((+it.pg || 0) + (+it.is || 0) + (+it.ur || 0)) > 0; }));
         else if (jk === 'kartu' || jk === 'kunci') gen = !!(soal[key] && arr(soal[key].soal).some(function (x) { return x && String(x.q || '').trim(); }));
+        else if (jk === 'rpe') gen = !!(row && +row.jpPerPekan > 0 && kald[p.sem]);   // RPE dibuat di aplikasi: JP per pekan tersimpan + kalender efektif semester tersedia
         return { ada: !!(ln && ln.url) || gen, setuju: !!(ln && ln.setuju) };
       };
+      var rpeSiap = function (key) { return !!kald[pairs[key].sem]; };   // RPE hanya dituntut bila kalender efektif semester itu sudah diisi (tanpa itu guru tidak bisa membuatnya)
       var modulDi = function (key) { var l = modul.filter(function (m) { return m.__key === key; }); return { ada: l.length, setuju: l.filter(function (m) { return m.persetujuan === 'disetujui'; }), semua: l }; };
       var lvl = function (semua, ada1, setuju) { return semua ? (setuju ? 2 : 1) : (ada1 ? 1 : 0); };
       var HIT = {
@@ -324,7 +336,7 @@
         '3_3': { perlu: ['v4', 'materi', 'modul'], f: function (k) { var m = modulDi(k), p = ada('prota', k); return m.setuju.some(function (x) { return String(x.materiIsi || '').trim(); }) ? 2 : ((m.ada || p.ada) ? 1 : 0); } },
         '3_4': { perlu: ['v4', 'materi'], f: function (k) { var a = ada('prota', k), b = ada('promes', k); return lvl(a.ada && b.ada, a.ada || b.ada, a.setuju && b.setuju); } },
         '7_1': { perlu: ['v4', 'kisi', 'soal'], f: function (k) { var a = ada('kisi', k), b = ada('kartu', k); return lvl(a.ada && b.ada, a.ada || b.ada, a.setuju); } },
-        '13_2': { perlu: ['v4', 'tp', 'materi'], f: function (k) { var t = ada('tp', k), a = ada('atp', k), p = ada('promes', k); return lvl(t.ada && a.ada && p.ada, t.ada || p.ada, a.setuju); } }
+        '13_2': { perlu: ['v4', 'tp', 'materi'], f: function (k) { var t = ada('tp', k), a = ada('atp', k), p = ada('promes', k), r = ada('rpe', k), perlu = rpeSiap(k); return lvl(t.ada && a.ada && p.ada && (!perlu || r.ada), t.ada || p.ada || r.ada, a.setuju && (!perlu || r.setuju)); } }
       };
       var perInd = {}, rincian = [], angka = { satuan: keys.length }, tanpa = [];
       Object.keys(HIT).forEach(function (id) {
@@ -336,7 +348,8 @@
         rincian.push(id.replace('_', '.') + ' ' + PERANGKAT_IND[id] + ' → usulan ' + sr + ' (lengkap ' + n[2] + ', sebagian ' + n[1] + ', belum ' + n[0] + ' dari ' + keys.length + ' satuan)');
       });
       if (!Object.keys(perInd).length) return { ok: false, alasan: 'Perangkat pembelajaran: node yang dibutuhkan tidak terbaca (' + galat.join('; ') + ').' };
-      var cat = ['RPE tidak disimpan sebagai data (hanya dicetak), sehingga tidak dihitung.'];
+      var nRpe = keys.filter(function (k) { return rpeSiap(k); }).length;
+      var cat = [nRpe ? 'RPE dihitung dari tautan atau dari JP per pekan tersimpan + kalender efektif semester (perangkat_rpe_kaldik_v4); dituntut pada ' + nRpe + ' dari ' + keys.length + ' satuan.' : 'RPE belum dituntut: kalender efektif semester belum diisi Admin/Kepala (perangkat_rpe_kaldik_v4).'];
       if (galat.length) cat.push('Tidak terbaca: ' + galat.join('; ') + (tanpa.length ? ' (indikator ' + tanpa.join(', ') + ' tanpa usulan)' : ''));
       rincian.unshift('Satuan (mapel kelas semester): ' + keys.map(function (k) { return label[k]; }).slice(0, 8).join(', ') + (keys.length > 8 ? ', …' : ''));
       rincian.push(cat.join(' '));
@@ -346,7 +359,7 @@
       return {
         ok: true, path: 'perangkat_v4 + modul_ajar', saran: null, perInd: perInd,
         dasar: 'Per indikator: 2 bila semua satuan ada dan disetujui Kepala; 1 bila ada sebagian atau belum disetujui; 0 bila belum ada.',
-        ringkas: keys.length + ' satuan (semester ' + sems.join('/') + '): ATP/TP ' + cnt('atp') + ', Prota/Promes ' + cnt('promes') + ', kisi-kisi ' + cnt('kisi') + ', kartu soal ' + cnt('kartu') + '; modul ajar ' + nm + ' (disetujui ' + nms + ')',
+        ringkas: keys.length + ' satuan (semester ' + sems.join('/') + '): ATP/TP ' + cnt('atp') + ', Prota/Promes ' + cnt('promes') + ', RPE ' + cnt('rpe') + ', kisi-kisi ' + cnt('kisi') + ', kartu soal ' + cnt('kartu') + '; modul ajar ' + nm + ' (disetujui ' + nms + ')',
         rincian: rincian, angka: angka
       };
     }).catch(function (e) { return { ok: false, alasan: 'Perangkat pembelajaran: ' + kunci(e) }; });
@@ -454,6 +467,155 @@
     });
   }
 
+
+  // ---------- 9) tugas administratif dan tugas tambahan -> indikator 10.5 (v9) ----------
+  // Mengumpulkan jejak tugas non-pembelajaran yang sudah ada di aplikasi: (a) jurnal yang menunggu/ditolak (dari sumber jurnal),
+  // (b) kelengkapan input nilai (dari sumber nilai), (c) check-in petugas shalat berjamaah via QR: activity_checkin_v4/{tanggal}_{typeKey} =
+  // { typeId, tanggal, guruKey, guruName, peran, klaim, via, jarak, telatMenit, at }, dan (d) bila modul honor sholat termuat, hari petugas
+  // yang lolos (check-in dalam jendela jam + absensi siswa lengkap). Tidak ada rumus skor: ini bukti pendamping untuk penilai.
+  function bacaPetugas(ctx, dari, batas) {
+    return ctx.db.ref(CFG.path.checkin).orderByKey().startAt(dari).endAt(batas + '\uf8ff').once('value').then(function (s) {
+      var a = []; if (s.exists()) s.forEach(function (c) {
+        var v = c.val(); if (!obj(v)) return;
+        var ya = v.guruKey ? v.guruKey === ctx.guruKey : (!!normNama(v.guruName) && normNama(v.guruName) === normNama(ctx.guruNama));
+        if (ya && v.tanggal >= dari && v.tanggal <= batas) a.push(v);
+      });
+      return a;
+    });
+  }
+  function bacaHonor(ctx, dari, batas) {   // opsional: hanya bila modul honor sholat di app.js termuat; gagal/lama -> null (dilewati)
+    if (typeof honorSholatDapat !== 'function') return Promise.resolve(null);
+    var bln = [], a = new Date(dari.slice(0, 7) + '-01T00:00:00'), z = new Date(batas.slice(0, 7) + '-01T00:00:00');
+    for (var d = new Date(a); d <= z; d.setMonth(d.getMonth() + 1)) bln.push([d.getFullYear(), d.getMonth() + 1]);
+    var gk = ctx.guruKey; try { if (typeof honorSholatResolve === 'function') gk = honorSholatResolve(ctx.guruKey, ctx.guruNama); } catch (e) { }
+    var satu = function (y, m) {
+      return new Promise(function (res) {
+        var selesai = false, fin = function (hs) { if (selesai) return; selesai = true; res(hs && hs.siap && hs.hasil ? (hs.hasil.entri || {}) : null); };
+        try { var hs = honorSholatDapat(y, m, function () { fin(honorSholatDapat(y, m)); }); if (hs && (hs.siap || hs.gagal)) fin(hs); } catch (e) { fin(null); }
+        setTimeout(function () { fin(null); }, 12000);
+      });
+    };
+    return Promise.all(bln.map(function (b) { return satu(b[0], b[1]); })).then(function (daftar) {
+      var tot = 0, ok = 0, alasan = {};
+      daftar.forEach(function (entri) {
+        if (!entri) return;
+        Object.keys(entri).forEach(function (k) {
+          var x = entri[k]; if (!x || x.gk !== gk || x.tgl < dari || x.tgl > batas) return;
+          tot++; if (x.lolos) ok++; else (x.alasanSistem || []).forEach(function (t) { alasan[t] = (alasan[t] || 0) + 1; });
+        });
+      });
+      return tot ? { tot: tot, ok: ok, alasan: alasan } : null;
+    }).catch(function () { return null; });
+  }
+  function ambilTugasAdm(ctx) {
+    var batas = ctx.sampai > hariIni() ? hariIni() : ctx.sampai, ad = ctx.admin || {}, ringkas = [], rincian = [], angka = {};
+    if (ctx.dari > batas) return Promise.resolve({ ok: false, alasan: 'Tugas administratif: rentang ' + ctx.dari + ' s.d. ' + ctx.sampai + ' belum dimulai.' });
+    if (ad.jurnal) {
+      var j = ad.jurnal; ringkas.push('jurnal ' + j.sah + ' disetujui, ' + j.menunggu + ' menunggu, ' + j.ditolak + ' ditolak');
+      rincian.push('Jurnal mengajar: ' + j.sah + ' disetujui, ' + j.menunggu + ' menunggu persetujuan, ' + j.ditolak + ' ditolak (dari sumber jurnal)');
+      angka.jurnalMenunggu = j.menunggu; angka.jurnalDitolak = j.ditolak;
+    }
+    if (ad.nilai) {
+      ringkas.push('input nilai ' + f1(ad.nilai.kelengkapan) + '% lengkap');
+      rincian.push('Input nilai: ' + ad.nilai.rekaman + ' rekaman, kelengkapan ' + f1(ad.nilai.kelengkapan) + '% (dari sumber nilai)');
+      angka.nilaiLengkap = Math.round(ad.nilai.kelengkapan * 10) / 10;
+    }
+    var dari2 = ctx.dari > CFG.petugasMulai ? ctx.dari : CFG.petugasMulai;
+    var tugas = dari2 > batas ? Promise.resolve(null) : bacaPetugas(ctx, dari2, batas).catch(function () { return null; });
+    // v12: kegiatan Amalan Yaumiyah yang guru ini ditunjuk sebagai penanggung jawab (PJ) oleh Admin: activity_types_v4/{key} = { name, picKey, picName }
+    var pj = ctx.db.ref(CFG.path.jenisKegiatan).once('value').then(function (s) {
+      var a = [], nm = normNama(ctx.guruNama); if (s.exists()) s.forEach(function (c) {
+        var v = c.val(); if (!obj(v) || !v.name) return;
+        var rk = (v.picKey && v.picKey !== '-') ? String(v.picKey) : '';
+        if (rk ? rk === ctx.guruKey : (!!nm && normNama(v.picName) === nm)) a.push(String(v.name));
+      });
+      return a;
+    }).catch(function () { return []; });
+    return Promise.all([tugas, pj]).then(function (x) {
+      var rs = x[0], pjList = x[1];
+      return (rs && rs.length ? bacaHonor(ctx, dari2, batas) : Promise.resolve(null)).then(function (hn) { return [rs, hn, pjList]; });
+    }).then(function (h) {
+      var rs = h[0], hn = h[1], pjList = h[2] || [];
+      if (pjList.length) { ringkas.push('PJ kegiatan: ' + pjList.slice(0, 3).join(', ') + (pjList.length > 3 ? ', dst' : '')); rincian.push('Ditunjuk Admin sebagai penanggung jawab (PJ) kegiatan Amalan Yaumiyah: ' + pjList.join(', ') + ' (saat ini; penunjukan tidak menyimpan riwayat tanggal)'); angka.pjKegiatan = pjList.length; }
+      if (rs && rs.length) {
+        var hari = {}, telat = 0, pengganti = 0, ukur = 0;
+        rs.forEach(function (r) { hari[r.tanggal] = 1; if (r.klaim) pengganti++; if (typeof r.telatMenit === 'number') { ukur++; if (r.telatMenit > 0) telat++; } });
+        var nh = Object.keys(hari).length;
+        ringkas.push('petugas shalat ' + nh + ' hari (terlambat ' + telat + 'x)');
+        rincian.push('Petugas shalat (check-in QR, sejak ' + dari2 + '): ' + rs.length + ' check-in pada ' + nh + ' hari; terlambat ' + telat + ' dari ' + ukur + ' yang tercatat jamnya; sebagai pengganti ' + pengganti);
+        angka.petugasHari = nh; angka.petugasTelat = telat;
+        if (hn) {
+          var al = Object.keys(hn.alasan).sort(function (x, y) { return hn.alasan[y] - hn.alasan[x]; }).slice(0, 2).map(function (t) { return t + ' (' + hn.alasan[t] + 'x)'; });
+          ringkas.push('lolos standar honor ' + hn.ok + ' dari ' + hn.tot);
+          rincian.push('Hari petugas yang lolos standar (check-in dalam jam + absensi siswa lengkap): ' + hn.ok + ' dari ' + hn.tot + (al.length ? '; yang belum lolos: ' + al.join('; ') : ''));
+          angka.petugasLolos = hn.ok; angka.petugasTotal = hn.tot;
+        }
+      } else if (dari2 <= batas) rincian.push('Petugas shalat: tidak ada check-in atas nama guru ini sejak ' + dari2 + ' (bisa jadi guru ini tidak bertugas sebagai PJ; check-in QR baru berlaku mulai ' + CFG.petugasMulai + ').');
+      if (!ringkas.length) return { ok: false, alasan: 'Tugas administratif: tidak ada jejak yang bisa dibaca (jurnal, nilai, atau check-in petugas shalat). Indikator ini dinilai dari dokumen dan wawancara.' };
+      rincian.unshift('Rentang: ' + ctx.dari + ' s.d. ' + batas);
+      return {
+        ok: true, path: 'journal + grades + ' + CFG.path.checkin, saran: null,
+        dasar: 'Tanpa usulan skor: ketepatan waktu tugas administratif (laporan, dokumen, administrasi kelas) tidak tercatat di aplikasi. Angka ini pendamping untuk penilai.',
+        ringkas: ringkas.join('; '), rincian: rincian, angka: angka
+      };
+    });
+  }
+
+  // ---------- 10) kehadiran rapat -> indikator 12.2 (v10) ----------
+  // Dibaca langsung dari modul Rapat (js/rapat.js): rapat/{id} = { judul, tanggal, pimpinanId, pimpinan, status: 'terjadwal'|'selesai', honor }
+  // dan rapat_hadir/{id}/{kunciGuru} = { status: hadir|daring|izin|sakit|dl|alpha, nama, ts, oleh, ket }. Hanya rapat berstatus 'selesai' yang
+  // dihitung: saat ditutup, guru yang belum diisi otomatis Alpha, jadi datanya final. Rapat tanpa honor tidak tercatat di event_attendance,
+  // sehingga sumber kegiatan tidak melihatnya; sumber ini menutup celah itu. Dinas Luar = berhalangan sah, tidak masuk pembagi.
+  function ambilRapat(ctx) {
+    var batas = ctx.sampai > hariIni() ? hariIni() : ctx.sampai;
+    if (ctx.dari > batas) return Promise.resolve({ ok: false, alasan: 'Rapat: rentang ' + ctx.dari + ' s.d. ' + ctx.sampai + ' belum dimulai.' });
+    return ctx.db.ref(CFG.path.rapat).orderByChild('tanggal').startAt(ctx.dari).endAt(batas).once('value').then(function (s) {
+      var rp = []; if (s.exists()) s.forEach(function (c) { var v = c.val(); if (obj(v)) { v.__key = c.key; rp.push(v); } });
+      if (!rp.length) return { ok: false, alasan: 'Rapat: node ' + CFG.path.rapat + ' tidak punya rapat pada rentang ' + ctx.dari + ' s.d. ' + batas + '.' };
+      var selesai = rp.filter(function (r) { return r.status === 'selesai'; }), belum = rp.length - selesai.length;
+      if (!selesai.length) return { ok: false, alasan: 'Rapat: ada ' + rp.length + ' rapat pada rentang ini, tetapi belum ada yang ditutup (kehadiran final baru ada setelah rapat ditutup Admin).' };
+      var nm = normNama(ctx.guruNama), kk = ctx.guruKey;
+      var cari = function (h) {
+        if (!obj(h)) return null; var ks = Object.keys(h), i;
+        for (i = 0; i < ks.length; i++) if (ks[i] === kk && obj(h[ks[i]])) return h[ks[i]];
+        for (i = 0; i < ks.length; i++) if (obj(h[ks[i]]) && !!nm && normNama(h[ks[i]].nama) === nm) return h[ks[i]];
+        return null;
+      };
+      return Promise.all(selesai.map(function (r) {
+        return ctx.db.ref(CFG.path.rapatHadir + '/' + r.__key).once('value').then(function (h) { return { r: r, h: h.val() || {}, gagal: false }; }, function () { return { r: r, h: null, gagal: true }; });
+      })).then(function (hs) {
+        var gagal = hs.filter(function (x) { return x.gagal; }).length;
+        if (gagal === hs.length) return { ok: false, alasan: 'Rapat: data kehadiran (' + CFG.path.rapatHadir + ') tidak dapat dibaca. Periksa izin baca di Firebase Rules.' };
+        var c = { hadir: 0, daring: 0, izin: 0, sakit: 0, dl: 0, alpha: 0 }, tanpa = 0, pimpin = 0, absen = [];
+        hs.forEach(function (x) {
+          if (x.gagal) return;
+          var r = x.r, rec = cari(x.h);
+          if ((r.pimpinanId && r.pimpinanId === kk) || (!!nm && normNama(r.pimpinan) === nm)) pimpin++;
+          if (!rec || !(rec.status in c)) { tanpa++; return; }
+          c[rec.status]++;
+          if (rec.status !== 'hadir' && rec.status !== 'daring') absen.push(r.tanggal + ' ' + String(r.judul || 'Rapat').slice(0, 40) + ' (' + rec.status + ')');
+        });
+        var ikut = c.hadir + c.daring, pembagi = ikut + c.izin + c.sakit + c.alpha, p = pct(ikut, pembagi), A = CFG.ambang;
+        var tercatat = ikut + c.izin + c.sakit + c.dl + c.alpha;
+        if (!tercatat) return { ok: false, alasan: 'Rapat: ' + selesai.length + ' rapat sudah ditutup pada rentang ini, tetapi tidak ada catatan kehadiran atas nama guru ini (kunci ' + kk + (ctx.guruNama ? ', nama ' + ctx.guruNama : '') + ').' };
+        var saran = pembagi >= 3 ? (p >= A.hadirBaik ? 2 : (p >= A.hadirCukup ? 1 : 0)) : null;
+        var rincian = ['Rentang: ' + ctx.dari + ' s.d. ' + batas, 'Sumber data: ' + CFG.path.rapat + ' + ' + CFG.path.rapatHadir + ' (hanya rapat berstatus selesai)',
+          'Rapat ditutup: ' + selesai.length + (belum ? '; belum ditutup (tidak dihitung): ' + belum : '') + '; tanpa catatan atas nama guru ini: ' + tanpa,
+          'Hadir ' + c.hadir + ', hadir daring ' + c.daring + ', izin ' + c.izin + ', sakit ' + c.sakit + ', dinas luar ' + c.dl + ', alpa ' + c.alpha];
+        if (pimpin) rincian.push('Memimpin rapat: ' + pimpin + ' kali');
+        if (absen.length) rincian.push('Berhalangan: ' + absen.slice(0, 4).join('; ') + (absen.length > 4 ? '; dst' : ''));
+        if (gagal) rincian.push('Peringatan: ' + gagal + ' rapat gagal dibaca dan tidak dihitung.');
+        if (saran == null) rincian.push('Belum ada usulan skor: rapat yang dihitung kurang dari 3, terlalu sedikit untuk persentase.');
+        return {
+          ok: true, path: CFG.path.rapat + ' + ' + CFG.path.rapatHadir, saran: saran,
+          dasar: 'Kehadiran rapat (dinas luar tidak dihitung) ≥' + A.hadirBaik + '% → 2; ' + A.hadirCukup + '–' + (A.hadirBaik - 0.1) + '% → 1; di bawahnya → 0; minimal 3 rapat. Kehadiran tidak menilai kualitas peran dan sumbangan pikiran di rapat (penilai).',
+          ringkas: selesai.length + ' rapat ditutup: hadir ' + ikut + (c.daring ? ' (daring ' + c.daring + ')' : '') + ', izin ' + c.izin + ', sakit ' + c.sakit + ', dinas luar ' + c.dl + ', alpa ' + c.alpha + (pembagi ? ' (' + f1(p) + '% kehadiran)' : '') + (pimpin ? '; memimpin ' + pimpin : ''),
+          rincian: rincian, angka: { rapat: selesai.length, hadir: ikut, izin: c.izin, sakit: c.sakit, dl: c.dl, alpa: c.alpha, persen: p, memimpin: pimpin }
+        };
+      });
+    });
+  }
+
   // ---------- registrasi sumber ----------
   // indikator: daftar EKSPLISIT indikator ("komponen_urut") yang benar-benar bisa dibuktikan sumber ini. Sebelum v20 dicocokkan lewat
   // regex pada teks bukti instrumen, sehingga mis. "daftar hadir guru" (bukti pendamping 9.1-9.5) ikut memberi usulan skor untuk
@@ -465,10 +627,12 @@
     perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '7_1', '13_2'], ambil: ambilPerangkat },
     buku: { label: 'Buku Penghubung (komunikasi dengan orang tua)', ikon: '💬', indikator: ['12_1'], ambil: ambilBuku },
     kegiatan: { label: 'Kegiatan madrasah (rapat, lembur, ujian)', ikon: '🗓️', indikator: ['12_2'], ambil: ambilKegiatan },
+    rapat: { label: 'Kehadiran rapat madrasah', ikon: '📋', indikator: ['12_2'], ambil: ambilRapat },
     tik: { label: 'Materi belajar & tugas daring (pemanfaatan TIK)', ikon: '💻', indikator: ['14_6'], ambil: ambilTik },
+    tugasadm: { label: 'Tugas administratif & tugas tambahan (jurnal, nilai, petugas shalat)', ikon: '🗂️', indikator: ['10_5'], ambil: ambilTugasAdm },
     diri: { label: 'Penilaian diri guru', ikon: '📝', indikator: ['14_1'], ambil: ambilDiri }
   };
-  var URUT = ['absensi', 'jurnal', 'nilai', 'perangkat', 'buku', 'kegiatan', 'tik', 'diri'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
+  var URUT = ['absensi', 'jurnal', 'nilai', 'perangkat', 'buku', 'kegiatan', 'rapat', 'tik', 'tugasadm', 'diri'];        // absensi dulu: hasilnya dipakai sebagai pembagi jurnal
 
   function jalankan(ctx) {
     var hasil = {};
@@ -481,5 +645,5 @@
     }, Promise.resolve()).then(function () { return hasil; });
   }
 
-  window.PKG_SUMBER = { versi: 7, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
+  window.PKG_SUMBER = { versi: 12, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
 })();

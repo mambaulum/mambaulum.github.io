@@ -1840,7 +1840,7 @@
     var ctx = { db: db, guruKey: gk, guruNama: namaGuru(gk), dari: dari, sampai: sampai };
     var AD = DR(), bd = dataBukti(gk) || {}, dj = (bd.diri && bd.diri.j) || {};
     if (AD) ctx.diri = { r: (bd.diri && bd.diri.r) || {}, kunciRefleksi: AD.diri.refleksi.map(function (x) { return x[0]; }), butir: AD.diri.butir.length, terjawab: AD.diri.butir.filter(function (x) { return dj[x.k]; }).length };
-    pesan('Menarik data absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah, materi/tugas daring, dan penilaian diri…');
+    pesan('Menarik data absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah, materi/tugas daring, kehadiran rapat, tugas administratif (10.5), dan penilaian diri…');
     kerjakan(function () {
       return SM.jalankan(ctx).then(function (hasil) {
         var peta = petaOto(), sumber = {}, oto = {}, waktu = nowIso(), adaOk = false;
