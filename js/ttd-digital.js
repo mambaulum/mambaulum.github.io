@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/ttd-digital.js  (v3: TANDA TANGAN QR + gambar, PDF dan cetak HTML)
+   SI MAMBA - js/ttd-digital.js  (v4: penanda [[TTD:...]] bernonce per muat halaman, penanda tanpa nonce yang sah (mis. diketik pengguna di kolom isian) dibuang, bukan dijadikan QR; v3: TANDA TANGAN QR + gambar, PDF dan cetak HTML)
    Satu pintu untuk tanda tangan di SEMUA cetak PDF.
 
    Dimuat SETELAH js/app.js:
@@ -327,11 +327,14 @@
   // Alur: builder HTML menaruh penanda lewat TTD.penanda(...); sebelum ditulis ke jendela cetak, panggil
   // TTD.isiHtml(html) agar penanda diganti QR/gambar. Buka jendela (window.open) LEBIH DULU secara sinkron
   // supaya tidak diblokir popup, lalu tulis isinya setelah isiHtml selesai.
+  // Nonce acak per muat halaman: hanya penanda buatan penanda() yang diganti QR/gambar. Teks pengguna yang kebetulan berbentuk
+  // [[TTD:...]] tidak punya nonce ini, jadi tidak bisa memalsukan blok tanda tangan Kepala. '~' tidak di-encode encodeURIComponent.
+  var NONCE = (function () { var b = new Uint8Array(12); (window.crypto || window.msCrypto).getRandomValues(b); return Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); })();
   function penanda(role, meta, opsi) {
     // encodeURIComponent membiarkan ! ' ( ) * apa adanya (mis. "Ma'ruf", "(S.Pd)"); ubah ke %XX agar penanda tetap utuh.
     var kode = encodeURIComponent(JSON.stringify({ m: meta || {}, o: opsi || {} }))
       .replace(/[!'()*]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); });
-    return '[[TTD:' + role + ':' + kode + ']]';
+    return '[[TTD:' + role + ':' + kode + '~' + NONCE + ']]';
   }
   async function htmlBlok(role, meta, opsi) {
     meta = meta || {}; opsi = opsi || {};
@@ -368,7 +371,9 @@
     if (!daftar.length) return html;
     var sidik = await sidikDari(html.replace(/\[\[TTD:[a-z_]+:[^\]\s]+\]\]/g, ''));
     var hasil = await Promise.all(daftar.map(function (d) {
-      var p; try { p = JSON.parse(decodeURIComponent(d.data)); } catch (e) { return Promise.resolve(''); }
+      var i = d.data.lastIndexOf('~');
+      if (i < 1 || d.data.slice(i + 1) !== NONCE) return Promise.resolve('');     // bukan buatan penanda(): dibuang
+      var p; try { p = JSON.parse(decodeURIComponent(d.data.slice(0, i))); } catch (e) { return Promise.resolve(''); }
       return htmlBlok(d.role, p.m, Object.assign({}, p.o, { sidik: sidik })).catch(function () { return ''; });
     }));
     daftar.forEach(function (d, i) { html = html.split(d.teks).join(hasil[i]); });
