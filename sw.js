@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.55';
+const APP_VERSION = 'v8.57';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -76,6 +76,7 @@ const PRECACHE_URLS = [
   './manifest.json',
   './css/styles.css?v=21',
   './css/menu-polish.css?v=32',              // samakan dengan ?v= di index.html
+  './css/impersonate.css?v=1',            // gaya spanduk & modal impersonasi (samakan dengan ?v= di index.html)
   './js/logo-fallback.js',
   './js/offline-db.js',
   './js/kas.js?v=9',
@@ -110,7 +111,7 @@ const PRECACHE_URLS = [
   './js/tunggakan-infaq.js?v=10',
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
-  './js/impersonate.js?v=3',
+  './js/impersonate.js?v=5',
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=5',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html

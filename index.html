@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="css/styles.css?v=21">
   <!-- Lapisan tampilan tambahan (kartu, topbar, tab, tombol). WAJIB setelah styles.css. -->
   <link rel="stylesheet" href="css/menu-polish.css?v=32">
+  <link rel="stylesheet" href="css/impersonate.css?v=1">
   <!-- [PATCH JARINGAN LEMAH] Google Fonts dimuat NON-blocking (media="print" lalu diganti "all" saat selesai).
        Sebelumnya <link rel="stylesheet"> ini RENDER-BLOCKING: di sinyal lemah, layar tetap kosong sampai CSS font
        dari server Google selesai/gagal. Sekarang halaman tampil dulu dengan font sistem, Inter menyusul. -->
@@ -147,7 +148,7 @@
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
   <script defer src="js/login-kode.js?v=12"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
-  <script defer src="js/impersonate.js?v=3"></script>
+  <script defer src="js/impersonate.js?v=5"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
   <script defer src="js/tahfidz-grafik.js?v=4"></script>
