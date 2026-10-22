@@ -1,0 +1,40 @@
+/* ============================================================
+   SI MAMBA - css/impersonate.css  (pasangan js/impersonate.js v4)
+   Semua gaya impersonasi ada di sini agar tidak perlu inline style
+   (kompatibel dengan CSP style-src tanpa 'unsafe-inline').
+============================================================ */
+
+/* ---------- Spanduk ---------- */
+.imp-banner {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 2147483000;
+  background: #b91c1c; color: #fff; font-size: 13px;
+  display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap;
+  padding: 6px 10px;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  box-sizing: border-box;
+}
+.imp-banner__btn {
+  background: #fff; color: #b91c1c; border: 0; border-radius: 6px;
+  padding: 4px 10px; font-weight: 700; cursor: pointer;
+}
+.imp-banner__btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- Tombol di Manajemen Pengguna ---------- */
+.imp-tombol { margin-left: 8px; }
+
+/* ---------- Modal pemilihan guru ---------- */
+.imp-overlay {
+  position: fixed; inset: 0; z-index: 2147482000;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.imp-dialog {
+  background: #fff; border-radius: 12px; padding: 18px;
+  max-width: 360px; width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+}
+.imp-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+.imp-desc  { margin: 0 0 12px; font-size: 12px; color: #6b7280; }
+.imp-select { width: 100%; margin-bottom: 12px; }
+.imp-actions { display: flex; gap: 8px; justify-content: flex-end; }
