@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.54",
-  "disimpan": "2026-10-22T04:27:10.542Z",
+  "appVersion": "v8.61",
+  "disimpan": "2026-10-22T07:24:11.851Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -119,8 +119,20 @@
       "hash": "70d59bb8eba12e6a2329378c5d3c8e92ed11e497"
     },
     "js/data-soal-mi.js": {
-      "v": "v=4",
-      "hash": "945c26afb3545b4f784afae4618851bc8a887884"
+      "v": "v=7",
+      "hash": "5afb05e4a8291b40b299e9b95a455fa0098a837f"
+    },
+    "js/data-soal-aqh-hafalan.js": {
+      "v": "v=2",
+      "hash": "389bffe280598856274dab1503507340a43cb1a1"
+    },
+    "js/data-soal-aqh-tajwid.js": {
+      "v": "v=1",
+      "hash": "8b8b7d8c9438fa24612aacaac93ccf769129b515"
+    },
+    "js/data-soal-ba.js": {
+      "v": "v=1",
+      "hash": "9403a2bcbace0a5c348aee8a70f7ae27649b48fd"
     },
     "js/perangkat-rpe.js": {
       "v": "v=9",
