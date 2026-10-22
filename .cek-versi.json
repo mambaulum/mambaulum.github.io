@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.61",
-  "disimpan": "2026-10-22T07:24:11.851Z",
+  "appVersion": "v8.66",
+  "disimpan": "2026-10-22T08:59:21.367Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -118,21 +118,13 @@
       "v": "v=3",
       "hash": "70d59bb8eba12e6a2329378c5d3c8e92ed11e497"
     },
-    "js/data-soal-mi.js": {
-      "v": "v=7",
-      "hash": "5afb05e4a8291b40b299e9b95a455fa0098a837f"
-    },
-    "js/data-soal-aqh-hafalan.js": {
-      "v": "v=2",
-      "hash": "389bffe280598856274dab1503507340a43cb1a1"
-    },
-    "js/data-soal-aqh-tajwid.js": {
+    "js/data-tp-umum.js": {
       "v": "v=1",
-      "hash": "8b8b7d8c9438fa24612aacaac93ccf769129b515"
+      "hash": "183cf034f805d85bc75a180e11f30aedec96a204"
     },
-    "js/data-soal-ba.js": {
+    "js/data-soal-semua.js": {
       "v": "v=1",
-      "hash": "9403a2bcbace0a5c348aee8a70f7ae27649b48fd"
+      "hash": "75a55a2737130f45bd3d1a4af077afdd06322f75"
     },
     "js/perangkat-rpe.js": {
       "v": "v=9",
@@ -155,8 +147,8 @@
       "hash": "fe9c146fad3521759c52fa9bdd1bca8bb961704e"
     },
     "js/perangkat-soal.js": {
-      "v": "v=8",
-      "hash": "fc683898fdd66e74ecaf1c232a184e8e66abf61f"
+      "v": "v=10",
+      "hash": "d91f291d556dcbe6dbeb0a972e7e45bbeb9d82b2"
     },
     "js/perangkat-pembelajaran.js": {
       "v": "v=10",
