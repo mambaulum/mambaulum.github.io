@@ -33,6 +33,9 @@
   .baris { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--garis); font-size:15px; }
   .baris b { text-align:right; }
   .kode { font:700 26px/1.2 ui-monospace,Menlo,Consolas,monospace; letter-spacing:3px; text-align:center; padding:12px; border:2px dashed var(--aksen); border-radius:10px; margin:12px 0; }
+  .kop { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .kop img { width:56px; height:56px; object-fit:contain; flex:none; }
+  .kop b { display:block; font-size:16px; } .kop span { color:var(--redup); font-size:13px; }
   #gambar img { display:block; width:100%; height:auto; margin-top:10px; border:1px solid var(--garis); border-radius:8px; }
   @media print { main > :not(#bukti) { display:none !important; } #bukti button, #bukti #gambar { display:none !important; } body { background:#fff; color:#000; } }
 </style>
@@ -65,14 +68,25 @@
     try { return new Date(iso).toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB'; } catch (e) { return String(iso); }
   }
   function kodeTampil(k) { return String(k).slice(0, 4) + '-' + String(k).slice(4); }
-  function gambarBukti(b) {
+  var LOGO = 'logo/logo-lembaga.png';
+  // Gambar bukti dibuat setelah logo selesai dimuat; bila logo gagal dimuat, gambar tetap dibuat tanpa logo (tombol simpan tidak boleh macet).
+  function gambarBukti(b, selesai) {
+    var im = new Image(), sudah = false;
+    function lanjut(ada) { if (sudah) return; sudah = true; var url; try { url = gambarBuktiJadi(b, ada ? im : null); } catch (e) { return selesai(null); } selesai(url); }
+    im.onload = function () { lanjut(true); }; im.onerror = function () { lanjut(false); };
+    setTimeout(function () { lanjut(false); }, 4000);
+    im.src = LOGO;
+  }
+  function gambarBuktiJadi(b, logo) {
     var c = document.createElement('canvas'), W = 720, H = 400, x = c.getContext('2d');
     c.width = W; c.height = H;
     x.fillStyle = '#ffffff'; x.fillRect(0, 0, W, H);
     x.strokeStyle = '#0f766e'; x.lineWidth = 6; x.strokeRect(3, 3, W - 6, H - 6);
     function muat(t, lebar) { t = String(t); while (t.length > 1 && x.measureText(t).width > lebar) t = t.slice(0, -2) + '\u2026'; return t; }
-    x.fillStyle = '#0f766e'; x.font = 'bold 30px sans-serif'; x.fillText('BUKTI PENGISIAN ANGKET PKG', 36, 66);
-    x.fillStyle = '#111827'; x.font = '22px sans-serif'; x.fillText('MI Mambaul Ulum', 36, 102);
+    var kiri = 36;
+    if (logo) { var sk = Math.min(72 / (logo.naturalWidth || 72), 72 / (logo.naturalHeight || 72)), lw = (logo.naturalWidth || 72) * sk, lh = (logo.naturalHeight || 72) * sk; x.drawImage(logo, 36, 26 + (72 - lh) / 2, lw, lh); kiri = 36 + 72 + 16; }
+    x.fillStyle = '#0f766e'; x.font = 'bold 30px sans-serif'; x.fillText('BUKTI PENGISIAN ANGKET PKG', kiri, 66);
+    x.fillStyle = '#111827'; x.font = '22px sans-serif'; x.fillText('MI Mambaul Ulum', kiri, 102);
     var baris = [['Angket', b.judul], ['Untuk', b.nama], ['Dikirim', waktuId(b.at)]], y = 156;
     baris.forEach(function (r) {
       x.fillStyle = '#6b7280'; x.font = '20px sans-serif'; x.fillText(r[0], 36, y);
@@ -86,7 +100,10 @@
   }
   function buktiKartu(b, lagi) {
     app.textContent = '';
+    var logoImg = el('img', { src: LOGO, alt: 'Logo MI Mambaul Ulum' });
+    logoImg.addEventListener('error', function () { logoImg.style.display = 'none'; });
     var wadah = el('div', { class: 'kartu', id: 'bukti' }, [
+      el('div', { class: 'kop' }, [logoImg, el('div', {}, [el('b', { text: 'MI Mambaul Ulum' }), el('span', { text: 'Bukti pengisian angket PKG' })])]),
       el('p', { class: 'sukses', text: '\u2714 Terima kasih, jawaban sudah terkirim.' }),
       el('p', { class: 'redup', text: 'Simpan bukti ini bila madrasah memintanya. Madrasah hanya mencatat bahwa tautan ini sudah dipakai; isi jawaban tidak ikut tercantum dan tidak ditampilkan per orang.' }),
       el('div', { class: 'baris' }, [el('span', { class: 'redup', text: 'Angket' }), el('b', { text: b.judul })]),
@@ -98,11 +115,30 @@
     var gbr = el('div', { id: 'gambar' });
     var simpan = el('button', { type: 'button', text: '\ud83d\udcbe Simpan bukti sebagai gambar' });
     simpan.addEventListener('click', function () {
-      var url; try { url = gambarBukti(b); } catch (e) { info.textContent = 'Gambar tidak bisa dibuat di perangkat ini. Silakan catat kode di atas.'; return; }
-      gbr.textContent = ''; gbr.appendChild(el('img', { src: url, alt: 'Bukti pengisian angket' }));
-      info.textContent = 'Bila gambar tidak otomatis terunduh, tekan lama pada gambar lalu pilih Simpan.';
-      try { var a = document.createElement('a'); a.href = url; a.download = 'bukti-angket-' + b.kode + '.png'; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { }
+      simpan.disabled = true;
+      gambarBukti(b, function (url) {
+        simpan.disabled = false;
+        if (!url) { info.textContent = 'Gambar tidak bisa dibuat di perangkat ini. Silakan catat kode di atas.'; return; }
+        gbr.textContent = ''; gbr.appendChild(el('img', { src: url, alt: 'Bukti pengisian angket' }));
+        info.textContent = 'Bila gambar tidak otomatis terunduh, tekan lama pada gambar lalu pilih Simpan.';
+        siapBagikan(url, b);
+        try { var a = document.createElement('a'); a.href = url; a.download = 'bukti-angket-' + b.kode + '.png'; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { }
+      });
     });
+    // Bagikan lewat lembar bagikan perangkat (HP): pilih WhatsApp lalu Status. Tombol baru muncul setelah gambar jadi, agar klik berasal dari sentuhan pengguna.
+    function siapBagikan(url, bb) {
+      if (!navigator.share || !navigator.canShare || document.getElementById('bagikanBukti')) return;
+      fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
+        var f = new File([blob], 'bukti-angket-' + bb.kode + '.png', { type: 'image/png' });
+        if (!navigator.canShare({ files: [f] })) return;
+        var tb = el('button', { type: 'button', id: 'bagikanBukti', text: '\ud83d\udce4 Bagikan ke WhatsApp (untuk status)' });
+        tb.addEventListener('click', function () {
+          navigator.share({ files: [f], title: 'Bukti pengisian angket PKG' }).catch(function (e) { if (e && e.name !== 'AbortError') info.textContent = 'Tidak bisa membagikan dari perangkat ini. Simpan gambarnya lalu unggah manual di status WhatsApp.'; });
+        });
+        gbr.insertBefore(tb, gbr.firstChild);
+        info.textContent = 'Pilih WhatsApp lalu \u201cStatus\u201d (nama pilihan bisa berbeda tiap versi WhatsApp).';
+      }).catch(function () { });
+    }
     var cetak = el('button', { type: 'button', class: 'sekunder', text: '\ud83d\udda8\ufe0f Cetak / simpan PDF' });
     cetak.addEventListener('click', function () { window.print(); });
     var salin = el('button', { type: 'button', class: 'sekunder', text: '\ud83d\udccb Salin kode' });
