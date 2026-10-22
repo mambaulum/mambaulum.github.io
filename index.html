@@ -123,16 +123,13 @@
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.
        Urutan: data bank -> perangkat-rpe (rpeUtil) -> modul turunan -> perangkat-pembelajaran (hub, TERAKHIR karena membungkus navigateTo). -->
   <script defer src="js/data-tp-mi.js?v=3"></script>
-  <!-- TP mapel umum MI (mtk, bin, pp, pjok, ipas, seni, big). WAJIB sesudah data-tp-mi.js. -->
-  <script defer src="js/data-tp-umum.js?v=1"></script>
-  <!-- Seluruh bank soal (gabungan 10 file data-soal-*.js lama). WAJIB sesudah data-tp-mi.js & data-tp-umum.js, sebelum perangkat-*.js. -->
-  <script defer src="js/data-soal-semua.js?v=1"></script>
+  <script defer src="js/data-soal-mi.js?v=4"></script>
   <script defer src="js/perangkat-rpe.js?v=9"></script>
   <script defer src="js/perangkat-prota-promes.js?v=7"></script>
   <script defer src="js/perangkat-atp-tp.js?v=7"></script>
   <script defer src="js/data-kisi-resmi-mi.js?v=3"></script>
   <script defer src="js/perangkat-kisi.js?v=9"></script>
-  <script defer src="js/perangkat-soal.js?v=10"></script>
+  <script defer src="js/perangkat-soal.js?v=8"></script>
   <script defer src="js/perangkat-pembelajaran.js?v=10"></script>
   <script defer src="js/modul-ajar.js?v=16"></script>
   <script defer src="js/buku-tamu.js?v=5"></script>
@@ -150,7 +147,7 @@
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
   <script defer src="js/login-kode.js?v=12"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
-  <script defer src="js/impersonate.js?v=2"></script>
+  <script defer src="js/impersonate.js?v=3"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
   <script defer src="js/tahfidz-grafik.js?v=4"></script>

@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.66';
+const APP_VERSION = 'v8.55';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -96,14 +96,13 @@ const PRECACHE_URLS = [
   './js/pkg-surat.js?v=3',                // surat PKG berQR Kepala (dimuat SESUDAH pkg.js)
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
   './js/data-tp-mi.js?v=3',
-  './js/data-tp-umum.js?v=1',            // TP mapel umum MI (SESUDAH data-tp-mi.js)
-  './js/data-soal-semua.js?v=1',          // seluruh bank soal (gabungan 10 file data-soal-*.js lama; SESUDAH data-tp-mi & data-tp-umum)
+  './js/data-soal-mi.js?v=4',
   './js/perangkat-rpe.js?v=9',
   './js/perangkat-prota-promes.js?v=7',
   './js/perangkat-atp-tp.js?v=7',
   './js/data-kisi-resmi-mi.js?v=3',
   './js/perangkat-kisi.js?v=9',
-  './js/perangkat-soal.js?v=10',
+  './js/perangkat-soal.js?v=8',
   './js/perangkat-pembelajaran.js?v=10',
   './js/modul-ajar.js?v=16',
   './js/buku-tamu.js?v=5',
@@ -111,7 +110,7 @@ const PRECACHE_URLS = [
   './js/tunggakan-infaq.js?v=10',
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
-  './js/impersonate.js?v=2',
+  './js/impersonate.js?v=3',
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=5',
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
