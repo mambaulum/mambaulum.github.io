@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.44",
-  "disimpan": "2026-10-21T04:34:09.402Z",
+  "appVersion": "v8.48",
+  "disimpan": "2026-10-22T02:28:27.281Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -103,16 +103,16 @@
       "hash": "03e6fa045d67ca99ad0f3882b69da509cbac7b9e"
     },
     "js/pkg.js": {
-      "v": "v=86",
-      "hash": "0db5d96fa06011dc5c2609a47c0a216c4c4a13b4"
+      "v": "v=88",
+      "hash": "c0b1a50b0148a823c88240c6a307c8ec9a3b4cf9"
     },
     "js/pkg-analisis.js": {
       "v": "v=3",
       "hash": "45c492c10f543f48fbde3c87d9f72ff0c60222f9"
     },
     "js/pkg-surat.js": {
-      "v": "v=1",
-      "hash": "eaea0b6417101662ac1ed42d0ffc615f2ec0973c"
+      "v": "v=3",
+      "hash": "45919856ed8d2554e83ce4118f3cbbbee610c278"
     },
     "js/data-tp-mi.js": {
       "v": "v=3",
