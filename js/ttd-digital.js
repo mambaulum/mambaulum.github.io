@@ -343,8 +343,14 @@
     // opsi.syarat = path RTDB berisi {oleh, at}: tanpa catatan itu (belum disetujui) blok dibiarkan kosong.
     if (opsi.syarat) {
       var set = null;
-      try { set = (await db.ref(opsi.syarat).once('value')).val(); } catch (e) { set = null; }
-      if (!set || !set.oleh) return '';
+      var galat = '';
+      try { set = (await db.ref(opsi.syarat).once('value')).val(); } catch (e) { set = null; galat = pesanErr(e); }
+      if (!set || !set.oleh) {
+        // Diagnosa: blok Kepala kosong karena belum ada catatan persetujuan di path ini, atau path gagal dibaca (Rules).
+        console.warn('[SI MAMBA] QR Kepala tidak terbit. Path: ' + opsi.syarat + ' | ' + (galat ? 'GAGAL DIBACA: ' + galat : 'catatan persetujuan tidak ada'));
+        if (!htmlBlok.__sudahToast) { htmlBlok.__sudahToast = true; toast(galat ? '⚠️ QR Kepala tidak terbit: gagal membaca persetujuan (' + galat + ').' : 'ℹ️ QR Kepala tidak terbit: dokumen ini belum disetujui Kepala/Admin (cek semester dan dokumen yang dicetak).', true, 6000); setTimeout(function () { htmlBlok.__sudahToast = false; }, 8000); }
+        return '';
+      }
       meta = Object.assign({}, meta, { ket: ('Disetujui ' + (set.peran === 'Admin' ? 'atas nama ' + set.oleh + ' (diinput Admin)' : 'oleh ' + set.oleh) + ' (' + tglId(set.at) + ')' + (meta.ket ? ' | ' + meta.ket : '')) });
     }
     if (opsi.sidik) meta = Object.assign({}, meta, { sidik: opsi.sidik });

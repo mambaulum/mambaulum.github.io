@@ -37,6 +37,9 @@
     { k: 'kunci',  n: 'Kunci & Penskoran', full: 'Kunci Jawaban dan Pedoman Penskoran', setuju: false }
   ];
   function tglPendek(iso) { try { return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } }
+  // Dokumen dihitung FINAL bila guru menandainya Final ATAU Kepala sudah menyetujuinya (persetujuan berarti dokumen sudah dianggap final).
+  // Bila guru mengubah dokumen, persetujuan gugur dan status kembali mengikuti pilihan guru.
+  function isFinal(x) { return !!x && (x.status === 'final' || !!x.setuju); }
   // Blok persetujuan di editor dokumen. Admin/Kepsek (bukan pemilik) boleh setuju/cabut; guru hanya melihat statusnya.
   function setujuHtml(id, rec, jk, j, x, boleh) {
     if (!j.setuju) return '';
@@ -88,7 +91,7 @@
     let fin = 0, draf = 0, rev = 0;
     JENIS.forEach(j => {
       const x = d[j.k];
-      if (x && x.url) { if (x.status === 'final') fin++; else draf++; if (x.revisi) rev++; }
+      if (x && x.url) { if (isFinal(x)) fin++; else draf++; if (x.revisi) rev++; }
       else if (genAda(j.k, id)) draf++;
     });
     return { final: fin, draf: draf, revisi: rev, total: JENIS.length };
@@ -252,8 +255,8 @@
     const c = hitung(rec), d = rec.docs || {};
     const chips = JENIS.map(j => {
       const x = d[j.k], on = S.edit && S.edit.id === id && S.edit.j === j.k;
-      const st = x && x.url ? (x.status === 'final' ? ['#dcfce7', '#86efac', '#166534', '✅'] : ['#fef9c3', '#fde047', '#854d0e', '✏️']) : ['#f3f4f6', '#d1d5db', '#374151', '➕'];
-      return `<button type="button" data-act="edit" data-id="${esc(id)}" data-j="${j.k}" style="text-align:left;min-height:46px;padding:6px 10px;border-radius:10px;border:${on ? 2 : 1.5}px solid ${on ? '#2563eb' : st[1]};background:${st[0]};color:${st[2]};cursor:pointer;font-size:13px;line-height:1.25;"><strong>${st[3]} ${esc(j.n)}</strong><br><span style="font-size:11px;">${x && x.url ? (x.status === 'final' ? 'Final' : 'Draf') : 'Belum diisi'}${x && x.revisi ? ' · ⚠️ revisi' : ''}</span></button>`;
+      const st = x && x.url ? (isFinal(x) ? ['#dcfce7', '#86efac', '#166534', '✅'] : ['#fef9c3', '#fde047', '#854d0e', '✏️']) : ['#f3f4f6', '#d1d5db', '#374151', '➕'];
+      return `<button type="button" data-act="edit" data-id="${esc(id)}" data-j="${j.k}" style="text-align:left;min-height:46px;padding:6px 10px;border-radius:10px;border:${on ? 2 : 1.5}px solid ${on ? '#2563eb' : st[1]};background:${st[0]};color:${st[2]};cursor:pointer;font-size:13px;line-height:1.25;"><strong>${st[3]} ${esc(j.n)}</strong><br><span style="font-size:11px;">${x && x.url ? (isFinal(x) ? 'Final' : 'Draf') : 'Belum diisi'}${x && x.revisi ? ' · ⚠️ revisi' : ''}</span></button>`;
     }).join('');
     const panel = (S.edit && S.edit.id === id) ? editorHtml(id, rec, S.edit.j) : '';
     const sk = siapCek(rec);
@@ -274,7 +277,7 @@
     if (adm) return `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;">
       <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)} · ${esc(rec.guruName || '')}</div>
       ${setujuHtml(id, rec, jk, j, x, true)}
-      ${x.url ? `<div style="font-size:13px;margin-bottom:8px;"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a> · ${x.status === 'final' ? 'Final' : 'Draf'}</div>
+      ${x.url ? `<div style="font-size:13px;margin-bottom:8px;"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a> · ${isFinal(x) ? 'Final' : 'Draf'}</div>
       <input id="ppRevisi" class="field" maxlength="200" placeholder="Catatan revisi untuk guru (kosongkan bila sudah sesuai)" value="${esc(x.revisi || '')}">
       <div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="simpan-revisi" data-id="${esc(id)}" data-j="${jk}">💾 Simpan catatan</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tutup">Tutup</button></div>`
       : `<div style="${muted}">Guru belum mengisi tautan dokumen ini.</div><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;margin-top:8px;" data-act="tutup">Tutup</button>`}</div>`;
@@ -346,7 +349,7 @@
     let body = ids.map(id => {
       const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
       const tds = JENIS.map(j => {
-        const x = d[j.k], gen = !(x && x.url) && genAda(j.k, id), g = x && x.url ? (x.status === 'final' ? '✅' : '✏️') : gen ? '🛠' : '—';
+        const x = d[j.k], gen = !(x && x.url) && genAda(j.k, id), g = x && x.url ? (isFinal(x) ? '✅' : '✏️') : gen ? '🛠' : '—';
         return `<td style="text-align:center;padding:4px;"><button type="button" data-act="edit" data-id="${esc(id)}" data-j="${j.k}" style="border:0;background:${S.edit && S.edit.id === id && S.edit.j === j.k ? '#dbeafe' : 'transparent'};cursor:pointer;font-size:15px;min-height:32px;min-width:32px;">${x && x.revisi ? '⚠️' : g}</button></td>`;
       }).join('');
       const panel = (S.edit && S.edit.id === id) ? `<tr><td colspan="${JENIS.length + 4}">${editorHtml(id, r, S.edit.j)}</td></tr>` : '';
@@ -370,7 +373,7 @@
     ids.forEach(id => {
       const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
       const cells = [r.tahunAjaran, SEM_LABEL[r.semester] || r.semester, r.guruName, r.mapel, r.kelas]
-        .concat(JENIS.map(j => { const x = d[j.k]; return x && x.url ? (x.status === 'final' ? 'Final' : 'Draf') + (x.revisi ? ' (revisi)' : '') : (genAda(j.k, id) ? 'Dibuat di aplikasi' : 'Belum'); }), [c.final, c.draf]);
+        .concat(JENIS.map(j => { const x = d[j.k]; return x && x.url ? (isFinal(x) ? 'Final' : 'Draf') + (x.revisi ? ' (revisi)' : '') : (genAda(j.k, id) ? 'Dibuat di aplikasi' : 'Belum'); }), [c.final, c.draf]);
       lines.push(cells.map(csvCell).join(','));
     });
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });

@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.52';
+const APP_VERSION = 'v8.54';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -84,7 +84,7 @@ const PRECACHE_URLS = [
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
-  './js/ttd-digital.js?v=6',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
+  './js/ttd-digital.js?v=7',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=10',
   './js/menu-polish.js?v=30',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
@@ -103,7 +103,7 @@ const PRECACHE_URLS = [
   './js/data-kisi-resmi-mi.js?v=3',
   './js/perangkat-kisi.js?v=9',
   './js/perangkat-soal.js?v=8',
-  './js/perangkat-pembelajaran.js?v=9',
+  './js/perangkat-pembelajaran.js?v=10',
   './js/modul-ajar.js?v=16',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
