@@ -3,9 +3,9 @@
    Pembuat KARTU SOAL, NASKAH SOAL, dan KUNCI & PENSKORAN siap cetak untuk Asesmen Sumatif Akhir Semester.
    - Slot soal dibuat otomatis dari kisi-kisi yang sudah DISIMPAN (📋 Kisi-kisi): jumlah PG/isian/uraian per TP,
      nomor soal mengikuti kisi-kisi (PG, lalu isian, lalu uraian).
-   - "Isi dari bank soal": soal diambil dari bank draf (js/data-soal-mi.js) menurut TP dan bentuk soal; opsi PG diacak
+   - "Isi dari bank soal": soal diambil dari bank draf (js/data-soal-semua.js: PAI, Bahasa Arab, dan mapel umum) menurut TP dan bentuk soal; opsi PG diacak
      dan kunci mengikuti. Soal dari bank berstatus DRAF sampai guru mencentang "Sudah saya periksa".
-   - Soal tanpa bank (mis. hafalan surah/hadis, Bahasa Arab, mapel umum) diketik guru sendiri pada slot yang kosong.
+   - Soal tanpa bank (mis. soal bacaan/hafalan di luar bank, atau bila slot melebihi jumlah soal bank) diketik guru sendiri pada slot yang kosong.
    Bergantung pada js/perangkat-rpe.js; membaca data dari js/perangkat-kisi.js. Diekspos: soalBuka(id, rec, sem, ta), soalUtil.
 
    Data Firebase (baru):
