@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.54';
+const APP_VERSION = 'v8.61';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -96,7 +96,10 @@ const PRECACHE_URLS = [
   './js/pkg-surat.js?v=3',                // surat PKG berQR Kepala (dimuat SESUDAH pkg.js)
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
   './js/data-tp-mi.js?v=3',
-  './js/data-soal-mi.js?v=4',
+  './js/data-soal-mi.js?v=7',
+  './js/data-soal-aqh-hafalan.js?v=2',   // soal hafalan Al-Qur'an Hadis MI (SESUDAH data-soal-mi.js)
+  './js/data-soal-aqh-tajwid.js?v=1',    // tambahan soal tajwid AQH MI (SESUDAH data-soal-mi.js)
+  './js/data-soal-ba.js?v=1',            // soal Bahasa Arab MI Fase A-C (SESUDAH data-soal-mi.js)
   './js/perangkat-rpe.js?v=9',
   './js/perangkat-prota-promes.js?v=7',
   './js/perangkat-atp-tp.js?v=7',
