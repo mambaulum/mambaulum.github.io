@@ -1,8 +1,8 @@
 /* ============================================================
    SI MAMBA - js/data-soal-mi.js
    Bank soal DRAF untuk TP PAI MI (kunci TP sama dengan js/data-tp-mi.js, mis. 'aa-A-1' = Akidah Akhlak Fase A TP ke-1).
-   Cakupan: Akidah Akhlak (Fase A-C), Fikih (A-C), SKI (B-C), dan Tajwid pada Al-Qur'an Hadis (A-C).
-   TIDAK mencakup hafalan surah/ayat/hadis dan Bahasa Arab: soal untuk itu diketik guru di modul Kartu Soal.
+   Cakupan: Akidah Akhlak (Fase A-C), Fikih (A-C), SKI (B-C), Tajwid pada Al-Qur'an Hadis (A-C), dan Bahasa Arab Fase A-C (kosakata dan pola kalimat sederhana, kunci 'ba-A/B/C-n').
+   TIDAK mencakup hafalan surah/ayat/hadis: soal untuk itu diketik guru di modul Kartu Soal.
    Soal ditulis ulang oleh penyusun aplikasi dan berstatus DRAF: guru wajib memeriksa kebenaran isi, kesesuaian
    dengan buku ajar/mazhab yang dipakai madrasah, dan tingkat kesulitan sebelum dipakai.
    Verifikasi (Oktober 2026): isi soal AQH, Akidah Akhlak, Fikih, dan SKI dicek ulang terhadap materi SK 9941/2025
@@ -442,6 +442,304 @@
       P('L1', 'Wali Sanga menyebarkan Islam terutama di pulau ...', 'Jawa', 'Sumatra', 'Sulawesi', 'Papua'),
       I('L2', 'Sunan ... menyebarkan Islam melalui kesenian wayang.', 'Kalijaga'),
       U('L1', 'Sebutkan tiga nama anggota Wali Sanga!', 'Contoh benar: Maulana Malik Ibrahim, Sunan Ampel, Sunan Bonang, Sunan Drajat, Sunan Giri, Sunan Kalijaga, Sunan Kudus, Sunan Muria, Sunan Gunung Jati. Skor sebanding jumlah nama yang benar.')
+    ],
+    // ===================== BAHASA ARAB FASE A (kelas 1-2; kunci TP sama dengan js/data-tp-mi.js 'ba-A-n') =====================
+    'ba-A-1': [
+      P('L1', 'Arti "اسْمِي أَحْمَدُ" adalah ...', 'Namaku Ahmad', 'Aku berasal dari Jakarta', 'Aku seorang murid', 'Aku suka belajar'),
+      P('L1', 'Arti "مَا اسْمُكَ؟" adalah ...', 'Siapa namamu?', 'Dari mana asalmu?', 'Apa kabarmu?', 'Berapa umurmu?'),
+      I('L1', 'Arti "أَنَا" adalah ....', 'saya (aku)'),
+      P('L1', 'Arti "اسْمِي" adalah ...', 'namaku', 'saya', 'kamu (laki-laki)', 'dia (laki-laki)'),
+      P('L1', 'Arti "أَنَا" adalah ...', 'saya', 'kamu (laki-laki)', 'dia (laki-laki)', 'dia (perempuan)'),
+      P('L1', 'Bahasa Arab "kamu (laki-laki)" adalah ...', 'أَنْتَ', 'هُوَ', 'هِيَ', 'شُكْرًا'),
+      I('L1', 'Arti "هُوَ" adalah ....', 'dia (laki-laki)')
+    ],
+    'ba-A-2': [
+      P('L1', 'Arti "أُمِّي" adalah ...', 'ibuku', 'ayahku', 'kakekku', 'saudara perempuanku'),
+      P('L1', 'Bahasa Arab "ayahku" adalah ...', 'أَبِي', 'أُمِّي', 'أَخِي', 'جَدِّي'),
+      I('L1', 'Arti "جَدَّتِي" adalah ... ku.', 'nenek'),
+      U('L1', 'Tuliskan arti dari: أَبِي, أُمِّي, dan أَخِي!', 'ayahku; ibuku; saudara laki-lakiku (kakak/adik laki-laki). Skor sebanding jumlah arti yang benar.'),
+      P('L1', 'Arti "أَبِي" adalah ...', 'ayahku', 'ibuku', 'saudara laki-lakiku', 'saudara perempuanku'),
+      P('L1', 'Bahasa Arab "ibuku" adalah ...', 'أُمِّي', 'أَخِي', 'أُخْتِي', 'جَدِّي'),
+      P('L1', 'Arti "أَخِي" adalah ...', 'saudara laki-lakiku', 'saudara perempuanku', 'kakekku', 'nenekku'),
+      I('L1', 'Arti "أُخْتِي" adalah ....', 'saudara perempuanku')
+    ],
+    'ba-A-3': [
+      P('L1', 'Arti "مَطْبَخٌ" adalah ...', 'dapur', 'kamar mandi', 'pintu', 'jendela'),
+      P('L1', 'Bahasa Arab "pintu" adalah ...', 'بَابٌ', 'نَافِذَةٌ', 'غُرْفَةٌ', 'بَيْتٌ'),
+      I('L1', 'Arti "بَيْتٌ" adalah ....', 'rumah'),
+      P('L1', 'Arti "بَيْتٌ" adalah ...', 'rumah', 'kamar', 'dapur', 'kamar mandi'),
+      P('L1', 'Arti "غُرْفَةٌ" adalah ...', 'kamar', 'dapur', 'kamar mandi', 'taman'),
+      P('L1', 'Bahasa Arab "dapur" adalah ...', 'مَطْبَخٌ', 'حَمَّامٌ', 'حَدِيقَةٌ', 'بَابٌ'),
+      I('L1', 'Arti "حَمَّامٌ" adalah ....', 'kamar mandi')
+    ],
+    'ba-A-4': [
+      P('L1', 'Arti "قَلَمٌ" adalah ...', 'pena', 'buku', 'penggaris', 'meja'),
+      P('L1', 'Bahasa Arab "buku" adalah ...', 'كِتَابٌ', 'قَلَمٌ', 'كُرْسِيٌّ', 'سَبُّورَةٌ'),
+      I('L1', 'Arti "كُرْسِيٌّ" adalah ....', 'kursi'),
+      P('L1', 'Arti "مَدْرَسَةٌ" adalah ...', 'sekolah', 'kelas', 'guru', 'murid'),
+      P('L1', 'Arti "فَصْلٌ" adalah ...', 'kelas', 'guru', 'murid', 'buku'),
+      P('L1', 'Bahasa Arab "guru" adalah ...', 'مُدَرِّسٌ', 'تِلْمِيذٌ', 'كِتَابٌ', 'قَلَمٌ'),
+      I('L1', 'Arti "تِلْمِيذٌ" adalah ....', 'murid')
+    ],
+    'ba-A-5': [
+      P('L1', 'Arti "هِوَايَتِي الرَّسْمُ" adalah ...', 'Hobiku menggambar', 'Hobiku membaca', 'Hobiku berenang', 'Hobiku bermain bola'),
+      P('L1', 'Arti "السِّبَاحَةُ" adalah ...', 'berenang', 'membaca', 'menggambar', 'berlari'),
+      I('L1', 'Arti "الْقِرَاءَةُ" adalah ....', 'membaca'),
+      P('L1', 'Arti "الْقِرَاءَةُ" adalah ...', 'membaca', 'menggambar', 'berenang', 'sepak bola'),
+      P('L1', 'Arti "الرَّسْمُ" adalah ...', 'menggambar', 'berenang', 'sepak bola', 'memasak'),
+      P('L1', 'Bahasa Arab "berenang" adalah ...', 'السِّبَاحَةُ', 'كُرَةُ الْقَدَمِ', 'الطَّبْخُ', 'الْقِرَاءَةُ'),
+      I('L1', 'Arti "كُرَةُ الْقَدَمِ" adalah ....', 'sepak bola')
+    ],
+    'ba-A-6': [
+      P('L1', 'Arti "مَوْزٌ" adalah ...', 'pisang', 'apel', 'jeruk', 'anggur'),
+      P('L1', 'Bahasa Arab "apel" adalah ...', 'تُفَّاحٌ', 'مَوْزٌ', 'عِنَبٌ', 'بُرْتُقَالٌ'),
+      I('L1', 'Arti "بُرْتُقَالٌ" adalah ....', 'jeruk'),
+      U('L1', 'Tuliskan arti dari: تُفَّاحٌ, عِنَبٌ, dan مَوْزٌ!', 'apel; anggur; pisang. Skor sebanding jumlah arti yang benar.'),
+      P('L1', 'Arti "تُفَّاحٌ" adalah ...', 'apel', 'pisang', 'jeruk', 'anggur'),
+      P('L1', 'Bahasa Arab "pisang" adalah ...', 'مَوْزٌ', 'بُرْتُقَالٌ', 'عِنَبٌ', 'أَنَنَاسٌ'),
+      P('L1', 'Arti "بُرْتُقَالٌ" adalah ...', 'jeruk', 'anggur', 'nanas', 'semangka'),
+      I('L1', 'Arti "عِنَبٌ" adalah ....', 'anggur')
+    ],
+    'ba-A-7': [
+      P('L1', 'Arti "أَحْمَرُ" adalah ...', 'merah', 'hijau', 'biru', 'kuning'),
+      P('L1', 'Bahasa Arab "hijau" adalah ...', 'أَخْضَرُ', 'أَزْرَقُ', 'أَصْفَرُ', 'أَسْوَدُ'),
+      I('L1', 'Arti "أَبْيَضُ" adalah ....', 'putih'),
+      U('L1', 'Tuliskan arti dari: أَصْفَرُ, أَزْرَقُ, dan أَسْوَدُ!', 'kuning; biru; hitam. Skor sebanding jumlah arti yang benar.'),
+      P('L1', 'Bahasa Arab "merah" adalah ...', 'أَحْمَرُ', 'أَصْفَرُ', 'أَخْضَرُ', 'أَزْرَقُ'),
+      P('L1', 'Arti "أَصْفَرُ" adalah ...', 'kuning', 'hijau', 'biru', 'putih'),
+      P('L1', 'Arti "أَخْضَرُ" adalah ...', 'hijau', 'biru', 'putih', 'hitam'),
+      I('L1', 'Arti "أَزْرَقُ" adalah ....', 'biru')
+    ],
+    'ba-A-8': [
+      P('L1', 'Arti "سَيَّارَةٌ" adalah ...', 'mobil', 'pesawat', 'kapal', 'sepeda'),
+      P('L1', 'Bahasa Arab "pesawat" adalah ...', 'طَائِرَةٌ', 'قِطَارٌ', 'سَفِينَةٌ', 'دَرَّاجَةٌ'),
+      I('L1', 'Arti "قِطَارٌ" adalah ....', 'kereta api'),
+      P('L1', 'Bahasa Arab "mobil" adalah ...', 'سَيَّارَةٌ', 'دَرَّاجَةٌ', 'طَائِرَةٌ', 'قِطَارٌ'),
+      P('L1', 'Arti "دَرَّاجَةٌ" adalah ...', 'sepeda', 'pesawat', 'kereta api', 'kapal'),
+      P('L1', 'Arti "طَائِرَةٌ" adalah ...', 'pesawat', 'kereta api', 'kapal', 'bus'),
+      I('L1', 'Arti "سَفِينَةٌ" adalah ....', 'kapal')
+    ],
+    'ba-A-9': [
+      P('L1', 'Arti "جَبَلٌ" adalah ...', 'gunung', 'laut', 'sungai', 'pohon'),
+      P('L1', 'Bahasa Arab "laut" adalah ...', 'بَحْرٌ', 'نَهْرٌ', 'جَبَلٌ', 'شَجَرَةٌ'),
+      I('L1', 'Arti "شَجَرَةٌ" adalah ....', 'pohon'),
+      P('L1', 'Bahasa Arab "gunung" adalah ...', 'جَبَلٌ', 'نَهْرٌ', 'بَحْرٌ', 'شَجَرَةٌ'),
+      P('L1', 'Arti "نَهْرٌ" adalah ...', 'sungai', 'laut', 'pohon', 'bunga'),
+      P('L1', 'Arti "بَحْرٌ" adalah ...', 'laut', 'pohon', 'bunga', 'langit'),
+      I('L1', 'Arti "زَهْرَةٌ" adalah ....', 'bunga')
+    ],
+    'ba-A-10': [
+      P('L1', 'Arti "الْكِتَابَةُ" adalah ...', 'menulis', 'membaca', 'berbicara', 'menyimak'),
+      P('L1', 'Keterampilan berbahasa Arab yang berarti "menyimak" adalah ...', 'الِاسْتِمَاعُ', 'الْكَلَامُ', 'الْقِرَاءَةُ', 'الْكِتَابَةُ'),
+      I('L1', 'Arti "الْكَلَامُ" adalah ....', 'berbicara'),
+      U('L1', 'Tuliskan arti dari: كِتَابٌ, بَابٌ, dan أَحْمَرُ!', 'buku; pintu; merah. Skor sebanding jumlah arti yang benar.')
+    ],
+    // ===================== BAHASA ARAB FASE B (kelas 3-4; kunci TP 'ba-B-n') =====================
+    'ba-B-1': [
+      P('L1', 'Arti "الرِّيَاضِيَّاتُ" adalah ...', 'matematika', 'olahraga', 'bahasa Arab', 'ilmu pengetahuan alam'),
+      P('L1', 'Bahasa Arab "ilmu pengetahuan alam (sains)" adalah ...', 'الْعُلُومُ', 'الرِّيَاضِيَّاتُ', 'التَّارِيخُ', 'الْجُغْرَافِيَا'),
+      I('L1', 'Arti "مَادَّةٌ" dalam konteks sekolah adalah ....', 'mata pelajaran'),
+      P('L1', 'Bahasa Arab "matematika" adalah ...', 'الرِّيَاضِيَّاتُ', 'الْعُلُومُ', 'اللُّغَةُ الْعَرَبِيَّةُ', 'التَّارِيخُ'),
+      P('L1', 'Arti "الْعُلُومُ" adalah ...', 'ilmu pengetahuan alam', 'bahasa Arab', 'sejarah', 'geografi'),
+      P('L1', 'Arti "اللُّغَةُ الْعَرَبِيَّةُ" adalah ...', 'bahasa Arab', 'sejarah', 'geografi', 'matematika'),
+      I('L1', 'Arti "التَّارِيخُ" adalah ....', 'sejarah')
+    ],
+    'ba-B-2': [
+      P('L1', 'Arti "فِيلٌ" adalah ...', 'gajah', 'singa', 'kuda', 'kucing'),
+      P('L1', 'Bahasa Arab "kucing" adalah ...', 'قِطَّةٌ', 'كَلْبٌ', 'حِصَانٌ', 'أَسَدٌ'),
+      I('L1', 'Arti "حِصَانٌ" adalah ....', 'kuda'),
+      P('L1', 'Arti "أَسَدٌ" adalah ...', 'singa', 'gajah', 'kucing', 'anjing'),
+      P('L1', 'Bahasa Arab "gajah" adalah ...', 'فِيلٌ', 'قِطَّةٌ', 'كَلْبٌ', 'حِصَانٌ'),
+      P('L1', 'Arti "قِطَّةٌ" adalah ...', 'kucing', 'anjing', 'kuda', 'sapi'),
+      I('L1', 'Arti "كَلْبٌ" adalah ....', 'anjing')
+    ],
+    'ba-B-3': [
+      P('L1', 'Arti "عِنْدِي صُدَاعٌ" adalah ...', 'Aku sakit kepala', 'Aku sakit gigi', 'Aku demam', 'Aku batuk'),
+      P('L1', 'Bahasa Arab "demam" adalah ...', 'حُمَّى', 'سُعَالٌ', 'صُدَاعٌ', 'زُكَامٌ'),
+      I('L1', 'Arti "سُعَالٌ" adalah ....', 'batuk'),
+      P('L1', 'Arti "صُدَاعٌ" adalah ...', 'sakit kepala', 'sakit gigi', 'demam', 'batuk'),
+      P('L1', 'Arti "أَلَمُ الْأَسْنَانِ" adalah ...', 'sakit gigi', 'demam', 'batuk', 'pilek'),
+      I('L1', 'Arti "حُمَّى" adalah ....', 'demam'),
+      P('L1', 'Bahasa Arab "batuk" adalah ...', 'سُعَالٌ', 'زُكَامٌ', 'أَلَمُ الْبَطْنِ', 'صُدَاعٌ')
+    ],
+    'ba-B-4': [
+      P('L1', 'Arti "كُرَةُ الْقَدَمِ" adalah ...', 'sepak bola', 'bola basket', 'bola voli', 'tenis meja'),
+      P('L1', 'Bahasa Arab "bola basket" adalah ...', 'كُرَةُ السَّلَّةِ', 'كُرَةُ الْقَدَمِ', 'كُرَةُ الطَّائِرَةِ', 'السِّبَاحَةُ'),
+      I('L1', 'Arti "الْجَرْيُ" adalah ....', 'lari'),
+      P('L1', 'Bahasa Arab "sepak bola" adalah ...', 'كُرَةُ الْقَدَمِ', 'كُرَةُ السَّلَّةِ', 'كُرَةُ الطَّائِرَةِ', 'السِّبَاحَةُ'),
+      P('L1', 'Arti "كُرَةُ السَّلَّةِ" adalah ...', 'bola basket', 'bola voli', 'renang', 'lari'),
+      P('L1', 'Arti "كُرَةُ الطَّائِرَةِ" adalah ...', 'bola voli', 'renang', 'lari', 'tenis meja'),
+      I('L1', 'Arti "السِّبَاحَةُ" adalah ....', 'renang')
+    ],
+    'ba-B-5': [
+      P('L1', 'Arti "هُوَ صَدِيقِي" adalah ...', 'Dia (laki-laki) temanku', 'Dia (perempuan) temanku', 'Aku temannya', 'Kamu temanku'),
+      P('L1', 'Arti "نَشِيطٌ" adalah ...', 'rajin (aktif)', 'malas', 'pintar', 'tinggi'),
+      I('L1', 'Arti "ذَكِيٌّ" adalah ....', 'pintar (cerdas)'),
+      P('L1', 'Bahasa Arab "rajin" adalah ...', 'نَشِيطٌ', 'كَسْلَانُ', 'ذَكِيٌّ', 'طَيِّبٌ'),
+      P('L1', 'Arti "كَسْلَانُ" adalah ...', 'malas', 'pintar', 'baik', 'tinggi'),
+      P('L1', 'Arti "ذَكِيٌّ" adalah ...', 'pintar', 'baik', 'tinggi', 'pendek'),
+      I('L1', 'Arti "طَيِّبٌ" adalah ....', 'baik')
+    ],
+    'ba-B-6': [
+      P('L1', 'Arti "فَرَاشَةٌ" adalah ...', 'kupu-kupu', 'bunga', 'burung', 'rumput'),
+      P('L1', 'Bahasa Arab "bunga" adalah ...', 'زَهْرَةٌ', 'شَجَرَةٌ', 'عُشْبٌ', 'مَقْعَدٌ'),
+      I('L1', 'Arti "حَدِيقَةٌ" adalah ....', 'taman'),
+      P('L1', 'Arti "حَدِيقَةٌ" adalah ...', 'taman', 'bunga', 'pohon', 'rumput'),
+      P('L1', 'Arti "زَهْرَةٌ" adalah ...', 'bunga', 'pohon', 'rumput', 'bangku'),
+      P('L1', 'Bahasa Arab "pohon" adalah ...', 'شَجَرَةٌ', 'عُشْبٌ', 'مَقْعَدٌ', 'فَرَاشَةٌ'),
+      I('L1', 'Arti "عُشْبٌ" adalah ....', 'rumput')
+    ],
+    'ba-B-7': [
+      P('L1', 'Arti "أَيْنَ تَسْكُنُ؟" adalah ...', 'Di mana kamu tinggal?', 'Siapa namamu?', 'Apa hobimu?', 'Kamu belajar apa?'),
+      P('L1', 'Arti "أَسْكُنُ فِي قَرْيَةٍ" adalah ...', 'Aku tinggal di desa', 'Aku tinggal di kota', 'Aku pergi ke desa', 'Aku belajar di desa'),
+      I('L1', 'Arti "شَارِعٌ" adalah ....', 'jalan'),
+      P('L1', 'Arti "عُنْوَانٌ" adalah ...', 'alamat', 'jalan', 'kota', 'desa'),
+      P('L1', 'Arti "شَارِعٌ" adalah ...', 'jalan', 'kota', 'desa', 'rumah'),
+      P('L1', 'Bahasa Arab "kota" adalah ...', 'مَدِينَةٌ', 'قَرْيَةٌ', 'بَيْتٌ', 'مَدْرَسَةٌ'),
+      I('L1', 'Arti "قَرْيَةٌ" adalah ....', 'desa')
+    ],
+    'ba-B-8': [
+      P('L1', 'Arti "طَبِيبٌ" adalah ...', 'dokter', 'guru', 'polisi', 'petani'),
+      P('L1', 'Bahasa Arab "polisi" adalah ...', 'شُرْطِيٌّ', 'طَيَّارٌ', 'فَلَّاحٌ', 'تَاجِرٌ'),
+      I('L1', 'Arti "فَلَّاحٌ" adalah ....', 'petani'),
+      P('L1', 'Arti "مُدَرِّسٌ" adalah ...', 'guru', 'dokter', 'polisi', 'pilot'),
+      P('L1', 'Bahasa Arab "dokter" adalah ...', 'طَبِيبٌ', 'شُرْطِيٌّ', 'طَيَّارٌ', 'فَلَّاحٌ'),
+      P('L1', 'Arti "شُرْطِيٌّ" adalah ...', 'polisi', 'pilot', 'petani', 'pedagang'),
+      I('L1', 'Arti "طَيَّارٌ" adalah ....', 'pilot')
+    ],
+    'ba-B-9': [
+      P('L1', 'Arti "أُرِيدُ أَنْ أَكُونَ طَبِيبًا" adalah ...', 'Aku ingin menjadi dokter', 'Aku sedang bertemu dokter', 'Ayahku seorang dokter', 'Aku sakit dan pergi ke dokter'),
+      P('L1', 'Arti "مَاذَا تُرِيدُ أَنْ تَكُونَ؟" adalah ...', 'Kamu ingin menjadi apa?', 'Apa yang kamu makan?', 'Kamu tinggal di mana?', 'Siapa temanmu?'),
+      I('L1', 'Arti "أُرِيدُ" adalah ....', 'aku ingin'),
+      P('L1', 'Arti "طَبِيبٌ" adalah ...', 'dokter', 'guru', 'pilot', 'insinyur'),
+      P('L1', 'Arti "مُدَرِّسٌ" adalah ...', 'guru', 'pilot', 'insinyur', 'polisi'),
+      P('L1', 'Bahasa Arab "pilot" adalah ...', 'طَيَّارٌ', 'مُهَنْدِسٌ', 'شُرْطِيٌّ', 'تَاجِرٌ'),
+      I('L1', 'Arti "مُهَنْدِسٌ" adalah ....', 'insinyur')
+    ],
+    'ba-B-10': [
+      P('L1', 'Arti "سَرِيرٌ" adalah ...', 'tempat tidur', 'meja', 'kursi', 'lemari'),
+      P('L1', 'Bahasa Arab "kulkas" adalah ...', 'ثَلَّاجَةٌ', 'تِلْفَازٌ', 'طَاوِلَةٌ', 'سَرِيرٌ'),
+      I('L1', 'Arti "غُرْفَةُ النَّوْمِ" adalah ....', 'kamar tidur'),
+      P('L1', 'Bahasa Arab "tempat tidur" adalah ...', 'سَرِيرٌ', 'طَاوِلَةٌ', 'كُرْسِيٌّ', 'ثَلَّاجَةٌ'),
+      P('L1', 'Arti "طَاوِلَةٌ" adalah ...', 'meja', 'kursi', 'kulkas', 'televisi'),
+      P('L1', 'Arti "كُرْسِيٌّ" adalah ...', 'kursi', 'kulkas', 'televisi', 'lemari'),
+      I('L1', 'Arti "ثَلَّاجَةٌ" adalah ....', 'kulkas')
+    ],
+    'ba-B-11': [
+      P('L1', 'Arti "عَمٌّ" adalah ...', 'paman (saudara laki-laki ayah)', 'paman (saudara laki-laki ibu)', 'kakek', 'sepupu'),
+      P('L1', 'Bahasa Arab "bibi (saudara perempuan ibu)" adalah ...', 'خَالَةٌ', 'عَمَّةٌ', 'أُمٌّ', 'بِنْتٌ'),
+      I('L1', 'Arti "بِنْتٌ" adalah ....', 'anak perempuan'),
+      P('L1', 'Arti "أَبٌ" adalah ...', 'ayah', 'ibu', 'anak laki-laki', 'anak perempuan'),
+      P('L1', 'Arti "أُمٌّ" adalah ...', 'ibu', 'anak laki-laki', 'anak perempuan', 'paman (saudara laki-laki ayah)'),
+      P('L1', 'Bahasa Arab "anak laki-laki" adalah ...', 'ابْنٌ', 'بِنْتٌ', 'عَمٌّ', 'خَالٌ'),
+      I('L1', 'Arti "عَمٌّ" adalah ....', 'paman (saudara laki-laki ayah)')
+    ],
+    'ba-B-12': [
+      P('L1', 'Arti "أُحِبُّ إِنْدُونِيسِيَا" adalah ...', 'Aku cinta Indonesia', 'Aku tinggal di Indonesia', 'Aku pergi ke Indonesia', 'Aku belajar tentang Indonesia'),
+      P('L1', 'Arti "عَلَمٌ" adalah ...', 'bendera', 'peta', 'lagu', 'tanah air'),
+      I('L1', 'Arti "وَطَنٌ" adalah ....', 'tanah air (negara)'),
+      P('L1', 'Bahasa Arab "bendera" adalah ...', 'عَلَمٌ', 'وَطَنٌ', 'لُغَةٌ', 'جَزِيرَةٌ'),
+      P('L1', 'Arti "وَطَنٌ" adalah ...', 'tanah air', 'bahasa', 'pulau', 'ibu kota'),
+      P('L1', 'Arti "لُغَةٌ" adalah ...', 'bahasa', 'pulau', 'ibu kota', 'rakyat'),
+      I('L1', 'Arti "جَزِيرَةٌ" adalah ....', 'pulau')
+    ],
+    'ba-B-13': [
+      P('L1', 'Arti "الِاسْتِمَاعُ" adalah ...', 'menyimak', 'berbicara', 'membaca', 'menulis'),
+      P('L1', 'Keterampilan berbahasa Arab yang berarti "berbicara" adalah ...', 'الْكَلَامُ', 'الِاسْتِمَاعُ', 'الْقِرَاءَةُ', 'الْكِتَابَةُ'),
+      I('L1', 'Arti "الْقِرَاءَةُ" adalah ....', 'membaca'),
+      U('L1', 'Tuliskan arti keempat kata berikut: الِاسْتِمَاعُ, الْكَلَامُ, الْقِرَاءَةُ, dan الْكِتَابَةُ!', 'menyimak; berbicara; membaca; menulis. Skor sebanding jumlah arti yang benar.')
+    ],
+    // ===================== BAHASA ARAB FASE C (kelas 5-6; kunci TP 'ba-C-n') =====================
+    'ba-C-1': [
+      P('L1', 'Arti "أُذُنٌ" adalah ...', 'telinga', 'mata', 'hidung', 'mulut'),
+      P('L1', 'Bahasa Arab "tangan" adalah ...', 'يَدٌ', 'رِجْلٌ', 'رَأْسٌ', 'ظَهْرٌ'),
+      I('L1', 'Arti "عَيْنٌ" adalah ....', 'mata'),
+      U('L1', 'Sebutkan tiga anggota tubuh dalam bahasa Arab beserta artinya!', 'Contoh benar: رَأْسٌ (kepala), عَيْنٌ (mata), أُذُنٌ (telinga), أَنْفٌ (hidung), فَمٌ (mulut), يَدٌ (tangan), رِجْلٌ (kaki), بَطْنٌ (perut). Skor sebanding jumlah pasangan kata dan arti yang benar.'),
+      P('L1', 'Arti "رَأْسٌ" adalah ...', 'kepala', 'mata', 'telinga', 'hidung'),
+      P('L1', 'Arti "عَيْنٌ" adalah ...', 'mata', 'telinga', 'hidung', 'mulut'),
+      P('L1', 'Bahasa Arab "telinga" adalah ...', 'أُذُنٌ', 'أَنْفٌ', 'فَمٌ', 'يَدٌ'),
+      I('L1', 'Arti "أَنْفٌ" adalah ....', 'hidung')
+    ],
+    'ba-C-2': [
+      P('L1', 'Arti "حَدِيقَةُ الْحَيَوَانِ" adalah ...', 'kebun binatang', 'taman bunga', 'kebun buah', 'peternakan'),
+      P('L1', 'Arti "زَرَافَةٌ" adalah ...', 'jerapah', 'gajah', 'monyet', 'beruang'),
+      I('L1', 'Arti "قِرْدٌ" adalah ....', 'monyet'),
+      U('L1', 'Tuliskan arti dari: نَمِرٌ, دُبٌّ, dan ثُعْبَانٌ!', 'harimau; beruang; ular. Skor sebanding jumlah arti yang benar.'),
+      P('L1', 'Arti "قِرْدٌ" adalah ...', 'monyet', 'jerapah', 'harimau', 'beruang'),
+      P('L1', 'Bahasa Arab "jerapah" adalah ...', 'زَرَافَةٌ', 'نَمِرٌ', 'دُبٌّ', 'ثُعْبَانٌ'),
+      P('L1', 'Arti "نَمِرٌ" adalah ...', 'harimau', 'beruang', 'ular', 'merak'),
+      I('L1', 'Arti "دُبٌّ" adalah ....', 'beruang')
+    ],
+    'ba-C-3': [
+      P('L1', 'Arti "أَرِيكَةٌ" adalah ...', 'sofa', 'kursi belajar', 'karpet', 'lampu'),
+      P('L1', 'Bahasa Arab "ruang tamu" adalah ...', 'غُرْفَةُ الضُّيُوفِ', 'غُرْفَةُ النَّوْمِ', 'غُرْفَةُ الدِّرَاسَةِ', 'الْمَطْبَخُ'),
+      I('L1', 'Arti "مِصْبَاحٌ" adalah ....', 'lampu'),
+      P('L1', 'Bahasa Arab "sofa" adalah ...', 'أَرِيكَةٌ', 'سَجَّادَةٌ', 'مِصْبَاحٌ', 'سَاعَةٌ'),
+      P('L1', 'Arti "سَجَّادَةٌ" adalah ...', 'karpet', 'lampu', 'jam dinding', 'meja tulis'),
+      P('L1', 'Arti "مِصْبَاحٌ" adalah ...', 'lampu', 'jam dinding', 'meja tulis', 'lemari'),
+      I('L1', 'Arti "سَاعَةٌ" adalah ....', 'jam dinding')
+    ],
+    'ba-C-4': [
+      P('L1', 'Arti "مَكْتَبَةٌ" (di madrasah) adalah ...', 'perpustakaan', 'kantin', 'lapangan', 'masjid'),
+      P('L1', 'Arti "قَامُوسٌ" adalah ...', 'kamus', 'majalah', 'cerita', 'rak buku'),
+      I('L1', 'Arti "مَجَلَّةٌ" adalah ....', 'majalah'),
+      P('L1', 'Arti "رَفٌّ" adalah ...', 'rak', 'cerita', 'majalah', 'kamus'),
+      P('L1', 'Arti "قِصَّةٌ" adalah ...', 'cerita', 'majalah', 'kamus', 'buku'),
+      P('L1', 'Bahasa Arab "majalah" adalah ...', 'مَجَلَّةٌ', 'قَامُوسٌ', 'كِتَابٌ', 'جَرِيدَةٌ'),
+      I('L1', 'Arti "قَامُوسٌ" adalah ....', 'kamus')
+    ],
+    'ba-C-5': [
+      P('L1', 'Arti "مَقْصِفٌ" adalah ...', 'kantin', 'perpustakaan', 'lapangan', 'masjid'),
+      P('L1', 'Arti "كَمِ الثَّمَنُ؟" adalah ...', 'Berapa harganya?', 'Apa yang kamu mau?', 'Di mana kantinnya?', 'Jam berapa sekarang?'),
+      P('L1', 'Bahasa Arab "air" adalah ...', 'مَاءٌ', 'خُبْزٌ', 'أَرُزٌّ', 'لَحْمٌ'),
+      I('L1', 'Arti "عَصِيرٌ" adalah ....', 'jus (sari buah)'),
+      P('L1', 'Arti "طَعَامٌ" adalah ...', 'makanan', 'minuman', 'air', 'jus'),
+      P('L1', 'Arti "شَرَابٌ" adalah ...', 'minuman', 'air', 'jus', 'roti'),
+      I('L1', 'Arti "مَاءٌ" adalah ....', 'air'),
+      P('L1', 'Bahasa Arab "jus" adalah ...', 'عَصِيرٌ', 'خُبْزٌ', 'أَرُزٌّ', 'لَحْمٌ')
+    ],
+    'ba-C-6': [
+      P('L1', 'Arti "كَمِ السَّاعَةُ؟" adalah ...', 'Jam berapa sekarang?', 'Berapa harganya?', 'Siapa namamu?', 'Di mana sekolahmu?'),
+      P('L1', 'Arti "السَّاعَةُ الثَّالِثَةُ" adalah ...', 'pukul tiga', 'pukul dua', 'pukul empat', 'pukul satu'),
+      P('L2', 'Arti "السَّاعَةُ الْخَامِسَةُ وَالنِّصْفُ" adalah pukul ...', '05.30', '05.15', '06.30', '04.30'),
+      I('L1', 'Arti "السَّاعَةُ" adalah ....', 'jam'),
+      P('L1', 'Arti "يَوْمٌ" adalah ...', 'hari', 'pekan (minggu)', 'bulan (kalender)', 'tahun'),
+      P('L1', 'Arti "أُسْبُوعٌ" adalah ...', 'pekan (minggu)', 'bulan (kalender)', 'tahun', 'menit'),
+      P('L1', 'Bahasa Arab "bulan (kalender)" adalah ...', 'شَهْرٌ', 'سَنَةٌ', 'دَقِيقَةٌ', 'سَاعَةٌ'),
+      I('L1', 'Arti "سَنَةٌ" adalah ....', 'tahun')
+    ],
+    'ba-C-7': [
+      P('L1', 'Arti "أُحِبُّ اللُّغَةَ الْعَرَبِيَّةَ" adalah ...', 'Aku suka bahasa Arab', 'Aku belajar bahasa Arab', 'Aku bisa berbahasa Arab', 'Aku guru bahasa Arab'),
+      P('L1', 'Arti "لُغَةُ الْقُرْآنِ" adalah ...', 'bahasa Al-Qur\'an', 'kitab Al-Qur\'an', 'guru Al-Qur\'an', 'huruf hijaiyah'),
+      I('L1', 'Arti "جَمِيلَةٌ" adalah ....', 'indah (cantik)'),
+      P('L1', 'Arti "جَمِيلَةٌ" adalah ...', 'indah', 'mudah', 'sulit', 'menyenangkan'),
+      P('L1', 'Arti "سَهْلَةٌ" adalah ...', 'mudah', 'sulit', 'menyenangkan', 'bermanfaat'),
+      P('L1', 'Bahasa Arab "sulit" adalah ...', 'صَعْبَةٌ', 'مُمْتِعَةٌ', 'مُفِيدَةٌ', 'مُهِمَّةٌ'),
+      I('L1', 'Arti "مُمْتِعَةٌ" adalah ....', 'menyenangkan')
+    ],
+    'ba-C-8': [
+      P('L1', 'Arti "عُطْلَةٌ" adalah ...', 'liburan', 'sekolah', 'ujian', 'pelajaran'),
+      P('L2', 'Arti "ذَهَبْتُ إِلَى الْقَرْيَةِ" adalah ...', 'Aku (telah) pergi ke desa', 'Aku tinggal di desa', 'Aku akan pergi ke desa', 'Aku datang dari desa'),
+      I('L1', 'Arti "زَارَ" adalah ....', 'mengunjungi'),
+      P('L1', 'Bahasa Arab "liburan" adalah ...', 'عُطْلَةٌ', 'قَرْيَةٌ', 'ذَهَبَ', 'زَارَ'),
+      P('L1', 'Arti "قَرْيَةٌ" adalah ...', 'desa', 'pergi', 'mengunjungi', 'kembali'),
+      P('L1', 'Arti "ذَهَبَ" adalah ...', 'pergi', 'mengunjungi', 'kembali', 'bermain'),
+      I('L1', 'Arti "رَجَعَ" adalah ....', 'kembali')
+    ],
+    'ba-C-9': [
+      P('L1', 'Arti "رِحْلَةٌ" adalah ...', 'piknik (perjalanan wisata)', 'tugas sekolah', 'ujian', 'pelajaran'),
+      P('L1', 'Arti "نَذْهَبُ إِلَى الْحَدِيقَةِ" adalah ...', 'Kami pergi ke taman', 'Aku pergi ke taman', 'Mereka pergi ke taman', 'Kamu pergi ke taman'),
+      I('L1', 'Arti "خَيْمَةٌ" adalah ....', 'tenda'),
+      P('L1', 'Bahasa Arab "piknik" adalah ...', 'رِحْلَةٌ', 'خَيْمَةٌ', 'حَدِيقَةٌ', 'بَحْرٌ'),
+      P('L1', 'Arti "خَيْمَةٌ" adalah ...', 'tenda', 'taman', 'laut', 'gunung'),
+      P('L1', 'Arti "حَدِيقَةٌ" adalah ...', 'taman', 'laut', 'gunung', 'bola'),
+      I('L1', 'Arti "بَحْرٌ" adalah ....', 'laut')
+    ],
+    'ba-C-10': [
+      P('L1', 'Keterampilan berbahasa Arab yang berarti "menulis" adalah ...', 'الْكِتَابَةُ', 'الْقِرَاءَةُ', 'الْكَلَامُ', 'الِاسْتِمَاعُ'),
+      P('L1', 'Arti "الْكَلَامُ" adalah ...', 'berbicara', 'menyimak', 'membaca', 'menulis'),
+      I('L1', 'Arti "الِاسْتِمَاعُ" adalah ....', 'menyimak'),
+      U('L1', 'Sebutkan dua keterampilan berbahasa Arab beserta artinya!', 'Contoh benar: الِاسْتِمَاعُ (menyimak), الْكَلَامُ (berbicara), الْقِرَاءَةُ (membaca), الْكِتَابَةُ (menulis). Skor sebanding jumlah pasangan yang benar.')
     ],
     // ===================== AL-QUR'AN HADIS: TAJWID =====================
     'aqh-A-1': [
