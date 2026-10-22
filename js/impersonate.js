@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/impersonate.js  (v1)
+   SI MAMBA - js/impersonate.js  (v3)
    Admin "melihat sebagai guru" (impersonasi, MODE LIHAT SAJA).
 
    Cara kerja:
@@ -90,6 +90,17 @@
     setTimeout(fin, 3000);                          // jangan menahan pengguna bila server lambat
   }
 
+  // Simpan sesi lalu muat ulang, dengan pengaman supaya sesi tidak tertimpa sebelum halaman benar-benar dimuat ulang.
+  // Penyebab "balik lagi ke Admin": penyimpan sesi lain (mis. auto-logout.js -> perpanjangSesiPrivileged()) menyimpan
+  // currentUser yang MASIH Admin saat tab ditinggalkan / halaman ditutup, sehingga sesi impersonasi tertimpa.
+  // Maka: (1) currentUser diganti dulu di memori, (2) disimpan lagi di pagehide (dijalankan terakhir).
+  function simpanLaluMuat(user) {
+    try { currentUser = user; } catch (e) {}
+    saveSession(user);
+    window.addEventListener('pagehide', function () { try { saveSession(user); } catch (e) {} });
+    location.reload();
+  }
+
   // ---------- Mulai / berhenti ----------
   function userAdmin() { return { name: 'Admin', role: ROLES.ADMIN, baseRole: ROLES.ADMIN, kelas: [].concat(KELAS_LIST) }; }
   function mulai(g) {
@@ -99,13 +110,13 @@
     if (!kelas.length) kelas = [KELAS_LIST[0]];
     var u = { name: g.name, role: ROLES.TEACHER, baseRole: ROLES.ADMIN, kelas: kelas, key: g.key, semuaKelas: !!g.semuaKelas,
               waliKelasOf: g.waliKelasOf || null, impersonasi: true, adminAsli: userAdmin() };
-    catatAudit('IMPERSONATE_START', g, function () { saveSession(u); location.reload(); });
+    catatAudit('IMPERSONATE_START', g, function () { simpanLaluMuat(u); });
   }
   function berhenti() {
     var u = currentUser; if (!u || !u.impersonasi) return;
     var kembali = u.adminAsli || userAdmin();
-    if (!origs.set) { saveSession(kembali); location.reload(); return; }
-    catatAudit('IMPERSONATE_END', { key: u.key, name: u.name }, function () { saveSession(kembali); location.reload(); });
+    if (!origs.set) { simpanLaluMuat(kembali); return; }
+    catatAudit('IMPERSONATE_END', { key: u.key, name: u.name }, function () { simpanLaluMuat(kembali); });
   }
 
   // ---------- UI ----------
@@ -166,7 +177,7 @@
       if (aktif() && !guardOk) {                    // jaminan lihat-saja tidak bisa ditegakkan -> kembalikan ke Admin
         var kembali = currentUser.adminAsli || userAdmin();
         try { toast('Mode lihat saja tidak dapat diaktifkan. Kembali ke Admin.', true); } catch (e) {}
-        saveSession(kembali); location.reload(); return;
+        simpanLaluMuat(kembali); return;
       }
       spanduk(); tombol();
     } catch (e) { /* app.js belum siap */ }
