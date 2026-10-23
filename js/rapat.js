@@ -14,6 +14,8 @@
    DINAS LUAR KEPALA: Admin mencatat tiap dinas luar Kepala + nominal honor (berbeda tiap kegiatan) di tombol "Dinas Luar Kepala".
    Disimpan di event_attendance (key 'dlk_<id>', guruKey 'kepsek', sumber 'dinas-luar-kepala'); rekap Honor (app.js) menjumlahkannya
    ke baris tetap "Kepala Madrasah" pada bulan tanggal kegiatan.
+   SURAT UNDANGAN: tombol "Surat Undangan" di rincian rapat (Admin) membuka js/undangan-rapat.js; nomor memakai seri Surat Keluar dan
+   tercatat di Agenda Surat (key 'undangan_<rapatId>'). rapat.js hanya menambah tombol + satu case 'undangan'.
    REVISI AUDIT: guard klik ganda (dinas luar, tutup, buka lagi, hapus), tutup rapat = SATU update atomik, kunci rapat_hadir aman,
    isian form tidak hilang saat render ulang, reset data saat pergantian akun, esc() mandiri (aman utk atribut), parsing angka ketat,
    Alpha otomatis 'sistem' ikut dibersihkan saat rapat dibuka kembali, pagination daftar rapat, daftar guru nonaktif/duplikat disaring.
@@ -406,7 +408,7 @@
     var r = rapatById(cur);
     if (!r) return '<div class="rp-bar"><button class="btn btn-soft" data-rp="kembali">← Kembali</button></div><p class="text-muted">Rapat tidak ditemukan.</p>';
     var kp = kepala(), kpRec = kp && cleanRec(hadir[hk(kp.id)]), m = canManage(), selesai = r.status === 'selesai';
-    var h = '<div class="rp-bar"><button class="btn btn-soft" data-rp="kembali">← Kembali</button><button class="btn btn-soft" data-rp="cetak">🖨️ Cetak daftar hadir</button>' + (canManage() && r.status !== 'selesai' ? '<button class="btn btn-soft" data-rp="ubah">✏️ Ubah data</button>' : '') + '</div>' +
+    var h = '<div class="rp-bar"><button class="btn btn-soft" data-rp="kembali">← Kembali</button><button class="btn btn-soft" data-rp="cetak">🖨️ Cetak daftar hadir</button>' + (canManage() ? '<button class="btn btn-soft" data-rp="undangan">✉️ Surat Undangan</button>' : '') + (canManage() && r.status !== 'selesai' ? '<button class="btn btn-soft" data-rp="ubah">✏️ Ubah data</button>' : '') + '</div>' +
       '<div class="rp-h"><b style="font-size:15px;">' + esc(r.judul) + '</b><span class="rp-badge' + (selesai ? ' selesai' : '') + '">' + (selesai ? 'Selesai' : 'Terjadwal') + '</span></div>' +
       '<div class="rp-m">' + esc(tgl(r.tanggal)) + (r.jam ? ' · ' + esc(r.jam) : '') + (r.tempat ? ' · ' + esc(r.tempat) : '') + '</div>';
     if (hadirErr) return h + '<p style="color:#dc2626;padding:12px 0 4px;">Gagal memuat kehadiran (koneksi lambat).</p><div class="rp-bar"><button class="btn btn-soft" data-rp="retry">🔄 Coba lagi</button></div>';
@@ -514,6 +516,10 @@
       case 'retry': buka(cur); break;
       case 'buka': buka(b.getAttribute('data-id')); break;
       case 'cetak': cetak(); break;
+      case 'undangan':
+        if (!canManage() || !r) return;
+        if (!window.SIMambaUndangan) return say('Modul undangan (js/undangan-rapat.js) belum dimuat.', true);
+        window.SIMambaUndangan.buka(r, gurus); break;
       case 'simpan': simpan(b); break;
       case 'self':
         var mine = me(), st = val('rpSelf');

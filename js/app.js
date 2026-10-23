@@ -10540,61 +10540,8 @@
       if (tglInput && !tglInput.value) tglInput.value = tglLokal();
       if (selectedSiswaSurat) previewSurat();
     }
-    function previewSurat() {
-      const siswa = selectedSiswaSurat;
-      if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
-      const jenis = document.getElementById('suratJenisSelect').value;
-      const perluTanggalIjin = (jenis === 'ijin' || jenis === 'sakit');
-      const tanggalIjinRaw = document.getElementById('suratTanggalIjin') ? document.getElementById('suratTanggalIjin').value : '';
-      if (perluTanggalIjin && !tanggalIjinRaw) { toast('Pilih tanggal ijin/sakit terlebih dahulu!', true); return; }
-      const tanggal = perluTanggalIjin
-        ? new Date(tanggalIjinRaw + 'T00:00:00').toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })
-        : new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
-      const tahun = new Date().getFullYear();
-      let judul = '', isi = '', penutup = '';
-      const namaAman = escapeHtml(siswa.name), kelasAman = escapeHtml(siswa.kelas);
-      switch(jenis) {
-        case 'aktif': judul = 'SURAT KETERANGAN AKTIF';
-          isi = `Yang bertanda tangan di bawah ini, Kepala ${MADRASAH.nama}, menerangkan bahwa:<br><br>Nama : <strong>${namaAman}</strong><br>Kelas : ${kelasAman}<br><br>Bahwa siswa tersebut adalah benar-benar siswa aktif di ${MADRASAH.nama} pada tahun ajaran ${currentTahunAjaran}.<br><br>Surat keterangan ini diberikan untuk keperluan administrasi dan digunakan sebagaimana mestinya.`;
-          penutup = `Demikian surat keterangan ini dibuat dengan sebenarnya.`; break;
-        case 'pindah': judul = 'SURAT KETERANGAN PINDAH';
-          isi = `Yang bertanda tangan di bawah ini, Kepala ${MADRASAH.nama}, menerangkan bahwa:<br><br>Nama : <strong>${namaAman}</strong><br>Kelas : ${kelasAman}<br><br>Bahwa siswa tersebut adalah benar-benar siswa aktif di ${MADRASAH.nama} dan telah menyelesaikan proses administrasi kepindahan.<br><br>Surat keterangan ini diberikan sebagai bukti kepindahan siswa untuk keperluan pendaftaran di sekolah baru.`;
-          penutup = `Demikian surat keterangan ini dibuat dengan sebenarnya.`; break;
-        case 'ijin': judul = 'SURAT IJIN TIDAK MASUK SEKOLAH';
-          isi = `Yang bertanda tangan di bawah ini, orang tua/wali dari:<br><br>Nama : <strong>${namaAman}</strong><br>Kelas : ${kelasAman}<br><br>Dengan ini mengijinkan anak kami untuk tidak masuk sekolah pada tanggal ${tanggal} dikarenakan keperluan keluarga / kesehatan.<br><br>Demikian surat ijin ini kami buat untuk digunakan sebagaimana mestinya.`;
-          penutup = `Mengetahui,<br>Orang Tua/Wali`; break;
-        case 'sakit': judul = 'SURAT KETERANGAN SAKIT';
-          isi = `Yang bertanda tangan di bawah ini, orang tua/wali dari:<br><br>Nama : <strong>${namaAman}</strong><br>Kelas : ${kelasAman}<br><br>Menerangkan bahwa anak kami tidak dapat mengikuti kegiatan belajar mengajar pada tanggal ${tanggal} karena sedang sakit.<br><br>Demikian surat keterangan ini dibuat dengan sebenarnya.`;
-          penutup = `Mengetahui,<br>Orang Tua/Wali`; break;
-      }
-      const html = `
-        ${generateKopSuratHTML()}
-        <div class="judul-surat">${judul}</div>
-        <div class="nomor-surat">Nomor: ${Math.floor(Math.random()*1000)+1}/MI-MU/${tahun}</div>
-        <div class="body">
-          <p>${isi}</p>
-          <br>
-          <p>${penutup}</p>
-        </div>
-        <div class="footer">
-          <div style="width:100%;display:flex;justify-content:space-between;margin-top:30px;">
-            <div>
-              <p>Dikeluarkan di : Mambaul Ulum</p>
-              <p>Tanggal : ${tanggal}</p>
-            </div>
-            <div style="text-align:center;">
-              <p>Kepala ${MADRASAH.nama}</p>
-              ${MADRASAH.ttdKepalaBase64
-                ? `<img src="${MADRASAH.ttdKepalaBase64}" alt="Tanda tangan" style="max-height:45px;display:block;margin:6px auto;">`
-                : '<br><br><br>'}
-              <p><u>${MADRASAH.kepala_sekolah}</u></p>
-              <p>NIP. ${MADRASAH.nip_kepala_sekolah}</p>
-            </div>
-          </div>
-        </div>
-      `;
-      document.getElementById('suratPreview').innerHTML = html;
-    }
+    // previewSurat(), downloadSuratPDF(), simpanSurat() (surat siswa) dipindah ke js/surat-guru.js (v4+) bersama
+    // penomoran otomatis. WAJIB memuat js/surat-guru.js sesudah app.js; tombol Preview/Download/Simpan memanggilnya.
     // Isi surat versi TEKS POLOS (tanpa tag HTML), disusun paralel dengan switch-case di
     // previewSurat() supaya kata-kata di preview & di PDF selalu sama persis. Dipisah ke
     // sini (bukan "membaca ulang" innerHTML preview) karena innerHTML/.textContent tidak
@@ -10626,131 +10573,6 @@
           break;
       }
       return { pembuka, identitas, isi, penutup };
-    }
-    async function downloadSuratPDF() {
-      const siswa = selectedSiswaSurat;
-      if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
-      const jenis = document.getElementById('suratJenisSelect').value;
-      const namaJenis = { 'aktif':'Keterangan_Aktif','pindah':'Keterangan_Pindah','ijin':'Surat_Ijin','sakit':'Surat_Sakit' }[jenis] || 'Surat';
-      const perluTanggalIjin = (jenis === 'ijin' || jenis === 'sakit');
-      const tanggalIjinRaw = document.getElementById('suratTanggalIjin') ? document.getElementById('suratTanggalIjin').value : '';
-      const tanggal = perluTanggalIjin && tanggalIjinRaw
-        ? new Date(tanggalIjinRaw + 'T00:00:00').toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })
-        : new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
-      const { jsPDF } = window.jspdf; 
-      const doc = new jsPDF('p', 'mm', 'a4'); 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const marginKiri = 25, marginKanan = 25, lebarIsi = pageWidth - marginKiri - marginKanan;
-      const [logoData, ttdKepalaData] = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf()]);
-      
-      // Kop surat di PDF
-      const offsetY1 = MADRASAH.nsm ? 5 : 0;
-      v4TambahLogoKeKopPdf(doc, logoData, offsetY1);
-      doc.setFontSize(16);
-      doc.text(MADRASAH.nama, pageWidth/2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text(`NSM: ${MADRASAH.nsm}`, pageWidth/2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-      doc.text(MADRASAH.alamat, pageWidth/2, 27 + offsetY1, { align: 'center' });
-      // Label teks biasa dipakai (bukan emoji) -- font default jsPDF tidak punya glyph emoji,
-      // sebelumnya render jadi kotak/simbol rusak.
-      doc.text(`Telp: ${MADRASAH.telp}  |  Email: ${MADRASAH.email}  |  Web: ${MADRASAH.website}`, pageWidth/2, 33 + offsetY1, { align: 'center' });
-      doc.setDrawColor(0);
-      doc.setLineWidth(0.5);
-      doc.line(20, 38 + offsetY1, pageWidth - 20, 38 + offsetY1);
-      doc.line(20, 40 + offsetY1, pageWidth - 20, 40 + offsetY1);
-      
-      // Judul surat
-      const judulMap = {
-        'aktif': 'SURAT KETERANGAN AKTIF',
-        'pindah': 'SURAT KETERANGAN PINDAH',
-        'ijin': 'SURAT IJIN TIDAK MASUK SEKOLAH',
-        'sakit': 'SURAT KETERANGAN SAKIT'
-      };
-      doc.setFontSize(14);
-      doc.text(judulMap[jenis] || 'SURAT KETERANGAN', pageWidth/2, 52 + offsetY1, { align: 'center', underline: true });
-      doc.setFontSize(10);
-      doc.text(`Nomor: ${Math.floor(Math.random()*1000)+1}/MI-MU/${new Date().getFullYear()}`, pageWidth/2, 60 + offsetY1, { align: 'center' });
-      
-      // Isi surat -- dibangun dari teks terstruktur (buatIsiSuratPlain), bukan dibaca ulang
-      // dari innerHTML preview, dan setiap paragraf di-word-wrap pakai splitTextToSize supaya
-      // tidak ada baris yang keluar dari tepi halaman.
-      doc.setFontSize(12);
-      let y = 72 + offsetY1;
-      const cetakParagraf = (teks, opts) => {
-        opts = opts || {};
-        const paragraf = teks.split('\n\n');
-        paragraf.forEach((p, idx) => {
-          if (!p.trim()) return;
-          const wrapped = doc.splitTextToSize(p.trim(), lebarIsi);
-          wrapped.forEach(baris => {
-            if (y > 270) { doc.addPage(); y = 20; }
-            doc.text(baris, opts.tengah ? pageWidth/2 : marginKiri, y, opts.tengah ? { align: 'center' } : undefined);
-            y += 6.5;
-          });
-          if (idx < paragraf.length - 1) y += 3; // jarak antar paragraf
-        });
-      };
-      const konten = buatIsiSuratPlain(jenis, siswa, tanggal);
-      cetakParagraf(konten.pembuka);
-      y += 3;
-      konten.identitas.forEach(baris => { if (y > 270) { doc.addPage(); y = 20; } doc.text(baris, marginKiri + 4, y); y += 6.5; });
-      y += 3;
-      cetakParagraf(konten.isi);
-      y += 6;
-      cetakParagraf(konten.penutup);
-      
-      // Dikeluarkan di & tanggal
-      if (y > 265) { doc.addPage(); y = 20; }
-      y += 8;
-      doc.text('Dikeluarkan di : Mambaul Ulum', marginKiri, y);
-      y += 6.5;
-      doc.text('Tanggal : ' + tanggal, marginKiri, y);
-      
-      // Tanda tangan (satu-satunya blok tanda tangan, tidak ada duplikasi)
-      if (y > 250) { doc.addPage(); y = 20; }
-      y += 14;
-      doc.text('Kepala ' + MADRASAH.nama, pageWidth/2, y, { align: 'center' });
-      // Surat boleh dicetak Admin & Wali Kelas, jadi TANPA hanyaPimpinan; pencetak tercatat di halaman verifikasi QR.
-      const ttdSurat = await ttdKepalaPdf(doc, pageWidth/2, y + 3, { lebar: 35, tinggiMaks: 20, meta: { jenis: 'Surat ' + String(namaJenis).replace(/_/g, ' '), ket: [siswa.name, siswa.kelas, tanggal].filter(Boolean).join(' | ') } });
-      if (ttdSurat.dipakai) {
-        y += Math.max(22, ttdSurat.tinggi + 5);
-      } else if (ttdKepalaData) {
-        // Tanda tangan digital ditempel di ruang antara jabatan & nama. Rasio lebar:tinggi
-        // gambar asli dijaga (bukan dipaksa kotak) supaya tidak gepeng/melar.
-        try {
-          const ttdW = 35;
-          const propsTtd = doc.getImageProperties(ttdKepalaData);
-          const ttdH = Math.min(18, ttdW * (propsTtd.height / propsTtd.width));
-          doc.addImage(ttdKepalaData, 'PNG', pageWidth/2 - ttdW/2, y + 3, ttdW, ttdH);
-        } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF:', e); }
-        y += 22;
-      } else {
-        y += 20;
-      }
-      doc.text(MADRASAH.kepala_sekolah, pageWidth/2, y, { align: 'center' });
-      y += 6;
-      doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, pageWidth/2, y, { align: 'center' });
-      
-      doc.save(`Surat_${namaJenis}_${siswa.name}_${tglLokal()}.pdf`);
-      toast('📥 Surat berhasil diunduh!'); 
-      addLog('download_surat', `${jenis} - ${siswa.name}`);
-    }
-    function simpanSurat() {
-      if (!isAdmin() && !isWaliKelas()) return toast('Hanya Admin & Wali Kelas!', true);
-      const siswa = selectedSiswaSurat;
-      if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
-      const jenis = document.getElementById('suratJenisSelect').value;
-      const namaJenis = { 'aktif':'Keterangan Aktif','pindah':'Keterangan Pindah','ijin':'Surat Ijin','sakit':'Surat Sakit' }[jenis] || 'Surat';
-      if (isBusy('simpanSurat')) return toast('Sedang menyimpan...', false, 1500);
-      const html = document.getElementById('suratPreview').innerHTML;
-      const btnSimpanSurat = document.getElementById('btnSimpanSurat');
-      setBusy('simpanSurat', btnSimpanSurat);
-      const ref = db.ref('surat').push();
-      ref.set({ siswaKey: siswa.key, siswaName: siswa.name, kelas: siswa.kelas, jenis, jenisLabel: namaJenis, tanggal: new Date().toISOString(), tahunAjaran: currentTahunAjaran, dibuatOleh: currentUser.name, guruKey: currentUser.key || null, htmlContent: html, createdAt: new Date().toISOString() }, err => {
-        clearBusy('simpanSurat', btnSimpanSurat);
-        if (err) toast('Gagal simpan: '+err.message, true);
-        else { toast('✅ Surat berhasil disimpan!'); addLog('simpan_surat', `${namaJenis} - ${siswa.name}`); loadSuratRiwayat(); }
-      });
     }
     function loadSuratRiwayat() {
       db.ref('surat').orderByChild('createdAt').limitToLast(50).once('value', snap => {
@@ -13838,7 +13660,7 @@
     (function simambaLazyExportWrappers() {
       var defs = [
         ['exportRekapNilaiPDF', 'pdf', 'PDF'], ['exportRekapNilaiExcel', 'xlsx', 'Excel'],
-        ['downloadHonorPDF', 'pdf', 'PDF'], ['downloadSuratPDF', 'pdf', 'PDF'],
+        ['downloadHonorPDF', 'pdf', 'PDF'],
         ['exportJadwalPDF', 'pdf', 'PDF'], ['downloadReportPDF', 'pdf', 'PDF'],
         ['downloadRekapAbsensiSiswa', 'pdf', 'PDF'], ['downloadRekapAbsensiGuru', 'pdf', 'PDF'], ['downloadRekapJurnal', 'pdf', 'PDF']
       ];
