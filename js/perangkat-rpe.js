@@ -419,7 +419,8 @@ ${tabelHtml(h)}
     let h = String(html), orient = 'portrait', mg = '16mm 15mm 16mm 15mm';
     const pg = /@page\s*\{([^}]*)\}/.exec(h);
     if (pg) {
-      if (/landscape/i.test(pg[1])) orient = 'landscape';
+      const uk = /size:\s*(\d+(?:\.\d+)?)mm\s+(\d+(?:\.\d+)?)mm/i.exec(pg[1]);
+      if (/landscape/i.test(pg[1]) || (uk && +uk[1] > +uk[2])) orient = 'landscape';
       const mm = /margin:\s*([^;}]+)/.exec(pg[1]);
       if (mm) { const p = mm[1].trim().split(/\s+/); mg = (p.length === 1 ? [p[0], p[0], p[0], p[0]] : p.length === 2 ? [p[0], p[1], p[0], p[1]] : p.length === 3 ? [p[0], p[1], p[2], p[1]] : p.slice(0, 4)).join(' '); }
       h = h.replace(pg[0], '');
@@ -441,7 +442,7 @@ ${tabelHtml(h)}
     h = h.replace(/<table\b([^>]*)>/gi, (m, at) => /class="info"|border:\s*0/.test(at) ? m : '<table' + at + ' border="1" cellspacing="0" cellpadding="3">')
       .replace(/<th\b(?![^>]*bgcolor)([^>]*)>/gi, '<th bgcolor="#e5e7eb"$1>')
       .replace(/<td class="on">/g, '<td class="on" bgcolor="#bbf7d0">').replace(/<td class="non"([^>]*)>/g, '<td class="non" bgcolor="#d1d5db"$1>');
-    const w = orient === 'landscape' ? '29.7cm 21cm' : '21cm 29.7cm';
+    const f4 = !!(pg && /330mm/i.test(pg[1])), w = f4 ? (orient === 'landscape' ? '33cm 21.5cm' : '21.5cm 33cm') : (orient === 'landscape' ? '29.7cm 21cm' : '21cm 29.7cm');
     h = h.replace(/<html[^>]*>/i, '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">')
       .replace(/<head>/i, '<head><meta name="ProgId" content="Word.Document">')
       .replace(/<\/head>/i, '<style>@page Section1{size:' + w + ';mso-page-orientation:' + orient + ';margin:' + mg + '}div.Section1{page:Section1}</style></head>')

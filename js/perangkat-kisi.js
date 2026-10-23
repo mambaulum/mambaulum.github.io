@@ -1,6 +1,6 @@
 /* ============================================================
    SI MAMBA - js/perangkat-kisi.js
-   Pembuat KISI-KISI Asesmen Sumatif Akhir Semester (Ganjil/Genap) siap cetak, langsung dari TP yang sudah
+   Pembuat KISI-KISI Asesmen Sumatif Akhir Semester (ASAS, Ganjil) dan Akhir Tahun (ASAT, Genap) siap cetak, langsung dari TP yang sudah
    dipilih lewat menu 🎯 ATP/TP (js/perangkat-atp-tp.js).
    - Tiap TP otomatis menjadi baris kisi-kisi: indikator soal (usulan dari TP, boleh disunting), level kognitif
      L1/L2/L3 (usulan dari kata kerja TP), jumlah soal PG / isian / uraian.
@@ -69,8 +69,10 @@
   const audit = (aksi, id) => { try { if (typeof v4Audit === 'function') v4Audit(aksi, 'PERANGKAT', id, null, null); } catch (e) {} };
 
   // ---------- Status ----------
-  const mkSet = () => ({ judul: 'Asesmen Sumatif Akhir Semester', waktu: '90', pg: '20', is: '5', ur: '5' });
-  const K = { rec: null, ta: '', fase: '', sem: 'ganjil', rows: { ganjil: [], genap: [] }, set: { ganjil: mkSet(), genap: mkSet() },
+  // Judul bawaan: Ganjil = ASAS (Akhir Semester), Genap = ASAT (Akhir Tahun). Guru tetap bisa mengubahnya.
+  const judulDef = s => s === 'genap' ? 'Asesmen Sumatif Akhir Tahun' : 'Asesmen Sumatif Akhir Semester';
+  const mkSet = s => ({ judul: judulDef(s), waktu: '90', pg: '20', is: '5', ur: '5' });
+  const K = { rec: null, ta: '', fase: '', sem: 'ganjil', rows: { ganjil: [], genap: [] }, set: { ganjil: mkSet('ganjil'), genap: mkSet('genap') },
               cfg: { ganjil: null, genap: null }, nip: '', loading: false, err: null, busy: false, dirty: false, ro: false, epoch: 0 };
   const MUT = ['bagi', 'simpan'];
   // Mode baca-saja untuk Admin/Kepsek yang membuka perangkat milik guru lain (simpan memang hanya untuk pemilik).
@@ -118,7 +120,7 @@ ${CSS}
 .ttd>div{width:40%}.ttd .sp{min-height:52px}
 tr{page-break-inside:avoid}
 </style></head><body>
-<div class="kop"><div class="m">${esc(c.madrasah || 'MADRASAH')}</div><div class="j">KISI-KISI ${esc(String(st.judul || 'Asesmen Sumatif Akhir Semester').toUpperCase())}</div><div class="s">Semester ${SEM_LABEL[s]} · Tahun Pelajaran ${esc(K.ta)}</div></div>
+<div class="kop"><div class="m">${esc(c.madrasah || 'MADRASAH')}</div><div class="j">KISI-KISI ${esc(String(st.judul || judulDef(s)).toUpperCase())}</div><div class="s">Semester ${SEM_LABEL[s]} · Tahun Pelajaran ${esc(K.ta)}</div></div>
 <table class="info"><tr><td style="width:120px">Mata Pelajaran</td><td style="width:34%">: ${esc(K.rec.mapel)}</td><td style="width:120px">Jumlah Soal</td><td>: ${jmlSoal(s)} (${esc(bentuk)})</td></tr>
 <tr><td>Kelas${K.fase ? ' / Fase' : ''}</td><td>: ${esc(K.rec.kelas)}${K.fase ? ' / Fase ' + K.fase : ''}</td><td>Alokasi Waktu</td><td>: ${esc(st.waktu || '-')} menit</td></tr>
 <tr><td>Kurikulum</td><td>: Kurikulum Merdeka</td><td>Penyusun</td><td>: ${esc(K.rec.guruName || myName())}</td></tr></table>
@@ -235,7 +237,7 @@ ${tabelKisi(s)}
     const cut = (s, n) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, n), now = new Date().toISOString();
     const tulis = SEM.filter(s => K.rows[s].length).map(s => db.ref('perangkat_kisi_v4/' + idKisi(s)).set({
       guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: K.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
-      judul: cut(K.set[s].judul, 80) || 'Asesmen Sumatif Akhir Semester', waktu: menit(K.set[s].waktu),
+      judul: cut(K.set[s].judul, 80) || judulDef(s), waktu: menit(K.set[s].waktu),
       tot: { pg: angka(K.set[s].pg), is: angka(K.set[s].is), ur: angka(K.set[s].ur) },
       items: K.rows[s].map(r => ({ k: String(r.k || '').slice(0, 40), e: cut(r.e, 60), t: cut(r.t, 300), m: cut(r.m, 120), jp: Math.max(0, parseInt(r.jp, 10) || 0),
         i: cut(r.i, 300), lv: ['L1', 'L2', 'L3'].includes(r.lv) ? r.lv : 'L2', pg: angka(r.pg), is: angka(r.is), ur: angka(r.ur) })), at: now, by: myName() }));
@@ -268,7 +270,7 @@ ${tabelKisi(s)}
       const items = R().daftar(tp.items);
       SEM.forEach((s, n) => {
         const saved = r[1 + n].val() || {}, byK = {}; R().daftar(saved.items).forEach(x => { if (x && x.k) byK[x.k] = x; });
-        K.set[s] = Object.assign(mkSet(), saved.judul ? { judul: String(saved.judul) } : {}, saved.waktu ? { waktu: String(saved.waktu) } : {},
+        K.set[s] = Object.assign(mkSet(s), saved.judul ? { judul: String(saved.judul) } : {}, saved.waktu ? { waktu: String(saved.waktu) } : {},
           saved.tot ? { pg: String(saved.tot.pg || 0), is: String(saved.tot.is || 0), ur: String(saved.tot.ur || 0) } : {});
         K.rows[s] = items.filter(x => x && x.sem === s && x.t).map(x => {
           const o = byK[x.k] || {};
@@ -287,7 +289,7 @@ ${tabelKisi(s)}
     if (!rec) return;
     if (!window.rpeUtil) return say('Modul RPE belum dimuat (js/perangkat-rpe.js harus dimuat lebih dulu).', true);
     K.id = id; K.rec = rec; K.ro = rec.guruKey !== myId(); K.ta = String(ta || ''); K.fase = fase(rec.kelas); K.sem = sem === 'genap' ? 'genap' : 'ganjil'; K.dirty = false;
-    K.rows = { ganjil: [], genap: [] }; K.set = { ganjil: mkSet(), genap: mkSet() };
+    K.rows = { ganjil: [], genap: [] }; K.set = { ganjil: mkSet('ganjil'), genap: mkSet('genap') };
     try { K.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { K.nip = ''; }
     R().nipIsi(K, '#kisiOverlay');
     muat();
