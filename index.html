@@ -93,7 +93,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=91"></script>
+  <script defer src="js/app.js?v=92"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=22"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
@@ -124,22 +124,13 @@
   <!-- Perangkat Pembelajaran (ATP/TP, RPE, Prota/Promes, Kisi-kisi, Soal). WAJIB sesudah app.js & menu-hub.js.
        Urutan: data bank -> perangkat-rpe (rpeUtil) -> modul turunan -> perangkat-pembelajaran (hub, TERAKHIR karena membungkus navigateTo). -->
   <script defer src="js/data-tp-mi.js?v=3"></script>
-  <!-- Bank TP mapel umum (WAJIB sesudah data-tp-mi.js) -->
-  <script defer src="js/data-tp-umum.js?v=1"></script>
-  <!-- Bank soal gabungan (PAI, Bahasa Arab, mapel umum). Menggantikan data-soal-mi/aqh/ba/mtk/umum-1..3 terpisah. WAJIB sesudah data-tp-mi.js dan data-tp-umum.js -->
-  <script defer src="js/data-soal-semua.js?v=1"></script>
-  <!-- Tambahan soal draf AA, Fikih, SKI (WAJIB sesudah data-soal-semua.js) -->
-  <script defer src="js/data-soal-pai-tambahan.js?v=1"></script>
-  <!-- Tambahan soal draf mapel umum: +1 isian, +1 uraian per TP (WAJIB sesudah data-soal-semua.js) -->
-  <script defer src="js/data-soal-umum-tambahan.js?v=1"></script>
-  <!-- Tambahan soal draf Al-Qur'an Hadis: 18 TP yang masih tipis (WAJIB sesudah data-soal-semua.js) -->
-  <script defer src="js/data-soal-aqh-tambahan.js?v=1"></script>
-  <script defer src="js/perangkat-rpe.js?v=10"></script>
+  <script defer src="js/data-soal-mi.js?v=4"></script>
+  <script defer src="js/perangkat-rpe.js?v=9"></script>
   <script defer src="js/perangkat-prota-promes.js?v=7"></script>
-  <script defer src="js/perangkat-atp-tp.js?v=8"></script>
+  <script defer src="js/perangkat-atp-tp.js?v=7"></script>
   <script defer src="js/data-kisi-resmi-mi.js?v=3"></script>
-  <script defer src="js/perangkat-kisi.js?v=10"></script>
-  <script defer src="js/perangkat-soal.js?v=10"></script>
+  <script defer src="js/perangkat-kisi.js?v=9"></script>
+  <script defer src="js/perangkat-soal.js?v=8"></script>
   <script defer src="js/perangkat-pembelajaran.js?v=10"></script>
   <script defer src="js/modul-ajar.js?v=16"></script>
   <script defer src="js/buku-tamu.js?v=5"></script>
@@ -158,6 +149,8 @@
   <script defer src="js/login-kode.js?v=12"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
   <script defer src="js/impersonate.js?v=7"></script>
+  <script defer src="js/surat-guru.js?v=11"></script>
+  <script defer src="js/agenda-surat.js?v=3"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
   <script defer src="js/tahfidz-grafik.js?v=4"></script>
