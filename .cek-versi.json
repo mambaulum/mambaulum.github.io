@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.64",
-  "disimpan": "2026-10-23T12:02:40.440Z",
+  "appVersion": "v8.72",
+  "disimpan": "2026-10-23T15:04:00.605Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=91",
-      "hash": "80f1a4bc3db9637f5bd23c1aa9a176f7d427eb1d"
+      "v": "v=92",
+      "hash": "94222cfc7d955b38f5f928f8f0495c4688525e78"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
@@ -91,8 +91,8 @@
       "hash": "07ceda334e272a630ce6c34912582630af6001d2"
     },
     "js/rapat.js": {
-      "v": "v=6",
-      "hash": "eb208086e3d12622d72c7379df80fbd5bf62ca4f"
+      "v": "v=7",
+      "hash": "b53559367a8fa53d4237377edd1f2926c08af410"
     },
     "js/data-pkg-mi.js": {
       "v": "v=1",
@@ -122,28 +122,12 @@
       "v": "v=3",
       "hash": "70d59bb8eba12e6a2329378c5d3c8e92ed11e497"
     },
-    "js/data-tp-umum.js": {
-      "v": "v=1",
-      "hash": "183cf034f805d85bc75a180e11f30aedec96a204"
-    },
-    "js/data-soal-semua.js": {
-      "v": "v=1",
-      "hash": "75a55a2737130f45bd3d1a4af077afdd06322f75"
-    },
-    "js/data-soal-pai-tambahan.js": {
-      "v": "v=1",
-      "hash": "8872768f4f2af6e2a260bc7d70d5088d2b83f5cf"
-    },
-    "js/data-soal-umum-tambahan.js": {
-      "v": "v=1",
-      "hash": "ff039eaaa75eccc3945baece80a56593b6149e46"
-    },
-    "js/data-soal-aqh-tambahan.js": {
-      "v": "v=1",
-      "hash": "4be12777f2c3b9350c8d34fe9c370ff7d1e536e0"
+    "js/data-soal-mi.js": {
+      "v": "v=4",
+      "hash": "5afb05e4a8291b40b299e9b95a455fa0098a837f"
     },
     "js/perangkat-rpe.js": {
-      "v": "v=10",
+      "v": "v=9",
       "hash": "8e982964003b8821fdaef694d0e3d9b3bb460a33"
     },
     "js/perangkat-prota-promes.js": {
@@ -151,7 +135,7 @@
       "hash": "c66de437154dedac1b70169640da55fdfecad0a8"
     },
     "js/perangkat-atp-tp.js": {
-      "v": "v=8",
+      "v": "v=7",
       "hash": "bf8bcf11c9ed721c7117a2e0961f8360199c50da"
     },
     "js/data-kisi-resmi-mi.js": {
@@ -159,11 +143,11 @@
       "hash": "5ed5a2388cdd7ff2fd90d00225916961ebfd1501"
     },
     "js/perangkat-kisi.js": {
-      "v": "v=10",
+      "v": "v=9",
       "hash": "7d98549b693921452cfc07c4d42c7886d8feea77"
     },
     "js/perangkat-soal.js": {
-      "v": "v=10",
+      "v": "v=8",
       "hash": "fdbd2364d0b72b8ed3eb3cda9ffc1b1e23359404"
     },
     "js/perangkat-pembelajaran.js": {
@@ -197,6 +181,14 @@
     "js/impersonate.js": {
       "v": "v=7",
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
+    },
+    "js/surat-guru.js": {
+      "v": "v=11",
+      "hash": "506e079f66bb5439f9b42825ac2e0c8df66c9ca6"
+    },
+    "js/agenda-surat.js": {
+      "v": "v=3",
+      "hash": "5ccb25dd3e4979bb50b43f09529d47ee0068c77e"
     },
     "js/tahfidz-grafik.js": {
       "v": "v=4",
