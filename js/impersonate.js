@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/impersonate.js  (v5)
+   SI MAMBA - js/impersonate.js  (v7)
    Admin "melihat sebagai guru" (impersonasi, MODE LIHAT SAJA).
 
    Cara kerja:
@@ -51,6 +51,7 @@
   var METODE_REF = ['set', 'update', 'remove', 'setWithPriority', 'setPriority', 'transaction'];
   var METODE_OD = ['set', 'update', 'remove', 'setWithPriority'];
   var INTI = ['set', 'update', 'remove'];            // wajib ada & terpasang (Reference dan OnDisconnect)
+  var KUNCI_CIUT = 'si_mamba_imp_ciut';              // sessionStorage: spanduk diciutkan ('1') atau tidak
   var KUNCI_START = 'si_mamba_imp_start';            // flag sessionStorage: audit START tertunda sampai setelah reload
 
   var asliDari = new WeakMap();                      // fungsi guard -> fungsi asli (tidak terekspos sebagai properti)
@@ -273,6 +274,7 @@
     if (!kelas.length) { toast('Daftar kelas belum tersedia. Coba lagi sebentar.', true); return false; }
     var u = { name: g.name, role: ROLES.TEACHER, baseRole: ROLES.ADMIN, kelas: kelas, key: g.key, semuaKelas: !!g.semuaKelas,
               waliKelasOf: g.waliKelasOf || null, impersonasi: true, adminAsli: snapshotAdmin() };
+    try { sessionStorage.removeItem(KUNCI_CIUT); } catch (e) {}
     try { sessionStorage.setItem(KUNCI_START, JSON.stringify({ key: g.key, name: g.name, ts: Date.now() })); } catch (e) {}
     return simpanLaluMuat(u);
   }
@@ -286,17 +288,36 @@
   }
 
   // ---------- UI ----------
+  function ciutTersimpan() { try { return sessionStorage.getItem(KUNCI_CIUT) === '1'; } catch (e) { return false; } }
+  function aturCiut(b, ciut) {                       // ciut = spanduk jadi garis tipis + tab kecil "Lihat saja"
+    b.classList.toggle('imp-banner--ciut', !!ciut);
+    var buka = b.querySelector('.imp-banner__buka'); if (buka) buka.setAttribute('aria-expanded', ciut ? 'false' : 'true');
+    try { if (ciut) sessionStorage.setItem(KUNCI_CIUT, '1'); else sessionStorage.removeItem(KUNCI_CIUT); } catch (e) {}
+    document.body.style.paddingTop = b.offsetHeight + 'px';
+  }
   function spanduk() {
     var b = $('impBanner');
     if (!aktif()) { if (b) { b.remove(); document.body.style.paddingTop = ''; } return; }
     if (!b) {
       b = el('div', 'imp-banner'); b.id = 'impBanner'; b.setAttribute('role', 'status');
-      var t = el('span'); t.id = 'impTeks'; b.appendChild(t);
+      var t = el('span', 'imp-banner__teks'); t.id = 'impTeks';
+      var ik = el('span', 'imp-banner__ikon'); ik.textContent = '👁️'; ik.setAttribute('aria-hidden', 'true');
+      var lb = el('span'); lb.textContent = 'Melihat sebagai ';
+      var nm = el('strong'); nm.id = 'impNama';
+      var kt = el('span', 'imp-banner__ket'); kt.textContent = ' · mode lihat saja, perubahan tidak disimpan';
+      t.appendChild(ik); t.appendChild(lb); t.appendChild(nm); t.appendChild(kt); b.appendChild(t);
       var k = el('button', 'imp-banner__btn'); k.id = 'impKembali'; k.type = 'button'; k.textContent = 'Kembali ke Admin';
       k.addEventListener('click', berhenti); b.appendChild(k);
+      var c = el('button', 'imp-banner__ciut'); c.type = 'button'; c.textContent = '▴';
+      c.setAttribute('aria-label', 'Ciutkan spanduk'); c.title = 'Ciutkan spanduk';
+      c.addEventListener('click', function () { aturCiut(b, true); }); b.appendChild(c);
+      var o = el('button', 'imp-banner__buka'); o.type = 'button'; o.textContent = '👁️ Lihat saja ▾';
+      o.setAttribute('aria-label', 'Tampilkan spanduk mode lihat saja'); o.setAttribute('aria-expanded', 'false');
+      o.addEventListener('click', function () { aturCiut(b, false); }); b.appendChild(o);
       document.body.appendChild(b);
+      aturCiut(b, ciutTersimpan());
     }
-    teks($('impTeks'), '👁️ Mode lihat saja — Anda melihat sebagai ' + currentUser.name + '. Perubahan tidak disimpan.');
+    teks($('impNama'), String(currentUser.name || ''));
     document.body.style.paddingTop = b.offsetHeight + 'px';   // CSSOM (bukan atribut style), aman untuk CSP
   }
   function bukaPilih() {

@@ -1,7 +1,8 @@
 /* ============================================================
    SI MAMBA - js/perangkat-atp-tp.js
    Pemilih TP (Tujuan Pembelajaran) + pembuat dokumen TP dan ATP (Alur Tujuan Pembelajaran) siap cetak.
-   - Bank TP PAI dan Bahasa Arab MI (js/data-tp-mi.js, disusun dari CP SK Dirjen Pendis 9941/2025): guru TINGGAL MEMILIH
+   - Bank TP PAI dan Bahasa Arab MI (js/data-tp-mi.js, disusun dari CP SK Dirjen Pendis 9941/2025) dan mapel umum
+     (js/data-tp-umum.js: Matematika, B. Indonesia, Pancasila, PJOK, IPAS, Seni, B. Inggris): guru TINGGAL MEMILIH
      TP per semester; TP boleh disunting, diurutkan, dan ditambah sendiri (juga untuk mapel di luar bank).
    - JP bisa dibagi rata otomatis dari JP tersedia (kalender efektif RPE), disisakan sekian JP untuk penilaian.
    - "Terapkan ke Prota/Promes": materi pokok + JP langsung masuk ke daftar materi Prota/Promes (tanpa mengetik ulang).
@@ -38,8 +39,18 @@
     if (t.includes('fikih') || t.includes('fiqih') || t.includes('fiqh')) return 'fikih';
     if (t === 'ski' || t.includes('sejarah')) return 'ski';
     if (t.includes('arab')) return 'ba';
+    // Mapel umum (js/data-tp-umum.js)
+    if (t.includes('matematika') || t === 'mtk') return 'mtk';
+    if (t.includes('inggris') || t === 'big') return 'big';
+    if (t.includes('indonesia') || t === 'bin') return 'bin';
+    if (t.includes('pancasila') || t === 'pkn' || t === 'ppkn' || t === 'pp') return 'pp';
+    if (t.includes('jasmani') || t.includes('olahraga') || t === 'pjok') return 'pjok';
+    if (t.includes('ipas') || (t.includes('ilmupengetahuan') && t.includes('sosial'))) return 'ipas';
+    if (t.startsWith('seni') || t === 'sbdp') return 'seni';
     return '';
   }
+  const UMUM = ['mtk', 'bin', 'pp', 'pjok', 'ipas', 'seni', 'big'];
+  const rujukanCp = () => UMUM.indexOf(A.kunci) >= 0 ? 'Capaian Pembelajaran Kurikulum Merdeka (usulan, rujuk naskah CP resmi terbaru)' : 'SK Dirjen Pendis No. 9941 Tahun 2025';
   // Bagi rata JP: sisa pembulatan diberikan ke TP paling awal.
   function bagiRata(n, total) {
     if (n < 1 || total < 1) return [];
@@ -138,7 +149,7 @@ tr{page-break-inside:avoid}
   function cetakTp(mode) {
     sinkron(); simpanNip();
     if (!A.items.length) return say('Pilih TP dulu.', true);
-    const cp = A.cp.length ? `<h4>Capaian Pembelajaran (ringkasan)</h4>${A.cp.map(c => `<div class="cp">${esc(c)}</div>`).join('')}<div class="cp" style="color:#555;">Rujukan: SK Dirjen Pendis No. 9941 Tahun 2025.</div>` : '';
+    const cp = A.cp.length ? `<h4>Capaian Pembelajaran (ringkasan)</h4>${A.cp.map(c => `<div class="cp">${esc(c)}</div>`).join('')}<div class="cp" style="color:#555;">Rujukan: ${esc(rujukanCp())}.</div>` : '';
     const per = SEM.map(s => {
       const l = daSem(s); if (!l.length) return '';
       return `<h4>Semester ${SEM_LABEL[s]}</h4><table class="tp-tbl"><thead><tr><th style="width:30px">No</th><th style="width:120px">Elemen</th><th>Tujuan Pembelajaran</th></tr></thead><tbody>${l.map((x, i) => `<tr><td class="c">${i + 1}</td><td>${esc(x.e)}</td><td>${esc(x.t)}</td></tr>`).join('')}</tbody></table>`;
@@ -181,10 +192,10 @@ tr{page-break-inside:avoid}
     const pilih = {}; A.items.forEach(x => { pilih[x.k] = x.sem; });
     let h = '';
     if (!A.fase) h += `<div style="padding:10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:13px;color:#92400e;margin-bottom:8px;">Fase tidak bisa dikenali dari nama kelas "${esc(A.rec.kelas)}". Bank TP hanya tampil bila kelas diawali angka atau angka Romawi 1-6 (mis. 4A atau IV-A). TP sendiri tetap bisa ditambahkan di bawah.</div>`;
-    else if (!A.kunci) h += `<div style="padding:10px;background:#f0f9ff;border-radius:8px;font-size:13px;margin-bottom:8px;">Bank TP tersedia untuk Al-Qur'an Hadis, Akidah Akhlak, Fikih, SKI, dan Bahasa Arab. Untuk mapel "${esc(A.rec.mapel)}", tambahkan TP sendiri di bawah.</div>`;
-    else if (!A.bank.length) h += `<div style="padding:10px;background:#f0f9ff;border-radius:8px;font-size:13px;margin-bottom:8px;">Mapel ini belum diajarkan pada Fase ${A.fase} (mis. SKI baru mulai Fase B). Tambahkan TP sendiri bila diperlukan.</div>`;
+    else if (!A.kunci) h += `<div style="padding:10px;background:#f0f9ff;border-radius:8px;font-size:13px;margin-bottom:8px;">Bank TP tersedia untuk Al-Qur'an Hadis, Akidah Akhlak, Fikih, SKI, Bahasa Arab, Matematika, Bahasa Indonesia, Pendidikan Pancasila, PJOK, IPAS, Seni, dan Bahasa Inggris. Untuk mapel "${esc(A.rec.mapel)}", tambahkan TP sendiri di bawah.</div>`;
+    else if (!A.bank.length) h += `<div style="padding:10px;background:#f0f9ff;border-radius:8px;font-size:13px;margin-bottom:8px;">Mapel ini belum diajarkan pada Fase ${A.fase} (mis. SKI, IPAS, dan Bahasa Inggris baru mulai Fase B). Tambahkan TP sendiri bila diperlukan.</div>`;
     if (A.bank.length) {
-      h += `<div style="${muted}margin-bottom:6px;">Usulan TP dari CP SK Dirjen Pendis No. 9941 Tahun 2025. Pilih semesternya; rumusan boleh disunting di langkah 2. Mohon ditelaah bersama KKG.</div>
+      h += `<div style="${muted}margin-bottom:6px;">Usulan TP dari ${esc(rujukanCp())}. Pilih semesternya; rumusan boleh disunting di langkah 2. Mohon ditelaah bersama KKG.</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">${btn('dua', '⚡ Pilih semua & bagi dua semester', 'btn-success')}${btn('kosong', 'Kosongkan pilihan')}</div>`;
       let e = '';
       A.bank.forEach(b => {
@@ -371,7 +382,7 @@ tr{page-break-inside:avoid}
   window.atpBuka = function (id, rec, sem, ta) {
     if (!rec) return;
     if (!window.rpeUtil) return say('Modul RPE belum dimuat (js/perangkat-rpe.js harus dimuat lebih dulu).', true);
-    if (!window.BANK_TP_MI) return say('Bank TP belum dimuat (js/data-tp-mi.js).', true);
+    if (!window.BANK_TP_MI) return say('Bank TP belum dimuat (js/data-tp-mi.js dan js/data-tp-umum.js).', true);
     A.id = id; A.rec = rec; A.ro = rec.guruKey !== myId(); A.ta = String(ta || ''); A.fase = fase(rec.kelas); A.kunci = kunciMapel(rec.mapel);
     A.bank = (A.fase && A.kunci) ? itemBank(A.kunci, A.fase) : [];
     const mp = window.BANK_TP_MI.mapel[A.kunci];

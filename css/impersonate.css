@@ -1,24 +1,70 @@
 /* ============================================================
-   SI MAMBA - css/impersonate.css  (pasangan js/impersonate.js v4)
+   SI MAMBA - css/impersonate.css  (pasangan js/impersonate.js v7)
    Semua gaya impersonasi ada di sini agar tidak perlu inline style
    (kompatibel dengan CSP style-src tanpa 'unsafe-inline').
 ============================================================ */
 
-/* ---------- Spanduk ---------- */
+/* ---------- Spanduk (tipis & lembut; tetap jelas bahwa ini mode lihat saja) ---------- */
 .imp-banner {
   position: fixed; top: 0; left: 0; right: 0;
   z-index: 2147483000;
-  background: #b91c1c; color: #fff; font-size: 13px;
-  display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap;
-  padding: 6px 10px;
-  padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  background: #fef2f2; color: #991b1b;
+  border-bottom: 1px solid #fecaca;
+  box-shadow: 0 1px 3px rgba(153, 27, 27, .08);
+  font-size: 12px; line-height: 1.3;
+  display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: nowrap;
+  padding: 4px 10px;
+  padding-top: calc(4px + env(safe-area-inset-top, 0px));
   box-sizing: border-box;
 }
-.imp-banner__btn {
-  background: #fff; color: #b91c1c; border: 0; border-radius: 6px;
-  padding: 4px 10px; font-weight: 700; cursor: pointer;
+.imp-banner__teks {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.imp-banner__btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.imp-banner__ikon { margin-right: 4px; }
+.imp-banner__teks strong { font-weight: 700; }
+.imp-banner__ket { color: #b45454; }
+.imp-banner__btn {
+  flex: 0 0 auto;
+  background: transparent; color: #991b1b;
+  border: 1px solid #fca5a5; border-radius: 999px;
+  padding: 2px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .15s ease;
+}
+.imp-banner__btn:hover { background: #fee2e2; }
+.imp-banner__btn:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; }
+@media (max-width: 480px) {
+  .imp-banner__ket { display: none; }              /* layar sempit: ringkas */
+}
+@media (prefers-color-scheme: dark) {
+  .imp-banner { background: #3b1414; color: #fecaca; border-bottom-color: #7f1d1d; box-shadow: none; }
+  .imp-banner__ket { color: #f1a5a5; }
+  .imp-banner__btn { color: #fecaca; border-color: #b91c1c; }
+  .imp-banner__btn:hover { background: #5b1b1b; }
+}
+
+/* ---------- Spanduk diciutkan: garis tipis + tab kecil di tengah ---------- */
+.imp-banner__ciut {
+  flex: 0 0 auto; background: transparent; color: inherit; border: 0;
+  padding: 2px 6px; font-size: 12px; line-height: 1; cursor: pointer; opacity: .7;
+}
+.imp-banner__ciut:hover { opacity: 1; }
+.imp-banner__ciut:focus-visible, .imp-banner__buka:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; }
+.imp-banner__buka { display: none; }
+.imp-banner--ciut {
+  padding: 0; min-height: calc(4px + env(safe-area-inset-top, 0px));
+  background: #dc2626; border-bottom: 0; box-shadow: none; overflow: visible;
+}
+.imp-banner--ciut > :not(.imp-banner__buka) { display: none; }
+.imp-banner--ciut .imp-banner__buka {
+  display: block; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-top: 0;
+  border-radius: 0 0 8px 8px; font-size: 11px; line-height: 1.4; padding: 1px 10px; cursor: pointer;
+  white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+  .imp-banner--ciut { background: #b91c1c; }
+  .imp-banner--ciut .imp-banner__buka { background: #3b1414; color: #fecaca; border-color: #7f1d1d; }
+}
 
 /* ---------- Tombol di Manajemen Pengguna ---------- */
 .imp-tombol { margin-left: 8px; }
