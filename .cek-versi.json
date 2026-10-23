@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.66",
-  "disimpan": "2026-10-22T08:59:21.367Z",
+  "appVersion": "v8.63",
+  "disimpan": "2026-10-23T02:09:35.265Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -9,6 +9,10 @@
     "css/menu-polish.css": {
       "v": "v=32",
       "hash": "d47475e79f536a951ef5760a950dc102fa928c76"
+    },
+    "css/impersonate.css": {
+      "v": "v=3",
+      "hash": "6e1296cccdd0e4427c8d2ad57a736e3f1b45e156"
     },
     "js/logo-fallback.js": {
       "v": "",
@@ -126,6 +130,10 @@
       "v": "v=1",
       "hash": "75a55a2737130f45bd3d1a4af077afdd06322f75"
     },
+    "js/data-soal-pai-tambahan.js": {
+      "v": "v=1",
+      "hash": "8872768f4f2af6e2a260bc7d70d5088d2b83f5cf"
+    },
     "js/perangkat-rpe.js": {
       "v": "v=9",
       "hash": "941708724ca01bb76742473281b1d37932b49cc5"
@@ -135,8 +143,8 @@
       "hash": "c66de437154dedac1b70169640da55fdfecad0a8"
     },
     "js/perangkat-atp-tp.js": {
-      "v": "v=7",
-      "hash": "5f5261e92162af3284006d29d36cb024f54f11c7"
+      "v": "v=8",
+      "hash": "bf8bcf11c9ed721c7117a2e0961f8360199c50da"
     },
     "js/data-kisi-resmi-mi.js": {
       "v": "v=3",
@@ -147,7 +155,7 @@
       "hash": "fe9c146fad3521759c52fa9bdd1bca8bb961704e"
     },
     "js/perangkat-soal.js": {
-      "v": "v=10",
+      "v": "v=9",
       "hash": "d91f291d556dcbe6dbeb0a972e7e45bbeb9d82b2"
     },
     "js/perangkat-pembelajaran.js": {
@@ -179,8 +187,8 @@
       "hash": "e77b36f51dc5010e98a8b43e03060b09bd79b20f"
     },
     "js/impersonate.js": {
-      "v": "v=2",
-      "hash": "c1f693b9bd9baa9366be0eb4e7df5e2691e50a6a"
+      "v": "v=7",
+      "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
     },
     "js/tahfidz-grafik.js": {
       "v": "v=4",
