@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.92",
-  "disimpan": "2026-10-24T02:50:46.219Z",
+  "appVersion": "v8.97",
+  "disimpan": "2026-10-24T04:14:57.829Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=92",
-      "hash": "94222cfc7d955b38f5f928f8f0495c4688525e78"
+      "v": "v=96",
+      "hash": "a9ef43c9767a54fceddaa766f9d6a84d96e913ff"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
@@ -199,7 +199,7 @@
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
     },
     "js/surat-guru.js": {
-      "v": "v=22",
+      "v": "v=23",
       "hash": "2b89ea4758e291b9f03d1469ce75b7ac0b190087"
     },
     "js/agenda-surat.js": {
