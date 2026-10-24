@@ -1,5 +1,6 @@
 /* ============================================================
    MENU HUB -- menggabungkan item sidebar yang mirip jadi satu entri (41 item -> 22 entri).
+   Catatan: 'surat' (Surat & Ijin) sengaja TIDAK jadi anggota hub; berdiri sendiri di grup Guru & Madrasah sejajar Rapat.
    Tidak ada halaman yang dihapus dan aturan hak akses per peran di app.js TIDAK diubah:
    - Item asli tetap ada di DOM (disembunyikan lewat class .hub-member) dan tetap diberi/dicabut
      class .hidden-tab oleh app.js sesuai peran. Modul ini hanya MEMBACA class itu.
@@ -24,7 +25,7 @@
     { id: 'ujian',     label: 'Ujian',               pages: ['ujian', 'administrasi-ujian'] },
     { id: 'honor',     label: 'Honor',               pages: ['honor', 'honor-slip'] },
     { id: 'kas',       label: 'Kas & Infaq',         pages: ['kas-umum', 'infaq-madrasah'] },
-    { id: 'raport',    label: 'Raport & Dokumen',    pages: ['raport-v4', 'laporan', 'surat'] },
+    { id: 'raport',    label: 'Raport & Dokumen',    pages: ['raport-v4', 'laporan'] },
     { id: 'notif',     label: 'Notifikasi & Tugas',  pages: ['notifications-v4', 'tasks-v4', 'approval-v4', 'saran-kritik'] },
     { id: 'admin',     label: 'Admin & Ringkasan',   pages: ['admin', 'user-management', 'rekap'] }
   ];

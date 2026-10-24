@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/agenda-surat.js  (v3)
+   SI MAMBA - js/agenda-surat.js  (v4)
    Agenda & REKAP SURAT MASUK / SURAT KELUAR madrasah.
    Tab ke-3 di halaman "Surat & Ijin" (menumpang kerangka tab js/surat-guru.js v2+).
 
@@ -20,10 +20,6 @@
    js/surat-guru.js; counter Firebase nomor_surat/<tahun>/MI-MU_B) dan pilihan Kode Klasifikasi. No. Agenda / No. Urut
    juga otomatis (counter nomor_surat/<tahun>/agenda_<masuk|keluar>, tidak pernah lebih kecil dari nomor yang sudah ada).
    Nomor Surat MASUK tetap manual (nomor dari pengirim). Semua kolom boleh diketik manual. Dikunci saat Simpan.
-
-   [v3] API untuk modul lain: window.SIMambaAgenda {ambil, catatKeluar, ubahKeluar} (dipakai js/undangan-rapat.js untuk mencatat
-   Surat Undangan Rapat sebagai Surat Keluar dengan No. Agenda otomatis; key deterministik 'undangan_<rapatId>' = tidak bisa dobel).
-   Baris agenda boleh memuat field tambahan (rapatId, sumber, isi); mengubah baris lewat form Agenda TIDAK menghapus field itu.
 
    KETERGANTUNGAN (app.js): currentUser, db, toast, escapeHtml, tglLokal, addLog, isAdmin,
    isKepsek, isBusy/setBusy/clearBusy, doubleConfirm, ensureLib, MADRASAH, v4LoadLogoForPdf,
@@ -247,21 +243,21 @@
   // ---------- Form ----------
   function nilai(id) { var e = $('ag_f_' + id); return e ? String(e.value || '').trim() : ''; }
   function setNilai(id, v) { var e = $('ag_f_' + id); if (e) e.value = v == null ? '' : v; }
-  function maxAgenda(tahun, jenis) {                         // nomor agenda terbesar yang sudah ada (jenis & tahun ini)
-    var mx = 0, jn = jenis || S.jenis;
-    S.data.forEach(function (x) { if (x.jenis === jn && thn(x.tanggal) === tahun) mx = Math.max(mx, angka(x.noAgenda)); });
+  function maxAgenda(tahun) {                                // nomor agenda terbesar yang sudah ada (jenis & tahun ini)
+    var mx = 0;
+    S.data.forEach(function (x) { if (x.jenis === S.jenis && thn(x.tanggal) === tahun) mx = Math.max(mx, angka(x.noAgenda)); });
     return mx;
   }
-  function kunciAgendaRef(tahun, jenis) { return db.ref('nomor_surat/' + tahun + '/agenda_' + (jenis || S.jenis)); }
+  function kunciAgendaRef(tahun) { return db.ref('nomor_surat/' + tahun + '/agenda_' + S.jenis); }
   function intipAgenda(tgl) {                                // nomor agenda berikutnya (belum dikunci)
     var y = thn(tgl) || S.tahun, mx = maxAgenda(y);
     return kunciAgendaRef(y).once('value').then(function (snap) { return String(Math.max(parseInt(snap.val(), 10) || 0, mx) + 1); });
   }
-  function kunciAgenda(tgl, jenis) {                         // kunci nomor agenda (atomik, tidak lebih kecil dari yang ada)
-    var y = thn(tgl) || S.tahun, mx = maxAgenda(y, jenis);
+  function kunciAgenda(tgl) {                                // kunci nomor agenda (atomik, tidak lebih kecil dari yang ada)
+    var y = thn(tgl) || S.tahun, mx = maxAgenda(y);
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(new Error('perangkat sedang offline'));
     return new Promise(function (res, rej) {
-      kunciAgendaRef(y, jenis).transaction(function (cur) { return Math.max(parseInt(cur, 10) || 0, mx) + 1; }, function (err, ok, snap) {
+      kunciAgendaRef(y).transaction(function (cur) { return Math.max(parseInt(cur, 10) || 0, mx) + 1; }, function (err, ok, snap) {
         if (err || !ok) return rej(err || new Error('penomoran dibatalkan'));
         res(String(snap.val()));
       });
@@ -339,7 +335,6 @@
       dibuatOleh: lama ? (lama.dibuatOleh || '') : currentUser.name, createdAt: lama ? (lama.createdAt || now) : now,
       updatedAt: now, updatedBy: currentUser.name
     };
-    if (lama) ['rapatId', 'sumber', 'isi'].forEach(function (k) { if (lama[k] != null) data[k] = lama[k]; });   // field dari modul lain jangan hilang
     var ref = S.edit ? db.ref(NODE + '/' + S.edit) : db.ref(NODE).push(), b = b0;
     ref.set(data, function (err) {
       clearBusy('simpanAgenda', b);
@@ -413,43 +408,40 @@
     toast('📥 PDF berhasil diunduh!'); addLog('download_rekap_tahunan_surat', String(S.tahun));
   }
 
-  // ---------- API untuk modul lain (js/undangan-rapat.js) ----------
-  // ambil(key) -> Promise<baris|null>
-  // catatKeluar({key, tanggal, buatNomor|nomor, pihak, perihal, ket, rapatId, isi}) -> Promise<baris>
-  //   Mengunci No. Agenda (counter atomik) lalu nomor surat (buatNomor dipanggil SESUDAH agenda terkunci), lalu menulis baris
-  //   lewat transaction pada key tetap: bila key sudah ada, tidak menimpa (ditolak).
-  // ubahKeluar(key, {pihak, perihal, ket, isi}) -> Promise (nomor & tanggal tidak berubah)
-  window.SIMambaAgenda = {
-    ambil: function (key) {
-      return db.ref(NODE + '/' + key).once('value').then(function (s) { var v = s.val(); if (v) v.key = key; return v; });
-    },
-    catatKeluar: function (o) {
-      if (!boleh()) return Promise.reject(new Error('hanya Admin & Kepala Madrasah'));
-      if (!o || !o.key || !o.tanggal) return Promise.reject(new Error('data surat tidak lengkap'));
-      return muatManual().then(function () { return kunciAgenda(o.tanggal, 'keluar'); }).then(function (noAg) {
-        return Promise.resolve(o.nomor || (o.buatNomor ? o.buatNomor() : '')).then(function (noSurat) {
-          var now = new Date().toISOString();
-          var data = { jenis: 'keluar', noAgenda: noAg, tanggal: o.tanggal, tglSurat: '', nomor: noSurat || '', pihak: o.pihak || '', perihal: o.perihal || '',
-            disposisi: '', ket: o.ket || '', tahun: thn(o.tanggal), dibuatOleh: currentUser.name, createdAt: now, updatedAt: now, updatedBy: currentUser.name };
-          if (o.rapatId) { data.rapatId = String(o.rapatId); data.sumber = 'undangan-rapat'; }
-          if (o.isi) data.isi = String(o.isi);
-          return new Promise(function (res, rej) {
-            db.ref(NODE + '/' + o.key).transaction(function (cur) { return cur ? undefined : data; }, function (err, ok, snap) {
-              if (err) return rej(err);
-              if (!ok) return rej(new Error('undangan untuk rapat ini sudah tercatat; tutup lalu buka lagi'));
-              var v = snap.val() || data; v.key = o.key; res(v);
-            });
-          });
+
+  // ---------- API untuk modul lain (v4; dipakai js/undangan-rapat.js) ----------
+  // cariAwalan(awalan) -> Promise<[rekaman Surat Keluar yang field 'unik'-nya diawali awalan]> (urut createdAt)
+  // catatKeluar({tanggal, nomor, pihak, perihal, ket, unik, jenisSurat, rapatId, isi}) -> Promise<{key, noAgenda}>
+  //   No. Agenda diambil atomik dari counter nomor_surat/<tahun>/agenda_keluar (sama dengan form manual).
+  //   Ditolak bila 'unik' yang sama sudah tercatat (cegah surat ganda saat klik dua kali).
+  function cariAwalan(awalan) {
+    return muatManual().then(function () {
+      return S.data.filter(function (x) { return x.jenis === 'keluar' && String(x.unik || '').indexOf(awalan) === 0; })
+        .sort(function (a, b) { return String(a.createdAt || '').localeCompare(String(b.createdAt || '')); });
+    });
+  }
+  function catatKeluar(d) {
+    if (!boleh()) return Promise.reject(new Error('Hanya Admin & Kepala Madrasah'));
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(new Error('perangkat sedang offline'));
+    var y = thn(d.tanggal) || new Date().getFullYear(), now = new Date().toISOString();
+    return muatManual().then(function () {
+      if (d.unik && S.data.some(function (x) { return x.unik === d.unik; })) throw new Error('surat ini sudah tercatat di Agenda');
+      var mx = 0; S.data.forEach(function (x) { if (x.jenis === 'keluar' && thn(x.tanggal) === y) mx = Math.max(mx, angka(x.noAgenda)); });
+      return new Promise(function (res, rej) {
+        db.ref('nomor_surat/' + y + '/agenda_keluar').transaction(function (cur) { return Math.max(parseInt(cur, 10) || 0, mx) + 1; }, function (err, ok, snap) {
+          if (err || !ok) return rej(err || new Error('penomoran agenda dibatalkan'));
+          res(String(snap.val()));
         });
       });
-    },
-    ubahKeluar: function (key, p) {
-      if (!boleh()) return Promise.reject(new Error('hanya Admin & Kepala Madrasah'));
-      var upd = { updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
-      ['pihak', 'perihal', 'ket', 'isi'].forEach(function (k) { if (p && p[k] != null) upd[k] = String(p[k]); });
-      return db.ref(NODE + '/' + key).update(upd);
-    }
-  };
+    }).then(function (noAg) {
+      var data = { jenis: 'keluar', noAgenda: noAg, tanggal: d.tanggal, tglSurat: '', nomor: d.nomor || '', pihak: d.pihak || '', perihal: d.perihal || '',
+        disposisi: '', ket: d.ket || '', tahun: y, dibuatOleh: currentUser.name, createdAt: now, updatedAt: now, updatedBy: currentUser.name,
+        unik: d.unik || '', jenisSurat: d.jenisSurat || '', rapatId: d.rapatId || '', isi: d.isi || null };
+      var ref = db.ref(NODE).push();
+      return ref.set(data).then(function () { data.key = ref.key; S.data.push(data); return { key: ref.key, noAgenda: noAg }; });
+    });
+  }
+  window.SIMambaAgenda = { cariAwalan: cariAwalan, catatKeluar: catatKeluar };
 
   // ---------- Pasang sebagai tab di Surat & Ijin ----------
   if (window.SIMambaSuratTab) window.SIMambaSuratTab.daftar({ id: 'agenda', label: '📬 Agenda Masuk/Keluar', boleh: boleh, buat: buat, buka: buka });
