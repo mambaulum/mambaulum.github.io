@@ -225,7 +225,7 @@
       var l = el('label', 'label'); l.textContent = f.l; l.htmlFor = 'sg_' + k;
       var i = f.t === 'area' ? el('textarea', 'field') : ((f.t === 'multi' || f.t === 'sel') ? el('select', 'field') : el('input', 'field'));
       i.id = 'sg_' + k;
-      if (f.t === 'area') { i.rows = k === 'dasar' ? 10 : (k === 'tembusan' ? 4 : 3); if (k === 'dasar') i.value = DASAR_DEFAULT; if (k === 'tembusan') i.addEventListener('input', function () { i.dataset.edit = '1'; }); }
+      if (f.t === 'area') { i.rows = k === 'dasar' ? 10 : (k === 'tembusan' ? 4 : 3); if (k === 'dasar') { i.value = DASAR_DEFAULT; i.addEventListener('input', function () { i.dataset.edit = '1'; }); } if (k === 'tembusan') i.addEventListener('input', function () { i.dataset.edit = '1'; }); }
       else if (f.t === 'multi') { i.multiple = true; i.size = 6; i.addEventListener('change', function () { siapkanGuruLain(ambil()).then(function () { preview(true); }); }); }
       else if (f.t === 'sel') { f.o.forEach(function (op) { var o = el('option'); o.value = op[0]; o.textContent = op[1]; i.appendChild(o); }); i.addEventListener('change', function () { sesuaikan(); }); }
       else { i.type = f.t; if (k === 'ketuaYys') i.value = YAYASAN.ketua; }
@@ -350,8 +350,12 @@
     if ($('sg_jenis').value === 'sk-pengangkatan') { var kus = $('sg_masa') && $('sg_masa').value === 'kustom'; ['mulai', 'selesai'].forEach(function (k) { var w2 = $('sg_w_' + k); if (w2) w2.style.display = kus ? '' : 'none'; }); }
     var t = $('sg_tanggal'); if (t && !t.value) t.value = tglLokal();
     var tb = $('sg_tembusan'); if (tb && tb.dataset.edit !== '1') tb.value = tembusanDefault($('sg_jenis').value);
+    var ds = $('sg_dasar'); if (ds && ds.dataset.edit !== '1') ds.value = dasarDefault($('sg_jenis').value);
     var kl = $('sg_klas'); if (kl && kl.dataset.edit !== '1') kl.value = KLAS[$('sg_jenis').value] || 'KP.01';
   }
+  // SK Pembagian Jadwal Mengajar: dasar hukum diringkas (tanpa akta yayasan, PP 55/2007, PP 74/2008, KMA 1006/2021 yang khusus pengangkatan).
+  var DASAR_JADWAL = [0, 1, 4, 5, 9].map(function (i) { return DASAR_DEFAULT.split('\n')[i]; }).join('\n');
+  function dasarDefault(jenis) { return jenis === 'sk-jadwal' ? DASAR_JADWAL : DASAR_DEFAULT; }
   function tembusanDefault(jenis) {
     var kemenag = 'Kepala Kantor Kementerian Agama Kabupaten Jember';
     if (jenis === 'sk-pengangkatan') return [kemenag, 'Kepala ' + titleCase(MADRASAH.nama), 'Yang bersangkutan', 'Arsip'].join('\n');
@@ -425,6 +429,7 @@
   // Logo Yayasan: berkas TERSENDIRI (bukan logo madrasah). Letakkan di logo/logo-yayasan.png.
   // Bila berkas belum ada, kop yayasan tampil tanpa logo (tidak pernah memakai logo madrasah).
   var LOGO_YAYASAN = 'logo/logo-yayasan.png';
+  var LOGO_MAKS_PX = 320;                                     // sisi terpanjang logo di PDF (27 mm @ ~300 dpi)
   var logoYysCache;
   function muatLogoYayasan() {
     if (logoYysCache !== undefined) return Promise.resolve(logoYysCache);
@@ -432,9 +437,10 @@
       var im = new Image();
       im.onload = function () {
         try {
-          var c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
-          c.getContext('2d').drawImage(im, 0, 0);
-          logoYysCache = { data: c.toDataURL('image/png'), w: im.naturalWidth, h: im.naturalHeight };
+          var sk = Math.min(1, LOGO_MAKS_PX / Math.max(im.naturalWidth, im.naturalHeight));   // perkecil: logo hanya tampil 27 mm di PDF
+          var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.naturalWidth * sk)); c.height = Math.max(1, Math.round(im.naturalHeight * sk));
+          var cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(im, 0, 0, c.width, c.height);   // kertas putih: JPEG jauh lebih kecil dari PNG
+          logoYysCache = { data: c.toDataURL('image/jpeg', 0.88), w: c.width, h: c.height };
         } catch (e) { logoYysCache = null; }
         res(logoYysCache);
       };
@@ -459,7 +465,7 @@
   function kopYayasanPdf(doc, pw, logo) {
     var ukuran = 27, x0 = 20, y0 = 11, xr = pw - 20, xt = x0 + ukuran + 3, tengah = (xt + xr) / 2, lebarTeks = xr - xt, y = 17;
     if (logo && logo.data) {
-      try { var r = logo.w / logo.h, lw = r >= 1 ? ukuran : ukuran * r, lh = r >= 1 ? ukuran / r : ukuran; doc.addImage(logo.data, 'PNG', x0 + (ukuran - lw) / 2, y0 + (ukuran - lh) / 2, lw, lh, undefined, 'FAST'); }
+      try { var r = logo.w / logo.h, lw = r >= 1 ? ukuran : ukuran * r, lh = r >= 1 ? ukuran / r : ukuran; doc.addImage(logo.data, 'JPEG', x0 + (ukuran - lw) / 2, y0 + (ukuran - lh) / 2, lw, lh, undefined, 'FAST'); }
       catch (e) { console.error('[SI MAMBA] Gagal menambah logo yayasan:', e); }
     }
     function baris(teks, font, gaya, ukur, lebarMaks, dy) {            // perkecil huruf bila melebihi lebar
@@ -489,11 +495,12 @@
       if (!src) return res(null);
       var im = new Image();
       im.onload = function () {
-        var fmt = /^data:image\/jpe?g/i.test(src) ? 'JPEG' : 'PNG', data = src;
+        var sk = Math.min(1, LOGO_MAKS_PX / Math.max(im.naturalWidth, im.naturalHeight)), data;
         try {
-          if (!/^data:/i.test(src)) { var c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); data = c.toDataURL('image/png'); fmt = 'PNG'; }
-        } catch (e) { return res(null); }
-        res({ data: data, w: im.naturalWidth, h: im.naturalHeight, fmt: fmt });
+          var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.naturalWidth * sk)); c.height = Math.max(1, Math.round(im.naturalHeight * sk));
+          var cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(im, 0, 0, c.width, c.height); data = c.toDataURL('image/jpeg', 0.88);
+          res({ data: data, w: c.width, h: c.height, fmt: 'JPEG' });
+        } catch (e) { res(null); }
       };
       im.onerror = function () { res(null); };
       im.src = src;
@@ -894,7 +901,7 @@
     try { await pastikanNomor(jenis, d); }
     catch (e) { return toast('❌ Nomor otomatis gagal: ' + (e && e.message ? e.message : e) + '. Isi nomor manual atau cek Firebase Rules node nomor_surat.', true); }
     d = ambil();
-    var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF('p', 'mm', 'a4');   // semua surat: A4
+    var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });   // semua surat: A4; compress = ukuran berkas kecil
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
     var mk = 25, mr = 15, lebar = pw - mk - mr, LH = S.yys ? 6 : 6.3, y = 0;                                                    // margin kiri 2,5 cm, kanan 1,5 cm (dirapatkan agar hemat halaman)
     var data = await Promise.all([S.yys ? null : Promise.resolve().then(function () { return v4LoadLogoForPdf(); }).then(muatLogoMadrasah, function () { return muatLogoMadrasah(null); }), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
@@ -1123,7 +1130,7 @@
       try { nomorSurat = await kunciNomorSiswa(jenis, isoSurat, kSurat); }
       catch (e) { return toast('❌ Nomor otomatis gagal: ' + (e && e.message ? e.message : e) + '. Cek koneksi internet atau Firebase Rules node nomor_surat.', true); }
       const { jsPDF } = window.jspdf; 
-      const doc = new jsPDF('p', 'mm', 'a4'); 
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true }); 
       const pageWidth = doc.internal.pageSize.getWidth();
       const marginKiri = 20, marginKanan = 20, lebarIsi = pageWidth - marginKiri - marginKanan;
       const [logoRaw, ttdKepalaData] = await Promise.all([Promise.resolve().then(() => v4LoadLogoForPdf()).catch(() => null), v4LoadTtdKepalaForPdf()]);
