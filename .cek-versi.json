@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.97",
-  "disimpan": "2026-10-24T04:14:57.829Z",
+  "appVersion": "v8.102",
+  "disimpan": "2026-10-24T12:49:03.373Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "ef62ab75f7b6b6d0a89f6c28f0cd17e0d733f32d"
     },
     "js/app.js": {
-      "v": "v=96",
-      "hash": "a9ef43c9767a54fceddaa766f9d6a84d96e913ff"
+      "v": "v=97",
+      "hash": "5d22c0fe086aea5e4b18e1bf43fde08194074def"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
@@ -107,16 +107,16 @@
       "hash": "03e6fa045d67ca99ad0f3882b69da509cbac7b9e"
     },
     "js/pkg.js": {
-      "v": "v=92",
-      "hash": "118f24c94361531abda9e7c7edc247f47e96723d"
+      "v": "v=93",
+      "hash": "7d1ffb9f4a6f62ed50b5f859f93adbf6a1188413"
     },
     "js/pkg-analisis.js": {
       "v": "v=3",
       "hash": "45c492c10f543f48fbde3c87d9f72ff0c60222f9"
     },
     "js/pkg-surat.js": {
-      "v": "v=3",
-      "hash": "45919856ed8d2554e83ce4118f3cbbbee610c278"
+      "v": "v=4",
+      "hash": "4a4a50f55fddb13be0a9aa3fe7527449da6d8a37"
     },
     "js/data-tp-mi.js": {
       "v": "v=3",
@@ -199,16 +199,16 @@
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
     },
     "js/surat-guru.js": {
-      "v": "v=23",
-      "hash": "2b89ea4758e291b9f03d1469ce75b7ac0b190087"
+      "v": "v=25",
+      "hash": "23f905ad3da0254e8db5804ec726c68f48b49a7b"
     },
     "js/agenda-surat.js": {
-      "v": "v=4",
-      "hash": "31bd68065144b84826b4bb9344d4fc8f68261651"
+      "v": "v=5",
+      "hash": "8cf49bd3763cca6b886c4429884e4716e0f5e61d"
     },
     "js/undangan-rapat.js": {
-      "v": "v=2",
-      "hash": "18064ef95c451e6c020df5afad7430a60987f6d3"
+      "v": "v=3",
+      "hash": "6346b6c3f3b17fdececd62bb1cbddd388d2d1883"
     },
     "js/edaran-wali.js": {
       "v": "v=2",
@@ -221,6 +221,10 @@
     "js/monitor-petugas.js": {
       "v": "v=5",
       "hash": "6e8111e6ed90a06cc475fd1780708198b1c412a6"
+    },
+    "js/rujukan.js": {
+      "v": "v=1",
+      "hash": "571b27e705792b3eb052557ee97446839a1719c3"
     }
   }
 }
