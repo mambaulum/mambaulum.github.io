@@ -274,6 +274,14 @@
         toast('🔒 ' + ((e && e.message) || 'Sesi admin gagal'), true);
       });
     }
+    // PATCH v8.97: tulis ke node yang di Rules dikunci 'hanya sesi Admin' (school_settings, school_assets, honor_rates_v4).
+    // Memastikan sesi_admin/{uid} terisi dulu (kredAdminSiap); kalau gagal, callback menerima galat yang jelas (bukan PERMISSION_DENIED samar).
+    // path kosong = update multi-path dari root.
+    function tulisSettingsAdmin(path, data, cb) {
+      adminSesi().then(() => (path ? db.ref(path) : db.ref()).update(data, cb), (e) => {
+        if (typeof cb === 'function') cb({ message: '🔒 ' + ((e && e.message) || 'Sesi admin gagal') });
+      });
+    }
     function isBusy(key) { return !!_busyLocks[key]; }
     function setBusy(key, btn) {
       _busyLocks[key] = true;
@@ -847,7 +855,7 @@
       const upd = {};
       upd['school_assets/ttdKepala'] = { base64: MADRASAH.ttdKepalaBase64, updatedBy: currentUser.name, updatedAt: new Date().toISOString(), migrasi: true };
       upd['school_settings/ttdKepalaBase64'] = null;
-      db.ref().update(upd).catch(err => console.warn('[SI MAMBA] Migrasi TTD Kepala gagal:', err && err.message ? err.message : err));
+      adminSesi().then(() => db.ref().update(upd)).catch(err => console.warn('[SI MAMBA] Migrasi TTD Kepala gagal:', err && err.message ? err.message : err));
     }
     function v4LoadTtdKepalaForPdf() {
       return ensureTtdKepala().then(v => v || null);
@@ -900,7 +908,7 @@
             canvas.height = Math.round(img.naturalHeight * scale);
             canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
             const base64 = canvas.toDataURL('image/png');
-            db.ref().update({ 'school_assets/ttdKepala': { base64: base64, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, 'school_settings/ttdKepalaBase64': null, 'school_settings/ttdKepalaUpdatedBy': null, 'school_settings/ttdKepalaUpdatedAt': null }, err => {
+            tulisSettingsAdmin('', { 'school_assets/ttdKepala': { base64: base64, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, 'school_settings/ttdKepalaBase64': null, 'school_settings/ttdKepalaUpdatedBy': null, 'school_settings/ttdKepalaUpdatedAt': null }, err => {
               event.target.disabled = false; event.target.value = '';
               if (err) return toast('Gagal simpan: ' + err.message, true);
               MADRASAH.ttdKepalaBase64 = base64; _ttdPromise = Promise.resolve(base64);
@@ -928,7 +936,7 @@
     function hapusTandaTanganKepala() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
       if (!doubleConfirm('Hapus tanda tangan digital Kepala Sekolah? Surat akan kembali memakai tanda tangan teks biasa.')) return;
-      db.ref().update({ 'school_assets/ttdKepala': null, 'school_settings/ttdKepalaBase64': null, 'school_settings/ttdKepalaUpdatedBy': null, 'school_settings/ttdKepalaUpdatedAt': null }, err => {
+      tulisSettingsAdmin('', { 'school_assets/ttdKepala': null, 'school_settings/ttdKepalaBase64': null, 'school_settings/ttdKepalaUpdatedBy': null, 'school_settings/ttdKepalaUpdatedAt': null }, err => {
         if (err) return toast('Gagal: ' + err.message, true);
         MADRASAH.ttdKepalaBase64 = ''; _ttdPromise = Promise.resolve('');
         toast('✅ Tanda tangan digital dihapus.');
@@ -1467,7 +1475,24 @@
         return p.user;
       } catch(e) { return null; }
     }
-    function clearSession() { try { localStorage.removeItem('sim_session'); } catch (e) {} try { sessionStorage.removeItem(ADMIN_SESI_KEY); } catch (e) {} }
+    // ---- INGAT HALAMAN TERAKHIR ----
+    // Reload / pembaruan versi (SKIP_WAITING) / tab dihidupkan ulang tidak lagi selalu kembali ke Dashboard.
+    // Disimpan per tab (sessionStorage), dihapus saat logout (clearSession) sehingga login baru tetap mulai di Dashboard.
+    const HALAMAN_KEY = 'simamba_halaman_terakhir';
+    let navBoot = false, navUser = false;          // navBoot: navigateTo milik proses boot (jangan dicatat); navUser: pengguna/halaman sudah pindah sendiri
+    function catatHalaman(page) { try { sessionStorage.setItem(HALAMAN_KEY, String(page)); } catch (e) {} }
+    function halamanPulih() {                      // nama halaman yang aman dipulihkan, atau null
+      try {
+        const p = sessionStorage.getItem(HALAMAN_KEY);
+        if (!p || p === 'dashboard' || !document.getElementById('page-' + p)) return null;
+        const mi = document.querySelector('.sidebar-menu .menu-item[data-page="' + p + '"]');
+        for (let n = mi; n && n !== document.body; n = n.parentElement) {   // menu disembunyikan untuk peran/mode ini -> jangan dibuka
+          if (n.classList.contains('hidden-tab') || n.classList.contains('hidden') || n.style.display === 'none') return null;
+        }
+        return p;
+      } catch (e) { return null; }
+    }
+    function clearSession() { try { localStorage.removeItem('sim_session'); } catch (e) {} try { sessionStorage.removeItem(ADMIN_SESI_KEY); } catch (e) {} try { sessionStorage.removeItem(HALAMAN_KEY); } catch (e) {} }
     // Checkbox "Ingat Saya" dinonaktifkan (dan dimatikan) saat akun Admin/Kepsek dipilih di form login;
     // pilihan sebelumnya dipulihkan begitu pindah ke akun guru.
     function sinkronRememberMe() {
@@ -1737,7 +1762,7 @@
       const unique = new Set(newList);
       if (unique.size !== newList.length) return toast('⚠️ Ada nama kelas yang duplikat, mohon perbaiki dulu.', true);
       if (!confirm(`Yakin ubah daftar kelas jadi ${newList.length} kelas berikut?\n\n${newList.join(', ')}\n\nSemua dropdown & data yang merujuk nama kelas LAMA (siswa, jadwal, dll) TIDAK ikut berubah otomatis -- kalau ada nama kelas yang diubah/dihapus, pastikan data terkait sudah disesuaikan juga.`)) return;
-      db.ref('school_settings').update({ kelasList: newList, kelasListUpdatedBy: currentUser.name, kelasListUpdatedAt: new Date().toISOString() }, err => {
+      tulisSettingsAdmin('school_settings', { kelasList: newList, kelasListUpdatedBy: currentUser.name, kelasListUpdatedAt: new Date().toISOString() }, err => {
         if (err) return toast('Gagal: ' + err.message, true);
         setKelasList(newList);
         refreshAllKelasDropdowns();
@@ -1780,7 +1805,7 @@
       if (!confirm(`Yakin ubah Tahun Ajaran Aktif jadi ${tahunAjaranBaru} dan Semester jadi ${semesterBaru}?\n\nSemua user akan otomatis melihat data tahun ajaran ini.`)) return;
       // Pakai update() (bukan set()) supaya field identitas madrasah / struktur pengurus yang
       // disimpan lewat simpanProfilMadrasah() tidak ikut terhapus saat form ini disimpan terpisah.
-      db.ref('school_settings').update({ tahunAjaranAktif: tahunAjaranBaru, semesterAktif: semesterBaru, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
+      tulisSettingsAdmin('school_settings', { tahunAjaranAktif: tahunAjaranBaru, semesterAktif: semesterBaru, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
         if (err) return toast('Gagal: ' + err.message, true);
         toast('✅ Tahun Ajaran & Semester berhasil disimpan!'); addLog('ubah_profil_sekolah', `${tahunAjaranBaru} - ${semesterBaru}`);
       });
@@ -1811,7 +1836,7 @@
         profilUpdatedAt: new Date().toISOString()
       };
       if (!data.kepalaSekolah) return toast('⚠️ Nama Kepala Sekolah wajib diisi (dipakai untuk tanda tangan surat).', true);
-      db.ref('school_settings').update(data, err => {
+      tulisSettingsAdmin('school_settings', data, err => {
         if (err) return toast('Gagal: ' + err.message, true);
         applyMadrasahProfileFromSnapshot(data);
         renderStrukturRingkasan();
@@ -2843,7 +2868,9 @@
       // atau mode Guru tidak konsisten antara dua sistem itu).
       if (typeof v4ApplyMode === 'function') v4ApplyMode();
 
-      navigateTo('dashboard');
+      navUser = false;
+      const halamanKembali = halamanPulih();      // dibaca SEBELUM navigateTo('dashboard'), dipulihkan sesudah data selesai dimuat
+      navBoot = true; try { navigateTo('dashboard'); } finally { navBoot = false; }
       const today = tglLokal();
       document.getElementById('attendanceDate').value = today;
       document.getElementById('journalDate').value = today;
@@ -2885,6 +2912,7 @@
           if (hardStopFired) return; // sudah keburu ditangani hard-stop, jangan dobel proses
           clearTimeout(hardStopTimer); clearTimeout(slowHintTimer);
           hideLoading();
+          if (halamanKembali && !navUser) { try { navigateTo(halamanKembali); } catch (e) { console.error('[SI MAMBA] Gagal memulihkan halaman terakhir:', e); } }
           toast('Selamat datang, ' + currentUser.name);
           // renderCoreUI()/renderOfflineDataUI() baru saja menjalankan tiga render ini -- jangan diulang.
           if (!coreRenderedJustNow()) { renderCharts(); checkPengumumanNotif(); updateStatusBar(); }
@@ -2948,6 +2976,9 @@
         if (typeof v4PanelSiswaCache !== 'undefined') { v4PanelSiswaCache = {}; v4PanelSiswaGagal = {}; v4TfKelasSel = ''; }
       } catch (e) { console.error('[SI MAMBA] Gagal reset state v4 saat logout:', e); }
       try { if (typeof kasResetState === 'function') kasResetState(); } catch (e) { console.error('[SI MAMBA] Gagal reset state Kas saat logout:', e); }
+      // PATCH v8.97: reset state Buku Tamu & Modul Ajar (masing-masing try sendiri supaya satu gagal tidak menghentikan yang lain)
+      try { if (typeof bukuTamuResetState === 'function') bukuTamuResetState(); } catch (e) { console.error('[SI MAMBA] Gagal reset state Buku Tamu saat logout:', e); }
+      try { if (typeof modulAjarResetState === 'function') modulAjarResetState(); } catch (e) { console.error('[SI MAMBA] Gagal reset state Modul Ajar saat logout:', e); }
     }
 
     function toggleSidebar() {
@@ -3003,6 +3034,7 @@
       routeProgressTimer = setTimeout(() => { bar.classList.remove('active','done'); bar.style.width = '0%'; }, 260);
     }
     function navigateTo(page) {
+      if (!navBoot) { navUser = true; catatHalaman(page); }
       showRouteProgress();
       stopCamera();
       document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
@@ -7451,7 +7483,7 @@
       v4TarifDiperbaikiSesiIni = true;
       const patch = { perbaikanTarifAt: new Date().toISOString() }, lama = {};
       rusak.forEach(k => { patch[k] = ratesValid[k]; lama[k] = rawLama[k]; });
-      db.ref('honor_rates_v4').update(patch).then(() => {
+      adminSesi().then(() => db.ref('honor_rates_v4').update(patch)).then(() => {
         v4Audit('REPAIR_HONOR_RATES', 'HONOR_RATE', 'global', lama, patch);
         toast(`⚠️ Tarif honor tidak valid di database (${rusak.join(', ')}) dipulihkan ke tarif yang berlaku. Periksa di Pengaturan Tarif.`, true, 7000);
       }).catch(err => console.warn('[SI MAMBA] Gagal memperbaiki tarif honor:', err && err.message || err));
@@ -7742,7 +7774,7 @@
       const bulan = document.getElementById('honorBulanBayarSel').value === 'ini' ? 'ini' : 'lalu';
       const btn = document.getElementById('btnHonorJadwal');
       setBusy('honorJadwal', btn);
-      db.ref('school_settings').update({ honorTanggalBayar: tgl, honorBulanBayar: bulan, honorBayarUpdatedBy: currentUser.name, honorBayarUpdatedAt: new Date().toISOString() }, err => {
+      tulisSettingsAdmin('school_settings', { honorTanggalBayar: tgl, honorBulanBayar: bulan, honorBayarUpdatedBy: currentUser.name, honorBayarUpdatedAt: new Date().toISOString() }, err => {
         clearBusy('honorJadwal', btn);
         if (err) return toast('Gagal: ' + (err.message || err), true);
         MADRASAH.honorTanggalBayar = tgl; MADRASAH.honorBulanBayar = bulan;
@@ -8062,7 +8094,7 @@
       // Kosong ditolak (bukan diam-diam jadi 0) supaya "belum diatur" dan "0" tidak tercampur.
       if (rawNominal === '' || isNaN(nominal) || nominal < 0) return toast('Isi nominal yang valid (0 atau lebih)!', true);
       const nominalLamaRiwayat = MADRASAH.iuranMingguanNominal;
-      db.ref('school_settings').update({ iuranMingguanNominal: nominal, iuranNominalUpdatedBy: currentUser.name, iuranNominalUpdatedAt: new Date().toISOString() }, err => {
+      tulisSettingsAdmin('school_settings', { iuranMingguanNominal: nominal, iuranNominalUpdatedBy: currentUser.name, iuranNominalUpdatedAt: new Date().toISOString() }, err => {
         if (err) return toast('Gagal: ' + err.message, true);
         toast('✅ Nominal infaq mingguan disimpan!');
         addLog('simpan_nominal_iuran', 'Rp' + nominal);
@@ -10593,10 +10625,32 @@
       container.innerHTML = html;
       pagination.innerHTML = `<button onclick="suratPage--; renderSuratRiwayat();" ${suratPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${suratPage} / ${totalPages}</span><button onclick="suratPage++; renderSuratRiwayat();" ${suratPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems}</span>`;
     }
+    // PATCH v8.97: htmlContent dibaca dari Firebase (bisa ditulis siapa pun yang punya akses tulis ke node 'surat'),
+    // jadi WAJIB disanitasi sebelum masuk innerHTML (cegah stored XSS). Buang tag aktif, atribut on*, dan URL berbahaya.
+    function bersihkanHtmlSurat(html) {
+      try {
+        const doc = new DOMParser().parseFromString('<body>' + String(html == null ? '' : html) + '</body>', 'text/html');
+        doc.querySelectorAll('script,iframe,frame,frameset,object,embed,applet,link,meta,base,form,input,button,textarea,select,svg,math,template,noscript').forEach(n => n.remove());
+        doc.body.querySelectorAll('*').forEach(el => {
+          Array.from(el.attributes).forEach(a => {
+            const nm = a.name.toLowerCase(), v = String(a.value || '').replace(/[\s\u0000-\u001f]+/g, '').toLowerCase();
+            if (nm.startsWith('on') || nm === 'srcdoc' || nm === 'formaction') { el.removeAttribute(a.name); return; }
+            if (nm === 'href' || nm === 'src' || nm === 'xlink:href' || nm === 'action' || nm === 'background') {
+              // URL relatif (mis. logo/logo-lembaga.png) aman; yang dibuang hanya yang berskema selain http(s) (javascript:, data:text/html, vbscript:, dst)
+              const adaSkema = /^[a-z][a-z0-9+.\-]*:/.test(v);
+              const aman = !adaSkema || v.startsWith('http://') || v.startsWith('https://') || (nm === 'src' && /^data:image\/(png|jpe?g|gif|webp);base64,/.test(v));
+              if (!aman) el.removeAttribute(a.name);
+            }
+            if (nm === 'style' && /expression\(|javascript:|url\(/.test(v)) el.removeAttribute('style');
+          });
+        });
+        return doc.body.innerHTML;
+      } catch (e) { return '<p>Konten tidak dapat ditampilkan dengan aman.</p>'; }
+    }
     function lihatSurat(key) {
       const surat = allSurat.find(s => s.key === key);
       if (!surat) return toast('Surat tidak ditemukan!', true);
-      document.getElementById('suratPreview').innerHTML = surat.htmlContent || '<p>Konten tidak tersedia</p>';
+      document.getElementById('suratPreview').innerHTML = surat.htmlContent ? bersihkanHtmlSurat(surat.htmlContent) : '<p>Konten tidak tersedia</p>';
       toast('📄 Menampilkan surat: ' + surat.jenisLabel);
     }
     function hapusSurat(key) {
