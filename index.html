@@ -156,7 +156,7 @@
   <script defer src="js/login-kode.js?v=12"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
   <script defer src="js/impersonate.js?v=7"></script>
-  <script defer src="js/surat-guru.js?v=17"></script>
+  <script defer src="js/surat-guru.js?v=19"></script>
   <script defer src="js/agenda-surat.js?v=4"></script>
   <!-- Undangan Rapat bernomor (tab di Surat & Ijin). WAJIB sesudah surat-guru.js dan agenda-surat.js. -->
   <script defer src="js/undangan-rapat.js?v=2"></script>
@@ -1451,7 +1451,7 @@
             <div style="flex:2;min-width:200px;"><label class="label">Pilih Siswa</label><select id="suratSiswaSelect" class="field" onchange="isiDataSurat()"><option value="">-- Pilih Siswa --</option></select></div>
             <div style="flex:1;min-width:150px;"><label class="label">Jenis Surat</label><select id="suratJenisSelect" class="field" onchange="ubahTemplateSurat()"><option value="aktif">📋 Keterangan Aktif</option><option value="pindah">📋 Keterangan Pindah</option><option value="ijin">📋 Surat Ijin Tidak Masuk</option><option value="sakit">📋 Surat Keterangan Sakit</option></select></div>
             <div id="suratTanggalContainer" style="flex:1;min-width:150px;display:none;"><label class="label">Tanggal Ijin/Sakit</label><input id="suratTanggalIjin" type="date" class="field" onchange="ubahTemplateSurat()"></div>
-            <div style="display:flex;align-items:end;gap:8px;"><button class="btn btn-primary" onclick="previewSurat()">👁️ Preview</button><button class="btn btn-success" onclick="downloadSuratPDF()">📥 Download PDF</button><button class="btn btn-soft" id="btnSimpanSurat" onclick="simpanSurat()">💾 Simpan</button></div>
+            <div style="display:flex;align-items:end;gap:8px;"><button class="btn btn-primary" onclick="previewSuratCetak()">👁️ Preview</button><button class="btn btn-success" onclick="downloadSuratPDF()">📥 Download PDF</button><button class="btn btn-soft" id="btnSimpanSurat" onclick="simpanSurat()">💾 Simpan</button></div>
           </div>
           <div id="suratPreviewContainer" style="background:#f8fafc;border-radius:12px;padding:20px;min-height:300px;border:1px solid #e5e7eb;margin-bottom:16px;">
             <div id="suratPreview" style="font-family:'Times New Roman',serif;font-size:14px;line-height:1.8;padding:20px;background:white;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">

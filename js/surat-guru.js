@@ -248,7 +248,7 @@
     var stat = el('p', null, 'font-size:12px;color:#6b7280;margin:-4px 0 12px;min-height:16px;'); stat.id = 'sg_statusPeg'; p.appendChild(stat);
 
     var aksi = el('div', null, 'display:flex;gap:8px;flex-wrap:wrap;');
-    [['👁️ Preview', 'btn btn-primary', function () { preview(false); }],
+    [['👁️ Preview', 'btn btn-primary', function () { if (preview(false)) bukaPratinjau(kertasTerakhir); }],
      ['📥 Download PDF', 'btn btn-success', unduhPDF],
      ['💾 Simpan', 'btn btn-soft', simpan, 'btnSimpanSuratGuru'],
      ['🧑‍🏫 Simpan Data Guru', 'btn btn-soft', simpanDataGuru, 'btnSimpanDataGuru']].forEach(function (x) {
@@ -358,7 +358,7 @@
     return [YAYASAN.nama, kemenag, 'Yang bersangkutan', 'Arsip'].join('\n');
   }
   function placeholder(teks) {
-    $('suratPreview').innerHTML = generateKopSuratHTML() + '<p class="text-muted" style="text-align:center;padding:40px 0;">' + esc(teks) + '</p>';
+    $('suratPreview').innerHTML = kopMadrasahHTML() + '<p class="text-muted" style="text-align:center;padding:40px 0;">' + esc(teks) + '</p>';
   }
   function modeBoleh(m) {
     if (m === 'siswa') return true;
@@ -478,6 +478,125 @@
     doc.text(YAYASAN.kopJalan, pw / 2, bt + 5.3, { align: 'center' });
     doc.setFont(undefined, 'normal'); doc.setFontSize(10);
     return bt + bh;
+  }
+  // ---- KOP MADRASAH (logo lembaga) -- anti tumpang tindih ----
+  // Sebelumnya teks kop dipusatkan di tengah HALAMAN, sehingga baris alamat / telp yang panjang
+  // melebar sampai ke area logo di kiri. Kini teks dipusatkan di kolom di KANAN logo, dan baris
+  // yang terlalu panjang diperkecil / dipecah agar tidak pernah masuk ke kotak logo.
+  var LOGO_MADRASAH = 'logo/logo-lembaga.png';
+  function muatGambarInfo(src) {                                  // -> {data,w,h,fmt} atau null
+    return new Promise(function (res) {
+      if (!src) return res(null);
+      var im = new Image();
+      im.onload = function () {
+        var fmt = /^data:image\/jpe?g/i.test(src) ? 'JPEG' : 'PNG', data = src;
+        try {
+          if (!/^data:/i.test(src)) { var c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); data = c.toDataURL('image/png'); fmt = 'PNG'; }
+        } catch (e) { return res(null); }
+        res({ data: data, w: im.naturalWidth, h: im.naturalHeight, fmt: fmt });
+      };
+      im.onerror = function () { res(null); };
+      im.src = src;
+    });
+  }
+  function muatLogoMadrasah(l) {                                  // l = hasil v4LoadLogoForPdf() (bentuk apa pun) -> info logo
+    var src = typeof l === 'string' ? l : (l && (l.data || l.dataUrl || l.base64 || l.src)) || '';
+    return muatGambarInfo(src).then(function (r) { return r || muatGambarInfo(LOGO_MADRASAH); });
+  }
+  function kopMadrasahPdf(doc, pw, logo) {                        // mengembalikan y garis bawah kop (>= 40)
+    var ukuran = 26, x0 = 20, y0 = 10, xr = pw - 20, xt = x0 + ukuran + 4, tengah = (xt + xr) / 2, lebarTeks = xr - xt, y = 16;
+    if (logo && logo.data) {
+      try { var r = logo.w / logo.h, lw = r >= 1 ? ukuran : ukuran * r, lh = r >= 1 ? ukuran / r : ukuran; doc.addImage(logo.data, logo.fmt || 'PNG', x0 + (ukuran - lw) / 2, y0 + (ukuran - lh) / 2, lw, lh, undefined, 'FAST'); }
+      catch (e) { console.error('[SI MAMBA] Gagal menambah logo madrasah:', e); }
+    }
+    function baris(teks, gaya, ukur, dy, boleh2) {                // perkecil dulu (min 8pt); bila masih panjang, pecah ke beberapa baris
+      if (!teks) return;
+      doc.setFont('helvetica', gaya); doc.setFontSize(ukur);
+      while (doc.getTextWidth(teks) > lebarTeks && ukur > (boleh2 ? 8 : 6)) { ukur -= 0.25; doc.setFontSize(ukur); }
+      var rs = doc.getTextWidth(teks) > lebarTeks ? doc.splitTextToSize(teks, lebarTeks) : [teks];
+      rs.forEach(function (t) { doc.text(t, tengah, y, { align: 'center' }); y += dy; });
+    }
+    baris(String(MADRASAH.nama || '').toUpperCase(), 'bold', 16, 5.5, false);
+    if (MADRASAH.nsm) baris('NSM: ' + MADRASAH.nsm, 'bold', 10, 4.6, false);
+    baris(MADRASAH.alamat, 'normal', 10, 4.4, true);
+    baris('Telp: ' + MADRASAH.telp + '  |  Email: ' + MADRASAH.email + '  |  Web: ' + MADRASAH.website, 'normal', 10, 4.4, true);
+    var yb = Math.max(y + 0.5, y0 + ukuran + 2, 38);
+    doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(20, yb, pw - 20, yb); doc.line(20, yb + 2, pw - 20, yb + 2);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    return yb + 2;
+  }
+  function kopMadrasahHTML() {                                    // pratinjau layar: logo di kiri, teks di kolom sendiri
+    var img = '<img src="' + LOGO_MADRASAH + '" alt="Logo Madrasah" style="width:80px;height:80px;object-fit:contain;" onerror="this.style.visibility=\'hidden\'">';
+    var t = [];
+    t.push('<div style="font-size:19px;font-weight:700;line-height:1.2;">' + esc(String(MADRASAH.nama || '').toUpperCase()) + '</div>');
+    if (MADRASAH.nsm) t.push('<div style="font-size:12px;font-weight:700;">NSM: ' + esc(MADRASAH.nsm) + '</div>');
+    t.push('<div style="font-size:12px;">' + esc(MADRASAH.alamat || '') + '</div>');
+    t.push('<div style="font-size:12px;overflow-wrap:anywhere;">Telp: ' + esc(MADRASAH.telp || '') + ' | Email: ' + esc(MADRASAH.email || '') + ' | Web: ' + esc(MADRASAH.website || '') + '</div>');
+    return '<div style="margin-bottom:14px;">' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+      '<div style="flex:0 0 80px;">' + img + '</div>' +
+      '<div style="flex:1;min-width:0;text-align:center;line-height:1.3;font-family:Arial,Helvetica,sans-serif;">' + t.join('') + '</div></div>' +
+      '<div style="border-top:3px double #000;margin-top:8px;"></div></div>';
+  }
+  // ---- PRATINJAU CETAK (tampilan seperti print preview) ----
+  // Dibuka dari tombol Preview: kertas A4/F4 di atas latar abu-abu, zoom, Cetak (dialog print browser), Download PDF.
+  var kertasTerakhir = 'A4';
+  function bukaPratinjau(kertas) {
+    var isi = $('suratPreview'); if (!isi) return;
+    tutupPratinjau();
+    var f4 = kertas === 'F4', tinggi = f4 ? 330 : 297, guru = mode !== 'siswa';
+    var pad = guru ? '15mm 15mm 15mm 25mm' : '15mm 20mm 15mm 20mm', margin = guru ? '15mm 15mm 15mm 25mm' : '15mm 20mm';
+    var o = el('div', null, 'position:fixed;inset:0;z-index:99999;background:#525659;display:flex;flex-direction:column;font-family:Arial,Helvetica,sans-serif;');
+    o.id = 'sgPrevOverlay'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'Pratinjau cetak');
+    var bar = el('div', null, 'flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:#323639;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4);');
+    var jdl = el('div', null, 'font-size:14px;font-weight:700;flex:1;min-width:140px;'); jdl.textContent = 'Pratinjau Cetak · ' + (f4 ? 'F4' : 'A4');
+    bar.appendChild(jdl);
+    function tb(label, fn, css) { var b = el('button', null, 'border:0;border-radius:6px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;' + (css || 'background:#4b5054;color:#fff;')); b.type = 'button'; b.innerHTML = label; b.addEventListener('click', fn); bar.appendChild(b); return b; }
+    var zl = el('span', null, 'font-size:13px;min-width:44px;text-align:center;');
+    var zoom = 1;
+    function setZoom(z) { zoom = Math.max(0.3, Math.min(2, z)); kertasEl.style.zoom = zoom; zl.textContent = Math.round(zoom * 100) + '%'; }
+    function fit() { setZoom(Math.min(1, (window.innerWidth - 24) / (210 * 96 / 25.4))); }
+    tb('−', function () { setZoom(zoom - 0.1); }); bar.appendChild(zl); tb('+', function () { setZoom(zoom + 0.1); }); tb('Pas', fit);
+    tb('🖨️ Cetak', function () { cetakPratinjau(kertasEl, f4, margin); }, 'background:#2563eb;color:#fff;');
+    if (mode === 'siswa' || mode === 'guru') tb('📥 PDF', function () { if (mode === 'siswa') window.downloadSuratPDF(); else unduhPDF(); }, 'background:#16a34a;color:#fff;');
+    tb('✕ Tutup', tutupPratinjau, 'background:#dc2626;color:#fff;');
+    o.appendChild(bar);
+    var area = el('div', null, 'flex:1 1 auto;overflow:auto;padding:16px 12px 40px;text-align:center;-webkit-overflow-scrolling:touch;');
+    var kertasEl = el('div', null, 'display:block;width:210mm;min-height:' + tinggi + 'mm;margin:0 auto;box-sizing:border-box;background:#fff;color:#000;text-align:left;padding:' + pad + ';' +
+      "font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.5;box-shadow:0 2px 12px rgba(0,0,0,.5);" +
+      'background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(' + tinggi + 'mm - 1px),#cbd5e1 calc(' + tinggi + 'mm - 1px),#cbd5e1 ' + tinggi + 'mm);');
+    kertasEl.innerHTML = isi.innerHTML;
+    area.appendChild(kertasEl); o.appendChild(area);
+    document.body.appendChild(o);
+    pratinjauState = { overflow: document.body.style.overflow };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', escPratinjau);
+    fit();
+  }
+  var pratinjauState = null;
+  function escPratinjau(e) { if (e.key === 'Escape') tutupPratinjau(); }
+  function tutupPratinjau() {
+    var o = $('sgPrevOverlay'); if (o) o.remove();
+    if (pratinjauState) { document.body.style.overflow = pratinjauState.overflow; pratinjauState = null; }
+    document.removeEventListener('keydown', escPratinjau);
+  }
+  function cetakPratinjau(kertasEl, f4, margin) {
+    var fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(fr);
+    var d = fr.contentWindow.document;
+    var css = Array.prototype.map.call(document.querySelectorAll('link[rel="stylesheet"],style'), function (n) { return n.outerHTML; }).join('');
+    d.open();
+    d.write('<!doctype html><html><head><meta charset="utf-8"><base href="' + document.baseURI + '"><title>Surat</title>' + css +
+      '<style>@page{size:210mm ' + (f4 ? 330 : 297) + 'mm;margin:' + margin + '}html,body{margin:0;padding:0;background:#fff;}p,li,tr,img,.judul-surat,.nomor-surat,.footer{break-inside:avoid;page-break-inside:avoid;}p,li{orphans:2;widows:2;}' +
+      "body{font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.5;color:#000;}</style></head><body>" + kertasEl.innerHTML + '</body></html>');
+    d.close();
+    var imgs = Array.prototype.slice.call(d.images || []);
+    var tunggu = Promise.all(imgs.map(function (im) { return im.complete ? 1 : new Promise(function (r) { im.onload = im.onerror = r; }); }));
+    Promise.race([tunggu, new Promise(function (r) { setTimeout(r, 2500); })]).then(function () {
+      try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { toast('❌ Gagal membuka dialog cetak.', true); }
+      setTimeout(function () { if (fr.parentNode) fr.parentNode.removeChild(fr); }, 60000);
+    });
   }
   function pushMengingat(B, d) {
     B.push({ t: 'p', s: 'Mengingat :', b: true });
@@ -681,7 +800,7 @@
     return S;
   }
   function htmlSurat(S) {
-    var h = S.yys ? kopYayasanHTML() : generateKopSuratHTML();
+    var h = S.yys ? kopYayasanHTML() : kopMadrasahHTML();
     h += '<div class="judul-surat"' + (S.garis ? ' style="text-decoration:underline;"' : '') + '>' + S.judul.map(esc).join('<br>') + '</div>';
     h += '<div class="nomor-surat">NOMOR: ' + esc(S.nomor) + '</div>';
     if (S.tentang && S.tentang.length) h += '<div class="judul-surat" style="margin-top:2px;line-height:1.3;">TENTANG<br>' + S.tentang.map(esc).join('<br>') + '</div>';
@@ -729,7 +848,7 @@
     var g = guruTerpilih(), jenis = $('sg_jenis').value;
     if (!g) { if (!otomatis) toast('Pilih guru terlebih dahulu!', true); else placeholder('Pilih guru dan jenis surat untuk melihat preview.'); return; }
     var d, S;
-    try { d = ambil(); S = susun(jenis, d, g); $('suratPreview').innerHTML = htmlSurat(S); }
+    try { d = ambil(); S = susun(jenis, d, g); kertasTerakhir = 'A4'; $('suratPreview').innerHTML = htmlSurat(S); }
     catch (e) { console.error('[SI MAMBA] Preview surat gagal:', e); if (!otomatis) toast('❌ Preview gagal: ' + (e && e.message ? e.message : e), true); return; }
     if (!otomatis) {
       var w = cekWajib(jenis, d, g);
@@ -739,6 +858,7 @@
       if (w) toast(w, true); else toast('👁️ Preview diperbarui', false, 1200);
     }
     if (S.jadwalKosong && !otomatis) toast('Guru ini belum punya jadwal di menu Jadwal Pelajaran.', true);
+    return true;
   }
   function simpan() {
     if (!bolehGuru()) return toast('Hanya Admin & Kepala Madrasah!', true);
@@ -774,25 +894,21 @@
     try { await pastikanNomor(jenis, d); }
     catch (e) { return toast('❌ Nomor otomatis gagal: ' + (e && e.message ? e.message : e) + '. Isi nomor manual atau cek Firebase Rules node nomor_surat.', true); }
     d = ambil();
-    var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF('p', 'mm', S.sk ? [210, 330] : 'a4');   // keputusan: F4; lainnya A4
+    var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF('p', 'mm', 'a4');   // semua surat: A4
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
     var mk = 25, mr = 15, lebar = pw - mk - mr, LH = S.yys ? 6 : 6.3, y = 0;                                                    // margin kiri 2,5 cm, kanan 1,5 cm (dirapatkan agar hemat halaman)
-    var data = await Promise.all([v4LoadLogoForPdf(), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
+    var data = await Promise.all([S.yys ? null : Promise.resolve().then(function () { return v4LoadLogoForPdf(); }).then(muatLogoMadrasah, function () { return muatLogoMadrasah(null); }), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
 
     // Kop
     var off = S.yys ? 0 : (MADRASAH.nsm ? 5 : 0);
-    if (S.yys) off = Math.max(0, kopYayasanPdf(doc, pw, logoYys) - 41); else {
-      v4TambahLogoKeKopPdf(doc, logo, off);
-      doc.setFontSize(16); doc.text(MADRASAH.nama, pw / 2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text('NSM: ' + MADRASAH.nsm, pw / 2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-      doc.text(MADRASAH.alamat, pw / 2, 27 + off, { align: 'center' });
-      doc.text('Telp: ' + MADRASAH.telp + '  |  Email: ' + MADRASAH.email + '  |  Web: ' + MADRASAH.website, pw / 2, 33 + off, { align: 'center' });
-      doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(20, 38 + off, pw - 20, 38 + off); doc.line(20, 40 + off, pw - 20, 40 + off);
-    }
+    if (S.yys) off = Math.max(0, kopYayasanPdf(doc, pw, logoYys) - 41);
+    else off = Math.max(0, kopMadrasahPdf(doc, pw, logo) - 40);
 
     y = 50 + off;
     var perlu = function (h) { if (y + h > ph - 15) { doc.addPage(); y = 20; } };
+    var tinggiHal = ph - 15 - 20;
+    var jaga = function (h) { if (h <= tinggiHal) perlu(h); };                       // blok utuh: pindah ke halaman berikutnya bila tidak muat, agar kalimat/paragraf tidak terpotong di akhir halaman
+    function tahanYatim(n, i) { if (n > 2 && (i === 0 || i === n - 2)) perlu(2 * LH); }  // paragraf panjang: minimal 2 baris di tiap halaman
     doc.setFontSize(13); doc.setFont(undefined, 'bold');
     S.judul.forEach(function (j) {
       if (S.garis) {                                                  // judul satu baris, bergaris bawah (gaya surat yayasan)
@@ -813,14 +929,17 @@
     }
     y += 1; doc.setFontSize(12);
 
-    S.blok.forEach(function (b) {
+    S.blok.forEach(function (b, bi) {
       if (b.t === 'p') {
         doc.setFont(undefined, b.b ? 'bold' : 'normal');
-        var rp = doc.splitTextToSize(b.s, lebar); rp.forEach(function (r, i) { perlu(7); if (b.c) doc.text(r, pw / 2, y, { align: 'center' }); else tulisRata(doc, r, mk, y, lebar, i < rp.length - 1); y += LH; });
+        var rp = doc.splitTextToSize(b.s, lebar);
+        jaga(rp.length * LH + (b.b && S.blok[bi + 1] ? 2 * LH : 0));                  // judul bagian (mis. "Mengingat :") ikut butir pertamanya
+        rp.forEach(function (r, i) { tahanYatim(rp.length, i); perlu(7); if (b.c) doc.text(r, pw / 2, y, { align: 'center' }); else tulisRata(doc, r, mk, y, lebar, i < rp.length - 1); y += LH; });
         doc.setFont(undefined, 'normal'); y += 2;
       } else if (b.t === 'ol') {
         var rs = doc.splitTextToSize(b.s, lebar - 12);
-        rs.forEach(function (r, i) { perlu(7); if (i === 0) doc.text(b.k, mk + 4, y); tulisRata(doc, r, mk + 12, y, lebar - 12, i < rs.length - 1); y += LH; });
+        jaga(rs.length * LH);
+        rs.forEach(function (r, i) { tahanYatim(rs.length, i); perlu(7); if (i === 0) doc.text(b.k, mk + 4, y); tulisRata(doc, r, mk + 12, y, lebar - 12, i < rs.length - 1); y += LH; });
         y += 1;
       } else if (b.t === 'kv') {
         b.r.forEach(function (r) {
@@ -956,7 +1075,7 @@
           penutup = `Mengetahui,<br>Orang Tua/Wali`; break;
       }
       const html = `
-        ${generateKopSuratHTML()}
+        ${kopMadrasahHTML()}
         <div class="judul-surat">${judul}</div>
         <div class="nomor-surat">Nomor: ${nomorSiswaTampil(kSurat)}</div>
         <div class="body">
@@ -984,6 +1103,8 @@
       document.getElementById('suratPreview').innerHTML = html;
       document.getElementById('suratPreview').dataset.noKey = kSurat;
       segarkanNomorSiswa(jenis, isoSurat, kSurat);
+      kertasTerakhir = 'A4';
+      return true;
     }
     async function downloadSuratPDF() {
       const siswa = selectedSiswaSurat;
@@ -1005,24 +1126,12 @@
       const doc = new jsPDF('p', 'mm', 'a4'); 
       const pageWidth = doc.internal.pageSize.getWidth();
       const marginKiri = 20, marginKanan = 20, lebarIsi = pageWidth - marginKiri - marginKanan;
-      const [logoData, ttdKepalaData] = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf()]);
-      
-      // Kop surat di PDF
-      const offsetY1 = MADRASAH.nsm ? 5 : 0;
-      v4TambahLogoKeKopPdf(doc, logoData, offsetY1);
-      doc.setFontSize(16);
-      doc.text(MADRASAH.nama, pageWidth/2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text(`NSM: ${MADRASAH.nsm}`, pageWidth/2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-      doc.text(MADRASAH.alamat, pageWidth/2, 27 + offsetY1, { align: 'center' });
-      // Label teks biasa dipakai (bukan emoji) -- font default jsPDF tidak punya glyph emoji,
-      // sebelumnya render jadi kotak/simbol rusak.
-      doc.text(`Telp: ${MADRASAH.telp}  |  Email: ${MADRASAH.email}  |  Web: ${MADRASAH.website}`, pageWidth/2, 33 + offsetY1, { align: 'center' });
-      doc.setDrawColor(0);
-      doc.setLineWidth(0.5);
-      doc.line(20, 38 + offsetY1, pageWidth - 20, 38 + offsetY1);
-      doc.line(20, 40 + offsetY1, pageWidth - 20, 40 + offsetY1);
-      
+      const [logoRaw, ttdKepalaData] = await Promise.all([Promise.resolve().then(() => v4LoadLogoForPdf()).catch(() => null), v4LoadTtdKepalaForPdf()]);
+      const logoData = await muatLogoMadrasah(logoRaw);
+
+      // Kop surat di PDF (teks di kolom kanan logo; tidak tumpang tindih)
+      const offsetY1 = Math.max(0, kopMadrasahPdf(doc, pageWidth, logoData) - 40);
+
       // Judul surat
       const judulMap = {
         'aktif': 'SURAT KETERANGAN AKTIF',
@@ -1046,6 +1155,7 @@
         paragraf.forEach((p, idx) => {
           if (!p.trim()) return;
           const wrapped = doc.splitTextToSize(p.trim(), lebarIsi);
+          if ((wrapped.length - 1) * 6.5 <= 255 && y + (wrapped.length - 1) * 6.5 > 278) { doc.addPage(); y = 15; }   // paragraf tidak terpotong di akhir halaman
           wrapped.forEach((baris, bi) => {
             if (y > 278) { doc.addPage(); y = 15; }
             if (opts.tengah) doc.text(baris, pageWidth/2, y, { align: 'center' });
@@ -1065,7 +1175,7 @@
       cetakParagraf(konten.penutup);
       
       // Dikeluarkan di & tanggal
-      if (y > 272) { doc.addPage(); y = 15; }
+      if (y > 214) { doc.addPage(); y = 15; }   // 'Dikeluarkan di' + tanda tangan selalu satu halaman
       y += 6;
       doc.text('Dikeluarkan di : Mambaul Ulum', marginKiri, y);
       y += 6.5;
@@ -1124,6 +1234,7 @@
       });
     }
   window.previewSurat = previewSurat;
+  window.previewSuratCetak = function () { if (previewSurat()) bukaPratinjau('A4'); };   // tombol Preview surat siswa
   window.downloadSuratPDF = downloadSuratPDF;
   window.simpanSurat = simpanSurat;
 

@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.87';
+const APP_VERSION = 'v8.89';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -116,7 +116,7 @@ const PRECACHE_URLS = [
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
-  './js/surat-guru.js?v=17',               // surat resmi guru + kerangka tab Surat & Ijin
+  './js/surat-guru.js?v=19',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=4',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
   './js/undangan-rapat.js?v=2',           // undangan rapat bernomor (tab Surat & Ijin)
   './js/edaran-wali.js?v=2',              // surat edaran wali murid (tab Surat & Ijin)
