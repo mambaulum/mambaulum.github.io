@@ -18,7 +18,7 @@
      menambah tab sendiri lewat window.SIMambaSuratTab.daftar({id,label,boleh,buat,buka}).
      Mode tambahan menyembunyikan preview/riwayat surat dan menampilkan panelnya sendiri.
 
-   - [v3] Data kepegawaian guru (NIP/NIY, NUPTK, TTL, pendidikan, jabatan, status, TMT, nomor &
+   - [v3] Data kepegawaian guru (NIP/NIY, PegID, TTL, pendidikan, jabatan, status, TMT, nomor &
      tanggal SK) bisa DISIMPAN SEKALI lewat tombol "Simpan Data Guru" dan otomatis terisi saat guru
      dipilih lagi. Disimpan di node Firebase BARU 'data_pegawai/{guruKey}', sengaja BUKAN di node
      'guru' karena daftar guru dibaca sebelum login (anonim) dan tidak boleh memuat data pribadi.
@@ -51,14 +51,10 @@
     'Undang-Undang Nomor 14 Tahun 2005 tentang Guru dan Dosen;',
     'Peraturan Pemerintah Nomor 55 Tahun 2007 tentang Pendidikan Agama dan Pendidikan Keagamaan;',
     'Peraturan Pemerintah Nomor 74 Tahun 2008 tentang Guru sebagaimana telah diubah dengan Peraturan Pemerintah Nomor 19 Tahun 2017;',
-    'Peraturan Pemerintah Nomor 41 Tahun 2009 tentang Tunjangan Profesi Guru dan Dosen, Tunjangan Khusus Guru dan Dosen, serta Tunjangan Kehormatan Profesor;',
     'Peraturan Pemerintah Nomor 57 Tahun 2021 tentang Standar Nasional Pendidikan sebagaimana telah diubah dengan Peraturan Pemerintah Nomor 4 Tahun 2022;',
     'Peraturan Menteri Agama Nomor 90 Tahun 2013 tentang Penyelenggaraan Pendidikan Madrasah sebagaimana telah diubah dengan Peraturan Menteri Agama Nomor 60 Tahun 2015 dan Peraturan Menteri Agama Nomor 66 Tahun 2016;',
-    'Peraturan Menteri Agama Nomor 38 Tahun 2018 tentang Pengembangan Keprofesian Berkelanjutan Guru;',
-    'Peraturan Menteri Agama Nomor 4 Tahun 2025 tentang Tata Cara Pemberian Tunjangan Profesi Guru Bukan Pegawai Aparatur Sipil Negara pada Kementerian Agama;',
-    'Keputusan Menteri Agama Nomor 183 Tahun 2019 tentang Kurikulum Pendidikan Agama Islam dan Bahasa Arab pada Madrasah;',
+    'Keputusan Menteri Agama Nomor 1006 Tahun 2021 tentang Pedoman Pengangkatan Guru pada Madrasah yang Diselenggarakan oleh Masyarakat;',
     'Akta Pendirian Yayasan Pendidikan Islam Sirojul Ulum Karangharjo Nomor 79 tanggal 30 Desember 2015 yang dibuat di hadapan Onny Bunga Novasari, S.H., M.Kn., Notaris di Jember, dan telah mendapat pengesahan Menteri Hukum dan Hak Asasi Manusia Nomor AHU-0034526.AH.01.04 Tahun 2015;',
-    'Akta Pernyataan Keputusan Pembina Yayasan Pendidikan Islam Sirojul Ulum Karangharjo Nomor 1 tanggal 17 September 2024 tentang perubahan Anggaran Dasar, yang telah diterima pendaftarannya oleh Menteri Hukum dan Hak Asasi Manusia Nomor AHU-AH.01.06-0049102;',
     'Akta Pernyataan Keputusan Pembina Yayasan Pendidikan Islam Sirojul Ulum Karangharjo Nomor 3 tanggal 18 Juli 2025 yang dibuat di hadapan Onny Bunga Novasari, S.H., M.Kn., Notaris di Jember, tentang susunan Pembina, Pengurus, dan Pengawas Yayasan;',
     'Keputusan Menteri Agama Republik Indonesia Nomor 3607 Tahun 2016 tanggal 15 Juli 2016 tentang Pemberian Izin Pendirian/Operasional Madrasah Ibtidaiyah Mambaul Ulum Kabupaten Jember Provinsi Jawa Timur;'
   ].join('\n');
@@ -72,8 +68,8 @@
     if (kata.length < 2) { doc.text(baris, x, y); return; }
     var total = 0; kata.forEach(function (k) { total += doc.getTextWidth(k); });
     var celah = (lebar - total) / (kata.length - 1), normal = doc.getTextWidth(' ');
-    if (celah < normal * 0.9 || celah > normal * 3) { doc.text(baris, x, y); return; }
-    var cx = x; kata.forEach(function (k) { doc.text(k, cx, y); cx += doc.getTextWidth(k) + celah; });
+    if (celah < normal * 0.9 || celah > normal * 4.5) { doc.text(baris, x, y); return; }
+    var cx = x; kata.forEach(function (k, i) { doc.text(i < kata.length - 1 ? k + ' ' : k, cx, y); cx += doc.getTextWidth(k) + celah; });
   }
   // Penomoran otomatis mengikuti PMA 12/2026 (Tata Naskah Dinas): nomor urut/Kode Jabatan/Klasifikasi Arsip[/Kode Naskah]/bulan/tahun.
   // Ubah KODE & KLAS di sini bila madrasah memakai kode jabatan / klasifikasi arsip yang berbeda.
@@ -114,7 +110,7 @@
     klas:    { l: 'Kode Klasifikasi Arsip', t: 'text', ph: 'mis. KP.01' },
     tanggal: { l: 'Tanggal Surat', t: 'date' },
     nip:     { l: 'NIP / NIY', t: 'text' },
-    nuptk:   { l: 'NUPTK', t: 'text' },
+    nuptk:   { l: 'PegID', t: 'text' },
     ttl:     { l: 'Tempat, Tanggal Lahir', t: 'text', ph: 'mis. Banyuwangi, 12 Mei 1990' },
     pend:    { l: 'Pendidikan Terakhir', t: 'text', ph: 'mis. S1 PGMI' },
     jabatan: { l: 'Jabatan', t: 'text', ph: 'mis. Guru Kelas / Guru Mapel PAI' },
@@ -130,12 +126,13 @@
     guruLain:{ l: 'Guru lain yang ikut ditugaskan (opsional) — tahan Ctrl / tekan lama untuk memilih beberapa', t: 'multi' },
     keperluan:{ l: 'Keperluan / Maksud & Tujuan Surat', t: 'text', ph: 'mis. kelengkapan administrasi tunjangan profesi guru' },
     rujukan: { l: 'Dasar Penugasan — satu baris per butir (mis. surat undangan / program kerja)', t: 'area' },
+    masa:    { l: 'Masa Berlaku SK', t: 'sel', o: [['', 'Tidak dibatasi (berlaku sampai ada keputusan baru)'], ['tahun', 'Per tahun kalender (1 Januari – 31 Desember)'], ['ta', 'Per tahun ajaran (1 Juli – 30 Juni)'], ['kustom', 'Atur tanggal sendiri (isi Tanggal Mulai & Selesai)']] },
     ketuaYys:{ l: 'Nama Ketua Yayasan (penandatangan SK)', t: 'text' },
     tembusan:{ l: 'Tembusan — satu baris per butir', t: 'area' }
   };
   var JENIS = {
     'sk-pengangkatan': { label: 'SK Pengangkatan sebagai Guru (oleh Yayasan)', file: 'SK_Pengangkatan_Guru',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'ttl', 'pend', 'jabatan', 'status', 'tmt', 'dasar', 'ketuaYys', 'tembusan'], wajib: ['tmt'] },
+      f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'ttl', 'pend', 'jabatan', 'status', 'tmt', 'masa', 'mulai', 'selesai', 'dasar', 'ketuaYys', 'tembusan'], wajib: ['tmt'] },
     'ket-tmt': { label: 'Surat Keterangan Keaslian TMT', file: 'Keterangan_Keaslian_TMT',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk', 'keperluan'], wajib: ['tmt'] },
     'sk-jadwal': { label: 'SK Pembagian Jadwal Mengajar', file: 'SK_Jadwal_Mengajar',
@@ -226,10 +223,11 @@
     Object.keys(FIELD).forEach(function (k) {
       var f = FIELD[k], w = el('div', null, (f.t === 'area' || f.t === 'multi') ? 'flex:1 1 100%;' : 'flex:1;min-width:150px;'); w.id = 'sg_w_' + k;
       var l = el('label', 'label'); l.textContent = f.l; l.htmlFor = 'sg_' + k;
-      var i = f.t === 'area' ? el('textarea', 'field') : (f.t === 'multi' ? el('select', 'field') : el('input', 'field'));
+      var i = f.t === 'area' ? el('textarea', 'field') : ((f.t === 'multi' || f.t === 'sel') ? el('select', 'field') : el('input', 'field'));
       i.id = 'sg_' + k;
       if (f.t === 'area') { i.rows = k === 'dasar' ? 10 : (k === 'tembusan' ? 4 : 3); if (k === 'dasar') i.value = DASAR_DEFAULT; if (k === 'tembusan') i.addEventListener('input', function () { i.dataset.edit = '1'; }); }
       else if (f.t === 'multi') { i.multiple = true; i.size = 6; i.addEventListener('change', function () { siapkanGuruLain(ambil()).then(function () { preview(true); }); }); }
+      else if (f.t === 'sel') { f.o.forEach(function (op) { var o = el('option'); o.value = op[0]; o.textContent = op[1]; i.appendChild(o); }); i.addEventListener('change', function () { sesuaikan(); }); }
       else { i.type = f.t; if (k === 'ketuaYys') i.value = YAYASAN.ketua; }
       if (f.ph) i.placeholder = f.ph;
       i.addEventListener('change', function () { preview(true); });
@@ -349,6 +347,7 @@
     Object.keys(FIELD).forEach(function (k) {
       var w = $('sg_w_' + k); if (w) w.style.display = j.f.indexOf(k) >= 0 ? '' : 'none';
     });
+    if ($('sg_jenis').value === 'sk-pengangkatan') { var kus = $('sg_masa') && $('sg_masa').value === 'kustom'; ['mulai', 'selesai'].forEach(function (k) { var w2 = $('sg_w_' + k); if (w2) w2.style.display = kus ? '' : 'none'; }); }
     var t = $('sg_tanggal'); if (t && !t.value) t.value = tglLokal();
     var tb = $('sg_tembusan'); if (tb && tb.dataset.edit !== '1') tb.value = tembusanDefault($('sg_jenis').value);
     var kl = $('sg_klas'); if (kl && kl.dataset.edit !== '1') kl.value = KLAS[$('sg_jenis').value] || 'KP.01';
@@ -416,7 +415,7 @@
   function kvGuru(g, d, lengkap) {
     var r = [['Nama', g.name]];
     if (d.nip) r.push(['NIP / NIY', d.nip]);
-    if (d.nuptk) r.push(['NUPTK', d.nuptk]);
+    if (d.nuptk) r.push(['PegID', d.nuptk]);
     if (lengkap && d.ttl) r.push(['Tempat, Tgl Lahir', d.ttl]);
     if (lengkap && d.pend) r.push(['Pendidikan', d.pend]);
     r.push(['Jabatan', d.jabatan || 'Guru']);
@@ -551,6 +550,17 @@
   function kvKepala() {
     return [['Nama', MADRASAH.kepala_sekolah], ['NIP', MADRASAH.nip_kepala_sekolah], ['Jabatan', 'Kepala ' + MADRASAH.nama]];
   }
+  // Masa berlaku SK pengangkatan: kembalikan {a, b} (ISO) atau null bila tidak dibatasi.
+  function masaSK(d) {
+    var iso = d.tanggal || tglLokal(), y = parseInt(String(iso).slice(0, 4), 10);
+    if (d.masa === 'tahun') return { a: y + '-01-01', b: y + '-12-31' };
+    if (d.masa === 'ta') {
+      var m0 = String(currentTahunAjaran || '').match(/(\d{4})/), y0 = m0 ? parseInt(m0[1], 10) : y;
+      return { a: y0 + '-07-01', b: (y0 + 1) + '-06-30' };
+    }
+    if (d.masa === 'kustom' && d.mulai && d.selesai) return { a: d.mulai, b: d.selesai };
+    return null;
+  }
   function susun(jenis, d, g) {
     var m = MADRASAH.nama, mU = m.toUpperCase(), ta = currentTahunAjaran + ' Semester ' + currentSemesterAktif;
     var tgl = fmtTgl(d.tanggal) || fmtTgl(tglLokal());
@@ -577,7 +587,11 @@
         B.push({ t: 'kv', r: kvGuru(g, d, true) });
         B.push({ t: 'p', s: 'sebagai ' + jab + ' di ' + m + ' terhitung mulai tanggal ' + T(tmt) + '.' });
         B.push({ t: 'p', s: 'KEDUA : Yang bersangkutan bertugas melaksanakan kegiatan pembelajaran dan tugas lain yang diberikan Kepala Madrasah sesuai ketentuan yang berlaku.' });
-        B.push({ t: 'p', s: 'KETIGA : Keputusan ini mulai berlaku pada tanggal ditetapkan, dengan ketentuan apabila terdapat kekeliruan akan diperbaiki sebagaimana mestinya.' });
+        var masa = masaSK(d);
+        if (masa) {
+          B.push({ t: 'p', s: 'KETIGA : Masa berlaku keputusan ini adalah tanggal ' + fmtTgl(masa.a) + ' sampai dengan tanggal ' + fmtTgl(masa.b) + ', dan dapat diperpanjang berdasarkan hasil evaluasi kinerja serta kebutuhan madrasah.' });
+          B.push({ t: 'p', s: 'KEEMPAT : Keputusan ini mulai berlaku pada tanggal ditetapkan, dengan ketentuan apabila terdapat kekeliruan akan diperbaiki sebagaimana mestinya.' });
+        } else B.push({ t: 'p', s: 'KETIGA : Keputusan ini mulai berlaku pada tanggal ditetapkan, dengan ketentuan apabila terdapat kekeliruan akan diperbaiki sebagaimana mestinya.' });
         break;
       case 'ket-tmt':
         S.judul = ['SURAT KETERANGAN', 'KEASLIAN TANGGAL MULAI TUGAS (TMT)'];
@@ -670,11 +684,11 @@
     var h = S.yys ? kopYayasanHTML() : generateKopSuratHTML();
     h += '<div class="judul-surat"' + (S.garis ? ' style="text-decoration:underline;"' : '') + '>' + S.judul.map(esc).join('<br>') + '</div>';
     h += '<div class="nomor-surat">NOMOR: ' + esc(S.nomor) + '</div>';
-    if (S.tentang && S.tentang.length) h += '<div class="judul-surat" style="margin-top:6px;">TENTANG<br>' + S.tentang.map(esc).join('<br>') + '</div>';
+    if (S.tentang && S.tentang.length) h += '<div class="judul-surat" style="margin-top:2px;line-height:1.3;">TENTANG<br>' + S.tentang.map(esc).join('<br>') + '</div>';
     h += '<div class="body">';
     S.blok.forEach(function (b) {
       if (b.t === 'p') h += '<p style="' + (b.c ? 'text-align:center;' : 'text-align:justify;') + (b.b ? 'font-weight:700;' : '') + '">' + esc(b.s) + '</p>';
-      else if (b.t === 'ol') h += '<p style="margin:0 0 4px 24px;text-indent:-20px;"><span style="display:inline-block;width:20px;">' + esc(b.k) + '</span>' + esc(b.s) + '</p>';
+      else if (b.t === 'ol') h += '<p style="margin:0 0 4px 24px;text-indent:-20px;text-align:justify;"><span style="display:inline-block;width:20px;">' + esc(b.k) + '</span>' + esc(b.s) + '</p>';
       else if (b.t === 'kv') {
         h += '<table style="border:0;margin:4px 0 8px 16px;border-collapse:collapse;">';
         b.r.forEach(function (r) { h += '<tr><td style="padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top;">' + esc(r[0]) + '</td><td style="vertical-align:top;">:</td><td style="padding-left:8px;vertical-align:top;"><strong>' + esc(r[1]) + '</strong></td></tr>'; });
@@ -691,7 +705,7 @@
       (S.sk ? '<p style="text-align:left;margin:0;">Ditetapkan di : ' + esc(S.tempat) + '</p><p style="text-align:left;margin:0 0 8px;">pada tanggal : ' + esc(S.tanggal) + '</p>'
             : '<p style="margin:0 0 8px;">' + esc(S.tempat) + ', ' + esc(S.tanggal) + '</p>') +
       '<p style="margin:0;">' + esc(S.ttd) + ',</p>' +
-      (S.yys ? '<br><br><br><br>' : (MADRASAH.ttdKepalaBase64 ? '<img src="' + esc(MADRASAH.ttdKepalaBase64) + '" alt="Tanda tangan" style="max-height:45px;display:block;margin:6px auto;">' : '<br><br><br>')) +
+      '<br><br><br><br>' +
       '<p style="margin:0;"><strong>' + esc(S.penanda) + '</strong></p></div></div>';
     if (tb) {
       h += '<div style="margin-top:18px;font-size:12px;"><p style="margin:0 0 2px;">' + esc(tb.judul) + '</p>' +
@@ -706,6 +720,7 @@
   function cekWajib(jenis, d, g) {
     if (!g) return 'Pilih guru terlebih dahulu!';
     var j = JENIS[jenis], salah = (j.wajib || []).filter(function (k) { return !d[k]; });
+    if (jenis === 'sk-pengangkatan' && d.masa === 'kustom') { if (!d.mulai || !d.selesai) return 'Masa berlaku "Atur tanggal sendiri": isi Tanggal Mulai dan Tanggal Selesai.'; if (d.selesai < d.mulai) return 'Tanggal Selesai tidak boleh sebelum Tanggal Mulai.'; }
     if (salah.length) return 'Lengkapi dulu: ' + salah.map(function (k) { return FIELD[k].l; }).join(', ') + '.';
     return '';
   }
@@ -713,9 +728,16 @@
     if (mode !== 'guru') return;
     var g = guruTerpilih(), jenis = $('sg_jenis').value;
     if (!g) { if (!otomatis) toast('Pilih guru terlebih dahulu!', true); else placeholder('Pilih guru dan jenis surat untuk melihat preview.'); return; }
-    var d = ambil(), S = susun(jenis, d, g);
-    $('suratPreview').innerHTML = htmlSurat(S);
-    if (!otomatis) { var w = cekWajib(jenis, d, g); if (w) toast(w, true); }
+    var d, S;
+    try { d = ambil(); S = susun(jenis, d, g); $('suratPreview').innerHTML = htmlSurat(S); }
+    catch (e) { console.error('[SI MAMBA] Preview surat gagal:', e); if (!otomatis) toast('❌ Preview gagal: ' + (e && e.message ? e.message : e), true); return; }
+    if (!otomatis) {
+      var w = cekWajib(jenis, d, g);
+      var pc = $('suratPreviewContainer');
+      if (pc && pc.scrollIntoView) { try { pc.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e2) { pc.scrollIntoView(); } }
+      var pv = $('suratPreview'); if (pv) { pv.style.transition = 'opacity .15s'; pv.style.opacity = '.35'; setTimeout(function () { pv.style.opacity = '1'; }, 160); }
+      if (w) toast(w, true); else toast('👁️ Preview diperbarui', false, 1200);
+    }
     if (S.jadwalKosong && !otomatis) toast('Guru ini belum punya jadwal di menu Jadwal Pelajaran.', true);
   }
   function simpan() {
@@ -754,8 +776,8 @@
     d = ambil();
     var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF('p', 'mm', S.sk ? [210, 330] : 'a4');   // keputusan: F4; lainnya A4
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-    var mk = 25, mr = 15, lebar = pw - mk - mr, LH = 6.3, y = 0;                                                    // margin kiri 2,5 cm, kanan 1,5 cm (dirapatkan agar hemat halaman)
-    var data = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf(), S.yys ? muatLogoYayasan() : null]), logo = data[0], ttdData = data[1], logoYys = data[2];
+    var mk = 25, mr = 15, lebar = pw - mk - mr, LH = S.yys ? 6 : 6.3, y = 0;                                                    // margin kiri 2,5 cm, kanan 1,5 cm (dirapatkan agar hemat halaman)
+    var data = await Promise.all([v4LoadLogoForPdf(), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
 
     // Kop
     var off = S.yys ? 0 : (MADRASAH.nsm ? 5 : 0);
@@ -779,17 +801,17 @@
         var tw = doc.getTextWidth(j); doc.text(j, pw / 2, y, { align: 'center' });
         doc.setLineWidth(0.3); doc.line(pw / 2 - tw / 2, y + 1, pw / 2 + tw / 2, y + 1); doc.setFontSize(13);
       } else doc.text(j, pw / 2, y, { align: 'center' });
-      y += 6.5;
+      y += 5.5;
     });
     doc.setFont(undefined, 'normal'); doc.setFontSize(12);
-    doc.text('NOMOR: ' + S.nomor, pw / 2, y, { align: 'center' }); y += 8;
+    doc.text('NOMOR: ' + S.nomor, pw / 2, y, { align: 'center' }); y += 6;
     if (S.tentang && S.tentang.length) {
       doc.setFont(undefined, 'bold'); doc.setFontSize(13);
-      doc.text('TENTANG', pw / 2, y, { align: 'center' }); y += 6.5;
-      S.tentang.forEach(function (j) { doc.splitTextToSize(j, lebar).forEach(function (r) { doc.text(r, pw / 2, y, { align: 'center' }); y += 6.5; }); });
-      doc.setFont(undefined, 'normal'); y += 3;
+      doc.text('TENTANG', pw / 2, y, { align: 'center' }); y += 5.5;
+      S.tentang.forEach(function (j) { doc.splitTextToSize(j, lebar).forEach(function (r) { doc.text(r, pw / 2, y, { align: 'center' }); y += 5.5; }); });
+      doc.setFont(undefined, 'normal'); y += 1;
     }
-    y += 2; doc.setFontSize(12);
+    y += 1; doc.setFontSize(12);
 
     S.blok.forEach(function (b) {
       if (b.t === 'p') {
@@ -826,18 +848,7 @@
     var tl = doc.splitTextToSize(S.ttd + ',', 80);
     tl.forEach(function (r, i) { doc.text(r, cx, y + i * LH, { align: 'center' }); });
     y += (tl.length - 1) * LH;
-    if (S.yys) {
-      y += 28;
-    } else {
-      var meta = { jenis: JENIS[jenis].label, ket: [g.name, S.tanggal].filter(Boolean).join(' | ') };
-      var tq = await ttdKepalaPdf(doc, cx, y + 3, { lebar: 35, tinggiMaks: 20, meta: meta });
-      if (tq.dipakai) y += Math.max(22, tq.tinggi + 5);
-      else if (ttdData) {
-        try { var pr = doc.getImageProperties(ttdData), tw = 35, th = Math.min(18, tw * (pr.height / pr.width)); doc.addImage(ttdData, 'PNG', cx - tw / 2, y + 3, tw, th); }
-        catch (e) { console.error('[SI MAMBA] Gagal menambah tanda tangan digital:', e); }
-        y += 22;
-      } else y += 20;
-    }
+    y += S.yys ? 26 : 24;                                       // ruang tanda tangan basah (tanpa QR / TTD digital)
     doc.setFont(undefined, 'bold'); doc.text(S.penanda, cx, y, { align: 'center' }); doc.setFont(undefined, 'normal');
 
     // Tembusan: kiri bawah
