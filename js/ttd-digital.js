@@ -48,6 +48,12 @@
     }
   };
 
+  ROLES.yayasan = {                                  // gambar TTD Ketua Yayasan (SK Yayasan; tanpa QR)
+    label: 'Ketua Yayasan', node: 'school_assets/ttdYayasan',
+    nama: function () { return ''; }, nip: function () { return ''; },
+    jabatan: function () { return 'Ketua Yayasan'; }, labelNip: 'NIP.'
+  };
+
   ROLES.umum = {
     label: 'Penandatangan lain', node: null,
     nama: function () { return ''; }, nip: function () { return ''; },
@@ -74,6 +80,19 @@
       var v = snap.val(); rawCache[role] = (v && v.base64) ? v.base64 : ''; return rawCache[role];
     }).catch(function (e) { console.warn('[SI MAMBA] Gagal memuat TTD ' + role + ':', pesanErr(e)); return ''; });
   }
+  // Piksel hampir putih dibuat transparan; tepi dihaluskan (255..215 = transparan..buram) agar goresan tidak bergerigi.
+  function hapusLatarPutih(cx, w, h) {
+    try {
+      var id = cx.getImageData(0, 0, w, h), d = id.data, i, m, a;
+      for (i = 0; i < d.length; i += 4) {
+        if (d[i + 3] === 0) continue;
+        m = Math.min(d[i], d[i + 1], d[i + 2]);
+        if (m >= 240) d[i + 3] = 0;
+        else if (m > 200) { a = Math.round(255 * (240 - m) / 40); if (a < d[i + 3]) d[i + 3] = a; }
+      }
+      cx.putImageData(id, 0, 0);
+    } catch (e) { /* biarkan apa adanya */ }
+  }
   function perkecil(dataUrl, maxPx) {
     return new Promise(function (resolve) {
       if (!dataUrl) return resolve(null);
@@ -83,7 +102,9 @@
           var r = Math.min(1, maxPx / Math.max(im.naturalWidth, im.naturalHeight));
           var c = document.createElement('canvas');
           c.width = Math.max(1, Math.round(im.naturalWidth * r)); c.height = Math.max(1, Math.round(im.naturalHeight * r));
-          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+          var cx = c.getContext('2d');
+          cx.drawImage(im, 0, 0, c.width, c.height);
+          hapusLatarPutih(cx, c.width, c.height);          // latar putih/abu muda -> transparan (tanda tangan tidak menutupi teks)
           resolve(c.toDataURL('image/png'));
         } catch (e) { resolve(dataUrl); }
       };
@@ -113,9 +134,10 @@
         var v = snap.val() || {};
         return {
           mode: (v.mode === 'gambar' || v.mode === 'keduanya' || v.mode === 'qr') ? v.mode : MODE_BAWAAN,
-          baseUrl: (v.baseUrl || '').trim() || alamatBawaan()
+          baseUrl: (v.baseUrl || '').trim() || alamatBawaan(),
+          tampilKode: v.tampilKode === true            // kode di bawah QR (SM-xxxxx-xxxxx): bawaan DISEMBUNYIKAN
         };
-      }).catch(function () { cfgPromise = null; return { mode: MODE_BAWAAN, baseUrl: alamatBawaan() }; });
+      }).catch(function () { cfgPromise = null; return { mode: MODE_BAWAAN, baseUrl: alamatBawaan(), tampilKode: false }; });
     }
     return cfgPromise;
   }
@@ -256,12 +278,12 @@
         var total = w + 3 + s, x0 = xTengah - total / 2;
         doc.addImage(ttd, 'PNG', x0, yAtas, w, h, undefined, 'FAST');
         doc.addImage(qr.data, 'PNG', x0 + w + 3, yAtas, s, s, undefined, 'FAST');
-        poinKode(doc, qr.kode, x0 + w + 3 + s / 2, yAtas + s + 2.6);
-        terpakai = Math.max(h, s + 3.2);
+        if (cfg.tampilKode) poinKode(doc, qr.kode, x0 + w + 3 + s / 2, yAtas + s + 2.6);
+        terpakai = Math.max(h, s + (cfg.tampilKode ? 3.2 : 0.5));
       } else if (qr) {
         doc.addImage(qr.data, 'PNG', xTengah - s / 2, yAtas, s, s, undefined, 'FAST');
-        poinKode(doc, qr.kode, xTengah, yAtas + s + 2.6);
-        terpakai = s + 3.2;
+        if (cfg.tampilKode) poinKode(doc, qr.kode, xTengah, yAtas + s + 2.6);
+        terpakai = s + (cfg.tampilKode ? 3.2 : 0.5);
       } else if (ttd) {
         terpakai = tempelGambar(doc, ttd, xTengah, yAtas, lebar, maksH).h;
       }
@@ -367,7 +389,7 @@
     if (mauGambar || (mauQr && !qr)) g = await muat(role);
     var bagian = [];
     if (g) bagian.push('<img src="' + g + '" alt="" style="height:' + mm + 'mm;max-width:' + Math.round(mm * 2.4) + 'mm;object-fit:contain;">');
-    if (qr) bagian.push('<span style="display:inline-block;text-align:center;line-height:1.1;"><img src="' + qr.data + '" alt="QR verifikasi" style="width:' + mm + 'mm;height:' + mm + 'mm;display:block;"><span style="font-size:6.5pt;color:#555;letter-spacing:.2px;">' + qr.kode + (meta.sidik ? '<br>Sidik ' + meta.sidik.slice(0, 8) : '') + '</span></span>');
+    if (qr) bagian.push('<span style="display:inline-block;text-align:center;line-height:1.1;"><img src="' + qr.data + '" alt="QR verifikasi" style="width:' + mm + 'mm;height:' + mm + 'mm;display:block;">' + (cfg.tampilKode ? '<span style="font-size:6.5pt;color:#555;letter-spacing:.2px;">' + qr.kode + (meta.sidik ? '<br>Sidik ' + meta.sidik.slice(0, 8) : '') + '</span>' : '') + '</span>');
     if (!bagian.length) return '';
     return '<div style="display:inline-flex;align-items:flex-end;justify-content:center;gap:3mm;">' + bagian.join('') + '</div>';
   }
@@ -408,6 +430,7 @@
       fr.readAsDataURL(file);
     });
   }
+  function sesiAdmin() { try { return Promise.resolve(typeof adminSesi === 'function' ? adminSesi() : null); } catch (e) { return Promise.resolve(); } }
   function upload(role, event) {
     if (!isAdmin()) return toast('Hanya Admin!', true);
     var input = event.target, file = input.files && input.files[0];
@@ -415,7 +438,7 @@
     if (role === 'kepala' && typeof uploadTandaTanganKepala === 'function') return uploadTandaTanganKepala(event);
     input.disabled = true; toast('⏳ Memproses tanda tangan...', false, 2000);
     olahFile(file).then(function (b64) {
-      return db.ref(ROLES[role].node).set({ base64: b64, updatedBy: currentUser.name, updatedAt: new Date().toISOString() })
+      return sesiAdmin().then(function () { return db.ref(ROLES[role].node).set({ base64: b64, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }); })
         .then(function () { rawCache[role] = b64; delete pdfCache[role]; });
     }).then(function () {
       toast('✅ Tanda tangan ' + ROLES[role].label + ' berhasil disimpan!'); addLog('upload_ttd_' + role, ROLES[role].nama());
@@ -426,7 +449,7 @@
     if (!isAdmin()) return toast('Hanya Admin!', true);
     if (role === 'kepala' && typeof hapusTandaTanganKepala === 'function') return hapusTandaTanganKepala();
     if (!doubleConfirm('Hapus gambar tanda tangan ' + ROLES[role].label + '?')) return;
-    db.ref(ROLES[role].node).remove().then(function () {
+    sesiAdmin().then(function () { return db.ref(ROLES[role].node).remove(); }).then(function () {
       rawCache[role] = ''; delete pdfCache[role]; toast('✅ Gambar tanda tangan dihapus.'); addLog('hapus_ttd_' + role, ''); render();
     }).catch(function (e) { toast('Gagal: ' + pesanErr(e), true); });
   }
@@ -436,7 +459,8 @@
     var mode = rb ? rb.value : MODE_BAWAAN;
     var url = (document.getElementById('ttdBaseUrl').value || '').trim();
     if (url && !/^https?:\/\/[^\s]+$/i.test(url)) return toast('⚠️ Alamat aplikasi harus diawali http:// atau https://', true);
-    db.ref(NODE_CFG).set({ mode: mode, baseUrl: url, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }).then(function () {
+    var cb = document.getElementById('ttdTampilKode');
+    db.ref(NODE_CFG).set({ mode: mode, baseUrl: url, tampilKode: !!(cb && cb.checked), updatedBy: currentUser.name, updatedAt: new Date().toISOString() }).then(function () {
       config(true); toast('✅ Pengaturan tanda tangan disimpan.'); addLog('simpan_ttd_qr', mode);
     }).catch(function (e) { toast('Gagal: ' + pesanErr(e), true); });
   }
@@ -465,6 +489,7 @@
       box.innerHTML = '<p style="font-size:13px;font-weight:700;color:#065f46;margin-bottom:6px;">✍️ Tanda Tangan Digital pada PDF</p>' +
         rad('qr', 'QR verifikasi', '— QR + kode unik, dipindai untuk mengecek keaslian') +
         rad('keduanya', 'QR + gambar tanda tangan', '') + rad('gambar', 'Gambar tanda tangan saja', '') +
+        '<label style="display:block;font-size:12px;margin-top:8px;"><input type="checkbox" id="ttdTampilKode"' + (cfg.tampilKode ? ' checked' : '') + '> Tampilkan kode tulisan kecil di bawah QR <span class="text-muted">(QR tetap bisa dipindai tanpa kode ini)</span></label>' +
         '<label style="display:block;font-size:12px;margin-top:8px;">Alamat aplikasi (isi QR) <input type="text" id="ttdBaseUrl" value="' + escapeHtml(cfg.baseUrl) + '" placeholder="https://alamat-aplikasi-anda/" style="width:100%;max-width:420px;font-size:12px;"></label>' +
         '<p class="text-muted" style="font-size:11px;margin:2px 0 6px;">Harus alamat yang bisa dibuka dari HP orang lain (bukan localhost).</p>' +
         '<button class="btn btn-primary" style="padding:3px 12px;font-size:12px;" onclick="TTD.simpanPengaturan()">💾 Simpan pengaturan</button>' +

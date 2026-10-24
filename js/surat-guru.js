@@ -795,6 +795,20 @@
       ? (d.tembusan || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean) : [];
     return S;
   }
+  // Gambar TTD (tanpa QR): Kepala Madrasah, atau Ketua Yayasan untuk SK Yayasan. '' bila belum diunggah.
+  var yysTtdMuat = null;
+  function siapTtdYys() {
+    if (!(window.TTD && TTD.muat)) return Promise.resolve();
+    if (!yysTtdMuat) yysTtdMuat = TTD.muat('yayasan').catch(function () { });
+    return yysTtdMuat;
+  }
+  function gambarTtdHtml(S) {
+    var gaya = 'max-height:22mm;max-width:45mm;display:block;margin:2mm auto;';
+    if (!S.yys) return MADRASAH.ttdKepalaBase64 ? '<img src="' + MADRASAH.ttdKepalaBase64 + '" alt="Tanda tangan" style="' + gaya + '">' : '';
+    var g = (window.TTD && TTD.img) ? TTD.img('yayasan', gaya) : '';
+    if (!g && !yysTtdMuat) siapTtdYys().then(function () { if (window.TTD && TTD.img && TTD.img('yayasan')) preview(true); });   // muat sekali, lalu gambar preview
+    return g;
+  }
   function htmlSurat(S) {
     var h = S.yys ? kopYayasanHTML() : kopMadrasahHTML();
     h += '<div class="judul-surat"' + (S.garis ? ' style="text-decoration:underline;"' : '') + '>' + S.judul.map(esc).join('<br>') + '</div>';
@@ -820,7 +834,7 @@
       (S.sk ? '<p style="text-align:left;margin:0;">Ditetapkan di : ' + esc(S.tempat) + '</p><p style="text-align:left;margin:0 0 8px;">pada tanggal : ' + esc(S.tanggal) + '</p>'
             : '<p style="margin:0 0 8px;">' + esc(S.tempat) + ', ' + esc(S.tanggal) + '</p>') +
       '<p style="margin:0;">' + esc(S.ttd) + ',</p>' +
-      '<br><br><br><br>' +
+      (gambarTtdHtml(S) || '<br><br><br><br>') +
       '<p style="margin:0;"><strong>' + esc(S.penanda) + '</strong></p></div></div>';
     if (tb) {
       h += '<div style="margin-top:18px;font-size:12px;"><p style="margin:0 0 2px;">' + esc(tb.judul) + '</p>' +
@@ -863,7 +877,7 @@
     if (isBusy('simpanSuratGuru')) return toast('Sedang menyimpan...', false, 1500);
     var btn = $('btnSimpanSuratGuru'), label = JENIS[jenis].label;
     setBusy('simpanSuratGuru', btn);
-    siapkanGuruLain(d).then(function () { return pastikanNomor(jenis, d); }).then(function () {
+    siapkanGuruLain(d).then(function () { return siapTtdYys(); }).then(function () { return pastikanNomor(jenis, d); }).then(function () {
       d = ambil(); var S = susun(jenis, d, g);
       $('suratPreview').innerHTML = htmlSurat(S);
       db.ref('surat').push().set({
@@ -963,7 +977,17 @@
     var tl = doc.splitTextToSize(S.ttd + ',', 80);
     tl.forEach(function (r, i) { doc.text(r, cx, y + i * LH, { align: 'center' }); });
     y += (tl.length - 1) * LH;
-    y += S.yys ? 26 : 24;                                       // ruang tanda tangan basah (tanpa QR / TTD digital)
+    {                                                           // gambar TTD saja (tanpa QR): Kepala Madrasah, atau Ketua Yayasan untuk SK Yayasan
+      try {
+        var ttdG = (window.TTD && TTD.muat) ? await TTD.muat(S.yys ? 'yayasan' : 'kepala') : (S.yys ? null : await v4LoadTtdKepalaForPdf());
+        if (ttdG) {
+          var pT = doc.getImageProperties(ttdG), wT = 40, hT = wT * (pT.height / pT.width);
+          if (hT > 20) { hT = 20; wT = hT * (pT.width / pT.height); }
+          doc.addImage(ttdG, 'PNG', cx - wT / 2, y + 1.5, wT, hT);
+        }
+      } catch (e) { console.error('[SI MAMBA] Gagal menempel gambar tanda tangan Kepala:', e); }
+    }
+    y += S.yys ? 26 : 24;                                       // ruang tanda tangan (gambar / basah)
     doc.setFont(undefined, 'bold'); doc.text(S.penanda, cx, y, { align: 'center' }); doc.setFont(undefined, 'normal');
 
     // Tembusan: kiri bawah
@@ -1075,7 +1099,7 @@
         <div class="judul-surat">${judul}</div>
         <div class="nomor-surat">Nomor: ${nomorSiswaTampil(kSurat)}</div>
         <div class="body">
-          <p>${isi}</p>
+          <p style="text-align:justify;">${isi}</p>
           <br>
           <p>${penutup}</p>
         </div>
@@ -1085,13 +1109,13 @@
               <p>Dikeluarkan di : Mambaul Ulum</p>
               <p>Tanggal : ${tanggal}</p>
             </div>
-            <div style="text-align:center;">
+            <div style="text-align:center;width:80mm;">
               <p>Kepala ${MADRASAH.nama}</p>
               ${MADRASAH.ttdKepalaBase64
                 ? `<img src="${MADRASAH.ttdKepalaBase64}" alt="Tanda tangan" style="max-height:45px;display:block;margin:6px auto;">`
                 : '<br><br><br>'}
-              <p><u>${MADRASAH.kepala_sekolah}</u></p>
-              <p>NIP. ${MADRASAH.nip_kepala_sekolah}</p>
+              <p><b>${MADRASAH.kepala_sekolah}</b></p>
+              <p>NIP. ${MADRASAH.nip_kepala_sekolah || '-'}</p>
             </div>
           </div>
         </div>
@@ -1170,38 +1194,37 @@
       y += 6;
       cetakParagraf(konten.penutup);
       
-      // Dikeluarkan di & tanggal
-      if (y > 208) { doc.addPage(); y = 20; }   // 'Dikeluarkan di' + tanda tangan selalu satu halaman
-      y += 6;
-      doc.text('Dikeluarkan di : Mambaul Ulum', marginKiri, y);
-      y += 6.5;
-      doc.text('Tanggal : ' + tanggal, marginKiri, y);
-      
-      // Tanda tangan (satu-satunya blok tanda tangan, tidak ada duplikasi)
-      if (y > 244) { doc.addPage(); y = 20; }
-      y += 14;
-      doc.text('Kepala ' + MADRASAH.nama, pageWidth/2, y, { align: 'center' });
+      // Kaki surat: kiri = tempat & tanggal, kanan = Kepala Madrasah (sama dengan tampilan preview)
+      const cx = pageWidth - marginKanan - 40;                  // pusat blok tanda tangan (lebar 80 mm, rata kanan)
+      const barisJab = doc.splitTextToSize('Kepala ' + MADRASAH.nama, 80);
+      if (y > 215 - (barisJab.length - 1) * 6.5) { doc.addPage(); y = 20; }   // kaki + tanda tangan selalu satu halaman
+      y += 8;
+      const yKaki = y;
+      doc.text('Dikeluarkan di : Mambaul Ulum', marginKiri, yKaki);
+      doc.text('Tanggal : ' + tanggal, marginKiri, yKaki + 6.5);
+      barisJab.forEach((r, i) => doc.text(r, cx, yKaki + i * 6.5, { align: 'center' }));
+      y = yKaki + (barisJab.length - 1) * 6.5;
       // Surat boleh dicetak Admin & Wali Kelas, jadi TANPA hanyaPimpinan; pencetak tercatat di halaman verifikasi QR.
-      const ttdSurat = await ttdKepalaPdf(doc, pageWidth/2, y + 3, { lebar: 35, tinggiMaks: 20, meta: { jenis: 'Surat ' + String(namaJenis).replace(/_/g, ' '), ket: [siswa.name, siswa.kelas, tanggal].filter(Boolean).join(' | ') } });
+      const ttdSurat = await ttdKepalaPdf(doc, cx, y + 3, { lebar: 35, tinggiMaks: 20, meta: { jenis: 'Surat ' + String(namaJenis).replace(/_/g, ' '), ket: [siswa.name, siswa.kelas, tanggal].filter(Boolean).join(' | ') } });
       if (ttdSurat.dipakai) {
-        y += Math.max(22, ttdSurat.tinggi + 5);
+        y += Math.max(32, ttdSurat.tinggi + 10);                // ruang untuk QR + kode di bawahnya, tidak menimpa nama
       } else if (ttdKepalaData) {
-        // Tanda tangan digital ditempel di ruang antara jabatan & nama. Rasio lebar:tinggi
-        // gambar asli dijaga (bukan dipaksa kotak) supaya tidak gepeng/melar.
         try {
           const ttdW = 35;
           const propsTtd = doc.getImageProperties(ttdKepalaData);
           const ttdH = Math.min(18, ttdW * (propsTtd.height / propsTtd.width));
-          doc.addImage(ttdKepalaData, 'PNG', pageWidth/2 - ttdW/2, y + 3, ttdW, ttdH);
+          doc.addImage(ttdKepalaData, 'PNG', cx - ttdW/2, y + 3, ttdW, ttdH);
         } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF:', e); }
-        y += 22;
+        y += 26;
       } else {
-        y += 20;
+        y += 24;
       }
-      doc.text(MADRASAH.kepala_sekolah, pageWidth/2, y, { align: 'center' });
+      doc.setFont(undefined, 'bold');
+      doc.text(MADRASAH.kepala_sekolah || '', cx, y, { align: 'center' });
+      doc.setFont(undefined, 'normal');
       y += 6;
-      doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, pageWidth/2, y, { align: 'center' });
-      
+      doc.text('NIP. ' + (MADRASAH.nip_kepala_sekolah || '-'), cx, y, { align: 'center' });
+
       doc.save(`Surat_${namaJenis}_${siswa.name}_${tglLokal()}.pdf`);
       toast('📥 Surat berhasil diunduh!'); 
       addLog('download_surat', `${jenis} - ${siswa.name}`);
