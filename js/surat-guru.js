@@ -532,19 +532,7 @@
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     return yb + 2;
   }
-  function kopMadrasahHTML() {                                    // pratinjau layar: logo di kiri, teks di kolom sendiri
-    var img = '<img src="' + LOGO_MADRASAH + '" alt="Logo Madrasah" style="width:80px;height:80px;object-fit:contain;" onerror="this.style.visibility=\'hidden\'">';
-    var t = [];
-    t.push('<div style="font-size:19px;font-weight:700;line-height:1.2;">' + esc(String(MADRASAH.nama || '').toUpperCase()) + '</div>');
-    if (MADRASAH.nsm) t.push('<div style="font-size:12px;font-weight:700;">NSM: ' + esc(MADRASAH.nsm) + '</div>');
-    t.push('<div style="font-size:12px;">' + esc(MADRASAH.alamat || '') + '</div>');
-    t.push('<div style="font-size:12px;overflow-wrap:anywhere;">Telp: ' + esc(MADRASAH.telp || '') + ' | Email: ' + esc(MADRASAH.email || '') + ' | Web: ' + esc(MADRASAH.website || '') + '</div>');
-    return '<div style="margin-bottom:14px;">' +
-      '<div style="display:flex;align-items:center;gap:10px;">' +
-      '<div style="flex:0 0 80px;">' + img + '</div>' +
-      '<div style="flex:1;min-width:0;text-align:center;line-height:1.3;font-family:Arial,Helvetica,sans-serif;">' + t.join('') + '</div></div>' +
-      '<div style="border-top:3px double #000;margin-top:8px;"></div></div>';
-  }
+  function kopMadrasahHTML() { return generateKopSuratHTML(); }   // satu sumber: app.js
   // ---- PRATINJAU CETAK (tampilan seperti print preview) ----
   // Dibuka dari tombol Preview: kertas A4/F4 di atas latar abu-abu, zoom, Cetak (dialog print browser), Download PDF.
   var kertasTerakhir = 'A4';
@@ -552,7 +540,7 @@
     var isi = $('suratPreview'); if (!isi) return;
     tutupPratinjau();
     var f4 = kertas === 'F4', tinggi = f4 ? 330 : 297, guru = mode !== 'siswa';
-    var pad = guru ? '15mm 15mm 15mm 25mm' : '15mm 20mm 15mm 20mm', margin = guru ? '15mm 15mm 15mm 25mm' : '15mm 20mm';
+    var pad = '20mm 20mm 25mm 30mm', margin = '20mm 20mm 25mm 30mm';   // PMA 12/2026: atas 2, kanan 2, bawah 2,5, kiri 3 cm
     var o = el('div', null, 'position:fixed;inset:0;z-index:99999;background:#525659;display:flex;flex-direction:column;font-family:Arial,Helvetica,sans-serif;');
     o.id = 'sgPrevOverlay'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'Pratinjau cetak');
     var bar = el('div', null, 'flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:#323639;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4);');
@@ -631,6 +619,7 @@
   function kunciCounter(jenis, yy) { return 'nomor_surat/' + yy + '/' + (kodeJabatan(jenis) + '_' + kategoriNomor(jenis)).replace(/[^A-Za-z0-9_-]/g, '_'); }
   function susunNomor(jenis, n, d) {
     var t = bagianTanggal(d), p = [(n < 10 ? '00' : n < 100 ? '0' : '') + n, kodeJabatan(jenis), d.klas || KLAS[jenis] || 'KP.01'];
+    if (jenis === 'surat-keluar' && !d.internal) p.unshift('B');                // PMA 12/2026 Lampiran Tata Penomoran huruf e: korespondensi eksternal diawali kategori keamanan (B = biasa)
     if (kategoriNomor(jenis) === 'SKET') p.push('SKet');
     p.push(t.mm, t.yy);
     return p.join('/');
@@ -903,7 +892,7 @@
     d = ambil();
     var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });   // semua surat: A4; compress = ukuran berkas kecil
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-    var mk = 25, mr = 15, lebar = pw - mk - mr, LH = S.yys ? 6 : 6.3, y = 0;                                                    // margin kiri 2,5 cm, kanan 1,5 cm (dirapatkan agar hemat halaman)
+    var mk = 30, mr = 20, lebar = pw - mk - mr, LH = S.yys ? 6 : 6.3, y = 0;                                                    // margin PMA 12/2026 (Lampiran, Tata Letak No. 12): kiri 3 cm, kanan 2 cm, bawah 2,5 cm, atas 2 cm
     var data = await Promise.all([S.yys ? null : Promise.resolve().then(function () { return v4LoadLogoForPdf(); }).then(muatLogoMadrasah, function () { return muatLogoMadrasah(null); }), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
 
     // Kop
@@ -912,8 +901,8 @@
     else off = Math.max(0, kopMadrasahPdf(doc, pw, logo) - 40);
 
     y = 50 + off;
-    var perlu = function (h) { if (y + h > ph - 15) { doc.addPage(); y = 20; } };
-    var tinggiHal = ph - 15 - 20;
+    var perlu = function (h) { if (y + h > ph - 25) { doc.addPage(); y = 20; } };
+    var tinggiHal = ph - 25 - 20;
     var jaga = function (h) { if (h <= tinggiHal) perlu(h); };                       // blok utuh: pindah ke halaman berikutnya bila tidak muat, agar kalimat/paragraf tidak terpotong di akhir halaman
     function tahanYatim(n, i) { if (n > 2 && (i === 0 || i === n - 2)) perlu(2 * LH); }  // paragraf panjang: minimal 2 baris di tiap halaman
     doc.setFontSize(13); doc.setFont(undefined, 'bold');
@@ -958,7 +947,7 @@
         y += 3;
       } else if (b.t === 'tabel') {
         perlu(30);
-        doc.autoTable({ startY: y, head: [b.head], body: b.rows, margin: { left: mk, right: mr }, theme: 'grid',
+        doc.autoTable({ startY: y, head: [b.head], body: b.rows, margin: { left: mk, right: mr, bottom: 25, top: 20 }, theme: 'grid',
           styles: { fontSize: 10, cellPadding: 1.8, textColor: 0, lineColor: 0, lineWidth: 0.2 },
           headStyles: { fillColor: [235, 235, 235], textColor: 0, fontStyle: 'bold' } });
         y = doc.lastAutoTable.finalY + 6;
@@ -1132,7 +1121,7 @@
       const { jsPDF } = window.jspdf; 
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true }); 
       const pageWidth = doc.internal.pageSize.getWidth();
-      const marginKiri = 20, marginKanan = 20, lebarIsi = pageWidth - marginKiri - marginKanan;
+      const marginKiri = 30, marginKanan = 20, lebarIsi = pageWidth - marginKiri - marginKanan;
       const [logoRaw, ttdKepalaData] = await Promise.all([Promise.resolve().then(() => v4LoadLogoForPdf()).catch(() => null), v4LoadTtdKepalaForPdf()]);
       const logoData = await muatLogoMadrasah(logoRaw);
 
@@ -1162,9 +1151,9 @@
         paragraf.forEach((p, idx) => {
           if (!p.trim()) return;
           const wrapped = doc.splitTextToSize(p.trim(), lebarIsi);
-          if ((wrapped.length - 1) * 6.5 <= 255 && y + (wrapped.length - 1) * 6.5 > 278) { doc.addPage(); y = 15; }   // paragraf tidak terpotong di akhir halaman
+          if ((wrapped.length - 1) * 6.5 <= 255 && y + (wrapped.length - 1) * 6.5 > 272) { doc.addPage(); y = 20; }   // paragraf tidak terpotong di akhir halaman
           wrapped.forEach((baris, bi) => {
-            if (y > 278) { doc.addPage(); y = 15; }
+            if (y > 272) { doc.addPage(); y = 20; }
             if (opts.tengah) doc.text(baris, pageWidth/2, y, { align: 'center' });
             else tulisRata(doc, baris, marginKiri, y, lebarIsi, bi < wrapped.length - 1);
             y += 6.5;
@@ -1175,21 +1164,21 @@
       const konten = buatIsiSuratPlain(jenis, siswa, tanggal);
       cetakParagraf(konten.pembuka);
       y += 3;
-      konten.identitas.forEach(baris => { if (y > 278) { doc.addPage(); y = 15; } doc.text(baris, marginKiri + 4, y); y += 6.5; });
+      konten.identitas.forEach(baris => { if (y > 272) { doc.addPage(); y = 20; } doc.text(baris, marginKiri + 4, y); y += 6.5; });
       y += 3;
       cetakParagraf(konten.isi);
       y += 6;
       cetakParagraf(konten.penutup);
       
       // Dikeluarkan di & tanggal
-      if (y > 214) { doc.addPage(); y = 15; }   // 'Dikeluarkan di' + tanda tangan selalu satu halaman
+      if (y > 208) { doc.addPage(); y = 20; }   // 'Dikeluarkan di' + tanda tangan selalu satu halaman
       y += 6;
       doc.text('Dikeluarkan di : Mambaul Ulum', marginKiri, y);
       y += 6.5;
       doc.text('Tanggal : ' + tanggal, marginKiri, y);
       
       // Tanda tangan (satu-satunya blok tanda tangan, tidak ada duplikasi)
-      if (y > 250) { doc.addPage(); y = 20; }
+      if (y > 244) { doc.addPage(); y = 20; }
       y += 14;
       doc.text('Kepala ' + MADRASAH.nama, pageWidth/2, y, { align: 'center' });
       // Surat boleh dicetak Admin & Wali Kelas, jadi TANPA hanyaPimpinan; pencetak tercatat di halaman verifikasi QR.
@@ -1250,19 +1239,20 @@
   // kunci(jenis, iso, klas) -> Promise<nomor>           (counter +1, atomik)
   window.SIMambaNomor = {
     klasPilihan: function () { return KLAS_UMUM.slice(); },
-    intip: function (jenis, iso, klas) {
+    // opsi.internal = true: korespondensi INTERNAL (mis. undangan ke guru) -> tanpa awalan kategori keamanan "B/" (PMA 12/2026, Lampiran Tata Penomoran huruf d)
+    intip: function (jenis, iso, klas, opsi) {
       var t = bagianTanggal({ tanggal: iso });
       return db.ref(kunciCounter(jenis, t.yy)).once('value').then(function (snap) {
-        return susunNomor(jenis, (parseInt(snap.val(), 10) || 0) + 1, { tanggal: iso, klas: klas });
+        return susunNomor(jenis, (parseInt(snap.val(), 10) || 0) + 1, { tanggal: iso, klas: klas, internal: !!(opsi && opsi.internal) });
       });
     },
-    kunci: function (jenis, iso, klas) {
+    kunci: function (jenis, iso, klas, opsi) {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(new Error('perangkat sedang offline'));
       var t = bagianTanggal({ tanggal: iso });
       return new Promise(function (res, rej) {
         db.ref(kunciCounter(jenis, t.yy)).transaction(function (cur) { return (parseInt(cur, 10) || 0) + 1; }, function (err, committed, snap) {
           if (err || !committed) return rej(err || new Error('penomoran dibatalkan'));
-          res(susunNomor(jenis, snap.val(), { tanggal: iso, klas: klas }));
+          res(susunNomor(jenis, snap.val(), { tanggal: iso, klas: klas, internal: !!(opsi && opsi.internal) }));
         });
       });
     }

@@ -151,7 +151,7 @@
     var jd = el('h4', null, 'font-weight:700;font-size:14px;margin:0 0 10px;'); jd.id = 'ag_formJudul'; fm.appendChild(jd);
     var g = el('div', null, 'display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;');
     var wAg = kolomIsian('noagenda', 'No. Agenda', 'text', 'flex:1;min-width:110px;'), wTg = kolomIsian('tanggal', 'Tanggal', 'date');
-    var wNo = kolomIsian('nomor', 'Nomor Surat', 'text', null, 'mis. 045/MI-MU/X/2026'), wKl = kolomKlas();
+    var wNo = kolomIsian('nomor', 'Nomor Surat', 'text', null, 'mis. B/045/MI-MU/UM.01/10/2026'), wKl = kolomKlas();
     var inf = el('p', null, 'font-size:11px;color:#6b7280;margin:3px 0 0;'); inf.id = 'ag_nomorInfo'; wNo.appendChild(inf);
     wAg.querySelector('input').addEventListener('input', function (e) { S.agManual = !!e.target.value.trim(); if (!S.agManual) segarkanNomor(); });
     wNo.querySelector('input').addEventListener('input', function (e) { S.noManual = !!e.target.value.trim(); if (!S.noManual) segarkanNomor(); });

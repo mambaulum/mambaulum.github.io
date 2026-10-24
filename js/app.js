@@ -820,6 +820,38 @@
       catch (e) { console.error('[SI MAMBA] Gagal menambahkan logo ke PDF:', e); }
     }
 
+    // Kop madrasah di PDF TANPA tumpang tindih: logo punya kotak 26 mm di kiri, teks dipusatkan di kolom KANAN logo;
+    // baris panjang (alamat, telp/email/web) diperkecil (min 8 pt) lalu dipecah. Mengembalikan y garis bawah kop (>= 40).
+    // m = margin kiri/kanan kop (mm). Dulu teks dipusatkan di tengah HALAMAN sehingga baris panjang menabrak logo.
+    function v4KopMadrasahPdf(doc, pw, logoData, m) {
+      m = m || 20;
+      const ukuran = 26, y0 = 10, xt = m + ukuran + 4, xr = pw - m, tengah = (xt + xr) / 2, lebarTeks = xr - xt;
+      let y = 16;
+      if (logoData) {
+        try {
+          const fmt = /^data:image\/jpe?g/i.test(logoData) ? 'JPEG' : 'PNG';
+          const pr = doc.getImageProperties(logoData), r = pr.width / pr.height;
+          const lw = r >= 1 ? ukuran : ukuran * r, lh = r >= 1 ? ukuran / r : ukuran;
+          doc.addImage(logoData, fmt, m + (ukuran - lw) / 2, y0 + (ukuran - lh) / 2, lw, lh, undefined, 'FAST');
+        } catch (e) { console.error('[SI MAMBA] Gagal menambahkan logo ke kop PDF:', e); }
+      }
+      doc.setTextColor(0);
+      const baris = (teks, gaya, ukur, dy, boleh2) => {
+        if (!teks) return;
+        doc.setFont('helvetica', gaya); doc.setFontSize(ukur);
+        while (doc.getTextWidth(teks) > lebarTeks && ukur > (boleh2 ? 8 : 6)) { ukur -= 0.25; doc.setFontSize(ukur); }
+        (doc.getTextWidth(teks) > lebarTeks ? doc.splitTextToSize(teks, lebarTeks) : [teks]).forEach(t => { doc.text(t, tengah, y, { align: 'center' }); y += dy; });
+      };
+      baris(String(MADRASAH.nama || '').toUpperCase(), 'bold', 16, 5.5, false);
+      if (MADRASAH.nsm) baris('NSM: ' + MADRASAH.nsm, 'bold', 10, 4.6, false);
+      baris(MADRASAH.alamat, 'normal', 10, 4.4, true);
+      baris('Telp: ' + MADRASAH.telp + '  |  Email: ' + MADRASAH.email + '  |  Web: ' + MADRASAH.website, 'normal', 10, 4.4, true);
+      const yb = Math.max(y + 0.5, y0 + ukuran + 2, 38);
+      doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(m, yb, pw - m, yb); doc.line(m, yb + 2, pw - m, yb + 2);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      return yb + 2;
+    }
+
     // ============================================================
     // TANDA TANGAN DIGITAL KEPALA SEKOLAH
     // Gambar tanda tangan disimpan langsung sebagai data URL di database (BUKAN diunggah ke
@@ -10530,17 +10562,18 @@
     // SURAT & IJIN (DENGAN KOP RESMI)
     // ============================================================
     function generateKopSuratHTML() {
+      // Inline style (tidak bergantung CSS): logo di kolom kiri, teks di kolom sendiri -> tidak bisa tumpang tindih.
+      const t = [`<div style="font-size:19px;font-weight:700;line-height:1.2;">${escapeHtml(String(MADRASAH.nama || '').toUpperCase())}</div>`];
+      if (MADRASAH.nsm) t.push(`<div style="font-size:12px;font-weight:700;">NSM: ${escapeHtml(MADRASAH.nsm)}</div>`);
+      t.push(`<div style="font-size:12px;">${escapeHtml(MADRASAH.alamat || '')}</div>`);
+      t.push(`<div style="font-size:12px;overflow-wrap:anywhere;">Telp: ${escapeHtml(MADRASAH.telp || '')} | Email: ${escapeHtml(MADRASAH.email || '')} | Web: ${escapeHtml(MADRASAH.website || '')}</div>`);
       return `
-        <div class="kop-surat">
-          <div class="logo-kop">
-            <img src="logo/logo-lembaga.png" alt="Logo" class="logo-kop-img" onerror="v4LogoFallback(this)">
-            <div>
-              <div class="nama-sekolah">${escapeHtml(MADRASAH.nama)}</div>
-              ${MADRASAH.nsm ? `<div class="nsm-sekolah text-strong" style="font-size:11px;font-weight:600;">NSM: ${escapeHtml(MADRASAH.nsm)}</div>` : ''}
-              <div class="alamat-sekolah">${escapeHtml(MADRASAH.alamat)}</div>
-              <div class="detail-sekolah">📞 ${escapeHtml(MADRASAH.telp)} | ✉ ${escapeHtml(MADRASAH.email)} | 🌐 ${escapeHtml(MADRASAH.website)}</div>
-            </div>
+        <div class="kop-surat" style="margin-bottom:14px;color:#000;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:0 0 80px;"><img src="logo/logo-lembaga.png" alt="Logo" class="logo-kop-img" style="width:80px;height:80px;object-fit:contain;" onerror="v4LogoFallback(this)"></div>
+            <div style="flex:1;min-width:0;text-align:center;line-height:1.3;font-family:Arial,Helvetica,sans-serif;">${t.join('')}</div>
           </div>
+          <div style="border-top:3px double #000;margin-top:8px;"></div>
         </div>
       `;
     }
@@ -11250,19 +11283,7 @@
     }
     function rekapGambarKop(doc, logoData, judul, barisInfo) {
       const pw = doc.internal.pageSize.getWidth();
-      const offsetY = MADRASAH.nsm ? 5 : 0;
-      v4TambahLogoKeKopPdf(doc, logoData, offsetY);
-      doc.setTextColor(0);
-      doc.setFont(undefined, 'bold'); doc.setFontSize(16);
-      doc.text(MADRASAH.nama, pw / 2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      if (MADRASAH.nsm) doc.text(`NSM: ${MADRASAH.nsm}`, pw / 2, 25, { align: 'center' });
-      doc.setFont(undefined, 'normal');
-      doc.text(MADRASAH.alamat || '', pw / 2, 27 + offsetY, { align: 'center' });
-      doc.text(`Telp: ${MADRASAH.telp} | Email: ${MADRASAH.email} | Web: ${MADRASAH.website}`, pw / 2, 33 + offsetY, { align: 'center' });
-      doc.setDrawColor(0); doc.setLineWidth(0.5);
-      doc.line(15, 38 + offsetY, pw - 15, 38 + offsetY);
-      doc.line(15, 40 + offsetY, pw - 15, 40 + offsetY);
+      const offsetY = Math.max(0, v4KopMadrasahPdf(doc, pw, logoData, 15) - 40);   // kop tanpa tumpang tindih logo
       let y = 49 + offsetY;
       doc.setFont(undefined, 'bold'); doc.setFontSize(13);
       doc.text(judul, pw / 2, y, { align: 'center' });
@@ -12047,18 +12068,7 @@
       const text = previewEl ? previewEl.textContent || '' : '';
 
       // Kop surat di PDF
-      const offsetY2 = MADRASAH.nsm ? 5 : 0;
-      v4TambahLogoKeKopPdf(doc, logoData, offsetY2);
-      doc.setFontSize(16);
-      doc.text(MADRASAH.nama, pageWidth/2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text(`NSM: ${MADRASAH.nsm}`, pageWidth/2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-      doc.text(MADRASAH.alamat, pageWidth/2, 27 + offsetY2, { align: 'center' });
-      doc.text(`📞 ${MADRASAH.telp} | ✉ ${MADRASAH.email} | 🌐 ${MADRASAH.website}`, pageWidth/2, 33 + offsetY2, { align: 'center' });
-      doc.setDrawColor(0);
-      doc.setLineWidth(0.5);
-      doc.line(20, 38 + offsetY2, pageWidth - 20, 38 + offsetY2);
-      doc.line(20, 40 + offsetY2, pageWidth - 20, 40 + offsetY2);
+      const offsetY2 = Math.max(0, v4KopMadrasahPdf(doc, pageWidth, logoData, 20) - 40);   // kop tanpa tumpang tindih logo (emoji diganti teks: font PDF tak punya glyph emoji)
 
       doc.setFontSize(16);
       const lines = title.split('\n');

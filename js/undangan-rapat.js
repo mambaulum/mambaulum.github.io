@@ -113,7 +113,7 @@
     if (!v('rapat')) { box.textContent = 'Pilih rapat terlebih dahulu.'; return; }
     if (U.ada.length && !($('ur_rev') && $('ur_rev').checked)) { box.innerHTML = '✅ Undangan untuk rapat ini <b>sudah terbit</b> (lihat daftar di bawah). Centang "revisi" bila perlu menerbitkan yang baru.'; return; }
     if (!window.SIMambaNomor) { box.textContent = 'Modul penomoran belum dimuat.'; return; }
-    window.SIMambaNomor.intip('surat-keluar', v('tglsurat'), v('klas')).then(function (n) { box.innerHTML = 'Nomor berikutnya (perkiraan): <b>' + esc(n) + '</b>'; })
+    window.SIMambaNomor.intip('surat-keluar', v('tglsurat'), v('klas'), { internal: true }).then(function (n) { box.innerHTML = 'Nomor berikutnya (perkiraan): <b>' + esc(n) + '</b>'; })
       .catch(function () { box.textContent = 'Nomor akan dikunci saat surat diterbitkan.'; });
   }
   function tampilAda() {
@@ -170,14 +170,7 @@
     await ensureLib('pdf');
     var doc = new window.jspdf.jsPDF('p', 'mm', 'a4'), pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
     var mk = 30, mr = 20, lebar = pw - mk - mr, LH = 6.3, y, logo = await v4LoadLogoForPdf();
-    var off = MADRASAH.nsm ? 5 : 0;
-    v4TambahLogoKeKopPdf(doc, logo, off);
-    doc.setFontSize(16); doc.text(MADRASAH.nama, pw / 2, 20, { align: 'center' });
-    doc.setFontSize(10);
-    if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text('NSM: ' + MADRASAH.nsm, pw / 2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-    doc.text(MADRASAH.alamat, pw / 2, 27 + off, { align: 'center' });
-    doc.text('Telp: ' + MADRASAH.telp + '  |  Email: ' + MADRASAH.email + '  |  Web: ' + MADRASAH.website, pw / 2, 33 + off, { align: 'center' });
-    doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(20, 38 + off, pw - 20, 38 + off); doc.line(20, 40 + off, pw - 20, 40 + off);
+    var off = Math.max(0, v4KopMadrasahPdf(doc, pw, logo, 20) - 40);   // kop tanpa tumpang tindih logo (app.js)
     y = 52 + off; doc.setFontSize(12);
     var perlu = function (h) { if (y + h > ph - 25) { doc.addPage(); y = 25; } };
     var tulis = function (txt, x, w, bold) { doc.setFont(undefined, bold ? 'bold' : 'normal'); doc.splitTextToSize(String(txt), w).forEach(function (r) { perlu(7); doc.text(r, x, y); y += LH; }); doc.setFont(undefined, 'normal'); };
@@ -232,7 +225,7 @@
       if (U.ada.length && !revisi) throw new Error('Undangan rapat ini sudah terbit (data terbaru).');
       var unik = unikDasar(d.rapatId) + (U.ada.length ? ':r' + U.ada.length : '');
       if (U.ada.length) d.perihal = d.perihal.replace(/\s*\(Revisi[^)]*\)\s*$/i, '') + ' (Revisi ' + U.ada.length + ')';
-      nomor = await window.SIMambaNomor.kunci('surat-keluar', d.tanggalSurat, v('klas'));
+      nomor = await window.SIMambaNomor.kunci('surat-keluar', d.tanggalSurat, v('klas'), { internal: true });
       var hasil = await window.SIMambaAgenda.catatKeluar({ tanggal: d.tanggalSurat, nomor: nomor, pihak: d.kepada, perihal: (d.perihal + ': ' + d.judul).slice(0, 200),
         ket: 'Rapat ' + fmtTgl(d.tanggalRapat) + (U.ada.length ? ' | revisi dari No. ' + U.ada[0].nomor : ''), unik: unik, jenisSurat: 'undangan-rapat', rapatId: d.rapatId, isi: d });
       try { if (typeof addLog === 'function') addLog('undangan_rapat_terbit', nomor + ' - ' + d.judul); } catch (e) { /* log tidak boleh menggagalkan */ }
