@@ -63,6 +63,18 @@
     'Keputusan Menteri Agama Republik Indonesia Nomor 3607 Tahun 2016 tanggal 15 Juli 2016 tentang Pemberian Izin Pendirian/Operasional Madrasah Ibtidaiyah Mambaul Ulum Kabupaten Jember Provinsi Jawa Timur;'
   ].join('\n');
   var TITIK = '………………';
+
+  // Rata kiri-kanan (justify) untuk satu baris PDF. Baris terakhir paragraf, baris pendek, atau baris yang
+  // celah antarkatanya akan melebar >3x normal dibiarkan rata kiri supaya tidak terlihat bolong.
+  function tulisRata(doc, baris, x, y, lebar, rata) {
+    if (!rata) { doc.text(baris, x, y); return; }
+    var kata = String(baris).trim().split(/\s+/);
+    if (kata.length < 2) { doc.text(baris, x, y); return; }
+    var total = 0; kata.forEach(function (k) { total += doc.getTextWidth(k); });
+    var celah = (lebar - total) / (kata.length - 1), normal = doc.getTextWidth(' ');
+    if (celah < normal * 0.9 || celah > normal * 3) { doc.text(baris, x, y); return; }
+    var cx = x; kata.forEach(function (k) { doc.text(k, cx, y); cx += doc.getTextWidth(k) + celah; });
+  }
   // Penomoran otomatis mengikuti PMA 12/2026 (Tata Naskah Dinas): nomor urut/Kode Jabatan/Klasifikasi Arsip[/Kode Naskah]/bulan/tahun.
   // Ubah KODE & KLAS di sini bila madrasah memakai kode jabatan / klasifikasi arsip yang berbeda.
   var KODE = { kepala: 'MI-MU', yayasan: 'YPI-SU' };
@@ -661,7 +673,7 @@
     if (S.tentang && S.tentang.length) h += '<div class="judul-surat" style="margin-top:6px;">TENTANG<br>' + S.tentang.map(esc).join('<br>') + '</div>';
     h += '<div class="body">';
     S.blok.forEach(function (b) {
-      if (b.t === 'p') h += '<p style="' + (b.c ? 'text-align:center;' : '') + (b.b ? 'font-weight:700;' : '') + '">' + esc(b.s) + '</p>';
+      if (b.t === 'p') h += '<p style="' + (b.c ? 'text-align:center;' : 'text-align:justify;') + (b.b ? 'font-weight:700;' : '') + '">' + esc(b.s) + '</p>';
       else if (b.t === 'ol') h += '<p style="margin:0 0 4px 24px;text-indent:-20px;"><span style="display:inline-block;width:20px;">' + esc(b.k) + '</span>' + esc(b.s) + '</p>';
       else if (b.t === 'kv') {
         h += '<table style="border:0;margin:4px 0 8px 16px;border-collapse:collapse;">';
@@ -742,7 +754,7 @@
     d = ambil();
     var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF('p', 'mm', S.sk ? [210, 330] : 'a4');   // keputusan: F4; lainnya A4
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-    var mk = 30, mr = 20, lebar = pw - mk - mr, LH = 6.3, y = 0;                                                    // margin kiri 3 cm, kanan 2 cm (PMA 12/2026)
+    var mk = 25, mr = 15, lebar = pw - mk - mr, LH = 6.3, y = 0;                                                    // margin kiri 2,5 cm, kanan 1,5 cm (dirapatkan agar hemat halaman)
     var data = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf(), S.yys ? muatLogoYayasan() : null]), logo = data[0], ttdData = data[1], logoYys = data[2];
 
     // Kop
@@ -757,8 +769,8 @@
       doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(20, 38 + off, pw - 20, 38 + off); doc.line(20, 40 + off, pw - 20, 40 + off);
     }
 
-    y = 52 + off;
-    var perlu = function (h) { if (y + h > ph - 25) { doc.addPage(); y = 25; } };
+    y = 50 + off;
+    var perlu = function (h) { if (y + h > ph - 15) { doc.addPage(); y = 20; } };
     doc.setFontSize(13); doc.setFont(undefined, 'bold');
     S.judul.forEach(function (j) {
       if (S.garis) {                                                  // judul satu baris, bergaris bawah (gaya surat yayasan)
@@ -782,11 +794,11 @@
     S.blok.forEach(function (b) {
       if (b.t === 'p') {
         doc.setFont(undefined, b.b ? 'bold' : 'normal');
-        doc.splitTextToSize(b.s, lebar).forEach(function (r) { perlu(7); doc.text(r, b.c ? pw / 2 : mk, y, b.c ? { align: 'center' } : undefined); y += LH; });
+        var rp = doc.splitTextToSize(b.s, lebar); rp.forEach(function (r, i) { perlu(7); if (b.c) doc.text(r, pw / 2, y, { align: 'center' }); else tulisRata(doc, r, mk, y, lebar, i < rp.length - 1); y += LH; });
         doc.setFont(undefined, 'normal'); y += 2;
       } else if (b.t === 'ol') {
         var rs = doc.splitTextToSize(b.s, lebar - 12);
-        rs.forEach(function (r, i) { perlu(7); if (i === 0) doc.text(b.k, mk + 4, y); doc.text(r, mk + 12, y); y += LH; });
+        rs.forEach(function (r, i) { perlu(7); if (i === 0) doc.text(b.k, mk + 4, y); tulisRata(doc, r, mk + 12, y, lebar - 12, i < rs.length - 1); y += LH; });
         y += 1;
       } else if (b.t === 'kv') {
         b.r.forEach(function (r) {
@@ -981,7 +993,7 @@
       const { jsPDF } = window.jspdf; 
       const doc = new jsPDF('p', 'mm', 'a4'); 
       const pageWidth = doc.internal.pageSize.getWidth();
-      const marginKiri = 25, marginKanan = 25, lebarIsi = pageWidth - marginKiri - marginKanan;
+      const marginKiri = 20, marginKanan = 20, lebarIsi = pageWidth - marginKiri - marginKanan;
       const [logoData, ttdKepalaData] = await Promise.all([v4LoadLogoForPdf(), v4LoadTtdKepalaForPdf()]);
       
       // Kop surat di PDF
@@ -1023,9 +1035,10 @@
         paragraf.forEach((p, idx) => {
           if (!p.trim()) return;
           const wrapped = doc.splitTextToSize(p.trim(), lebarIsi);
-          wrapped.forEach(baris => {
-            if (y > 270) { doc.addPage(); y = 20; }
-            doc.text(baris, opts.tengah ? pageWidth/2 : marginKiri, y, opts.tengah ? { align: 'center' } : undefined);
+          wrapped.forEach((baris, bi) => {
+            if (y > 278) { doc.addPage(); y = 15; }
+            if (opts.tengah) doc.text(baris, pageWidth/2, y, { align: 'center' });
+            else tulisRata(doc, baris, marginKiri, y, lebarIsi, bi < wrapped.length - 1);
             y += 6.5;
           });
           if (idx < paragraf.length - 1) y += 3; // jarak antar paragraf
@@ -1034,15 +1047,15 @@
       const konten = buatIsiSuratPlain(jenis, siswa, tanggal);
       cetakParagraf(konten.pembuka);
       y += 3;
-      konten.identitas.forEach(baris => { if (y > 270) { doc.addPage(); y = 20; } doc.text(baris, marginKiri + 4, y); y += 6.5; });
+      konten.identitas.forEach(baris => { if (y > 278) { doc.addPage(); y = 15; } doc.text(baris, marginKiri + 4, y); y += 6.5; });
       y += 3;
       cetakParagraf(konten.isi);
       y += 6;
       cetakParagraf(konten.penutup);
       
       // Dikeluarkan di & tanggal
-      if (y > 265) { doc.addPage(); y = 20; }
-      y += 8;
+      if (y > 272) { doc.addPage(); y = 15; }
+      y += 6;
       doc.text('Dikeluarkan di : Mambaul Ulum', marginKiri, y);
       y += 6.5;
       doc.text('Tanggal : ' + tanggal, marginKiri, y);
