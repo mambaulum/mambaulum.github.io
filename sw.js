@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.131';
+const APP_VERSION = 'v8.133';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -75,7 +75,7 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './css/styles.css?v=21',
-  './css/menu-polish.css?v=33',              // samakan dengan ?v= di index.html
+  './css/menu-polish.css?v=35',              // samakan dengan ?v= di index.html
   './css/impersonate.css?v=3',            // gaya spanduk & modal impersonasi (samakan dengan ?v= di index.html)
   './js/logo-fallback.js',
   './js/offline-db.js',
