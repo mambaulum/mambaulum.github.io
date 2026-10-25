@@ -505,6 +505,7 @@
      Memberi data-label per sel; CSS (@media <=640px) yang mengubah tampilannya. Tabel lain tidak disentuh. */
   var CARD_TABLE_PAGES = ['page-students', 'page-user-management', 'page-events', 'page-ujian', 'page-kas-umum',
     'page-honor', 'page-rekap-jurnal', 'page-info-ortu', 'page-surat', 'page-rapat', 'page-bacaan-shalat'];
+  var NO_CARD_MIN_COLS = { 'page-honor': 10 }; // halaman -> jumlah kolom minimal yang TIDAK dijadikan kartu
   function cardifyTables(root) {
     Array.prototype.forEach.call(root.querySelectorAll('table:not([data-mp-nocards])'), function (tb) {
       var heads = tb.querySelectorAll('thead tr'), hr = heads[0], noThead = false;
@@ -515,6 +516,9 @@
       if (heads.length !== 1 || hr.querySelector('[colspan],[rowspan]')) return;
       var ths = hr.children;
       if (ths.length < 4) return;
+      // Tabel sangat lebar tetap tabel (digeser ke samping), mis. Rekap Honor Guru 14 kolom.
+      var pg = tb.closest('.page-content'), minCols = pg && NO_CARD_MIN_COLS[pg.id];
+      if (minCols && ths.length >= minCols) return;
       var labels = Array.prototype.map.call(ths, function (h) { return h.textContent.replace(/\s+/g, ' ').trim(); });
       if (noThead) hr.classList.add('mp-cards-head');
       Array.prototype.forEach.call(tb.querySelectorAll('tbody tr, tr'), function (tr) {

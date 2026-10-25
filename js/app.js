@@ -1952,9 +1952,9 @@
       const filtered = allLogsFull.filter(log => (!filterUser || log.user === filterUser) && (!filterAction || log.action === filterAction));
       if (filtered.length === 0) { container.innerHTML = '<p class="text-muted" style="font-size:13px;padding:8px;">Tidak ada log yang cocok.</p>'; document.getElementById('logFullPagination').innerHTML = ''; return; }
       const iconMap = { 'login':'🔑','logout':'🚪','tambah_siswa':'➕','edit_siswa':'✏️','hapus_siswa':'🗑️','tambah_guru':'👨‍🏫','edit_guru':'✏️','hapus_guru':'🗑️','tambah_user':'➕','reset_pin':'🔄','ganti_pin':'🔑','simpan_absensi':'📅','simpan_jurnal':'📓','edit_jurnal':'✏️','ajukan_jurnal_susulan':'📤','setujui_jurnal_susulan':'✅','tolak_jurnal_susulan':'❌','absen_guru':'📸','simpan_nilai':'📊','simpan_religi':'🕌','backup':'💾','import':'📥','export':'📤','reset_data':'⚠️','promosi_kelas':'📚','kelulusan':'🎓','simpan_surat':'📄','simpan_jadwal':'📅','export_rekap_nilai':'📊' };
-      const totalItems = filtered.length, totalPages = Math.ceil(totalItems/PAGE_SIZE);
+      const totalItems = filtered.length, ps = pagerSize('log') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems/ps));
       if (logFullPage > totalPages) logFullPage = totalPages; if (logFullPage < 1) logFullPage = 1;
-      const start = (logFullPage-1)*PAGE_SIZE, end = Math.min(start+PAGE_SIZE, totalItems), pageItems = filtered.slice(start,end);
+      const start = (logFullPage-1)*ps, end = Math.min(start+ps, totalItems), pageItems = filtered.slice(start,end);
       let html = '';
       pageItems.forEach(log => {
         const icon = iconMap[log.action] || '📌';
@@ -1963,7 +1963,7 @@
         html += `<div class="log-item"><span><span class="log-icon">${icon}</span> <span class="log-user">${escapeHtml(log.user||'Sistem')}</span> <span class="log-action">${escapeHtml(log.action)}${detail}</span></span><span class="log-time">${waktu}</span></div>`;
       });
       container.innerHTML = html;
-      document.getElementById('logFullPagination').innerHTML = `<button onclick="logFullPage--; renderLogsFull();" ${logFullPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${logFullPage} / ${totalPages} (${totalItems} log)</span><button onclick="logFullPage++; renderLogsFull();" ${logFullPage >= totalPages ? 'disabled' : ''}>Next ▶</button>`;
+      document.getElementById('logFullPagination').innerHTML = pagerHtml('log', totalItems, totalPages, start, end, 'log');
     }
     // ============================================================
     function showGantiPinModal() { if (!currentUser) return toast('Login dulu!', true); document.getElementById('gantiPinModal').classList.add('show'); document.getElementById('oldPin').value=''; document.getElementById('newPin').value=''; document.getElementById('confirmPin').value=''; }
@@ -4433,6 +4433,53 @@
       }
       return _siswaSorted;
     }
+    // Pager bersama (Siswa, Jurnal, Religi, Surat, Pengguna, Log, Honor, Jadwal, Rekap Nilai).
+    // Ukuran halaman dipilih pengguna (10/25/50/0=Semua), diingat per daftar di perangkat; bawaan 25.
+    const MP_PAGERS = {
+      siswa:   { get: () => siswaPage,   set: v => { siswaPage = v; },   render: () => renderSiswa(),       scroll: 'siswaList' },
+      journal: { get: () => journalPage, set: v => { journalPage = v; }, render: () => renderJournals(),    scroll: 'journalList' },
+      religi:  { get: () => religiPage,  set: v => { religiPage = v; },  render: () => renderReligi(allReligiAttendance), scroll: 'religiMonthList' },
+      surat:   { get: () => suratPage,   set: v => { suratPage = v; },   render: () => renderSuratRiwayat(), scroll: 'suratRiwayatList' },
+      users:   { get: () => parseInt(localStorage.getItem('userPage') || '1'), set: v => { localStorage.setItem('userPage', v); }, render: () => renderUserList(), scroll: 'userList' },
+      log:     { get: () => logFullPage, set: v => { logFullPage = v; }, render: () => renderLogsFull(),    scroll: 'logListFull' },
+      honor:   { get: () => honorPage,   set: v => { honorPage = v; },   render: () => renderHonor(),       scroll: 'honorResult' },
+      jadwal:  { get: () => jadwalPage,  set: v => { jadwalPage = v; },  render: () => renderJadwal(),      scroll: 'jadwalTableWrapper' },
+      rekap:   { get: () => rekapPage,   set: v => { rekapPage = v; },   render: () => renderRekap(),       scroll: 'rekapList' }
+    };
+    const _pagerSizeCache = {};
+    function pagerSize(key) {
+      if (_pagerSizeCache[key] === undefined) {
+        let v = 25;
+        try { const x = parseInt(localStorage.getItem('mamba_ps_' + key), 10); if ([10, 25, 50, 0].includes(x)) v = x; } catch (e) { /* diabaikan */ }
+        _pagerSizeCache[key] = v;
+      }
+      return _pagerSizeCache[key];
+    }
+    function pagerGo(key, p) {
+      const c = MP_PAGERS[key]; if (!c) return;
+      c.set(p); c.render();
+      const el = document.getElementById(c.scroll);
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    function pagerSetSize(key, v) {
+      const c = MP_PAGERS[key]; if (!c) return;
+      _pagerSizeCache[key] = parseInt(v, 10) || 0;
+      try { localStorage.setItem('mamba_ps_' + key, String(_pagerSizeCache[key])); } catch (e) { /* diabaikan */ }
+      c.set(1); c.render();
+    }
+    function pagerHtml(key, total, pages, start, end, label) {
+      const c = MP_PAGERS[key], cur = c ? c.get() : 1, size = pagerSize(key), nums = [];
+      const info = `<span>Menampilkan ${total ? start + 1 : 0}–${end} dari ${total}${label ? ' ' + label : ''}</span>`;
+      const meta = inner => `<div class="mp-pager-row mp-pager-meta">${inner}</div>`;
+      if (total <= 10) return meta(info); // 10 = ukuran terkecil: tidak ada yang perlu dipilih
+      for (let i = 1; i <= pages; i++) { if (i === 1 || i === pages || Math.abs(i - cur) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…'); }
+      const num = n => n === '…' ? '<span class="mp-pager-gap">…</span>'
+        : `<button onclick="pagerGo('${key}',${n})" ${n === cur ? 'aria-current="page"' : ''}>${n}</button>`;
+      const opt = (v, t) => `<option value="${v}" ${size === v ? 'selected' : ''}>${t}</option>`;
+      return `<div class="mp-pager-row">` +
+        (pages > 1 ? `<button onclick="pagerGo('${key}',${cur - 1})" ${cur <= 1 ? 'disabled' : ''}>◀ Prev</button>${nums.map(num).join('')}<button onclick="pagerGo('${key}',${cur + 1})" ${cur >= pages ? 'disabled' : ''}>Next ▶</button>` : '') + `</div>` +
+        meta(info + `<label class="mp-pager-size">Per halaman <select class="field" onchange="pagerSetSize('${key}',this.value)">${opt(10, '10')}${opt(25, '25')}${opt(50, '50')}${opt(0, 'Semua')}</select></label>`);
+    }
     function renderSiswa() {
       const list = document.getElementById('siswaList'), searchQuery = document.getElementById('searchSiswa').value.toLowerCase().trim(), filterKelas = document.getElementById('filterKelasSiswa').value, totalDisplay = document.getElementById('totalSiswaDisplay');
       let filtered = getSiswaTerurut();
@@ -4445,9 +4492,9 @@
       totalDisplay.textContent = `Total: ${filtered.length} siswa`;
       list.innerHTML = '';
       if (filtered.length === 0) { list.innerHTML = `<p class="text-muted" style="text-align:center;padding:12px;">Tidak ada siswa yang sesuai.</p>`; document.getElementById('siswaPagination').innerHTML = ''; return; }
-      const totalItems = filtered.length, totalPages = Math.ceil(totalItems/PAGE_SIZE);
+      const totalItems = filtered.length, ps = pagerSize('siswa') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems/ps));
       if (siswaPage > totalPages) siswaPage = totalPages; if (siswaPage < 1) siswaPage = 1;
-      const start = (siswaPage-1)*PAGE_SIZE, end = Math.min(start+PAGE_SIZE, totalItems), pageItems = filtered.slice(start,end);
+      const start = (siswaPage-1)*ps, end = Math.min(start+ps, totalItems), pageItems = filtered.slice(start,end);
       let html = `<div style="overflow-x:auto;"><table><thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb;"><th style="padding:8px 12px;text-align:left;width:50px;">No</th><th style="padding:8px 12px;text-align:left;">Nama</th><th style="padding:8px 12px;text-align:left;width:120px;">Kelas</th><th style="padding:8px 12px;text-align:center;width:140px;">Aksi</th></tr></thead><tbody>`;
       pageItems.forEach((s, idx) => {
         const btnEdit = isAdmin() ? `<button class="btn btn-edit" style="padding:2px 10px;font-size:12px;" onclick="openEditSiswaModal('${s.key}')">✏️</button>` : '';
@@ -4456,7 +4503,7 @@
       });
       html += `</tbody></table></div>`;
       list.innerHTML = html;
-      document.getElementById('siswaPagination').innerHTML = `<button onclick="siswaPage--; renderSiswa();" ${siswaPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${siswaPage} / ${totalPages}</span><button onclick="siswaPage++; renderSiswa();" ${siswaPage >= totalPages ? 'disabled' : ''}>Next ▶</button>`;
+      document.getElementById('siswaPagination').innerHTML = pagerHtml('siswa', totalItems, totalPages, start, end, 'siswa');
     }
     function openEditSiswaModal(key) {
       const siswa = allSiswa.find(s => s.key === key);
@@ -5313,9 +5360,9 @@
         document.getElementById('journalPagination').innerHTML = '';
         return;
       }
-      const totalItems = sorted.length, totalPages = Math.ceil(totalItems/PAGE_SIZE);
+      const totalItems = sorted.length, ps = pagerSize('journal') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems/ps));
       if (journalPage > totalPages) journalPage = totalPages; if (journalPage < 1) journalPage = 1;
-      const start = (journalPage-1)*PAGE_SIZE, end = Math.min(start+PAGE_SIZE, totalItems), pageItems = sorted.slice(start,end);
+      const start = (journalPage-1)*ps, end = Math.min(start+ps, totalItems), pageItems = sorted.slice(start,end);
 
       // Kelompokkan entri dalam 1 halaman berdasarkan tanggal, supaya tanggal tidak diulang-ulang
       // di tiap kartu seperti sebelumnya -- cukup 1 header tanggal per hari. Aman dikelompokkan
@@ -5361,7 +5408,7 @@
         });
       });
       list.innerHTML = html;
-      document.getElementById('journalPagination').innerHTML = `<button onclick="journalPage--; renderJournals();" ${journalPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${journalPage} / ${totalPages}</span><button onclick="journalPage++; renderJournals();" ${journalPage >= totalPages ? 'disabled' : ''}>Next ▶</button>`;
+      document.getElementById('journalPagination').innerHTML = pagerHtml('journal', totalItems, totalPages, start, end, 'jurnal');
     }
     function editJournal(key) {
       const journal = allJournals.find(j => j.key === key);
@@ -6348,15 +6395,15 @@
       const monthContainer = document.getElementById('religiMonthList'), paginationEl = document.getElementById('religiPagination');
       if (monthList.length === 0) { monthContainer.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada absensi religi bulan ini.</p>'; paginationEl.innerHTML = ''; return; }
       const sorted = monthList.sort((a,b) => COLLATOR_ID.compare((b.tanggal||''), a.tanggal||''));
-      const totalItems = sorted.length, totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      const totalItems = sorted.length, ps = pagerSize('religi') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems / ps));
       if (religiPage > totalPages) religiPage = totalPages; if (religiPage < 1) religiPage = 1;
-      const start = (religiPage - 1) * PAGE_SIZE, end = Math.min(start + PAGE_SIZE, totalItems), pageItems = sorted.slice(start, end);
+      const start = (religiPage - 1) * ps, end = Math.min(start + ps, totalItems), pageItems = sorted.slice(start, end);
       const grouped = {};
       pageItems.forEach(item => { if (!grouped[item.tanggal]) grouped[item.tanggal] = []; grouped[item.tanggal].push(item); });
       let html = ''; const sortedDates = Object.keys(grouped).sort((a,b) => COLLATOR_ID.compare(b, a));
       sortedDates.forEach(tgl => { const items = grouped[tgl]; html += `<div style="margin-top:6px;"><strong>${escapeHtml(tgl)}</strong>`; items.forEach(item => { const dluha = item.sholat_dluha || { status: '-', waktu: '-' }, dzuhur = item.sholat_dzuhur || { status: '-', waktu: '-' }; html += `<div class="text-medium" style="display:flex;justify-content:space-between;padding:2px 0 2px 16px;font-size:13px;flex-wrap:wrap;gap:4px;"><span>${escapeHtml(item.guru)}</span><span>☀️ ${escapeHtml(dluha.status)}</span><span>🕌 ${escapeHtml(dzuhur.status)}</span></div>`; }); html += `</div>`; });
       monthContainer.innerHTML = html;
-      paginationEl.innerHTML = `<button onclick="religiPage--; renderReligi(allReligiAttendance);" ${religiPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${religiPage} / ${totalPages}</span><button onclick="religiPage++; renderReligi(allReligiAttendance);" ${religiPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems} data</span>`;
+      paginationEl.innerHTML = pagerHtml('religi', totalItems, totalPages, start, end, 'data');
     }
     function getJamReligi(type) {
       return type === 'sholat_dluha' ? { mulai: '06:30', selesai: '09:00' } : { mulai: '11:00', selesai: '12:30' };
@@ -6591,16 +6638,16 @@
     function renderSuratRiwayat() {
       const container = document.getElementById('suratRiwayatList'), pagination = document.getElementById('suratPagination');
       if (allSurat.length === 0) { container.innerHTML = '<p class="text-muted" style="font-size:13px;padding:8px;">Belum ada surat yang dibuat.</p>'; pagination.innerHTML = ''; return; }
-      const totalItems = allSurat.length, totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      const totalItems = allSurat.length, ps = pagerSize('surat') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems / ps));
       if (suratPage > totalPages) suratPage = totalPages; if (suratPage < 1) suratPage = 1;
-      const start = (suratPage - 1) * PAGE_SIZE, end = Math.min(start + PAGE_SIZE, totalItems), pageItems = allSurat.slice(start, end);
+      const start = (suratPage - 1) * ps, end = Math.min(start + ps, totalItems), pageItems = allSurat.slice(start, end);
       let html = '';
       pageItems.forEach(s => {
         const tgl = s.tanggal ? new Date(s.tanggal).toLocaleDateString('id-ID') : '-', warna = { 'aktif':'#059669','pindah':'#d97706','ijin':'#2563eb','sakit':'#dc2626' }[s.jenis] || '#6b7280';
         html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f9fafb;border-radius:6px;margin-bottom:4px;border-left:4px solid ${warna};flex-wrap:wrap;gap:4px;"><div><span style="font-weight:600;">${escapeHtml(s.siswaName)}</span> <span class="text-muted" style="font-size:12px;">${escapeHtml(s.kelas)}</span> <span class="text-muted" style="font-size:12px;"> | ${escapeHtml(s.jenisLabel)}</span> <span class="text-muted" style="font-size:11px;">${tgl}</span></div><div style="display:flex;gap:4px;"><button class="btn btn-soft" style="padding:2px 10px;font-size:11px;" onclick="lihatSurat('${s.key}')">👁️</button>${isAdmin() ? `<button class="btn btn-danger" style="padding:2px 10px;font-size:11px;" onclick="hapusSurat('${s.key}')">🗑️</button>` : ''}</div></div>`;
       });
       container.innerHTML = html;
-      pagination.innerHTML = `<button onclick="suratPage--; renderSuratRiwayat();" ${suratPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${suratPage} / ${totalPages}</span><button onclick="suratPage++; renderSuratRiwayat();" ${suratPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems}</span>`;
+      pagination.innerHTML = pagerHtml('surat', totalItems, totalPages, start, end, 'surat');
     }
     // PATCH v8.97: htmlContent dibaca dari Firebase (bisa ditulis siapa pun yang punya akses tulis ke node 'surat'),
     // jadi WAJIB disanitasi sebelum masuk innerHTML (cegah stored XSS). Buang tag aktif, atribut on*, dan URL berbahaya.
@@ -6948,12 +6995,12 @@
 
       const sorted = [...allGuru].sort((a, b) => COLLATOR_ID.compare(a.name, b.name));
       const totalItems = sorted.length;
-      const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      const ps = pagerSize('users') || totalItems || 1, totalPages = Math.max(1, Math.ceil(totalItems / ps));
       let page = parseInt(localStorage.getItem('userPage') || '1');
       if (page > totalPages) page = totalPages;
       if (page < 1) page = 1;
-      const start = (page - 1) * PAGE_SIZE;
-      const end = Math.min(start + PAGE_SIZE, totalItems);
+      const start = (page - 1) * ps;
+      const end = Math.min(start + ps, totalItems);
       const pageItems = sorted.slice(start, end);
 
       if (list) {
@@ -6993,12 +7040,7 @@
       }
 
       if (pagination) {
-        pagination.innerHTML = `
-          <button onclick="localStorage.setItem('userPage', ${page - 1}); renderUserList();" ${page <= 1 ? 'disabled' : ''}>◀ Prev</button>
-          <span class="page-info">${page} / ${totalPages}</span>
-          <button onclick="localStorage.setItem('userPage', ${page + 1}); renderUserList();" ${page >= totalPages ? 'disabled' : ''}>Next ▶</button>
-          <span class="text-muted" style="font-size:12px;">Total: ${totalItems} pengguna</span>
-        `;
+        pagination.innerHTML = pagerHtml('users', totalItems, totalPages, start, end, 'pengguna');
       }
     }
 

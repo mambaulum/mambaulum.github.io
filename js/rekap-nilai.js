@@ -65,9 +65,9 @@
       guruList.forEach(g => { const uid = uidGuru(g); if (!grouped[uid]) grouped[uid] = { nama: g.name, siswa: [], jurnal: [], absen: 0 }; });
       const entries = Object.entries(grouped);
       if (entries.length === 0) { list.innerHTML = '<p class="text-muted">Tidak ada data yang sesuai filter.</p>'; document.getElementById('rekapPagination').innerHTML = ''; return; }
-      const totalItems = entries.length, totalPages = Math.ceil(totalItems/PAGE_SIZE);
+      const totalItems = entries.length, ps = pagerSize('rekap') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems/ps));
       if (rekapPage > totalPages) rekapPage = totalPages; if (rekapPage < 1) rekapPage = 1;
-      const start = (rekapPage-1)*PAGE_SIZE, end = Math.min(start+PAGE_SIZE, totalItems), pageItems = entries.slice(start,end);
+      const start = (rekapPage-1)*ps, end = Math.min(start+ps, totalItems), pageItems = entries.slice(start,end);
       let html = '';
       for (const [, data] of pageItems) {
         const guruName = data.nama;
@@ -82,7 +82,7 @@
         </div>`;
       }
       list.innerHTML = html;
-      document.getElementById('rekapPagination').innerHTML = `<button onclick="rekapPage--; renderRekap();" ${rekapPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${rekapPage} / ${totalPages}</span><button onclick="rekapPage++; renderRekap();" ${rekapPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems} guru</span>`;
+      document.getElementById('rekapPagination').innerHTML = pagerHtml('rekap', totalItems, totalPages, start, end, 'guru');
     }
 
     // ============================================================

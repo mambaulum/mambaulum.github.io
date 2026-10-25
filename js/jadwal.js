@@ -114,11 +114,11 @@
       }
 
       const totalItems = filtered.length;
-      const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      const ps = pagerSize('jadwal') || totalItems || 1, totalPages = Math.max(1, Math.ceil(totalItems / ps));
       if (jadwalPage > totalPages) jadwalPage = totalPages;
       if (jadwalPage < 1) jadwalPage = 1;
-      const start = (jadwalPage - 1) * PAGE_SIZE;
-      const end = Math.min(start + PAGE_SIZE, totalItems);
+      const start = (jadwalPage - 1) * ps;
+      const end = Math.min(start + ps, totalItems);
       const pageItems = filtered.slice(start, end);
 
       let html = `<table style="width:100%;border-collapse:collapse;font-size:14px;">
@@ -153,16 +153,7 @@
       container.innerHTML = html;
 
       const paginationEl = document.getElementById('jadwalPagination');
-      if (totalPages > 1) {
-        paginationEl.innerHTML = `
-          <button onclick="jadwalPage--; renderJadwal();" ${jadwalPage <= 1 ? 'disabled' : ''}>◀ Prev</button>
-          <span class="page-info">${jadwalPage} / ${totalPages}</span>
-          <button onclick="jadwalPage++; renderJadwal();" ${jadwalPage >= totalPages ? 'disabled' : ''}>Next ▶</button>
-          <span class="text-muted" style="font-size:12px;">Total: ${totalItems}</span>
-        `;
-      } else {
-        paginationEl.innerHTML = '';
-      }
+      paginationEl.innerHTML = pagerHtml('jadwal', totalItems, totalPages, start, end, 'jadwal');
     }
     function renderJadwalMingguan(filtered, kelas, filterGuru) {
       const container = document.getElementById('jadwalTableWrapper');

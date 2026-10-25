@@ -448,9 +448,9 @@
         tableData.push({ guru, reguler: j.reguler, nonReguler: j.nonReguler, ekstra: j.ekstra, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventJumlah: ev.jumlah, eventHonor: ev.honor, ujianJumlah: uj.jumlah, ujianHonor: uj.honor, tunjangan, transport, honor, gkey: guruKey });
       }
       bonusLainnya.forEach(bonus => { tableData.push({ guru: bonus.label, reguler: '-', nonReguler: '-', ekstra: '-', ekstraHonor: 0, dluha: '-', dzuhur: '-', eventJumlah: '-', eventHonor: 0, ujianJumlah: '-', ujianHonor: 0, tunjangan: 0, transport: 0, honor: bonus.amount, isBonus: true }); totalHonor += bonus.amount; });
-      const totalItems = tableData.length, totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      const totalItems = tableData.length, ps = pagerSize('honor') || totalItems || 1, totalPages = Math.max(1, Math.ceil(totalItems / ps));
       if (honorPage > totalPages) honorPage = totalPages; if (honorPage < 1) honorPage = 1;
-      const start = (honorPage - 1) * PAGE_SIZE, end = Math.min(start + PAGE_SIZE, totalItems), pageItems = tableData.slice(start, end);
+      const start = (honorPage - 1) * ps, end = Math.min(start + ps, totalItems), pageItems = tableData.slice(start, end);
       // Panjar honor (guru mengambil honor lebih dulu): dicatat terpisah di node honor_panjar, TIDAK masuk Kas Umum.
       const ymHonor = year + '-' + month;
       const hpAdm = honorPanjarDapat(ymHonor, null, () => renderHonor());
@@ -496,7 +496,7 @@
       }
       html += honorSholatDitolakHtml(hs.hasil.ditolak, true);
       container.innerHTML = html; btnPdf.style.display = 'inline-block';
-      paginationEl.innerHTML = `<button onclick="honorPage--; renderHonor();" ${honorPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${honorPage} / ${totalPages}</span><button onclick="honorPage++; renderHonor();" ${honorPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems} data</span>`;
+      paginationEl.innerHTML = pagerHtml('honor', totalItems, totalPages, start, end, 'data');
       window._honorData = { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList, tableData };
     }
     // ============================================================

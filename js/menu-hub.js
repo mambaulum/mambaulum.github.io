@@ -1,5 +1,5 @@
 /* ============================================================
-   MENU HUB -- menggabungkan item sidebar yang mirip jadi satu entri (41 item -> 22 entri).
+   MENU HUB -- menggabungkan item sidebar yang mirip jadi satu entri (35 item -> 15 entri).
    Catatan: 'surat' (Surat & Ijin) sengaja TIDAK jadi anggota hub; berdiri sendiri di grup Guru & Madrasah sejajar Rapat.
    Tidak ada halaman yang dihapus dan aturan hak akses per peran di app.js TIDAK diubah:
    - Item asli tetap ada di DOM (disembunyikan lewat class .hub-member) dan tetap diberi/dicabut
