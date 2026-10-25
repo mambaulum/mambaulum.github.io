@@ -1,14 +1,14 @@
 {
-  "appVersion": "v8.127",
-  "disimpan": "2026-10-25T13:14:39.707Z",
+  "appVersion": "v8.131",
+  "disimpan": "2026-10-25T13:52:46.826Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
       "hash": "d968e42b9a4962f67a0a57f15b40db61d0a3d461"
     },
     "css/menu-polish.css": {
-      "v": "v=32",
-      "hash": "d47475e79f536a951ef5760a950dc102fa928c76"
+      "v": "v=33",
+      "hash": "46d0b3e20a07c21a9c2403de869c10695cf35b7a"
     },
     "css/impersonate.css": {
       "v": "v=3",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=110",
-      "hash": "5034e4bdd6f262f0347c9ebf0f019c4f3863e1cc"
+      "v": "v=113",
+      "hash": "425cfe72e2b50e172800569bce047b00d10d8d38"
     },
     "js/portal-ortu.js": {
       "v": "v=1",
@@ -83,16 +83,16 @@
       "hash": "ff6bbb89002c034052966fbecdbcb7010fff9ca2"
     },
     "js/jadwal.js": {
-      "v": "v=1",
-      "hash": "2b67bc97fd27f4ded6fd46d767e3789215c2d5e4"
+      "v": "v=2",
+      "hash": "88045352fca463b5cb05e1b7e2f53587243cc7a3"
     },
     "js/laporan-rekap.js": {
       "v": "v=1",
       "hash": "e1b2c6244ccca448c2a2cda4acfa68f1b8760e0b"
     },
     "js/honor-guru.js": {
-      "v": "v=1",
-      "hash": "cf179b82a319cba585dc4c7ad477372a6c6caa80"
+      "v": "v=2",
+      "hash": "7d69ab226d35ee4fb4043cc3d98cb9d07e641bf3"
     },
     "js/event-ujian.js": {
       "v": "v=1",
@@ -111,8 +111,8 @@
       "hash": "4b4fd9c5cc1a59ecbd131e2f76ecb3e8b30816a2"
     },
     "js/rekap-nilai.js": {
-      "v": "v=1",
-      "hash": "95d39e4c4be9b7d895bccaca419470624e6a6694"
+      "v": "v=2",
+      "hash": "75e50170acdf716a717a40d939597d3ed1514caf"
     },
     "js/kalender-akademik.js": {
       "v": "v=1",
@@ -143,12 +143,12 @@
       "hash": "4e5b30ea841b9b361ff2ddd0a519900935f69b94"
     },
     "js/menu-hub.js": {
-      "v": "v=11",
-      "hash": "ba8ad62990975190049a45a93e208d862cfb4f51"
+      "v": "v=12",
+      "hash": "bdd0e114976a6c4aa22558be0faee5f0295c3810"
     },
     "js/menu-polish.js": {
-      "v": "v=30",
-      "hash": "9ebe389d34d51166f4458405a82d6d95113e4417"
+      "v": "v=31",
+      "hash": "85dbd77ca009f4985305c5ac231d2f2d655c58b7"
     },
     "js/rekap-jurnal.js": {
       "v": "v=1",
