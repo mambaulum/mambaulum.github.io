@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/rujukan.js (v2)
+   SI MAMBA - js/rujukan.js (v3)
    Catatan kecil "📚 Rujukan: ..." (dasar regulasi: KMA / Kepdirjen Pendis / PMA / UU) di setiap menu, serta di
    setiap tab & jenis surat pada halaman Surat & Ijin.
    - Hanya teks informasi; tidak mengubah data / perilaku fitur.
@@ -137,6 +137,14 @@
     if (t) segarSurat();
   }, true);
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'sg_jenis') segarSurat(); }, true);
+
+  // Kalimat petunjuk di HP: 1 baris, ketuk untuk membuka/menutup (CSS di index.html #compactMobileCss).
+  document.addEventListener('click', function (e) {
+    if (window.innerWidth > 768 || !e.target || !e.target.closest) return;
+    var t = e.target.closest('.page-content > .card > h3:first-child + p, #page-attendance .attendance-warning');
+    if (!t || t.querySelector('button, a, input, select')) return;
+    t.classList.toggle('petunjuk-open');
+  });
 
   var lama = window.navigateTo;
   if (typeof lama === 'function' && !lama.__rujukan) {
