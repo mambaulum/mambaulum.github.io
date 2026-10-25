@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/rujukan.js (v1)
+   SI MAMBA - js/rujukan.js (v2)
    Catatan kecil "📚 Rujukan: ..." (dasar regulasi: KMA / Kepdirjen Pendis / PMA / UU) di setiap menu, serta di
    setiap tab & jenis surat pada halaman Surat & Ijin.
    - Hanya teks informasi; tidak mengubah data / perilaku fitur.
@@ -90,14 +90,18 @@
   };
 
   // ---- Mesin tampilan ----
-  var CSS = 'font-size:11px;line-height:1.4;color:#6b7280;margin:0 0 8px;padding:0;';
+  var CSS = 'font-size:11px;line-height:1.4;color:#6b7280;margin:0 0 6px;padding:0;';
+  // Satu baris (dipotong …); ketuk untuk membuka teks lengkap / menutup lagi.
+  (function () { if (document.getElementById('rujukanCss')) return; var st = document.createElement('style'); st.id = 'rujukanCss';
+    st.textContent = '.rujukan-kecil{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;max-width:100%;}.rujukan-kecil.open{white-space:normal;overflow:visible;}';
+    document.head.appendChild(st); })();
   function $(id) { return document.getElementById(id); }
   function pasang(parent, id, teks, sebelum) {
     var e = $(id);
     if (!teks) { if (e && e.parentNode) e.parentNode.removeChild(e); return; }
-    if (!e) { e = document.createElement('div'); e.id = id; e.className = 'rujukan-kecil'; e.style.cssText = CSS; }
+    if (!e) { e = document.createElement('div'); e.id = id; e.className = 'rujukan-kecil'; e.style.cssText = CSS; e.addEventListener('click', function () { e.classList.toggle('open'); }); }
     e.textContent = '📚 Rujukan: ' + teks;
-    e.title = 'Rujukan regulasi (informasi). Verifikasi ke naskah resmi Kemenag.';
+    e.title = 'Ketuk untuk membuka/menutup. Rujukan regulasi (informasi): verifikasi ke naskah resmi Kemenag.';
     if (sebelum) parent.insertBefore(e, sebelum); else if (e.parentNode !== parent) parent.insertBefore(e, parent.firstChild);
   }
   function tampilHalaman(page) {

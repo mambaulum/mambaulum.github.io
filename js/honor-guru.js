@@ -528,7 +528,7 @@
       let totalPanjar = 0; tableData.forEach(it => { totalPanjar += panjarDari(it); });
       let htmlKas = '', htmlRincian = '';
       const panjarBanner = panjarOk ? '' : `<div style="margin-bottom:10px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:13px;color:#92400e;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><span>${panjarPesan} Kolom Panjar dan Sisa Dibayar belum dapat dihitung (tanda ⚠️ ?).</span><button class="btn btn-soft" onclick="honorPanjarInvalidate();renderHonor()">🔄 Muat ulang panjar</button></div>`;
-      let html = panjarBanner + `<div style="overflow-x:auto;"><table><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
+      let html = panjarBanner + `<div style="overflow-x:auto;"><table class="honor-rekap-tbl"><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
       let no = start + 1;
       for (const item of pageItems) {
         const isBonus = item.isBonus || false, bgStyle = isBonus ? 'style="background:#fef3c7;font-weight:600;"' : '';
