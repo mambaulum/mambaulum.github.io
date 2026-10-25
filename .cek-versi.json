@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.113",
-  "disimpan": "2026-10-25T11:47:47.784Z",
+  "appVersion": "v8.118",
+  "disimpan": "2026-10-25T11:48:19.142Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,7 +59,7 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=100",
+      "v": "v=101",
       "hash": "e4535aabb0457a633ab3165264a710b87efdc74b"
     },
     "js/amalan-kegiatan.js": {
@@ -183,7 +183,7 @@
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
     },
     "js/tunggakan-infaq.js": {
-      "v": "v=10",
+      "v": "v=12",
       "hash": "223725093f8d83d654a4420b8bba2b4e1b4c0959"
     },
     "js/auto-logout.js": {
@@ -199,7 +199,7 @@
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
     },
     "js/surat-guru.js": {
-      "v": "v=31",
+      "v": "v=34",
       "hash": "4b093538b2739eb4a46fa99a7ebd9a9597ed2d0f"
     },
     "js/agenda-surat.js": {
@@ -207,11 +207,11 @@
       "hash": "8cf49bd3763cca6b886c4429884e4716e0f5e61d"
     },
     "js/undangan-rapat.js": {
-      "v": "v=3",
+      "v": "v=4",
       "hash": "6346b6c3f3b17fdececd62bb1cbddd388d2d1883"
     },
     "js/edaran-wali.js": {
-      "v": "v=3",
+      "v": "v=4",
       "hash": "e28b859d806f04b2fc5214df1df26eaddb8d47b6"
     },
     "js/tahfidz-grafik.js": {
@@ -223,7 +223,7 @@
       "hash": "6e8111e6ed90a06cc475fd1780708198b1c412a6"
     },
     "js/rujukan.js": {
-      "v": "v=1",
+      "v": "v=2",
       "hash": "571b27e705792b3eb052557ee97446839a1719c3"
     }
   }
