@@ -1,0 +1,953 @@
+// ============================================================
+// honor-guru.js -- HONOR GURU (dipecah dari app.js, tahap 3)
+// ============================================================
+// Isi: honor sholat berbasis check-in (honorSholat*), tarif ekstra & ekskul, ranking Guru Terajin,
+// tarif honor V4 (v4GetHonorRates/v4HitungHonor), halaman Honor (renderHonor), panjar honor
+// (honorPanjar*), jadwal bayar, pengingat, catat ke Kas, Slip Honor Saya, dan PDF Rekap Honor Guru
+// (downloadHonorPDF).
+// Dimuat SESUDAH js/app.js (index.html). Tidak ada kode yang jalan saat dimuat selain pembungkus
+// pemuat PDF malas di bagian paling bawah berkas ini.
+// TETAP di app.js: saveReligi() (stub), getJamReligi(), v4HariDiizinkanSholat(), v4CariJenisKegiatanSholat(),
+// v4KataKunciSholat(), v4SeedJenisSholatRutin(), v4AbsensiSiswaSholatSudahDiisi() -- bagian absensi sholat,
+// dan generateHonorReport() (ada di js/laporan-rekap.js).
+// ============================================================
+
+    // ============================================================
+    // HONOR SHOLAT (Dhuha & Dzuhur) -- DIHITUNG DARI CHECK-IN PETUGAS
+    // ============================================================
+    // Aturan: honor sholat = check-in QR petugas (activity_checkin_v4) + absensi siswa LENGKAP + jam check-in dalam jendela.
+    // "Absen Religi Saya" tidak dipakai lagi (saveReligi dicabut). Check-in boleh offline, jadi honor tidak bergantung pada langkah kedua.
+    // Pemeriksaan jam & kelengkapan dilakukan SAAT REKAP DIHITUNG (data sudah di server), bukan saat guru menyimpan.
+    // Hari yang tidak lolos TIDAK dihitung dan ditandai (beserta alasannya) di Rekap Honor, Slip, dan Laporan.
+    // Jendela jam = getJamReligi(): Dhuha 06:30-09:00, Dzuhur 11:00-12:30, dinilai dari jam check-in (WIB).
+    // Tanggal < HONOR_SHOLAT_MULAI_CHECKIN tetap dihitung dari Absen Religi lama (religi_attendance) supaya honor/slip lama tidak berubah.
+    // Koreksi Admin (>= tanggal itu) disimpan di honor_koreksi_sholat, bukan mengubah check-in.
+    const HONOR_SHOLAT_MULAI_CHECKIN = '2026-10-15';
+    const HONOR_SHOLAT_TTL_MS = 5 * 60 * 1000;
+    const HONOR_SHOLAT_TOLERANSI_MS = 5 * 60 * 1000;   // jam check-in boleh "lebih maju" maksimal ini dari jam server
+    let honorSholatCache = {};   // 'YYYY-MM' -> { status:'loading'|'ok'|'gagal', at, hasil, error, tunggu:[] }
+
+    function honorSholatInvalidate() { honorSholatCache = {}; }
+    function honorSholatNama(jenis) { return jenis === 'sholat_dluha' ? 'Dhuha' : 'Dzuhur'; }
+    function honorSholatResolve(guruKey, nama) {
+      if (guruKey) return guruKey;
+      const g = (allGuru || []).find(x => x && x.key && x.name === nama);
+      return (g && g.key) || nama;
+    }
+    function honorSholatNamaGuru(gk, fallback) {
+      const g = (allGuru || []).find(x => x && x.key === gk);
+      return (g && g.name) || fallback || gk;
+    }
+    // Jam & tanggal WIB (UTC+7) dari epoch-ms, tidak bergantung zona waktu perangkat.
+    function honorSholatWib(ms) {
+      const d = new Date(ms + 7 * 3600 * 1000), p = n => String(n).padStart(2, '0');
+      return { tgl: d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()), menit: d.getUTCHours() * 60 + d.getUTCMinutes(), jam: p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) };
+    }
+    function honorSholatMenit(s) { const p = String(s || '').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
+    function honorSholatJenisType(typeId) {
+      const t = (typeof v4ActTypeByKey === 'function') ? v4ActTypeByKey(typeId) : null;
+      return (t && typeof v4ActJenisSholat === 'function') ? v4ActJenisSholat(t) : null;
+    }
+    // Inti perhitungan (murni, tanpa akses Firebase). c = { ym, religiLama[], checkins{}, koreksi{}, hadirSiswa{jenis:{tgl:Set}},
+    // siswaWajib{jenis:[{kelas,siswa:[{key,name}]}]}, jenisType(typeId), hariOk(jenis,tgl) }.
+    // Hasil: { perGuru:{gk:{nama,dluha,dzuhur}}, ditolak:[{gk,nama,tgl,jenis,alasan}], entri:{'gk|tgl|jenis':{...,sistemLolos,lolos,koreksi}} }
+    function honorSholatHitung(c) {
+      const hasil = { perGuru: {}, ditolak: [], entri: {} };
+      const ambil = (gk, nama) => hasil.perGuru[gk] || (hasil.perGuru[gk] = { nama: honorSholatNamaGuru(gk, nama), dluha: 0, dzuhur: 0 });
+      // 1) Sebelum aturan baru: Absen Religi lama (sama seperti rumus lama).
+      (c.religiLama || []).forEach(r => {
+        if (!r || !r.tanggal || r.tanggal.slice(0, 7) !== c.ym || r.tanggal >= HONOR_SHOLAT_MULAI_CHECKIN) return;
+        const g = ambil(honorSholatResolve(r.guruKey, r.guru), r.guru);
+        if (r.sholat_dluha && r.sholat_dluha.status === 'Hadir') g.dluha += 1;
+        if (r.sholat_dzuhur && r.sholat_dzuhur.status === 'Hadir') g.dzuhur += 1;
+      });
+      // 2) Aturan baru: check-in + jam + kelengkapan absensi siswa.
+      const entri = hasil.entri;
+      Object.keys(c.checkins || {}).forEach(k => {
+        const ci = c.checkins[k]; if (!ci) return;
+        const tgl = ci.tanggal || String(k).slice(0, 10);
+        if (tgl < HONOR_SHOLAT_MULAI_CHECKIN || tgl.slice(0, 7) !== c.ym) return;
+        const jenis = c.jenisType(ci.typeId || String(k).slice(11)); if (!jenis) return;   // bukan kegiatan sholat
+        const gk = honorSholatResolve(ci.guruKey, ci.guruName), alasan = [], nm = honorSholatNama(jenis);
+        if (!c.hariOk(jenis, tgl)) alasan.push('Hari itu bukan jadwal Sholat ' + nm);
+        const ms = Number(ci.atMs) || Date.parse(ci.at);
+        if (!(ms > 0)) alasan.push('Jam check-in tidak terbaca');
+        else {
+          const w = honorSholatWib(ms), win = getJamReligi(jenis);
+          if (w.tgl !== tgl) alasan.push('Tanggal jam check-in (' + w.tgl + ') tidak sama dengan tanggal check-in');
+          else if (w.menit < honorSholatMenit(win.mulai) || w.menit > honorSholatMenit(win.selesai)) alasan.push('Check-in pukul ' + w.jam + ' di luar jam ' + win.mulai + '-' + win.selesai);
+          if (Number(ci.serverAt) > 0 && ms > Number(ci.serverAt) + HONOR_SHOLAT_TOLERANSI_MS) alasan.push('Jam check-in lebih maju dari jam server');
+        }
+        const sudah = ((c.hadirSiswa || {})[jenis] || {})[tgl] || new Set(), rinci = [];
+        ((c.siswaWajib || {})[jenis] || []).forEach(g => { const belum = g.siswa.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + g.siswa.length + ' siswa'); });
+        if (rinci.length) alasan.push('Absensi siswa belum lengkap (' + rinci.join(', ') + ')');
+        const ek = gk + '|' + tgl + '|' + jenis, lolos = alasan.length === 0, e = entri[ek];
+        if (!e) entri[ek] = { gk, nama: ci.guruName || gk, tgl, jenis, sistemLolos: lolos, alasanSistem: alasan, lolos, koreksi: null, pengisi: [...((((c.pengisi || {})[jenis] || {})[tgl]) || [])] };
+        else if (lolos && !e.lolos) { e.sistemLolos = true; e.lolos = true; e.alasanSistem = []; }
+        ambil(gk, ci.guruName);
+      });
+      // 3) Koreksi Admin: 'Hadir' = dihitung walau sistem menolak / tanpa check-in; 'Tidak Hadir' = dicabut.
+      Object.keys(c.koreksi || {}).forEach(k => {
+        const kr = c.koreksi[k];
+        if (!kr || !kr.tanggal || kr.tanggal < HONOR_SHOLAT_MULAI_CHECKIN || kr.tanggal.slice(0, 7) !== c.ym) return;
+        if (kr.sholat !== 'sholat_dluha' && kr.sholat !== 'sholat_dzuhur') return;
+        const gk = honorSholatResolve(kr.guruKey, kr.guruName), ek = gk + '|' + kr.tanggal + '|' + kr.sholat;
+        const e = entri[ek] || (entri[ek] = { gk, nama: kr.guruName || gk, tgl: kr.tanggal, jenis: kr.sholat, sistemLolos: false, alasanSistem: ['Tidak ada check-in'], lolos: false, koreksi: null });
+        e.koreksi = { aksi: kr.aksi, alasan: kr.alasan || '', oleh: kr.oleh || '' };
+        e.lolos = kr.aksi === 'Hadir';
+        ambil(gk, kr.guruName);
+      });
+      Object.keys(entri).forEach(ek => {
+        const e = entri[ek], g = ambil(e.gk, e.nama);
+        if (e.lolos) { if (e.jenis === 'sholat_dluha') g.dluha += 1; else g.dzuhur += 1; }
+        else hasil.ditolak.push({ gk: e.gk, nama: g.nama, tgl: e.tgl, jenis: e.jenis, alasan: e.koreksi ? ('Dicabut Admin' + (e.koreksi.alasan ? ': ' + e.koreksi.alasan : '')) : e.alasanSistem.join('; ') });
+      });
+      hasil.ditolak.sort((a, b) => (a.tgl < b.tgl ? -1 : a.tgl > b.tgl ? 1 : COLLATOR_ID.compare(a.nama || '', b.nama || '')));
+      return hasil;
+    }
+    // Ambil data dari server untuk satu bulan lalu hitung. Hasil disimpan di honorSholatCache[ym].
+    function honorSholatMuat(ym) {
+      const entry = honorSholatCache[ym];
+      const selesai = (err, hasil) => {
+        if (honorSholatCache[ym] !== entry) return;   // cache sudah di-invalidate selama memuat
+        if (err) { entry.status = 'gagal'; entry.error = (err && err.message) || String(err); } else { entry.status = 'ok'; entry.hasil = hasil; }
+        entry.at = Date.now();
+        entry.tunggu.splice(0).forEach(cb => { try { cb(); } catch (e) { console.warn('[SI MAMBA] honorSholat callback:', e); } });
+      };
+      try {
+        const religiLama = (allReligiAttendance || []).filter(r => r && r.tanggal && r.tanggal.slice(0, 7) === ym && sesuaiTahunAjaranTermasukDataLama(r));
+        const c = { ym, religiLama, checkins: {}, koreksi: {}, hadirSiswa: {}, pengisi: {}, siswaWajib: {}, jenisType: honorSholatJenisType, hariOk: (j, t) => v4HariDiizinkanSholat(j, t) };
+        if (ym + '-31' < HONOR_SHOLAT_MULAI_CHECKIN) return selesai(null, honorSholatHitung(c));   // bulan lama: murni Absen Religi lama
+        if (typeof db === 'undefined' || !db || !navigator.onLine) return selesai(new Error('Butuh koneksi internet untuk memeriksa check-in petugas dan kelengkapan absensi siswa sholat.'));
+        if (!(V4.activityTypes || []).length) { if (typeof v4LoadCore === 'function') v4LoadCore(); return selesai(new Error('Data Amalan Yaumiyah belum termuat. Coba lagi sebentar lagi.')); }
+        const jenisList = ['sholat_dluha', 'sholat_dzuhur'], tipe = {}, kelasWajib = {};
+        jenisList.forEach(j => {
+          tipe[j] = v4CariJenisKegiatanSholat(j === 'sholat_dluha' ? 'Dluha' : 'Dzuhur').map(t => (typeof v4ActTypeByKey === 'function' && v4ActTypeByKey(t.key)) || t);
+          kelasWajib[j] = KELAS_LIST.filter(k => tipe[j].some(t => !v4ActKelasTidakIkut(t, k)));
+        });
+        const awal = ym + '-', akhir = ym + '-\uf8ff';
+        const bacaCi = db.ref('activity_checkin_v4').orderByKey().startAt(awal).endAt(akhir).once('value').then(s => { c.checkins = s.val() || {}; });
+        const bacaKor = db.ref('honor_koreksi_sholat').orderByKey().startAt(awal).endAt(akhir).once('value').then(s => { c.koreksi = s.val() || {}; });
+        const semuaKelas = Array.from(new Set([].concat(kelasWajib.sholat_dluha, kelasWajib.sholat_dzuhur)));
+        const bacaSiswa = Promise.all(semuaKelas.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(s => { const arr = []; s.forEach(ch => { const v = ch.val() || {}; arr.push({ key: ch.key, name: v.name || ch.key }); }); return [k, arr]; })))
+          .then(pasangan => { const m = {}; pasangan.forEach(p => { m[p[0]] = p[1]; }); jenisList.forEach(j => { c.siswaWajib[j] = kelasWajib[j].map(k => ({ kelas: k, siswa: m[k] || [] })); }); });
+        const bacaAbsen = Promise.all(jenisList.map(j => Promise.all(tipe[j].map(t => db.ref('activity_attendance_v4').orderByKey().startAt(t.key + '_' + awal).endAt(t.key + '_' + akhir).once('value').then(s => {
+          const peta = c.hadirSiswa[j] || (c.hadirSiswa[j] = {});
+          s.forEach(ch => {
+            const r = ch.val() || {};
+            if (!r.studentId || !(typeof v4NormStatusKegiatan === 'function' ? v4NormStatusKegiatan(r.status) : r.status)) return;
+            const tgl = r.tanggal || String(ch.key).slice(t.key.length + 1, t.key.length + 11);
+            (peta[tgl] || (peta[tgl] = new Set())).add(r.studentId);
+            if (r.recordedBy) { const pj = c.pengisi[j] || (c.pengisi[j] = {}); (pj[tgl] || (pj[tgl] = new Set())).add(String(r.recordedBy)); }   // penanda untuk Admin (Rekap Petugas QR)
+          });
+        })))));
+        const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 30000));
+        Promise.race([Promise.all([bacaCi, bacaKor, bacaSiswa, bacaAbsen]), batas])
+          .then(() => selesai(null, honorSholatHitung(c)))
+          .catch(err => selesai(/permission/i.test((err && err.message) || '') ? new Error('Akses baca ditolak oleh Rules Firebase (activity_checkin_v4 / honor_koreksi_sholat / activity_attendance_v4 / siswa). Minta Admin memasang Rules terbaru.') : err));
+      } catch (e) { selesai(e); }
+    }
+    // { siap:true, hasil } | { siap:false } (sedang memuat; onReady dipanggil saat selesai) | { siap:false, gagal:'pesan' }
+    function honorSholatDapat(year, month, onReady) {
+      const ym = String(year) + '-' + String(month).padStart(2, '0'), e = honorSholatCache[ym];
+      if (e && e.status === 'ok' && Date.now() - e.at < HONOR_SHOLAT_TTL_MS) return { siap: true, hasil: e.hasil };
+      if (e && e.status === 'gagal' && Date.now() - e.at < 15000) return { siap: false, gagal: e.error };
+      if (e && e.status === 'loading') { if (onReady) e.tunggu.push(onReady); return { siap: false }; }
+      honorSholatCache[ym] = { status: 'loading', at: Date.now(), tunggu: onReady ? [onReady] : [] };
+      honorSholatMuat(ym);
+      const e2 = honorSholatCache[ym];   // bulan lama selesai seketika (sinkron)
+      if (e2 && e2.status === 'ok') return { siap: true, hasil: e2.hasil };
+      if (e2 && e2.status === 'gagal') return { siap: false, gagal: e2.error };
+      return { siap: false };
+    }
+    function honorSholatStatusHtml(hs, ulang) {
+      if (hs.gagal) return `<p style="color:#b91c1c;font-size:13px;">❌ ${escapeHtml(hs.gagal)}</p><button class="btn btn-soft" onclick="honorSholatInvalidate();${ulang}">🔄 Coba lagi</button>`;
+      return '<p class="text-muted">⏳ Memeriksa check-in petugas dan kelengkapan absensi siswa sholat...</p>';
+    }
+    function honorSholatDitolakHtml(daftar, semuaGuru) {
+      if (!daftar || !daftar.length) return '';
+      const baris = daftar.map(d => `<tr>${semuaGuru ? `<td>${escapeHtml(d.nama)}</td>` : ''}<td>${escapeHtml(d.tgl)}</td><td>${honorSholatNama(d.jenis)}</td><td>${escapeHtml(d.alasan)}</td></tr>`).join('');
+      return `<details open style="margin-top:16px;background:#fffbeb;border-radius:12px;padding:12px;border:1px solid #fcd34d;"><summary style="font-weight:700;cursor:pointer;color:#92400e;">⚠️ Hari sholat tidak dihitung honor (${daftar.length})</summary><div style="margin-top:10px;overflow-x:auto;"><table><thead><tr>${semuaGuru ? '<th>Guru</th>' : ''}<th>Tanggal</th><th>Sholat</th><th>Alasan</th></tr></thead><tbody>${baris}</tbody></table></div><p class="text-muted" style="font-size:11px;margin:8px 0 0;">Honor sholat dihitung dari check-in petugas yang jamnya dalam jendela sholat dan absensi siswanya lengkap. Untuk koreksi, Admin memakai kartu "Koreksi Absen Religi Guru".</p></details>`;
+    }
+
+    // ============================================================
+    // HONOR
+    // ============================================================
+    // ============================================================
+    // RATE EKSTRAKURIKULER PER KEGIATAN
+    // ============================================================
+    const RATE_EKSTRA_DEFAULT = 20000;
+    function namaKegiatanKey(nama) { return nama.trim().toLowerCase().replace(/[.#$\[\]\/]/g, '_'); }
+    function getEkstraRate(namaKegiatan) {
+      if (!namaKegiatan) return RATE_EKSTRA_DEFAULT;
+      const key = namaKegiatanKey(namaKegiatan);
+      return (ekskulRates[key] !== undefined) ? ekskulRates[key].rate : RATE_EKSTRA_DEFAULT;
+    }
+    function renderEkskulRateList() {
+      const container = document.getElementById('ekskulRateList');
+      if (!container) return;
+      const namaDariJurnal = new Set(allJournals.filter(j => isJamEkstra(j.jam_ke) && j.subject).map(j => j.subject));
+      Object.values(ekskulRates).forEach(r => { if (r.nama) namaDariJurnal.add(r.nama); });
+      if (namaDariJurnal.size === 0) { container.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada kegiatan ekstrakurikuler tercatat.</p>'; return; }
+      let html = '';
+      [...namaDariJurnal].sort().forEach(nama => {
+        const key = namaKegiatanKey(nama);
+        const rate = ekskulRates[key] ? ekskulRates[key].rate : RATE_EKSTRA_DEFAULT;
+        const isDefault = !ekskulRates[key];
+        html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
+          <span style="flex:1;min-width:120px;font-weight:600;font-size:13px;">${escapeHtml(nama)} ${isDefault ? '<span class="text-muted" style="font-size:11px;font-weight:400;">(default)</span>' : ''}</span>
+          <input type="number" class="field" style="width:130px;padding:4px 8px;" id="ekskulRateInput_${escapeHtml(key)}" value="${rate}" min="0" step="1000">
+          <button class="btn btn-success" style="padding:4px 12px;font-size:12px;" onclick="simpanEkskulRate('${escapeJs(nama)}')">💾</button>
+          ${!isDefault ? `<button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" onclick="hapusEkskulRate('${escapeJs(nama)}')">🗑️</button>` : ''}
+        </div>`;
+      });
+      container.innerHTML = html;
+    }
+    function simpanEkskulRate(nama) {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      const key = namaKegiatanKey(nama);
+      const input = document.getElementById('ekskulRateInput_' + key);
+      const rate = parseInt(input.value) || 0;
+      if (rate < 0) return toast('Rate tidak valid!', true);
+      db.ref('ekskul_rates/' + key).set({ nama, rate, tahunAjaran: currentTahunAjaran, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
+        if (err) return toast('Gagal: ' + err.message, true);
+        toast(`✅ Rate "${nama}" diperbarui ke Rp ${rate.toLocaleString()}/jam!`); addLog('ubah_rate_ekskul', nama + ': Rp ' + rate);
+        reloadDataset('ekskulRates', () => renderHonor());
+      });
+    }
+    function hapusEkskulRate(nama) {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      const key = namaKegiatanKey(nama);
+      if (!confirm(`Kembalikan "${nama}" ke rate default (Rp ${RATE_EKSTRA_DEFAULT.toLocaleString()}/jam)?`)) return;
+      db.ref('ekskul_rates/' + key).remove(err => {
+        if (err) return toast('Gagal: ' + err.message, true);
+        toast('✅ Rate dikembalikan ke default.'); addLog('hapus_rate_ekskul', nama); reloadDataset('ekskulRates', () => renderHonor());
+      });
+    }
+    function tambahEkskulRate() {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      const nama = document.getElementById('ekskulRateNamaBaru').value.trim();
+      const rate = parseInt(document.getElementById('ekskulRateNilaiBaru').value) || 0;
+      if (!nama) return toast('Isi nama kegiatan!', true);
+      if (rate <= 0) return toast('Isi rate lebih dari 0!', true);
+      const key = namaKegiatanKey(nama);
+      db.ref('ekskul_rates/' + key).set({ nama, rate, tahunAjaran: currentTahunAjaran, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
+        if (err) return toast('Gagal: ' + err.message, true);
+        toast(`✅ Kegiatan "${nama}" ditambahkan dengan rate Rp ${rate.toLocaleString()}/jam!`); addLog('tambah_rate_ekskul', nama);
+        document.getElementById('ekskulRateNamaBaru').value = ''; document.getElementById('ekskulRateNilaiBaru').value = '';
+        reloadDataset('ekskulRates', () => renderHonor());
+      });
+    }
+
+    // ============================================================
+    // GURU TERAJIN (ranking kedisiplinan otomatis + honor fleksibel)
+    // ============================================================
+    let allGuruTerajin = {};
+    function hitungRankingKedisiplinan(month, year) {
+      const monthStr = String(month).padStart(2,'0');
+      const guruAktif = (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas');
+      const winDatang = getJamAbsenWindow('Datang');
+      const toMenit = (str) => { const p = str.split(':'); return parseInt(p[0])*60 + parseInt(p[1]); };
+      const datangMulai = toMenit(winDatang.mulai), datangSelesai = toMenit(winDatang.selesai);
+      const todayStr = tglLokal();
+      const recsBulanIni = allTeacherAttendance.filter(a => { if (!a.tanggal) return false; const parts = a.tanggal.split('-'); return parts[0] === String(year) && parts[1] === monthStr; });
+      const ranking = guruAktif.map(g => {
+        const recs = recsBulanIni.filter(a => (a.guruKey ? a.guruKey === g.key : a.guru === g.name));
+        let datangTepat = 0, alpha = 0, hadirHari = 0;
+        recs.forEach(a => {
+          if (a.type === 'Alpha') alpha++;
+          if (a.type === 'Datang' && a.waktu) {
+            const t = new Date(a.waktu), menit = t.getHours()*60 + t.getMinutes();
+            if (menit >= datangMulai && menit <= datangSelesai) datangTepat++;
+          }
+        });
+        hadirHari = new Set(recs.filter(a => a.type === 'Datang').map(a => a.tanggal)).size;
+        // Hari-hari guru ini sudah Absen Datang tapi TIDAK PERNAH Absen Pulang di tanggal yang
+        // sama -- dikecualikan hari INI (todayStr), karena guru yang absen ranking sedang dihitung
+        // hari ini mungkin memang belum waktunya pulang, bukan berarti dia lalai.
+        let tanpaPulang = 0;
+        new Set(recs.filter(a => a.type === 'Datang').map(a => a.tanggal)).forEach(tgl => {
+          if (tgl === todayStr) return;
+          const sudahPulang = recs.some(a => a.type === 'Pulang' && a.tanggal === tgl);
+          if (!sudahPulang) tanpaPulang++;
+        });
+        const skor = (datangTepat * 2) - (alpha * 5) - (tanpaPulang * 2);
+        return { guru: g.name, datangTepat, alpha, hadirHari, tanpaPulang, skor };
+      }).filter(r => r.hadirHari > 0 || r.alpha > 0);
+      ranking.sort((a,b) => b.skor - a.skor);
+      return ranking;
+    }
+    function renderGuruTerajinRanking() {
+      const month = document.getElementById('honorMonth').value, year = document.getElementById('honorYear').value;
+      const container = document.getElementById('guruTerajinRanking');
+      const ranking = hitungRankingKedisiplinan(month, year);
+      const key = year + '-' + String(month).padStart(2,'0');
+      const sudahDitetapkan = allGuruTerajin[key];
+      if (ranking.length === 0) { container.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada data absen guru bulan ini.</p>'; document.getElementById('guruTerajinSetForm').style.display = 'none'; document.getElementById('guruTerajinSudahDitetapkan').style.display = 'none'; return; }
+      let html = '<div style="overflow-x:auto;"><table style="font-size:12px;"><thead><tr><th>Rank</th><th>Nama</th><th>Datang Tepat Waktu</th><th>Alpha</th><th>Tanpa Pulang</th><th>Skor</th></tr></thead><tbody>';
+      ranking.slice(0,5).forEach((r, idx) => {
+        const medali = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx+1);
+        html += `<tr ${idx===0 ? 'style="background:#fef3c7;font-weight:600;"' : ''}><td>${medali}</td><td>${escapeHtml(r.guru)}</td><td>${r.datangTepat}x</td><td>${r.alpha}x</td><td>${r.tanpaPulang}x</td><td>${r.skor}</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+      if (!isAdmin()) { document.getElementById('guruTerajinSetForm').style.display = 'none'; }
+      else {
+        const setForm = document.getElementById('guruTerajinSetForm');
+        setForm.style.display = 'block';
+        const select = document.getElementById('guruTerajinPilih');
+        select.innerHTML = ranking.map(r => `<option value="${escapeHtml(r.guru)}">${escapeHtml(r.guru)} (Skor: ${r.skor})</option>`).join('');
+      }
+      const doneBox = document.getElementById('guruTerajinSudahDitetapkan');
+      if (sudahDitetapkan) {
+        doneBox.style.display = 'block';
+        doneBox.innerHTML = `✅ <strong>${escapeHtml(sudahDitetapkan.guru)}</strong> ditetapkan sebagai Guru Terajin bulan ini — Honor: Rp ${(sudahDitetapkan.honor||0).toLocaleString()} <span style="font-size:11px;color:#065f46;">(oleh ${escapeHtml(sudahDitetapkan.ditetapkanOleh||'-')})</span>`;
+      } else { doneBox.style.display = 'none'; }
+    }
+    function tetapkanGuruTerajin() {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      const month = document.getElementById('honorMonth').value, year = document.getElementById('honorYear').value;
+      const guru = document.getElementById('guruTerajinPilih').value;
+      const honor = parseInt(document.getElementById('guruTerajinHonor').value) || 0;
+      if (!guru) return toast('Pilih guru terlebih dahulu!', true);
+      if (honor <= 0) return toast('Isi honor terlebih dahulu!', true);
+      const key = year + '-' + String(month).padStart(2,'0');
+      db.ref('guru_terajin/' + key).set({ guru, honor, tahunAjaran: currentTahunAjaran, ditetapkanOleh: currentUser.name, ditetapkanAt: new Date().toISOString() }, err => {
+        if (err) return toast('Gagal: ' + err.message, true);
+        toast(`🏆 ${guru} ditetapkan sebagai Guru Terajin!`); addLog('tetapkan_guru_terajin', guru + ' - ' + key);
+        document.getElementById('guruTerajinHonor').value = '';
+        reloadDataset('guruTerajin', () => renderHonor());
+      });
+    }
+    // -------- Honor: rate & rumus terpusat --------
+    // SATU sumber kebenaran untuk rate & rumus honor, dipakai bersama oleh renderHonor,
+    // renderHonorSlip, downloadHonorPDF, dan generateHonorReport (sebelumnya rumus yang sama
+    // di-copy-paste 4x -- risiko salah satu kelewat kalau nanti rumus/rate berubah).
+    // kepsek & yayasan = honor TETAP bulanan baris Kepala Madrasah / Ketua Yayasan di rekap Honor (dulu angka 300000/350000 ditulis langsung di kode)
+    const V4_TARIF_DEFAULT = { original: 7000, substitute: 5000, activity: 0, dluha: 5000, dzuhur: 5000, kepsek: 300000, yayasan: 350000 };
+    const V4_TARIF_BOLEH_NOL = { activity: 1, kepsek: 1, yayasan: 1 };   // boleh 0 (activity = default acara; kepsek/yayasan 0 = tanpa honor tetap)
+    // Menormalkan isi honor_rates_v4: nilai harus angka hingga (>0; khusus `activity` boleh 0). Yang tidak valid
+    // (0, kosong, teks, NEGATIF) diganti tarif default -- dulu 0 diam-diam jatuh ke default lewat `||`, tapi
+    // nilai NEGATIF lolos & memotong honor. `rusak` = field yang ADA di database tapi tidak valid (field yang
+    // memang belum pernah disimpan bukan "rusak", cukup memakai default).
+    function v4NormalisasiRates(raw) {
+      const src = raw && typeof raw === 'object' ? raw : {}, rates = {}, rusak = [];
+      Object.keys(V4_TARIF_DEFAULT).forEach(k => {
+        const v = src[k];
+        let n = NaN;
+        if (typeof v === 'number') n = v; else if (typeof v === 'string' && v.trim() !== '') n = Number(v);
+        const valid = isFinite(n) && (V4_TARIF_BOLEH_NOL[k] ? n >= 0 : n > 0);
+        if (valid) rates[k] = n;
+        else { rates[k] = V4_TARIF_DEFAULT[k]; if (v !== undefined && v !== null) rusak.push(k); }
+      });
+      if (src.updatedBy !== undefined) rates.updatedBy = src.updatedBy;
+      if (src.updatedAt !== undefined) rates.updatedAt = src.updatedAt;
+      return { rates, rusak };
+    }
+    // Perbaikan sekali per sesi (hanya Admin): tulis balik tarif yang efektif dipakai ke database, supaya isi
+    // database = perilaku hitung honor & form Pengaturan Tarif. Tidak mengubah nominal yang valid.
+    let v4TarifDiperbaikiSesiIni = false;
+    // Node yang dikunci "hanya sesi Admin" di Rules (honor_rates_v4, rapat, Dinas Luar Kepala): pastikan sesi_admin/{uid} terisi
+    // sebelum menulis. Memakai kredAdminSiap() dari js/kredensial.js; bila modul itu tak ada, lanjut (Rules lama tidak mengunci).
+    function adminSesi() { return (typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : Promise.resolve(true); }
+    function v4PerbaikiTarifRusak(rusak, ratesValid, rawLama) {
+      if (v4TarifDiperbaikiSesiIni || !isAdmin() || !rusak.length) return;
+      v4TarifDiperbaikiSesiIni = true;
+      const patch = { perbaikanTarifAt: new Date().toISOString() }, lama = {};
+      rusak.forEach(k => { patch[k] = ratesValid[k]; lama[k] = rawLama[k]; });
+      adminSesi().then(() => db.ref('honor_rates_v4').update(patch)).then(() => {
+        v4Audit('REPAIR_HONOR_RATES', 'HONOR_RATE', 'global', lama, patch);
+        toast(`⚠️ Tarif honor tidak valid di database (${rusak.join(', ')}) dipulihkan ke tarif yang berlaku. Periksa di Pengaturan Tarif.`, true, 7000);
+      }).catch(err => console.warn('[SI MAMBA] Gagal memperbaiki tarif honor:', err && err.message || err));
+    }
+    function v4GetHonorRates(){
+      const r = v4NormalisasiRates(V4.rates).rates;
+      return { reguler: r.original, nonReguler: r.substitute, dluha: r.dluha, dzuhur: r.dzuhur, kepsek: r.kepsek, yayasan: r.yayasan };
+    }
+    // b = breakdown honor satu guru: {reguler, nonReguler, ekstraHonor, dluha, dzuhur, eventHonor,
+    // ujianHonor, tunjangan, transport} -- field yang tidak diisi dianggap 0. rates opsional,
+    // default ambil dari v4GetHonorRates() (tarif yang diatur Admin di halaman Honor).
+    function v4HitungHonor(b, rates){
+      rates = rates || v4GetHonorRates();
+      const reguler=b.reguler||0, nonReguler=b.nonReguler||0, ekstraHonor=b.ekstraHonor||0,
+            dluha=b.dluha||0, dzuhur=b.dzuhur||0, eventHonor=b.eventHonor||0, ujianHonor=b.ujianHonor||0,
+            tunjangan=b.tunjangan||0, transport=b.transport||0;
+      return reguler*rates.reguler + nonReguler*rates.nonReguler + ekstraHonor + dluha*rates.dluha + dzuhur*rates.dzuhur + eventHonor + ujianHonor + tunjangan + transport;
+    }
+    function renderHonor() {
+      renderEkskulRateList();
+      renderGuruTerajinRanking();
+      const month = document.getElementById('honorMonth').value.padStart(2,'0'), year = document.getElementById('honorYear').value;
+      const container = document.getElementById('honorResult'), btnPdf = document.getElementById('btnDownloadHonorPDF'), paginationEl = document.getElementById('honorPagination');
+      const filteredJournals = allJournals.filter(j => { if (!j.tanggal) return false; const parts = j.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(j); }).filter(j => j.status !== 'ditolak');
+      // Honor sholat: dari check-in petugas + jam + kelengkapan absensi siswa (lihat honorSholatHitung). Absen Religi lama hanya untuk tanggal sebelum HONOR_SHOLAT_MULAI_CHECKIN.
+      const hs = honorSholatDapat(year, month, () => renderHonor());
+      if (!hs.siap) { container.innerHTML = honorSholatStatusHtml(hs, 'renderHonor()'); btnPdf.style.display = 'none'; paginationEl.innerHTML = ''; return; }
+      const filteredReligi = Object.keys(hs.hasil.perGuru);   // hanya dipakai untuk cek "ada data bulan ini"
+      const filteredEvents = allEventAttendance.filter(e => { if (!e.tanggal) return false; const parts = e.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(e); });
+      const filteredUjian = allUjianAttendance.filter(u => { if (!u.tanggal) return false; const parts = u.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(u); });
+      const filteredEkskulPic = allEkskulPicHonor.filter(x => { if (!x.tanggal) return false; const parts = x.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(x); });
+      const guruAktifTunjangan = (allGuru || []).filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0));
+      const guruTerajinKey = year + '-' + month;
+      const guruTerajinBulanIni = allGuruTerajin[guruTerajinKey];
+      if (filteredJournals.length === 0 && filteredReligi.length === 0 && filteredEvents.length === 0 && filteredUjian.length === 0 && guruAktifTunjangan.length === 0 && !guruTerajinBulanIni) { container.innerHTML = '<p class="text-muted">Tidak ada data jurnal, religi, lembur/rapat, ujian, atau tunjangan untuk bulan ini.</p>'; btnPdf.style.display = 'none'; paginationEl.innerHTML = ''; return; }
+      // ===== PENGELOMPOKAN PER GURU =====
+      // Dikelompokkan pakai guruKey (Firebase key guru, unik per akun) sebagai key utama, BUKAN
+      // nama guru -- dua guru dengan nama persis sama tidak akan tergabung jadi satu baris. Nama
+      // guru tetap disimpan di tiap grup HANYA untuk ditampilkan. Fallback ke nama guru dipertahankan
+      // untuk record lama yang mungkin belum punya guruKey, supaya tidak "hilang" dari rekap honor.
+      // PENTING: semua sumber (jurnal/religi/event/ujian/ekskul PIC) HARUS resolve guruKey lewat
+      // helper yang SAMA (bukan `x.guruKey || x.guru` sendiri-sendiri per sumber) -- kalau tidak,
+      // guru yang sebagian recordnya sudah punya guruKey dan sebagian belum akan pecah jadi 2 baris
+      // (satu di key=guruKey, satu di key=nama) dengan rincian honor berbeda-beda. Helper ini: pakai
+      // guruKey kalau ada, kalau
+      // tidak coba cari guruKey lewat nama via allGuru (guru itu sendiri PASTI unik by key),
+      // baru fallback ke nama mentah kalau memang tidak ketemu guru manapun dgn nama itu.
+      const namaGuruToKeyHonor = {};
+      (allGuru || []).forEach(g => { if (g.key) namaGuruToKeyHonor[g.name] = g.key; });
+      const resolveGuruKey = (guruKey, namaGuru) => guruKey || namaGuruToKeyHonor[namaGuru] || namaGuru;
+      const groupedJurnal = {};
+      filteredJournals.forEach(j => { const gk = resolveGuruKey(j.guruKey, j.guru); if (!groupedJurnal[gk]) groupedJurnal[gk] = { nama: j.guru, reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }; if (isJamEkstra(j.jam_ke)) { groupedJurnal[gk].ekstra += 1; groupedJurnal[gk].ekstraHonor += getEkstraRate(j.subject); } else if (j.type === 'Non-Reguler') groupedJurnal[gk].nonReguler += 1; else groupedJurnal[gk].reguler += 1; });
+      const groupedReligi = hs.hasil.perGuru;   // { gk: { nama, dluha, dzuhur } } -- sudah lolos pemeriksaan check-in/jam/kelengkapan
+      const groupedEvents = {};
+      // Honor "Dinas Luar Kepala" (dicatat Admin di menu Rapat -> event_attendance, guruKey 'kepsek') TIDAK dihitung sebagai baris
+      // guru; dijumlahkan ke baris tetap "Kepala Madrasah" di bawah (lihat bonusList).
+      const dlKepala = { jumlah: 0, honor: 0 };
+      filteredEvents.forEach(e => { if (e.guruKey === 'kepsek') { dlKepala.jumlah += 1; dlKepala.honor += (e.honor || 0); return; } const gk = resolveGuruKey(e.guruKey, e.guru); if (!groupedEvents[gk]) groupedEvents[gk] = { nama: e.guru, jumlah: 0, honor: 0 }; groupedEvents[gk].jumlah += 1; groupedEvents[gk].honor += (e.honor || 0); });
+      const groupedUjian = {};
+      filteredUjian.forEach(u => { const gk = resolveGuruKey(u.guruKey, u.guru); if (!groupedUjian[gk]) groupedUjian[gk] = { nama: u.guru, jumlah: 0, honor: 0 }; groupedUjian[gk].jumlah += 1; groupedUjian[gk].honor += (u.honor || 0); });
+      const groupedEkskulPic = {};
+      filteredEkskulPic.forEach(x => { const gk = resolveGuruKey(x.guruKey, x.guru); if (!groupedEkskulPic[gk]) groupedEkskulPic[gk] = { nama: x.guru, jumlah: 0, honor: 0 }; groupedEkskulPic[gk].jumlah += 1; groupedEkskulPic[gk].honor += (x.honor || 0); });
+      const rates = v4GetHonorRates(), HONOR_KEPSEK = rates.kepsek, HONOR_KETUA_YAYASAN = rates.yayasan;   // diatur Admin di Tarif Honor Terpusat
+      const allTeacherKeys = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic), ...guruAktifTunjangan.map(g => g.key || g.name)]);
+      let bonusList = []; bonusList.push({ label: 'Kepala Madrasah', amount: HONOR_KEPSEK + dlKepala.honor, dlJumlah: dlKepala.jumlah, dlHonor: dlKepala.honor }); bonusList.push({ label: 'Ketua Yayasan', amount: HONOR_KETUA_YAYASAN });
+      if (guruTerajinBulanIni) bonusList.push({ label: `🏆 Guru Terajin - ${guruTerajinBulanIni.guru}`, amount: guruTerajinBulanIni.honor });
+      // Kepala Madrasah & Ketua Yayasan (2 item pertama bonusList) SENGAJA ditaruh di baris paling
+      // atas tabel honor (bukan lagi di bawah) -- Guru Terajin (kalau ada) tetap di bawah bersama
+      // baris guru lain, karena itu memang penghargaan tambahan atas honor mengajar biasa mereka.
+      let tableData = []; let totalHonor = 0; let totalReguler = 0, totalNonReguler = 0, totalEkstra = 0, totalEkstraHonor = 0, totalDluha = 0, totalDzuhur = 0, totalEventJumlah = 0, totalEventHonor = 0, totalUjianJumlah = 0, totalUjianHonor = 0, totalTunjangan = 0, totalTransport = 0;
+      const pimpinanList = bonusList.slice(0, 2), bonusLainnya = bonusList.slice(2);
+      pimpinanList.forEach(bonus => { tableData.push({ guru: bonus.label, reguler: '-', nonReguler: '-', ekstra: '-', ekstraHonor: 0, dluha: '-', dzuhur: '-', eventJumlah: bonus.dlJumlah > 0 ? bonus.dlJumlah : '-', eventHonor: bonus.dlHonor || 0, ujianJumlah: '-', ujianHonor: 0, tunjangan: 0, transport: 0, honor: bonus.amount, isBonus: true }); totalHonor += bonus.amount; totalEventJumlah += (bonus.dlJumlah || 0); totalEventHonor += (bonus.dlHonor || 0); });
+      for (const guruKey of allTeacherKeys) {
+        const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }, r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 }, ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 }, uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 }, ekpic = groupedEkskulPic[guruKey] || { jumlah: 0, honor: 0 };
+        // guruObj dicari lewat key dulu (akurat), fallback cari lewat nama untuk kompatibilitas
+        // data lama yang cuma punya guru (nama) sebagai identitas grup.
+        const guruObj = allGuru.find(g => g.key === guruKey) || allGuru.find(g => g.name === guruKey);
+        const guru = j.nama || r.nama || ev.nama || uj.nama || ekpic.nama || (guruObj && guruObj.name) || guruKey;
+        const tunjangan = (guruObj && guruObj.tunjanganMasaKerja) || 0, transport = (guruObj && guruObj.bantuanTransportasi) || 0;
+        // ekstraHonor = jurnal "Ekstra" manual + kredit otomatis PIC/pengganti ekskul (lihat
+        // v4SaveEkskulAttendance) -- disatukan supaya PIC/pengganti tidak perlu isi jurnal lagi.
+        // totalEkstra (JUMLAH JAM) sengaja TIDAK ikut ditambah ekpic.jumlah, supaya rekap jam
+        // mengajar tetap murni dari jurnal, tidak tercampur jumlah sesi ekskul.
+        const honor = v4HitungHonor({ reguler: j.reguler, nonReguler: j.nonReguler, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventHonor: ev.honor, ujianHonor: uj.honor, tunjangan, transport }, rates);
+        totalHonor += honor; totalReguler += j.reguler; totalNonReguler += j.nonReguler; totalEkstra += j.ekstra; totalEkstraHonor += j.ekstraHonor + ekpic.honor; totalDluha += r.dluha; totalDzuhur += r.dzuhur; totalEventJumlah += ev.jumlah; totalEventHonor += ev.honor; totalUjianJumlah += uj.jumlah; totalUjianHonor += uj.honor; totalTunjangan += tunjangan; totalTransport += transport;
+        // FIX: sebelumnya ekstraHonor di sini cuma j.ekstraHonor (murni jurnal), padahal
+        // `honor` & totalEkstraHonor di atas sudah +ekpic.honor (kredit PIC/pengganti ekskul).
+        // Sel "Ekstra" jadi tampil lebih kecil dari yang benar-benar dijumlah ke Total Honor
+        // baris ini maupun ke footer TOTAL -- bikin bingung saat audit manual. Disamakan di sini.
+        tableData.push({ guru, reguler: j.reguler, nonReguler: j.nonReguler, ekstra: j.ekstra, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventJumlah: ev.jumlah, eventHonor: ev.honor, ujianJumlah: uj.jumlah, ujianHonor: uj.honor, tunjangan, transport, honor, gkey: guruKey });
+      }
+      bonusLainnya.forEach(bonus => { tableData.push({ guru: bonus.label, reguler: '-', nonReguler: '-', ekstra: '-', ekstraHonor: 0, dluha: '-', dzuhur: '-', eventJumlah: '-', eventHonor: 0, ujianJumlah: '-', ujianHonor: 0, tunjangan: 0, transport: 0, honor: bonus.amount, isBonus: true }); totalHonor += bonus.amount; });
+      const totalItems = tableData.length, totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      if (honorPage > totalPages) honorPage = totalPages; if (honorPage < 1) honorPage = 1;
+      const start = (honorPage - 1) * PAGE_SIZE, end = Math.min(start + PAGE_SIZE, totalItems), pageItems = tableData.slice(start, end);
+      // Panjar honor (guru mengambil honor lebih dulu): dicatat terpisah di node honor_panjar, TIDAK masuk Kas Umum.
+      const ymHonor = year + '-' + month;
+      const hpAdm = honorPanjarDapat(ymHonor, null, () => renderHonor());
+      const panjarDari = it => (it.gkey ? honorPanjarTotal(hpAdm.data[it.gkey]) : 0);
+      let totalPanjar = 0; tableData.forEach(it => { totalPanjar += panjarDari(it); });
+      let html = `<div style="overflow-x:auto;"><table><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
+      let no = start + 1;
+      for (const item of pageItems) {
+        const isBonus = item.isBonus || false, bgStyle = isBonus ? 'style="background:#fef3c7;font-weight:600;"' : '';
+        const eventCell = (isBonus && !(item.eventJumlah > 0)) ? '-' : `${item.eventJumlah}x (Rp ${item.eventHonor.toLocaleString()})`;   // baris Kepala menampilkan Dinas Luar bila ada
+        const ujianCell = isBonus ? '-' : `${item.ujianJumlah}x (Rp ${item.ujianHonor.toLocaleString()})`;
+        const tunjanganCell = isBonus ? '-' : `Rp ${item.tunjangan.toLocaleString()}`;
+        const transportCell = isBonus ? '-' : `Rp ${item.transport.toLocaleString()}`;
+        const ekstraCell = isBonus ? '-' : `${item.ekstra}x (Rp ${item.ekstraHonor.toLocaleString()})`;
+        const pj = panjarDari(item);
+        let panjarCell = item.gkey ? (pj > 0 ? 'Rp ' + pj.toLocaleString() : '-') : '-';
+        if (item.gkey && pj > item.honor) panjarCell += ' ⚠️';
+        if (item.gkey && isAdmin()) panjarCell += ` <button class="btn btn-soft" style="padding:1px 7px;font-size:11px;" title="Catat panjar" onclick="honorPanjarTambah('${escapeJs(item.gkey)}')">➕</button>`;
+        const sisaCell = 'Rp ' + (item.gkey ? Math.max(0, item.honor - pj) : item.honor).toLocaleString();
+        html += `<tr ${bgStyle}><td>${no++}</td><td>${escapeHtml(item.guru)}</td><td>${item.reguler}</td><td>${item.nonReguler}</td><td>${ekstraCell}</td><td>${item.dluha}</td><td>${item.dzuhur}</td><td>${eventCell}</td><td>${ujianCell}</td><td>${tunjanganCell}</td><td>${transportCell}</td><td>Rp ${item.honor.toLocaleString()}</td><td>${panjarCell}</td><td>${sisaCell}</td></tr>`;
+      }
+      html += `</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th colspan="2" style="text-align:right;">TOTAL</th><th>${totalReguler}</th><th>${totalNonReguler}</th><th>${totalEkstra}x (Rp ${totalEkstraHonor.toLocaleString()})</th><th>${totalDluha}</th><th>${totalDzuhur}</th><th>${totalEventJumlah}x (Rp ${totalEventHonor.toLocaleString()})</th><th>${totalUjianJumlah}x (Rp ${totalUjianHonor.toLocaleString()})</th><th>Rp ${totalTunjangan.toLocaleString()}</th><th>Rp ${totalTransport.toLocaleString()}</th><th style="color:#059669;">Rp ${totalHonor.toLocaleString()}</th><th>Rp ${totalPanjar.toLocaleString()}</th><th>Rp ${(totalHonor - totalPanjar).toLocaleString()}</th></tr></tfoot></table></div>`;
+      html += honorPanjarRincianHtml(hpAdm, tableData);
+      // Catat honor yang sudah dibayarkan ke Kas Umum (hanya Admin). Key tetap honor_<tahun>-<bulan> => tidak bisa tercatat dobel.
+      if (isAdmin()) {
+        const sudahKas = (allKasUmum || []).find(k => k.key === 'honor_' + year + '-' + month);
+        html += `<div style="margin-top:14px;padding:12px;border:1px solid #d1d5db;border-radius:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">` + (sudahKas
+          ? `<span>✅ Sudah dicatat di Kas Umum: <b>Rp ${Number(sudahKas.nominal || 0).toLocaleString('id-ID')}</b> (${escapeHtml(sudahKas.tanggal || '')}). Untuk mengubah nominal, pakai Edit di Kas Madrasah.</span>${Number(sudahKas.nominal || 0) !== totalHonor ? `<span style="color:#b45309;font-size:13px;">⚠️ Rekap honor sekarang Rp ${totalHonor.toLocaleString('id-ID')} (selisih Rp ${Math.abs(totalHonor - Number(sudahKas.nominal || 0)).toLocaleString('id-ID')}).</span><button id="btnHonorSamakan" class="btn btn-soft" onclick="honorSamakanKas()">Samakan dengan rekap</button>` : ''}`
+          : `<button id="btnHonorKeKas" class="btn btn-soft" onclick="honorCatatKeKas()">💸 Catat honor bulan ini ke Kas Umum</button><span class="text-muted" style="font-size:12px;">Klik setelah honor dibayarkan. Yang dicatat = total honor SEBELUM dikurangi panjar (panjar tidak dicatat terpisah di Kas).</span>`) + `</div>`;
+        const tglBayar = parseInt(MADRASAH.honorTanggalBayar, 10) || 0, bulanBayar = MADRASAH.honorBulanBayar === 'ini' ? 'ini' : 'lalu';
+        html += `<div style="margin-top:10px;padding:12px;border:1px dashed #d1d5db;border-radius:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;">
+          <b>🔔 Pengingat bayar honor</b>
+          <span>Tanggal</span><input type="number" id="honorTglBayarInput" min="0" max="31" value="${tglBayar || ''}" placeholder="1-31" style="width:70px;">
+          <span>membayar honor</span><select id="honorBulanBayarSel"><option value="lalu"${bulanBayar === 'lalu' ? ' selected' : ''}>bulan sebelumnya</option><option value="ini"${bulanBayar === 'ini' ? ' selected' : ''}>bulan berjalan</option></select>
+          <button class="btn btn-soft" id="btnHonorJadwal" onclick="honorSimpanJadwalBayar()">Simpan</button>
+          <span class="text-muted" style="font-size:12px;">Kosongkan tanggal untuk mematikan pengingat.${tglBayar ? ' Sekarang: tiap tanggal ' + tglBayar + '.' : ''}</span></div>`;
+      }
+      const mewakiliList = filteredJournals.filter(j => j.type === 'Non-Reguler' && j.mewakili).sort((a,b) => COLLATOR_ID.compare((a.tanggal||''), b.tanggal||''));
+      if (mewakiliList.length > 0) {
+        html += `<details style="margin-top:16px;background:#eff6ff;border-radius:12px;padding:12px;border:1px solid #93c5fd;"><summary style="font-weight:700;cursor:pointer;color:#1e40af;">🔄 Rincian Mewakili Guru Lain (${mewakiliList.length})</summary><div style="margin-top:10px;overflow-x:auto;"><table><thead><tr><th>Tanggal</th><th>Guru Pengganti</th><th>Mewakili</th><th>Kelas</th><th>Jam</th><th>Mapel</th></tr></thead><tbody>`;
+        mewakiliList.forEach(j => { html += `<tr><td>${escapeHtml(j.tanggal)}</td><td>${escapeHtml(j.guru)}</td><td>${escapeHtml(j.mewakili)}</td><td>${escapeHtml(j.kelas)}</td><td>Jam ${escapeHtml(j.jam_ke)}</td><td>${escapeHtml(j.subject)}</td></tr>`; });
+        html += `</tbody></table></div></details>`;
+      }
+      html += honorSholatDitolakHtml(hs.hasil.ditolak, true);
+      container.innerHTML = html; btnPdf.style.display = 'inline-block';
+      paginationEl.innerHTML = `<button onclick="honorPage--; renderHonor();" ${honorPage <= 1 ? 'disabled' : ''}>◀ Prev</button><span class="page-info">${honorPage} / ${totalPages}</span><button onclick="honorPage++; renderHonor();" ${honorPage >= totalPages ? 'disabled' : ''}>Next ▶</button><span class="text-muted" style="font-size:12px;">Total: ${totalItems} data</span>`;
+      window._honorData = { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList, tableData };
+    }
+    // ============================================================
+    // PANJAR HONOR: guru mengambil sebagian honor lebih dulu. Dicatat di node honor_panjar/<YYYY-MM>/<guruKey>/<id>
+    // ({nominal, tanggal, catatan?, guruNama, inputBy, inputByKey, inputAt}) -- TIDAK masuk Kas Umum (keputusan user: Kas Umum
+    // hanya mencatat total honor SEBELUM dikurangi panjar). Batas: total panjar satu guru dalam sebulan tidak boleh melebihi
+    // honor guru itu di rekap bulan tsb (ditegakkan di dalam transaction, jadi aman walau dua Admin mencatat bersamaan).
+    // Admin/Kepsek membaca seluruh bulan; guru hanya membaca node miliknya (untuk Slip Honor). Perlu aturan baca/tulis
+    // untuk node honor_panjar di firebase-security-rules.json (tulis: Admin saja).
+    // ============================================================
+    let honorPanjarCache = {};   // 'YYYY-MM|gk atau *' -> { status:'loading'|'ok'|'gagal', data:{gk:{id:rec}}, tunggu:[] }
+    function honorPanjarInvalidate() { honorPanjarCache = {}; }
+    function honorPanjarKeyValid(k) { return typeof k === 'string' && /^[^.$#\[\]\/]+$/.test(k); }
+    function honorPanjarTotal(obj) {
+      if (!obj || typeof obj !== 'object') return 0;
+      return Object.keys(obj).reduce((a, id) => a + ((obj[id] && parseInt(obj[id].nominal, 10)) || 0), 0);
+    }
+    function honorPanjarDapat(ym, gk, onReady) {
+      if (gk && !honorPanjarKeyValid(gk)) return { siap: true, data: {} };
+      const ck = ym + '|' + (gk || '*'), c = honorPanjarCache[ck];
+      if (c && c.status === 'ok') return { siap: true, data: c.data };
+      if (c && c.status === 'gagal') return { siap: true, data: {}, gagal: true };
+      if (c && c.status === 'loading') { if (onReady) c.tunggu.push(onReady); return { siap: false, data: {} }; }
+      if (!db || !currentUser || !isReallyOnline()) return { siap: false, data: {} };
+      const entry = honorPanjarCache[ck] = { status: 'loading', data: {}, tunggu: onReady ? [onReady] : [] };
+      db.ref('honor_panjar/' + ym + (gk ? '/' + gk : '')).once('value').then(snap => {
+        const v = snap.val() || {};
+        entry.data = gk ? { [gk]: v } : v; entry.status = 'ok';
+      }).catch(e => {
+        console.warn('[SI MAMBA] Gagal memuat honor_panjar:', e && e.message || e);
+        entry.status = 'gagal'; entry.data = {};
+      }).then(() => { const cbs = entry.tunggu; entry.tunggu = []; cbs.forEach(cb => { try { cb(); } catch (e) { console.error(e); } }); });
+      return { siap: false, data: {} };
+    }
+    function honorPanjarRincianHtml(hp, tableData) {
+      if (hp.gagal) return `<p class="text-muted" style="font-size:12px;margin-top:10px;">⚠️ Data panjar tidak dapat dimuat (periksa aturan Firebase untuk node honor_panjar).</p>`;
+      const rows = [];
+      Object.keys(hp.data || {}).forEach(gk => Object.keys(hp.data[gk] || {}).forEach(id => { const r = hp.data[gk][id]; if (r && typeof r === 'object') rows.push({ gk, id, r }); }));
+      rows.sort((a, b) => (a.r.tanggal || '').localeCompare(b.r.tanggal || '') || (a.r.inputAt || '').localeCompare(b.r.inputAt || ''));
+      const total = rows.reduce((a, x) => a + (parseInt(x.r.nominal, 10) || 0), 0);
+      const namaDari = {}; (tableData || []).forEach(it => { if (it.gkey) namaDari[it.gkey] = it.guru; });
+      const body = rows.length ? rows.map(x => `<tr><td>${escapeHtml(x.r.tanggal || '')}</td><td>${escapeHtml(namaDari[x.gk] || x.r.guruNama || x.gk)}</td><td style="text-align:right;">Rp ${(parseInt(x.r.nominal, 10) || 0).toLocaleString()}</td><td>${escapeHtml(x.r.catatan || '')}</td><td>${isAdmin() ? `<button class="btn btn-danger" style="padding:1px 7px;font-size:11px;" onclick="honorPanjarHapus('${escapeJs(x.gk)}','${escapeJs(x.id)}')">Hapus</button>` : ''}</td></tr>`).join('')
+        : `<tr><td colspan="5" class="text-muted">Belum ada panjar bulan ini.</td></tr>`;
+      return `<details style="margin-top:16px;background:#f0fdf4;border-radius:12px;padding:12px;border:1px solid #86efac;"><summary style="font-weight:700;cursor:pointer;color:#166534;">💵 Panjar Honor bulan ini (${rows.length}) — Rp ${total.toLocaleString()}</summary><div style="margin-top:10px;overflow-x:auto;"><table><thead><tr><th>Tanggal</th><th>Guru</th><th>Nominal</th><th>Catatan</th><th></th></tr></thead><tbody>${body}</tbody></table></div><p class="text-muted" style="font-size:11px;margin-top:6px;">Panjar tidak dicatat di Kas Umum; tertera sebagai pengurang di kolom Sisa Dibayar dan di Slip Honor guru.</p></details><div style="margin-top:10px;"><button class="btn btn-soft" onclick="honorPanjarRekapTahun()">📅 Rekap panjar tahun ajaran ${escapeHtml(String(currentTahunAjaran))}</button><div id="honorPanjarTahunArea"></div></div>`;
+    }
+    // Rekap panjar satu tahun ajaran (Juli s.d. Juni) per guru. Dibaca per bulan (12 pembacaan kecil honor_panjar/<YYYY-MM>) karena
+    // Rules hanya memberi izin baca di tingkat bulan; dimuat saat tombol diklik, bukan setiap halaman Honor dibuka.
+    function honorPanjarRekapTahun() {
+      const area = document.getElementById('honorPanjarTahunArea'); if (!area) return;
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+      if (isBusy('honorPanjarTahun')) return;
+      const y1 = parseInt(String(currentTahunAjaran).split('/')[0], 10);
+      if (!y1) return toast('Tahun ajaran aktif tidak terbaca.', true);
+      const bulanList = []; for (let m = 7; m <= 12; m++) bulanList.push(y1 + '-' + String(m).padStart(2, '0')); for (let m = 1; m <= 6; m++) bulanList.push((y1 + 1) + '-' + String(m).padStart(2, '0'));
+      const NAMA = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+      setBusy('honorPanjarTahun');
+      area.innerHTML = '<p class="text-muted" style="font-size:12px;">Memuat rekap panjar...</p>';
+      Promise.all(bulanList.map(ym => db.ref('honor_panjar/' + ym).once('value').then(snap => ({ ym, v: snap.val() || {} }))))
+        .then(hasil => {
+          clearBusy('honorPanjarTahun');
+          const per = {};
+          hasil.forEach(({ ym, v }) => Object.keys(v).forEach(gk => Object.keys(v[gk] || {}).forEach(id => {
+            const r = v[gk][id]; if (!r || typeof r !== 'object') return;
+            const nom = parseInt(r.nominal, 10) || 0;
+            if (!per[gk]) per[gk] = { nama: r.guruNama || gk, jumlah: 0, total: 0, bulan: {} };
+            per[gk].jumlah += 1; per[gk].total += nom; per[gk].bulan[ym] = (per[gk].bulan[ym] || 0) + nom;
+          })));
+          const daftar = Object.keys(per).map(gk => per[gk]).sort((a, b) => b.total - a.total);
+          if (!daftar.length) { area.innerHTML = `<p class="text-muted" style="font-size:12px;margin-top:8px;">Belum ada panjar di tahun ajaran ${escapeHtml(String(currentTahunAjaran))}.</p>`; return; }
+          const semua = daftar.reduce((a, x) => a + x.total, 0), jmlSemua = daftar.reduce((a, x) => a + x.jumlah, 0);
+          const rincian = x => Object.keys(x.bulan).sort().map(ym => NAMA[parseInt(ym.slice(5), 10) - 1] + ' ' + ym.slice(2, 4) + ': Rp ' + x.bulan[ym].toLocaleString('id-ID')).join(' • ');
+          area.innerHTML = `<div style="margin-top:8px;overflow-x:auto;"><table><thead><tr><th>Guru</th><th>Pengambilan</th><th>Total Panjar</th><th>Per Bulan</th></tr></thead><tbody>${daftar.map(x => `<tr><td>${escapeHtml(x.nama)}</td><td style="text-align:center;">${x.jumlah}x</td><td style="text-align:right;">Rp ${x.total.toLocaleString('id-ID')}</td><td style="font-size:12px;">${escapeHtml(rincian(x))}</td></tr>`).join('')}</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th>TOTAL</th><th>${jmlSemua}x</th><th style="text-align:right;">Rp ${semua.toLocaleString('id-ID')}</th><th></th></tr></tfoot></table></div>`;
+        })
+        .catch(err => { clearBusy('honorPanjarTahun'); area.innerHTML = ''; toast('Gagal memuat rekap panjar: ' + (err && err.message || err), true); });
+    }
+    function honorPanjarTambah(gk) {
+      if (!isAdmin()) return toast('Hanya Admin yang bisa mencatat panjar.', true);
+      const d = window._honorData, row = d && (d.tableData || []).find(it => it.gkey === gk);
+      if (!row) return toast('Data guru tidak ditemukan — muat ulang halaman Honor.', true);
+      if (!honorPanjarKeyValid(gk)) return toast('Guru ini belum punya ID yang valid untuk mencatat panjar.', true);
+      if (isBusy('honorPanjar')) return toast('Sedang menyimpan...', false, 1500);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Pencatatan panjar butuh koneksi internet — coba lagi setelah online.', true);
+      const ym = d.year + '-' + d.month, hp = honorPanjarDapat(ym, null, null);
+      if (hp.gagal) return toast('Data panjar tidak bisa dimuat — periksa aturan Firebase node honor_panjar.', true);
+      if (!hp.siap) return toast('Data panjar masih dimuat, coba lagi sebentar.', true);
+      const sudah = honorPanjarTotal(hp.data[gk]), maks = row.honor - sudah;
+      if (maks <= 0) return toast(`Panjar ${row.guru} sudah mencapai batas (honor bulan ini Rp ${row.honor.toLocaleString('id-ID')}).`, true);
+      const input = prompt(`Catat panjar honor ${row.guru}\n\nHonor bulan ini (sementara): Rp ${row.honor.toLocaleString('id-ID')}\nSudah diambil: Rp ${sudah.toLocaleString('id-ID')}\nMaksimal panjar baru: Rp ${maks.toLocaleString('id-ID')}\n\nNominal panjar:`);
+      if (input === null) return;
+      const bersih = String(input).replace(/^\s*Rp\.?/i, '').replace(/[.\s]/g, '');
+      if (!/^\d+$/.test(bersih)) return toast('Nominal harus berupa angka bulat.', true);
+      const nominal = parseInt(bersih, 10);
+      if (nominal <= 0) return toast('Nominal harus lebih dari 0.', true);
+      if (nominal > maks) return toast(`Panjar melebihi batas: maksimal Rp ${maks.toLocaleString('id-ID')} (sebesar sisa honor bulan ini).`, true);
+      const catatanRaw = prompt('Catatan (opsional, boleh dikosongkan):', '');
+      if (catatanRaw === null) return;
+      const catatan = String(catatanRaw).trim().slice(0, 120);
+      if (!confirm(`Catat panjar ${row.guru}: Rp ${nominal.toLocaleString('id-ID')}?\n\nPanjar TIDAK dicatat di Kas Umum; hanya mengurangi sisa yang dibayarkan.`)) return;
+      const ref = db.ref('honor_panjar/' + ym + '/' + gk), id = ref.push().key;
+      const rec = { nominal, tanggal: tglLokal(), guruNama: row.guru, inputBy: currentUser.name, inputByKey: currentUser.key || null, inputAt: new Date().toISOString() };
+      if (catatan) rec.catatan = catatan;
+      setBusy('honorPanjar');
+      // Rules honor_panjar: tulis hanya untuk sesi Admin -> pastikan sesi_admin/{uid} terisi dulu (adminSesi()).
+      adminSesi().then(() => {
+        ref.transaction(cur => {
+          const o = (cur && typeof cur === 'object') ? cur : {};
+          if (honorPanjarTotal(o) + nominal > row.honor) return;   // batas ditegakkan di sini (anti dua Admin bersamaan)
+          const baru = Object.assign({}, o); baru[id] = rec; return baru;
+        }, (err, committed) => {
+          clearBusy('honorPanjar');
+          if (err) return toast('Gagal: ' + (err.message || err), true);
+          if (!committed) { honorPanjarInvalidate(); toast('Panjar ditolak: total panjar akan melebihi honor bulan ini.', true, 5000); return renderHonor(); }
+          toast('✅ Panjar ' + row.guru + ' tercatat.');
+          addLog('catat_panjar_honor', `${row.guru} - ${ym} - Rp ${nominal.toLocaleString('id-ID')}`);
+          // Beritahu guru yang bersangkutan lewat notifikasi aplikasi (gagal kirim tidak membatalkan panjar).
+          try {
+            const sisaSementara = Math.max(0, row.honor - sudah - nominal);
+            const pn = v4Notify('Panjar honor tercatat', `Panjar honor Rp ${nominal.toLocaleString('id-ID')} tercatat pada ${tglLokal()}. Total panjar bulan ini Rp ${(sudah + nominal).toLocaleString('id-ID')}; sisa honor sementara Rp ${sisaSementara.toLocaleString('id-ID')}.`, 'INFO', gk, 'honor_panjar', id);
+            if (pn && pn.catch) pn.catch(() => {});
+          } catch (e) { /* diabaikan */ }
+          honorPanjarInvalidate(); renderHonor();
+        }, false);
+      }).catch(err => { clearBusy('honorPanjar'); toast('Sesi Admin belum siap: ' + (err && err.message || err), true); });
+    }
+    function honorPanjarHapus(gk, id) {
+      if (!isAdmin()) return toast('Hanya Admin yang bisa menghapus panjar.', true);
+      const d = window._honorData; if (!d) return;
+      const ym = d.year + '-' + d.month;
+      if (!honorPanjarKeyValid(gk) || !honorPanjarKeyValid(id)) return;
+      if (isBusy('honorPanjar')) return;
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+      if (!confirm('Hapus catatan panjar ini?\n\nSisa dibayar guru akan kembali bertambah.')) return;
+      setBusy('honorPanjar');
+      adminSesi().then(() => db.ref('honor_panjar/' + ym + '/' + gk + '/' + id).remove()).then(() => {
+        clearBusy('honorPanjar');
+        toast('Panjar dihapus.'); addLog('hapus_panjar_honor', `${gk} - ${ym}`);
+        honorPanjarInvalidate(); renderHonor();
+      }).catch(err => { clearBusy('honorPanjar'); toast('Gagal: ' + (err && err.message || err), true); });
+    }
+    // Simpan jadwal pengingat bayar honor (Admin) ke school_settings.
+    function honorSimpanJadwalBayar() {
+      if (!isAdmin()) return toast('Hanya Admin yang bisa mengatur jadwal.', true);
+      if (isBusy('honorJadwal')) return;
+      const raw = String(document.getElementById('honorTglBayarInput').value || '').trim();
+      const tgl = raw === '' ? 0 : Number(raw);
+      if (!Number.isInteger(tgl) || tgl < 0 || tgl > 31) return toast('Tanggal harus angka 1-31 (kosongkan untuk mematikan pengingat).', true);
+      const bulan = document.getElementById('honorBulanBayarSel').value === 'ini' ? 'ini' : 'lalu';
+      const btn = document.getElementById('btnHonorJadwal');
+      setBusy('honorJadwal', btn);
+      tulisSettingsAdmin('school_settings', { honorTanggalBayar: tgl, honorBulanBayar: bulan, honorBayarUpdatedBy: currentUser.name, honorBayarUpdatedAt: new Date().toISOString() }, err => {
+        clearBusy('honorJadwal', btn);
+        if (err) return toast('Gagal: ' + (err.message || err), true);
+        MADRASAH.honorTanggalBayar = tgl; MADRASAH.honorBulanBayar = bulan;
+        try { Object.keys(sessionStorage).filter(k => k.indexOf('simamba_honor_pengingat_') === 0).forEach(k => sessionStorage.removeItem(k)); } catch (e) { /* diabaikan */ }
+        toast(tgl ? `✅ Pengingat diatur: tiap tanggal ${tgl}, honor ${bulan === 'ini' ? 'bulan berjalan' : 'bulan sebelumnya'}.` : '✅ Pengingat bayar honor dimatikan.');
+        addLog('atur_pengingat_honor', tgl ? `Tanggal ${tgl} - honor ${bulan === 'ini' ? 'bulan berjalan' : 'bulan sebelumnya'}` : 'dimatikan');
+        renderHonor();
+      });
+    }
+    // Pengingat (Admin): pada/ sesudah tanggal bayar, kalau honor bulan targetnya belum tercatat di Kas Umum, tawarkan buka halaman Honor
+    // dengan bulan itu sudah terpilih. Hanya MENGINGATKAN -- pencatatan tetap lewat tombol + konfirmasi nominal di halaman Honor.
+    // Dicek sekali per pemuatan halaman; "Nanti" menahan pengingat untuk bulan itu selama sesi (sessionStorage) tab ini.
+    let _honorPengingatSudah = false;
+    function honorPengingatCek() {
+      if (_honorPengingatSudah) return;
+      if (!currentUser || !db || !isAdmin()) return;
+      const tglJadwal = parseInt(MADRASAH.honorTanggalBayar, 10) || 0;
+      if (tglJadwal < 1 || tglJadwal > 31) return;
+      const now = new Date();
+      const akhirBulan = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      if (now.getDate() < Math.min(tglJadwal, akhirBulan)) return;
+      if (!isReallyOnline()) return;
+      _honorPengingatSudah = true;
+      let y = now.getFullYear(), m = now.getMonth() + 1;
+      if (MADRASAH.honorBulanBayar !== 'ini') { m -= 1; if (m < 1) { m = 12; y -= 1; } }
+      const bln = String(m).padStart(2, '0'), key = 'honor_' + y + '-' + bln, flag = 'simamba_honor_pengingat_' + key;
+      try { if (sessionStorage.getItem(flag)) return; } catch (e) { /* storage diblokir -> tetap tanya */ }
+      db.ref('kas_umum/' + key).once('value').then(snap => {
+        if (snap.exists()) return;
+        const NAMA_BLN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        const lbl = NAMA_BLN[m - 1] + ' ' + y;
+        try { sessionStorage.setItem(flag, '1'); } catch (e) { /* diabaikan */ }
+        if (!confirm(`🔔 Pengingat bayar honor\n\nHonor ${lbl} belum dicatat ke Kas Umum.\n\nHitung total honor & catat sekarang? (nominal akan ditampilkan sebelum disimpan)`)) return;
+        navigateTo('honor');
+        const sy = document.getElementById('honorYear'), sm = document.getElementById('honorMonth');
+        if (sy) sy.value = String(y); if (sm) sm.value = String(m);
+        honorPage = 1; window._honorData = null; renderHonor();
+        // Tunggu rekap bulan target selesai dihitung (bisa menunggu data sholat), lalu langsung tampilkan kotak nominal -- Admin tidak perlu
+        // membaca tabel honor dulu. Batas tunggu 25 detik; kalau gagal, halaman Honor tetap terbuka dengan tombol Catat seperti biasa.
+        let tunggu = 0;
+        const timer = setInterval(() => {
+          tunggu += 400;
+          const d = window._honorData;
+          if (d && String(d.year) === String(y) && String(d.month) === bln) { clearInterval(timer); honorCatatKeKas(); return; }
+          if (tunggu >= 25000) { clearInterval(timer); toast('Rekap honor belum siap — gunakan tombol "Catat honor bulan ini ke Kas Umum" di halaman Honor.', true, 6000); }
+        }, 400);
+      }).catch(e => console.warn('[SI MAMBA] Pengingat honor gagal dicek:', e && e.message || e));
+    }
+    // Samakan nominal catatan Kas Umum honor bulan ini dengan total rekap SEKARANG (rekap bisa berubah setelah dicatat: jurnal susulan
+    // disetujui, honor sholat dikoreksi, dst). Hanya Admin; tampil bila nominal di Kas berbeda dari rekap. Catatan lain tidak disentuh.
+    function honorSamakanKas() {
+      if (!isAdmin()) return toast('Hanya Admin yang bisa mengubah catatan Kas.', true);
+      const d = window._honorData; if (!d || !(d.totalHonor > 0)) return toast('Rekap honor belum siap.', true);
+      const key = 'honor_' + d.year + '-' + d.month, rec = (allKasUmum || []).find(k => k.key === key);
+      if (!rec) return toast('Catatan Kas honor bulan ini tidak ditemukan — muat ulang halaman.', true);
+      if (isBusy('honorSamakan')) return;
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+      const lama = Number(rec.nominal || 0), baru = d.totalHonor;
+      if (lama === baru) return toast('Nominal sudah sama dengan rekap.');
+      if (!confirm(`Ubah catatan Kas Umum "${rec.uraian || 'Honor'}"?\n\nNominal sekarang: Rp ${lama.toLocaleString('id-ID')}\nMenjadi (total rekap): Rp ${baru.toLocaleString('id-ID')}`)) return;
+      const btn = document.getElementById('btnHonorSamakan');
+      setBusy('honorSamakan', btn);
+      db.ref('kas_umum/' + key).update({ nominal: baru, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
+        clearBusy('honorSamakan', btn);
+        if (err) return toast('Gagal: ' + (err.message || err), true);
+        toast('✅ Nominal Kas disamakan dengan rekap honor.');
+        addLog('samakan_kas_honor', `${key} - Rp ${lama.toLocaleString('id-ID')} -> Rp ${baru.toLocaleString('id-ID')}`);
+        reloadDataset('kasUmum', () => { renderHonor(); if (typeof renderKasUmum === 'function') try { renderKasUmum(); } catch (e) { /* halaman Kas belum dibuka */ } });
+      });
+    }
+    // Mencatat honor yang SUDAH dibayarkan ke Kas Umum sebagai pengeluaran (kategori 'Honor / Transport / Insentif').
+    // Satu catatan per bulan dengan key tetap honor_<tahun>-<bulan> + transaction => klik ganda / dua Admin tidak bisa mencatat dobel.
+    // Nominal bawaan = total rekap Honor, boleh diubah (mis. dibayar sebagian). Field yang ditulis sama persis dengan kasSimpan() (kas.js),
+    // jadi tidak butuh perubahan Rules. Catatan bisa diubah lewat Edit di Kas Madrasah.
+    function honorCatatKeKas() {
+      if (!isAdmin()) return toast('Hanya Admin yang bisa mencatat ke Kas.', true);
+      const d = window._honorData;
+      if (!d || !(d.totalHonor > 0)) return toast('Belum ada total honor untuk dicatat.', true);
+      if (isBusy('honorKeKas')) return toast('Sedang menyimpan...', false, 1500);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Pencatatan kas butuh koneksi internet — coba lagi setelah online.', true);
+      const NAMA_BLN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const lbl = NAMA_BLN[parseInt(d.month, 10) - 1] + ' ' + d.year;
+      const input = prompt(`Catat honor ${lbl} ke Kas Umum.\n\nTotal honor di rekap: Rp ${d.totalHonor.toLocaleString('id-ID')}\nNominal yang dicatat (total honor, sebelum dikurangi panjar):`, String(d.totalHonor));
+      if (input === null) return;
+      const bersih = String(input).replace(/^\s*Rp\.?/i, '').replace(/[.\s]/g, '');
+      if (!/^\d+$/.test(bersih)) return toast('Nominal harus berupa angka bulat.', true);
+      const nominal = parseInt(bersih, 10);
+      if (nominal <= 0) return toast('Nominal harus lebih dari 0.', true);
+      if (nominal > 1000000000) return toast('Nominal terlalu besar (> Rp 1 miliar) — periksa lagi jumlah nolnya.', true);
+      if (!confirm(`Catat pengeluaran Kas Umum?\n\nHonor ${lbl}\nNominal: Rp ${nominal.toLocaleString('id-ID')}\nTanggal: hari ini\n\nSaldo Kas Umum akan berkurang.`)) return;
+      const key = 'honor_' + d.year + '-' + d.month;
+      const rec = { buku: 'umum', tanggal: tglLokal(), jenis: 'keluar', kategori: 'Honor / Transport / Insentif', uraian: 'Honor bulan ' + lbl, nominal, tahunAjaran: currentTahunAjaran, inputBy: currentUser.name, inputByKey: currentUser.key || null, inputAt: new Date().toISOString() };
+      const btn = document.getElementById('btnHonorKeKas');
+      setBusy('honorKeKas', btn);
+      db.ref('kas_umum/' + key).transaction(cur => (cur === null ? rec : undefined), (err, committed) => {
+        clearBusy('honorKeKas', btn);
+        if (err) return toast('Gagal: ' + (err.message || err), true);
+        if (!committed) {
+          toast(`Honor ${lbl} sudah pernah dicatat ke Kas. Untuk mengubah nominal, pakai Edit di Kas Madrasah.`, true, 6000);
+          return reloadDataset('kasUmum', () => renderHonor());
+        }
+        toast('✅ Honor ' + lbl + ' tercatat di Kas Umum.');
+        addLog('catat_kas', `Kas Umum - keluar - Honor / Transport / Insentif - Rp ${nominal.toLocaleString('id-ID')} - Honor bulan ${lbl}`);
+        reloadDataset('kasUmum', () => { renderHonor(); if (typeof renderKasUmum === 'function') try { renderKasUmum(); } catch (e) { /* halaman Kas belum dibuka */ } });
+      }, false);
+    }
+    // Slip Honor pribadi (Guru/Wali Kelas) — read-only, hanya data milik currentUser sendiri.
+    // Tidak ada input tarif/edit di halaman ini; semua tarif tetap ditentukan Admin di halaman Honor.
+    function renderHonorSlip() {
+      const monthSel = document.getElementById('honorSlipMonth'), yearSel = document.getElementById('honorSlipYear');
+      const month = monthSel.value.padStart(2,'0'), year = yearSel.value;
+      const container = document.getElementById('honorSlipResult');
+      const namaSaya = currentUser.name;
+      const hs = honorSholatDapat(year, month, () => renderHonorSlip());
+      if (!hs.siap) { container.innerHTML = honorSholatStatusHtml(hs, 'renderHonorSlip()'); return; }
+      const kunciSaya = honorSholatResolve(currentUser.key, namaSaya);
+      const sholatSaya = hs.hasil.perGuru[kunciSaya] || { dluha: 0, dzuhur: 0 };
+      const ditolakSaya = hs.hasil.ditolak.filter(x => x.gk === kunciSaya);
+      // Identitas dicocokkan pakai guruKey (Firebase key unik currentUser) kalau record punya guruKey --
+      // supaya slip honor tidak tertukar antar guru yang kebetulan bernama sama / namanya pernah diubah Admin.
+      // Fallback ke nama dipertahankan untuk record lama yang belum punya guruKey.
+      const cocokSaya = (rec) => rec.guruKey ? rec.guruKey === currentUser.key : rec.guru === namaSaya;
+      const inBulan = (tgl) => { if (!tgl) return false; const p = tgl.split('-'); return p[0] === year && p[1] === month; };
+      const fJournals = allJournals.filter(j => cocokSaya(j) && inBulan(j.tanggal) && sesuaiTahunAjaranTermasukDataLama(j) && j.status !== 'ditolak');
+      const fEvents = allEventAttendance.filter(e => cocokSaya(e) && inBulan(e.tanggal) && sesuaiTahunAjaranTermasukDataLama(e));
+      const fUjian = allUjianAttendance.filter(u => cocokSaya(u) && inBulan(u.tanggal) && sesuaiTahunAjaranTermasukDataLama(u));
+      const fEkskulPic = allEkskulPicHonor.filter(x => cocokSaya(x) && inBulan(x.tanggal) && sesuaiTahunAjaranTermasukDataLama(x));
+      const rates = v4GetHonorRates();
+      let reguler=0, nonReguler=0, ekstra=0, ekstraHonor=0;
+      fJournals.forEach(j => { if (isJamEkstra(j.jam_ke)) { ekstra+=1; ekstraHonor+=getEkstraRate(j.subject); } else if (j.type==='Non-Reguler') nonReguler+=1; else reguler+=1; });
+      const dluha = sholatSaya.dluha, dzuhur = sholatSaya.dzuhur;   // dari check-in petugas yang lolos pemeriksaan
+      const eventJumlah = fEvents.length, eventHonor = fEvents.reduce((s,e)=>s+(e.honor||0),0);
+      const ujianJumlah = fUjian.length, ujianHonor = fUjian.reduce((s,u)=>s+(u.honor||0),0);
+      // Kredit honor otomatis krn jadi PIC/pengganti ekskul yang mencatat absensi (lihat
+      // v4SaveEkskulAttendance) -- ditampilkan baris terpisah di slip biar transparan, tapi
+      // tetap dijumlahkan ke ekstraHonor saat dikirim ke v4HitungHonor.
+      const ekskulPicJumlah = fEkskulPic.length, ekskulPicHonorTotal = fEkskulPic.reduce((s,x)=>s+(x.honor||0),0);
+      const guruObj = (allGuru||[]).find(g => g.key === currentUser.key) || (allGuru||[]).find(g => g.name === namaSaya) || {};
+      const tunjangan = guruObj.tunjanganMasaKerja||0, transport = guruObj.bantuanTransportasi||0;
+      const gt = allGuruTerajin[year+'-'+month];
+      const bonusTerajin = (gt && (gt.guruKey ? gt.guruKey === currentUser.key : gt.guru === namaSaya)) ? (gt.honor||0) : 0;
+      const total = v4HitungHonor({ reguler, nonReguler, ekstraHonor: ekstraHonor + ekskulPicHonorTotal, dluha, dzuhur, eventHonor, ujianHonor, tunjangan, transport }, rates) + bonusTerajin;
+      const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][parseInt(month)];
+      if (fJournals.length===0 && (dluha+dzuhur)===0 && ditolakSaya.length===0 && fEvents.length===0 && fUjian.length===0 && fEkskulPic.length===0 && total===0) {
+        container.innerHTML = `<p class="text-muted">Belum ada data honor untuk ${namaBulan} ${year}.</p>`;
+        return;
+      }
+      const baris = (label, ket, nilai) => `<tr><td style="padding:5px 0;">${escapeHtml(label)}</td><td class="text-muted" style="padding:5px 0;text-align:center;">${escapeHtml(String(ket))}</td><td style="padding:5px 0;text-align:right;">Rp ${nilai.toLocaleString()}</td></tr>`;
+      let rows = '';
+      if (reguler>0) rows += baris('Mengajar Reguler', reguler+' jam', reguler*rates.reguler);
+      if (nonReguler>0) rows += baris('Mengajar Non-Reguler', nonReguler+' jam', nonReguler*rates.nonReguler);
+      if (ekstra>0) rows += baris('Ekstrakurikuler', ekstra+' jam', ekstraHonor);
+      if (dluha>0) rows += baris('Sholat Dhuha', dluha+' hari', dluha*rates.dluha);
+      if (dzuhur>0) rows += baris('Sholat Dzuhur', dzuhur+' hari', dzuhur*rates.dzuhur);
+      if (eventJumlah>0) rows += baris('Lembur/Rapat', eventJumlah+'x', eventHonor);
+      if (ujianJumlah>0) rows += baris('Honor Ujian', ujianJumlah+'x', ujianHonor);
+      if (ekskulPicJumlah>0) rows += baris('PIC/Pengganti Ekskul', ekskulPicJumlah+'x', ekskulPicHonorTotal);
+      if (tunjangan>0) rows += baris('Tunjangan Masa Kerja', '-', tunjangan);
+      if (transport>0) rows += baris('Bantuan Transportasi', '-', transport);
+      if (bonusTerajin>0) rows += baris('🏆 Guru Terajin', '-', bonusTerajin);
+      // FIX: slip honor pribadi sebelumnya cuma menampilkan TOTAL jam "Mengajar Non-Reguler"
+      // tanpa rincian tanggal/kelas/mewakili siapa -- guru tidak bisa mengecek sendiri apakah
+      // jumlah itu benar, beda dengan halaman Honor Admin yang sudah punya detail "Rincian
+      // Mewakili Guru Lain". Sekarang ditambahkan rincian yang sama (dipersempit ke data milik
+      // guru ybs sendiri) supaya slip ini bisa dicek sendiri sebelum tanya ke Admin.
+      const mewakiliListSaya = fJournals.filter(j => j.type === 'Non-Reguler' && j.mewakili).sort((a,b) => COLLATOR_ID.compare((a.tanggal||''), b.tanggal||''));
+      let mewakiliHtml = '';
+      if (mewakiliListSaya.length > 0) {
+        mewakiliHtml = `<details style="margin-top:12px;background:#eff6ff;border-radius:10px;padding:10px;border:1px solid #93c5fd;"><summary style="font-weight:700;cursor:pointer;color:#1e40af;font-size:13px;">🔄 Rincian Mengajar Non-Reguler (${mewakiliListSaya.length})</summary><div style="margin-top:8px;overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr><th style="text-align:left;">Tanggal</th><th style="text-align:left;">Mewakili</th><th style="text-align:left;">Kelas</th><th style="text-align:center;">Jam</th><th style="text-align:left;">Mapel</th></tr></thead><tbody>`;
+        mewakiliListSaya.forEach(j => { mewakiliHtml += `<tr><td>${escapeHtml(j.tanggal)}</td><td>${escapeHtml(j.mewakili)}</td><td>${escapeHtml(j.kelas)}</td><td style="text-align:center;">${escapeHtml(j.jam_ke)}</td><td>${escapeHtml(j.subject)}</td></tr>`; });
+        mewakiliHtml += `</tbody></table></div></details>`;
+      }
+      const hpSaya = honorPanjarDapat(year + '-' + month, kunciSaya, () => renderHonorSlip());
+      const panjarSaya = honorPanjarTotal(hpSaya.data[kunciSaya]);
+      const panjarHtml = panjarSaya > 0 ? `
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px;color:#b45309;"><span>Panjar yang sudah diambil</span><span>- Rp ${panjarSaya.toLocaleString()}</span></div>
+          <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;margin-top:6px;"><span>SISA DIBAYARKAN</span><span style="color:#059669;">Rp ${Math.max(0, total - panjarSaya).toLocaleString()}</span></div>` : '';
+      const ditolakHtml = honorSholatDitolakHtml(ditolakSaya, false);
+      container.innerHTML = `
+        <div style="max-width:480px;margin:0 auto;background:#fff;border:1px dashed #94a3b8;border-radius:12px;padding:20px;">
+          <div style="text-align:center;margin-bottom:12px;">
+            <div style="font-weight:800;font-size:16px;">🧾 SLIP HONOR</div>
+            <div class="text-muted" style="font-size:12px;">${escapeHtml(namaSaya)} • ${namaBulan} ${year}</div>
+          </div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;"><tr><th style="text-align:left;">Rincian</th><th style="text-align:center;">Jumlah</th><th style="text-align:right;">Honor</th></tr>${rows}</table>
+          ${mewakiliHtml}${ditolakHtml}
+          <div style="border-top:2px dashed #94a3b8;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:800;font-size:15px;">
+            <span>TOTAL</span><span style="color:#059669;">Rp ${total.toLocaleString()}</span>
+          </div>${panjarHtml}
+          <p class="text-muted" style="font-size:11px;margin-top:12px;text-align:center;">Slip ini dihitung otomatis oleh sistem berdasarkan tarif dari Admin. Untuk koreksi, hubungi Admin.</p>
+        </div>`;
+    }
+
+    async function downloadHonorPDF() {
+      const data = window._honorData; if (!data) return toast('Hitung honor terlebih dahulu!', true);
+      const { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList } = data;
+      const monthName = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][parseInt(month)-1];
+      // Panjar honor per guru (dibaca dari cache honor_panjar yang sudah dimuat halaman Honor). Kalau belum selesai dimuat, jangan bikin PDF
+      // dengan angka panjar kosong yang menyesatkan; kalau gagal dimuat (mis. Rules belum dipasang), PDF tetap dibuat tanpa panjar + peringatan.
+      const hpPdf = honorPanjarDapat(year + '-' + month, null, null);
+      if (!hpPdf.siap) return toast('Data panjar masih dimuat — coba unduh lagi sebentar.', true);
+      if (hpPdf.gagal) toast('⚠️ Data panjar tidak dapat dimuat — kolom Panjar di PDF dikosongkan.', true, 6000);
+      let totalPanjarPdf = 0, totalPanjarEfektifPdf = 0;
+      const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: [215, 330], compress: true }); const pageWidth = doc.internal.pageSize.getWidth(), pageHeight = doc.internal.pageSize.getHeight(); // F4 landscape
+      const rates = v4GetHonorRates();
+      // Perkecil gambar sebelum masuk PDF. Logo/TTD asli bisa beresolusi sangat besar dan, tanpa ini, tertanam
+      // mentah di PDF (penyebab file membengkak ratusan MB). Logo 20 mm dan TTD 30 mm cukup ~300 dpi.
+      const kecilkanGambar = (dataUrl, maxPx) => new Promise(resolve => {
+        if (!dataUrl) return resolve(null);
+        const im = new Image();
+        im.onload = () => {
+          try {
+            const r = Math.min(1, maxPx / Math.max(im.naturalWidth, im.naturalHeight));
+            const c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(im.naturalWidth * r)); c.height = Math.max(1, Math.round(im.naturalHeight * r));
+            c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/png'));
+          } catch (e) { resolve(null); }
+        };
+        im.onerror = () => resolve(null);
+        im.src = dataUrl;
+      });
+      const NAVY = [15, 23, 42], BIRU = [0, 107, 79], HIJAU_TUA = [0, 84, 63], EMAS = [217, 180, 90], EMAS_MUDA = [240, 217, 160], ABU = [100, 116, 139];   // hijau & emas = warna tema login madrasah
+      // Pita hijau tua + garis emas tipis di atas halaman
+      doc.setFillColor(HIJAU_TUA[0], HIJAU_TUA[1], HIJAU_TUA[2]); doc.rect(0, 0, pageWidth, 4, 'F');
+      doc.setFillColor(EMAS[0], EMAS[1], EMAS[2]); doc.rect(0, 4, pageWidth, 0.8, 'F');
+      // Logo dalam lencana putih berbingkai hijau (seperti di halaman login), cincin putus-putus emas, bayangan tipis.
+      // Logo: resolusi 600 px dan proporsi aslinya dijaga (tidak melar).
+      const logoHonor = await kecilkanGambar(await v4LoadLogoForPdf(), 600);
+      const lcx = 28, lcy = 18.5, lr = 11.5;
+      let logoW = 0;
+      if (logoHonor) {
+        try {
+          doc.setFillColor(226, 232, 240); doc.circle(lcx + 0.5, lcy + 0.8, lr, 'F');                       // bayangan tipis
+          doc.setLineWidth(0.3); doc.setDrawColor(EMAS[0], EMAS[1], EMAS[2]); doc.setLineDashPattern([1.1, 1.1], 0); doc.circle(lcx, lcy, lr + 1.7, 'S'); doc.setLineDashPattern([], 0);   // cincin emas putus-putus
+          doc.setFillColor(255, 255, 255); doc.setDrawColor(HIJAU_TUA[0], HIJAU_TUA[1], HIJAU_TUA[2]); doc.setLineWidth(0.8); doc.circle(lcx, lcy, lr, 'FD');   // lencana putih bingkai hijau
+          const pl = doc.getImageProperties(logoHonor), kotak = 2 * lr - 5, skala = Math.min(kotak / pl.width, kotak / pl.height);
+          const lw = pl.width * skala, lh = pl.height * skala;
+          doc.addImage(logoHonor, 'PNG', lcx - lw / 2, lcy - lh / 2, lw, lh, undefined, 'FAST');
+          logoW = 2 * (lr + 1.7);
+        } catch (e) { console.error('[SI MAMBA] Gagal menambahkan logo ke PDF Honor:', e); logoW = 0; }
+        doc.setLineWidth(0.2);
+      }
+      const teksX = logoW ? 15 + logoW + 5 : 15;
+      doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]); doc.setFont(undefined, 'bold'); doc.setFontSize(18); doc.text('REKAP HONOR GURU', teksX, 18);
+      doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(ABU[0], ABU[1], ABU[2]); doc.text(String(MADRASAH.nama || ''), teksX, 24.5);
+      // Label periode di kanan atas
+      const periodeTeks = `Periode  ${monthName} ${year}`;
+      doc.setFont(undefined, 'bold'); doc.setFontSize(11);
+      const periodeW = doc.getTextWidth(periodeTeks) + 12;
+      doc.setFillColor(236, 253, 245); doc.roundedRect(pageWidth - 15 - periodeW, 13, periodeW, 11, 2.5, 2.5, 'F');
+      doc.setTextColor(BIRU[0], BIRU[1], BIRU[2]); doc.text(periodeTeks, pageWidth - 15 - periodeW / 2, 20, { align: 'center' });
+      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.4); doc.line(15, 34, pageWidth - 15, 34);
+      doc.setTextColor(0); doc.setFont(undefined, 'normal');
+      // Sama seperti renderHonor(): Kepala Madrasah & Ketua Yayasan (2 item pertama bonusList)
+      // ditaruh di baris PALING ATAS tabel, Guru Terajin (kalau ada, item sisanya) tetap di
+      // bawah. Deteksi baris "bonus" untuk pewarnaan kuning di bawah tidak lagi dari teks label
+      // (karena teks "(Bonus)" sudah dihapus) melainkan dari nomor baris (bonusRowIndices).
+      const pimpinanListPdf = bonusList.slice(0, 2).sort((x, y) => (/yayasan/i.test(y.label) ? 1 : 0) - (/yayasan/i.test(x.label) ? 1 : 0)), bonusLainnyaPdf = bonusList.slice(2);   // Ketua Yayasan no. 1, Kepala Madrasah no. 2
+      const rows = []; let no = 1; const bonusRowIndices = new Set();
+      pimpinanListPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', bonus.dlJumlah > 0 ? bonus.dlJumlah + 'x' : '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });   // kolom Lembur = Dinas Luar Kepala bila ada
+      const allTeacherKeysPdf = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic||{}), ...allGuru.filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0)).map(g => g.key || g.name)]);
+      for (const guruKey of allTeacherKeysPdf) { const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 }, r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 }, ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 }, uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 }, ekpic = (groupedEkskulPic||{})[guruKey] || { jumlah: 0, honor: 0 }; const guruObj = allGuru.find(g => g.key === guruKey) || allGuru.find(g => g.name === guruKey); const guru = j.nama || r.nama || ev.nama || uj.nama || ekpic.nama || (guruObj && guruObj.name) || guruKey; const tunjangan = (guruObj && guruObj.tunjanganMasaKerja) || 0, transport = (guruObj && guruObj.bantuanTransportasi) || 0; const honor = v4HitungHonor({ reguler: j.reguler, nonReguler: j.nonReguler, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventHonor: ev.honor, ujianHonor: uj.honor, tunjangan, transport }, rates); const pjP = honorPanjarTotal(hpPdf.data[guruKey]); totalPanjarPdf += pjP; totalPanjarEfektifPdf += Math.min(pjP, honor); rows.push([no++, guru, j.reguler, j.nonReguler, `${j.ekstra}x`, r.dluha, r.dzuhur, `${ev.jumlah}x`, `${uj.jumlah}x`, `${(tunjangan+transport).toLocaleString()}`, `Rp ${honor.toLocaleString()}`, pjP > 0 ? `Rp ${pjP.toLocaleString()}` : '-', `Rp ${Math.max(0, honor - pjP).toLocaleString()}`, '']); }
+      bonusLainnyaPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });
+      // Tinggi baris menyesuaikan jumlah guru supaya tabel + tanda tangan muat 1 halaman.
+      const ruangTabel = pageHeight - 116;   // tinggi halaman - (awal tabel 38 + judul kolom 8 + baris TOTAL 10 + jarak 10 + blok TTD 40 + margin bawah 10)
+      const tinggiBaris = Math.max(8, Math.min(12, ruangTabel / Math.max(rows.length, 1)));
+      const ukuranFont = tinggiBaris >= 9 ? 9 : 8;
+      doc.autoTable({ startY: 38, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dhuha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Panjar', 'Sisa Dibayar', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, totalPanjarPdf > 0 ? `Rp ${totalPanjarPdf.toLocaleString()}` : '-', `Rp ${(totalHonor - totalPanjarEfektifPdf).toLocaleString()}`, '']], theme: 'grid', styles: { fontSize: ukuranFont, valign: 'middle', cellPadding: 1.8, lineWidth: 0.15, lineColor: [203, 213, 225], textColor: [30, 41, 59] }, alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' }, 8: { halign: 'center' }, 9: { halign: 'center' }, 10: { halign: 'right', fontStyle: 'bold' }, 11: { halign: 'right' }, 12: { halign: 'right', fontStyle: 'bold' }, 13: { cellWidth: 42 } }, headStyles: { fillColor: BIRU, textColor: [255, 255, 255], fontSize: ukuranFont, fontStyle: 'bold', lineColor: BIRU }, footStyles: { fillColor: [226, 232, 240], textColor: NAVY, fontStyle: 'bold', fontSize: 9.5 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = tinggiBaris; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [255,247,214]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
+      const finalY = doc.lastAutoTable.finalY;
+      const ttdKepalaDataHonor = await kecilkanGambar(await v4LoadTtdKepalaForPdf(), 360);
+      let ySignHonor = finalY + 10;
+      if (ySignHonor > pageHeight - 45) { doc.addPage(); ySignHonor = 20; }   // tanda tangan hanya di halaman terakhir; pindah halaman kalau sisa ruang kurang
+      // Kepala di KIRI, Bendahara di KANAN, berjauhan.
+      const xKepala = 15 + 55, xBendahara = pageWidth - 15 - 55;
+      doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+      doc.text('Mengetahui,', xKepala, ySignHonor, { align: 'center' });
+      doc.text('Kepala Madrasah', xKepala, ySignHonor + 5, { align: 'center' });
+      doc.text('Bendahara', xBendahara, ySignHonor + 5, { align: 'center' });
+      const yNama = ySignHonor + 27;
+      const ttdHonor = await ttdKepalaPdf(doc, xKepala, ySignHonor + 7, { lebar: 30, tinggiMaks: 18, hanyaPimpinan: true, meta: { jenis: 'Rekap Honor Guru', ket: monthName + ' ' + year } });
+      if (!ttdHonor.dipakai && ttdKepalaDataHonor) {
+        try {
+          const ttdW = 30;
+          const propsTtd = doc.getImageProperties(ttdKepalaDataHonor);
+          const ttdH = Math.min(15, ttdW * (propsTtd.height / propsTtd.width));
+          doc.addImage(ttdKepalaDataHonor, 'PNG', xKepala - ttdW/2, ySignHonor + 8, ttdW, ttdH, undefined, 'FAST');
+        } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Honor:', e); }
+      }
+      doc.setFont(undefined, 'bold');
+      doc.text(MADRASAH.kepala_sekolah || '', xKepala, yNama, { align: 'center' });
+      doc.text(MADRASAH.bendahara || '(.............................)', xBendahara, yNama, { align: 'center' });
+      doc.setFont(undefined, 'normal');
+      const nipOk = v => v && String(v).trim() !== '' && String(v).trim() !== '-';
+      if (nipOk(MADRASAH.nip_kepala_sekolah)) doc.text('NIP. ' + MADRASAH.nip_kepala_sekolah, xKepala, yNama + 5, { align: 'center' });
+      if (nipOk(MADRASAH.nip_bendahara)) doc.text('NIP/NUPTK. ' + MADRASAH.nip_bendahara, xBendahara, yNama + 5, { align: 'center' });
+      doc.setFontSize(7); doc.setTextColor(ABU[0], ABU[1], ABU[2]);
+      doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 15, pageHeight - 6);
+      doc.setTextColor(0);
+      doc.save(`Honor_Guru_${monthName}_${year}.pdf`); toast('📥 PDF Honor berhasil diunduh!');
+    }
+
+// Pembungkus pemuat PDF malas (fungsi pembungkusnya didefinisikan di app.js, bagian "EXPORT PDF/EXCEL").
+if (typeof simambaBungkusExportLazy === 'function') simambaBungkusExportLazy([['downloadHonorPDF', 'pdf', 'PDF']]);
