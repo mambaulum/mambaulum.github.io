@@ -235,18 +235,11 @@
   async function buatPDF(d, nomor) {
     if (typeof ensureLib !== 'function') throw new Error('modul PDF belum tersedia');
     await ensureLib('pdf');
-    var doc = new window.jspdf.jsPDF('p', 'mm', 'a4'), pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
+    var doc = new window.jspdf.jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true }), pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
     var mk = 30, mr = 20, lebar = pw - mk - mr, LH = 6.3, y, logo = await v4LoadLogoForPdf();
-    var off = MADRASAH.nsm ? 5 : 0;
-    v4TambahLogoKeKopPdf(doc, logo, off);
-    doc.setFontSize(16); doc.text(MADRASAH.nama, pw / 2, 20, { align: 'center' });
-    doc.setFontSize(10);
-    if (MADRASAH.nsm) { doc.setFont(undefined, 'bold'); doc.text('NSM: ' + MADRASAH.nsm, pw / 2, 25, { align: 'center' }); doc.setFont(undefined, 'normal'); }
-    doc.text(MADRASAH.alamat, pw / 2, 27 + off, { align: 'center' });
-    doc.text('Telp: ' + MADRASAH.telp + '  |  Email: ' + MADRASAH.email + '  |  Web: ' + MADRASAH.website, pw / 2, 33 + off, { align: 'center' });
-    doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(20, 38 + off, pw - 20, 38 + off); doc.line(20, 40 + off, pw - 20, 40 + off);
+    var off = Math.max(0, v4KopMadrasahPdf(doc, pw, logo, 20) - 40);   // kop tanpa tumpang tindih logo (app.js)
     y = 52 + off; doc.setFontSize(12);
-    var perlu = function (h) { if (y + h > ph - 25) { doc.addPage(); y = 25; } };
+    var perlu = function (h) { if (y + h > ph - 25) { doc.addPage(); y = 20; } };
     var tulis = function (txt, x, w, bold) { doc.setFont(undefined, bold ? 'bold' : 'normal'); doc.splitTextToSize(String(txt), w).forEach(function (r) { perlu(7); doc.text(r, x, y); y += LH; }); doc.setFont(undefined, 'normal'); };
     doc.text(tempatSurat() + ', ' + fmtTgl(d.tanggalSurat), pw - mr, y, { align: 'right' }); y += 9;
     [['Nomor', nomor, false], ['Sifat', d.sifat, false], ['Lampiran', d.lampiran, false], ['Perihal', d.perihal, true]].forEach(function (h) {
@@ -273,7 +266,7 @@
     var cx = pw - 30 - 40; perlu(70); y += 6;
     doc.splitTextToSize('Kepala ' + titleCase(MADRASAH.nama) + ',', 70).forEach(function (r) { doc.text(r, cx, y, { align: 'center' }); y += LH; });
     var tq = await ttdKepalaPdf(doc, cx, y + 3, { lebar: 35, tinggiMaks: 20, meta: { jenis: 'Surat Edaran Wali Murid', ket: [d.perihal, d.tanggalSurat].filter(Boolean).join(' | ') } });
-    y += (tq && tq.dipakai) ? Math.max(22, tq.tinggi + 5) : 20;
+    y += (tq && tq.dipakai) ? Math.max(24, tq.tinggi + 8) : 22;   // ruang QR/gambar, tidak menimpa nama
     doc.setFont(undefined, 'bold'); doc.text(tanpaGelar(MADRASAH.kepala_sekolah), cx, y, { align: 'center' }); doc.setFont(undefined, 'normal');
     var tb = lines(d.tembusan);
     if (tb.length) { y += 14; perlu(10 + tb.length * 5.5); doc.setFontSize(10); doc.text('Tembusan:', mk, y); y += 5; tb.forEach(function (t, i) { perlu(6); doc.text((i + 1) + '. ' + t, mk, y); y += 5; }); }

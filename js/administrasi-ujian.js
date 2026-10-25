@@ -708,9 +708,9 @@ function aujCetakKartu() {
 // CETAK
 // =====================================================
 const AUJ_CSS = `
-  @page { size: A4; margin: 14mm 15mm; }
+  @page { size: A4; margin: 20mm 20mm 25mm 30mm; }   /* PMA 12/2026: atas 2, kanan 2, bawah 2,5, kiri 3 cm */
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #000; margin: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12pt; color: #000; margin: 0; }
   .halaman { page-break-after: always; }
   .halaman:last-child { page-break-after: auto; }
   .kop { width: 100%; border-collapse: collapse; }

@@ -536,6 +536,11 @@
   // ---- PRATINJAU CETAK (tampilan seperti print preview) ----
   // Dibuka dari tombol Preview: kertas A4/F4 di atas latar abu-abu, zoom, Cetak (dialog print browser), Download PDF.
   var kertasTerakhir = 'A4';
+  // Gaya kertas pratinjau = gaya PDF (Arial 12 pt, jarak baris ~6,3 mm, judul tebal 13 pt, kop selebar margin 2 cm).
+  var SG_CSS = '.sgKertas{font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:6.3mm;color:#000;}' +
+    '.sgKertas .judul-surat{text-align:center;font-weight:700;font-size:13pt;line-height:5.5mm;margin:0;}' +
+    '.sgKertas .nomor-surat{text-align:center;font-weight:400;font-size:12pt;margin:0 0 3mm;}' +
+    '.sgKertas .body p{margin:0 0 2mm;}.sgKertas .kop-surat{margin-left:-10mm;}';
   function bukaPratinjau(kertas) {
     var isi = $('suratPreview'); if (!isi) return;
     tutupPratinjau();
@@ -546,21 +551,23 @@
     var bar = el('div', null, 'flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:#323639;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4);');
     var jdl = el('div', null, 'font-size:14px;font-weight:700;flex:1;min-width:140px;'); jdl.textContent = 'Pratinjau Cetak · ' + (f4 ? 'F4' : 'A4');
     bar.appendChild(jdl);
-    function tb(label, fn, css) { var b = el('button', null, 'border:0;border-radius:6px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;' + (css || 'background:#4b5054;color:#fff;')); b.type = 'button'; b.innerHTML = label; b.addEventListener('click', fn); bar.appendChild(b); return b; }
+    function tb(label, fn, kelas) { var b = el('button', kelas || 'btn btn-soft'); b.type = 'button'; b.innerHTML = label; b.addEventListener('click', fn); bar.appendChild(b); return b; }   // kelas tombol yang sama dengan tombol di menu
     var zl = el('span', null, 'font-size:13px;min-width:44px;text-align:center;');
     var zoom = 1;
     function setZoom(z) { zoom = Math.max(0.3, Math.min(2, z)); kertasEl.style.zoom = zoom; zl.textContent = Math.round(zoom * 100) + '%'; }
     function fit() { setZoom(Math.min(1, (window.innerWidth - 24) / (210 * 96 / 25.4))); }
     tb('−', function () { setZoom(zoom - 0.1); }); bar.appendChild(zl); tb('+', function () { setZoom(zoom + 0.1); }); tb('Pas', fit);
-    tb('🖨️ Cetak', function () { cetakPratinjau(kertasEl, f4, margin); }, 'background:#2563eb;color:#fff;');
-    if (mode === 'siswa' || mode === 'guru') tb('📥 PDF', function () { if (mode === 'siswa') window.downloadSuratPDF(); else unduhPDF(); }, 'background:#16a34a;color:#fff;');
-    tb('✕ Tutup', tutupPratinjau, 'background:#dc2626;color:#fff;');
+    tb('🖨️ Cetak', function () { cetakPratinjau(kertasEl, f4, margin); }, 'btn btn-primary');
+    if (mode === 'siswa' || mode === 'guru') tb('📥 Download PDF', function () { if (mode === 'siswa') window.downloadSuratPDF(); else unduhPDF(); }, 'btn btn-success');
+    tb('✕ Tutup', tutupPratinjau, 'btn btn-danger');
     o.appendChild(bar);
     var area = el('div', null, 'flex:1 1 auto;overflow:auto;padding:16px 12px 40px;text-align:center;-webkit-overflow-scrolling:touch;');
     var kertasEl = el('div', null, 'display:block;width:210mm;min-height:' + tinggi + 'mm;margin:0 auto;box-sizing:border-box;background:#fff;color:#000;text-align:left;padding:' + pad + ';' +
-      "font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.5;box-shadow:0 2px 12px rgba(0,0,0,.5);" +
+      "box-shadow:0 2px 12px rgba(0,0,0,.5);" +
       'background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(' + tinggi + 'mm - 1px),#cbd5e1 calc(' + tinggi + 'mm - 1px),#cbd5e1 ' + tinggi + 'mm);');
+    kertasEl.className = 'sgKertas';
     kertasEl.innerHTML = isi.innerHTML;
+    var gy = document.createElement('style'); gy.textContent = SG_CSS; o.appendChild(gy);
     area.appendChild(kertasEl); o.appendChild(area);
     document.body.appendChild(o);
     pratinjauState = { overflow: document.body.style.overflow };
@@ -584,7 +591,7 @@
     d.open();
     d.write('<!doctype html><html><head><meta charset="utf-8"><base href="' + document.baseURI + '"><title>Surat</title>' + css +
       '<style>@page{size:210mm ' + (f4 ? 330 : 297) + 'mm;margin:' + margin + '}html,body{margin:0;padding:0;background:#fff;}p,li,tr,img,.judul-surat,.nomor-surat,.footer{break-inside:avoid;page-break-inside:avoid;}p,li{orphans:2;widows:2;}' +
-      "body{font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.5;color:#000;}</style></head><body>" + kertasEl.innerHTML + '</body></html>');
+      SG_CSS + '</style></head><body class="sgKertas">' + kertasEl.innerHTML + '</body></html>');
     d.close();
     var imgs = Array.prototype.slice.call(d.images || []);
     var tunggu = Promise.all(imgs.map(function (im) { return im.complete ? 1 : new Promise(function (r) { im.onload = im.onerror = r; }); }));
@@ -796,6 +803,10 @@
     return S;
   }
   // Gambar TTD (tanpa QR): Kepala Madrasah, atau Ketua Yayasan untuk SK Yayasan. '' bila belum diunggah.
+  // Hemat Firebase: gambar TTD (base64, puluhan KB) TIDAK disimpan di riwayat surat; diganti penanda data-ttd dan dipulihkan saat surat dibuka (lihatSurat di app.js).
+  function hematHtmlSurat(html, role) {
+    return String(html || '').replace(/src="data:image\/[a-z+]+;base64,[^"]*"/gi, 'data-ttd="' + (role || 'kepala') + '"');
+  }
   var yysTtdMuat = null;
   function siapTtdYys() {
     if (!(window.TTD && TTD.muat)) return Promise.resolve();
@@ -883,7 +894,7 @@
       db.ref('surat').push().set({
       siswaKey: 'guru:' + (g.key || g.name), siswaName: g.name + (daftarGuruLain(d).length ? ' +' + daftarGuruLain(d).length + ' guru' : ''), kelas: 'GURU', jenis: 'guru-' + jenis, jenisLabel: label,
       tanggal: new Date().toISOString(), tahunAjaran: currentTahunAjaran, dibuatOleh: currentUser.name, guruKey: currentUser.key || null,
-      htmlContent: $('suratPreview').innerHTML, createdAt: new Date().toISOString()
+      htmlContent: hematHtmlSurat($('suratPreview').innerHTML, S.yys ? 'yayasan' : 'kepala'), createdAt: new Date().toISOString()
     }, function (err) {
       clearBusy('simpanSuratGuru', btn);
       if (err) toast('Gagal simpan: ' + err.message, true);
@@ -1159,10 +1170,10 @@
         'ijin': 'SURAT IJIN TIDAK MASUK SEKOLAH',
         'sakit': 'SURAT KETERANGAN SAKIT'
       };
-      doc.setFontSize(14);
-      doc.text(judulMap[jenis] || 'SURAT KETERANGAN', pageWidth/2, 52 + offsetY1, { align: 'center', underline: true });
-      doc.setFontSize(10);
-      doc.text('Nomor: ' + nomorSurat, pageWidth/2, 60 + offsetY1, { align: 'center' });
+      doc.setFont(undefined, 'bold'); doc.setFontSize(13);
+      doc.text(judulMap[jenis] || 'SURAT KETERANGAN', pageWidth/2, 52 + offsetY1, { align: 'center' });
+      doc.setFont(undefined, 'normal'); doc.setFontSize(12);
+      doc.text('Nomor: ' + nomorSurat, pageWidth/2, 59 + offsetY1, { align: 'center' });
       
       // Isi surat -- dibangun dari teks terstruktur (buatIsiSuratPlain), bukan dibaca ulang
       // dari innerHTML preview, dan setiap paragraf di-word-wrap pakai splitTextToSize supaya
@@ -1242,7 +1253,7 @@
       kunciNomorSiswa(jenis, isoSurat, kSurat).then(() => {
       const html = document.getElementById('suratPreview').innerHTML;      // dibaca SESUDAH nomor terkunci
       const ref = db.ref('surat').push();
-      ref.set({ siswaKey: siswa.key, siswaName: siswa.name, kelas: siswa.kelas, jenis, jenisLabel: namaJenis, tanggal: new Date().toISOString(), tahunAjaran: currentTahunAjaran, dibuatOleh: currentUser.name, guruKey: currentUser.key || null, htmlContent: html, createdAt: new Date().toISOString() }, err => {
+      ref.set({ siswaKey: siswa.key, siswaName: siswa.name, kelas: siswa.kelas, jenis, jenisLabel: namaJenis, tanggal: new Date().toISOString(), tahunAjaran: currentTahunAjaran, dibuatOleh: currentUser.name, guruKey: currentUser.key || null, htmlContent: hematHtmlSurat(html, 'kepala'), createdAt: new Date().toISOString() }, err => {
         clearBusy('simpanSurat', btnSimpanSurat);
         if (err) toast('Gagal simpan: '+err.message, true);
         else { toast('✅ Surat berhasil disimpan!'); addLog('simpan_surat', `${namaJenis} - ${siswa.name}`); loadSuratRiwayat(); }

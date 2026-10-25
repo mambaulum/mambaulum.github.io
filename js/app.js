@@ -235,6 +235,8 @@
     let cameraStream = null;
     let editingGuruKey = null, editingSiswaKey = null, editingJadwalKey = null;
     let dataLoaded = false;
+    let lastFullLoadAt = 0;   // kapan Fase 2 loadAllData() terakhir selesai (dipakai menahan muat ulang berulang saat sinyal naik-turun)
+    const MUAT_ULANG_MIN_MS = 10 * 60 * 1000;
     let siswaPage = 1, journalPage = 1, rekapPage = 1, religiPage = 1, honorPage = 1, suratPage = 1, jadwalPage = 1, logFullPage = 1;
     let journalFilterMode = 'mine'; // Filter Riwayat Jurnal (khusus guru/wali kelas): 'mine' | 'all'
     let allLogsFull = [];
@@ -3452,13 +3454,16 @@
 
     // Dipanggil setiap kali loadAllData() berhasil ambil data dari Firebase, supaya
     // salinan terbaru selalu siap dipakai kalau nanti app dibuka tanpa koneksi.
-    function cacheDatasetsToIndexedDB(owner) {
+    function cacheDatasetsToIndexedDB(owner, tandaiSegar) {
       if (!window.SIMambaOfflineDB) return;
       const pre = offlineCachePrefix();
       if (!pre) return;                                   // tidak ada user aktif -> jangan simpan apa pun
       if (owner && currentUser.key !== owner) return;     // ganti akun saat loading: data ini bukan milik user aktif
       const snap = snapshotOfflineDatasets(), out = {};
       Object.keys(snap).forEach(k => { out[pre + k] = snap[k]; });
+      // Cap "segar" HANYA ditulis saat pemuatan penuh (Fase 2) selesai -- bukan saat satu dataset di-reload -- supaya cache
+      // yang sebagian basi tidak tampak baru. Dipakai loadAllData() untuk melewati unduhan ulang saat buka-ulang cepat.
+      if (tandaiSegar) out[pre + '__segarAt'] = { t: Date.now(), tahun: currentTahunAjaran, hari: tglLokal() };
       SIMambaOfflineDB.setCacheMany(out).then(purgeCacheLamaSekali).catch(err => console.warn('[Offline] Gagal menyimpan cache:', err));
     }
 
@@ -3494,6 +3499,7 @@
             if (Array.isArray(cache[k])) cache[k] = cache[k].filter(r => !(r && r.pendingSync) || pendingIds.has(r._pendingId));
           });
         }
+        if (opts.syarat && !opts.syarat(cache)) { if (callback) callback(false); return; }   // cache tidak memenuhi syarat: jangan diterapkan
         const found = Object.keys(cache).length > 0;
         if (cache.allSiswa) allSiswa = cache.allSiswa;
         if (cache.allAttendance) allAttendance = cache.allAttendance;
@@ -3779,6 +3785,13 @@
       });
     }
 
+    // HEMAT KUOTA: sinyal HP yang naik-turun memicu event 'online' berkali-kali, dan dulu tiap kali itu
+    // mengunduh ulang semua data. Kalau data lengkap baru dimuat < 10 menit lalu, cukup dipakai apa adanya
+    // (pengumuman & pengaturan tetap sinkron lewat listener; penulisan sendiri tidak terpengaruh).
+    function muatUlangBilaBasi() {
+      if (dataLoaded && lastFullLoadAt && (Date.now() - lastFullLoadAt) < MUAT_ULANG_MIN_MS) return;
+      loadAllData();
+    }
     // ---------- Event koneksi browser ----------
     function handleBrowserOnline() {
       setOfflineBannerVisible(false);
@@ -3789,8 +3802,8 @@
         // sehingga entri yang baru dibuat offline "hilang" sesaat & bisa tersimpan dobel. flushPendingWrites()
         // sendiri memanggil loadAllData() setelah antrean selesai.
         if (window.SIMambaOfflineDB) {
-          SIMambaOfflineDB.countPendingWrites().then(n => { if (n > 0) flushPendingWrites(); else loadAllData(); }).catch(() => loadAllData());
-        } else { loadAllData(); }
+          SIMambaOfflineDB.countPendingWrites().then(n => { if (n > 0) flushPendingWrites(); else muatUlangBilaBasi(); }).catch(() => muatUlangBilaBasi());
+        } else { muatUlangBilaBasi(); }
       }
       else { loadGuruListForLogin(); } // belum login -- aman di-refresh di background siapa pun tampilannya (chooser/form PIN/Portal Ortu)
     }
@@ -3816,7 +3829,39 @@
       }).catch(() => { select.innerHTML = '<option value="">-- Tidak ada koneksi --</option>'; if (loading) loading.style.display = 'none'; if (callback) callback(); });
     }
 
-    function loadAllData(callbackRaw, onFullyLoaded) {
+    // BATAS USIA CACHE (hemat kuota Firebase): saat aplikasi dibuka ulang (login/pulihkan sesi, mis. reload atau pembaruan
+    // versi) dan salinan lengkap di IndexedDB masih baru (< N menit, tahun ajaran & hari sama, milik user yang sama),
+    // pakai salinan itu dan LEWATI unduhan ulang. Pemuatan lain (tombol "Muat ulang data", ganti tahun ajaran, kembali
+    // online) tetap mengunduh penuh. Atur lewat localStorage 'simambaCacheTtlMenit' (bawaan 5; 0 = matikan).
+    function cacheTtlMs() {
+      try { const v = localStorage.getItem('simambaCacheTtlMenit'); if (v !== null && v !== '' && !isNaN(Number(v))) return Math.max(0, Math.min(60, Number(v))) * 60000; } catch (e) {}
+      return 5 * 60000;
+    }
+    let cekCacheTtlJalan = false;   // pemeriksaan cache sedang berjalan: panggilan loadAllData() lain pada saat itu (mis. dari checkFirebase) diabaikan agar tidak mengunduh ganda
+    function loadAllData(callback, onFullyLoaded) {
+      if (cekCacheTtlJalan) return;
+      const ttl = cacheTtlMs();
+      if (!(useCacheFirstOnce && ttl > 0 && SIMAMBA_CACHE_FIRST && db && currentUser && navigator.onLine && window.SIMambaOfflineDB)) return loadAllDataPenuh(callback, onFullyLoaded);
+      const owner = currentUser.key;
+      cekCacheTtlJalan = true;
+      restoreDatasetsFromIndexedDB(found => {
+        cekCacheTtlJalan = false;
+        if (!found || !currentUser || currentUser.key !== owner) { loadAllDataPenuh(callback, onFullyLoaded); return; }
+        useCacheFirstOnce = false;
+        lazyLoadedSet.clear();
+        dataLoaded = true; lastFullLoadAt = Date.now();
+        setOfflineBannerVisible(false);
+        perfLog('cache masih segar (< ' + Math.round(ttl / 60000) + ' mnt): unduhan ulang dilewati');
+        if (callback) callback();
+        if (onFullyLoaded) onFullyLoaded();
+      }, {
+        syarat: c => {
+          const m = c && c.__segarAt, umur = m ? Date.now() - m.t : -1;
+          return !!m && umur >= 0 && umur < ttl && m.tahun === currentTahunAjaran && m.hari === tglLokal();
+        }
+      });
+    }
+    function loadAllDataPenuh(callbackRaw, onFullyLoaded) {
       // callback hanya boleh jalan SEKALI, walau cache-first, fallback timeout, dan Fase 1 semuanya mencoba memanggilnya.
       let cbFired = false;
       const callback = callbackRaw ? () => { if (cbFired) return; cbFired = true; callbackRaw(); } : null;
@@ -3976,8 +4021,8 @@
 
         // FASE 2 lanjut di background -- tidak menahan tampilan yang sudah muncul.
         Promise.all(secondaryPromises).then(() => {
-          cacheDatasetsToIndexedDB(_owner);
-          dataLoaded = true;
+          cacheDatasetsToIndexedDB(_owner, true);
+          dataLoaded = true; lastFullLoadAt = Date.now();
           try { if (isAdmin()) cekDataLamaBelumMigrasi(); } catch (e) {}
           const _tR2 = performance.now();
           renderFullUI();
@@ -10684,6 +10729,12 @@
       const surat = allSurat.find(s => s.key === key);
       if (!surat) return toast('Surat tidak ditemukan!', true);
       document.getElementById('suratPreview').innerHTML = surat.htmlContent ? bersihkanHtmlSurat(surat.htmlContent) : '<p>Konten tidak tersedia</p>';
+      // Gambar TTD tidak disimpan di riwayat (hemat kuota Firebase): pulihkan dari gambar TTD terkini.
+      document.querySelectorAll('#suratPreview img[data-ttd]').forEach(im => {
+        const role = im.getAttribute('data-ttd') === 'yayasan' ? 'yayasan' : 'kepala';
+        if (role === 'kepala' && MADRASAH.ttdKepalaBase64) { im.src = MADRASAH.ttdKepalaBase64; return; }
+        if (window.TTD && typeof window.TTD.muat === 'function') window.TTD.muat(role).then(d => { if (d) im.src = d; }).catch(() => {});
+      });
       toast('📄 Menampilkan surat: ' + surat.jenisLabel);
     }
     function hapusSurat(key) {
