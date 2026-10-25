@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.118",
-  "disimpan": "2026-10-25T11:57:51.971Z",
+  "appVersion": "v8.122",
+  "disimpan": "2026-10-25T12:41:39.771Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,20 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=101",
-      "hash": "e4535aabb0457a633ab3165264a710b87efdc74b"
+      "v": "v=105",
+      "hash": "f83a6fcee685f82832adf6ac63edab4c0d2227f2"
+    },
+    "js/portal-ortu.js": {
+      "v": "v=1",
+      "hash": "3911ecfe53a704356b20a811e3640d30817fce98"
+    },
+    "js/infaq.js": {
+      "v": "v=1",
+      "hash": "09c9c81a277fa6564dd28c43bce8e0f378908b49"
+    },
+    "js/sikap-buku.js": {
+      "v": "v=1",
+      "hash": "bcedffd1f5650877872a5798f60cd152823a7bd4"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
