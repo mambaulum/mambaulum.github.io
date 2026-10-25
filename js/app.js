@@ -4512,21 +4512,50 @@
       const totalItems = filtered.length, ps = pagerSize('siswa') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems/ps));
       if (siswaPage > totalPages) siswaPage = totalPages; if (siswaPage < 1) siswaPage = 1;
       const start = (siswaPage-1)*ps, end = Math.min(start+ps, totalItems), pageItems = filtered.slice(start,end);
-      let html = `<div style="overflow-x:auto;"><table><thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb;"><th style="padding:8px 12px;text-align:left;width:50px;">No</th><th style="padding:8px 12px;text-align:left;">Nama</th><th style="padding:8px 12px;text-align:left;width:120px;">Kelas</th><th style="padding:8px 12px;text-align:center;width:110px;">Status</th><th style="padding:8px 12px;text-align:center;width:140px;">Aksi</th></tr></thead><tbody>`;
+      let html = `<div class="siswa-rows">`;
       pageItems.forEach((s, idx) => {
-        const btnEdit = isAdmin() ? `<button class="btn btn-edit" style="padding:2px 10px;font-size:12px;" onclick="openEditSiswaModal('${s.key}')">✏️</button>` : '';
-        const delBtn = isAdmin() ? `<button class="btn btn-danger" style="padding:2px 10px;font-size:12px;" onclick="hapusDataWithConfirm('siswa','${s.key}','Siswa ${escapeJs(s.name)}')">🗑️</button>` : '';
+        const btnEdit = isAdmin() ? `<button type="button" class="btn btn-edit siswa-btn" title="Edit" aria-label="Edit ${escapeHtml(s.name)}" onclick="openEditSiswaModal('${s.key}')">✏️</button>` : '';
+        const delBtn = isAdmin() ? `<button type="button" class="btn btn-danger siswa-btn" title="Hapus" aria-label="Hapus ${escapeHtml(s.name)}" onclick="hapusDataWithConfirm('siswa','${s.key}','Siswa ${escapeJs(s.name)}')">🗑️</button>` : '';
         const aktif = siswaAktif(s);
-        // Tombol geser: Admin bisa menggeser; Kepsek hanya melihat (lencana). Baris nonaktif diredupkan.
+        // Tombol geser (Admin): bisa digeser/di-drag maupun diketuk (lihat inisialisasi drag .sw-aktif). Kepsek hanya melihat lencana.
         const statusCell = isAdmin()
-          ? `<label class="sw-aktif" title="${aktif ? 'Aktif — geser untuk menonaktifkan' : 'Nonaktif — geser untuk mengaktifkan'}"><input type="checkbox" ${aktif ? 'checked' : ''} onchange="toggleStatusSiswa('${s.key}', this.checked)" aria-label="Status aktif ${escapeHtml(s.name)}"><span class="sw-aktif-slider"></span></label><div style="font-size:11px;margin-top:2px;color:${aktif ? '#059669' : '#9ca3af'};">${aktif ? 'Aktif' : 'Nonaktif'}</div>`
+          ? `<label class="sw-aktif${aktif ? ' on' : ''}" data-key="${s.key}" title="${aktif ? 'Aktif — geser untuk menonaktifkan' : 'Nonaktif — geser untuk mengaktifkan'}"><input type="checkbox" ${aktif ? 'checked' : ''} onchange="toggleStatusSiswa('${s.key}', this.checked)" aria-label="Status aktif ${escapeHtml(s.name)}"><span class="sw-aktif-slider"></span></label>`
           : `<span style="font-size:12px;font-weight:600;color:${aktif ? '#059669' : '#9ca3af'};">${aktif ? 'Aktif' : 'Nonaktif'}</span>`;
-        html += `<tr style="${aktif ? '' : 'opacity:.55;background:#f9fafb;'}"><td class="text-muted" style="padding:8px 12px;">${start+idx+1}</td><td style="padding:8px 12px;font-weight:500;">${escapeHtml(s.name)}</td><td class="text-medium" style="padding:8px 12px;">${escapeHtml(s.kelas)}</td><td style="padding:8px 12px;text-align:center;">${statusCell}</td><td style="padding:8px 12px;text-align:center;">${btnEdit} ${delBtn}</td></tr>`;
+        html += `<div class="siswa-row${aktif ? '' : ' nonaktif'}"><span class="siswa-no">${start+idx+1}</span><div class="siswa-nama"><div class="siswa-nama-t">${escapeHtml(s.name)}</div><div class="siswa-kelas">${escapeHtml(s.kelas)}${aktif ? '' : ' · Nonaktif'}</div></div>${statusCell}${btnEdit}${delBtn}</div>`;
       });
-      html += `</tbody></table></div>`;
+      html += `</div>`;
       list.innerHTML = html;
       document.getElementById('siswaPagination').innerHTML = pagerHtml('siswa', totalItems, totalPages, start, end, 'siswa');
     }
+    // Tombol geser Aktif/Nonaktif: bisa di-drag (geser kiri/kanan) di HP & desktop, atau diketuk.
+    (function initSwAktifDrag() {
+      if (window.__swAktifDrag) return; window.__swAktifDrag = true;
+      let cur = null;
+      document.addEventListener('pointerdown', e => {
+        const lb = e.target.closest && e.target.closest('.sw-aktif'); if (!lb || e.button > 0) return;
+        cur = { lb, x0: e.clientX, moved: false, id: e.pointerId, startOn: lb.classList.contains('on'), on: lb.classList.contains('on') };
+        try { lb.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      document.addEventListener('pointermove', e => {
+        if (!cur || e.pointerId !== cur.id) return;
+        const dx = e.clientX - cur.x0;
+        if (Math.abs(dx) > 6) cur.moved = true;
+        if (cur.moved) { cur.on = dx > 0 ? true : false; if (Math.abs(dx) < 6) cur.on = cur.startOn; cur.lb.classList.toggle('on', cur.on); }
+      });
+      const end = (e, cancel) => {
+        if (!cur || e.pointerId !== cur.id) return;
+        const c = cur; cur = null;
+        try { c.lb.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (cancel) { c.lb.classList.toggle('on', c.startOn); return; }
+        const target = c.moved ? c.on : !c.startOn;       // geser = arah geser; ketuk = kebalikan status
+        c.lb.classList.toggle('on', target);
+        const inp = c.lb.querySelector('input'); if (inp) inp.checked = target;
+        if (target !== c.startOn) toggleStatusSiswa(c.lb.dataset.key, target);
+      };
+      document.addEventListener('pointerup', e => end(e, false));
+      document.addEventListener('pointercancel', e => end(e, true));
+      document.addEventListener('click', e => { const lb = e.target.closest && e.target.closest('.sw-aktif'); if (lb) e.preventDefault(); }, true);
+    })();
     // Aktifkan / nonaktifkan siswa (Admin). Data lama (absensi, nilai, infaq, dst.) TIDAK dihapus; siswa nonaktif hanya
     // tidak muncul di daftar kerja (absensi, nilai, jurnal, dashboard). Bisa diaktifkan kembali kapan saja.
     function toggleStatusSiswa(key, aktifBaru) {
