@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.140';
+const APP_VERSION = 'v8.143';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -89,7 +89,7 @@ const PRECACHE_URLS = [
   './js/kelola-absen-guru.js?v=1',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=2',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/laporan-rekap.js?v=1',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-guru.js?v=5',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-guru.js?v=6',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=1',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-tahfidz-pramuka-ekskul.js?v=1',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -138,7 +138,7 @@ const PRECACHE_URLS = [
   './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=5',
-  './js/rujukan.js?v=3',                   // catatan rujukan regulasi per menu/tab
+  './js/rujukan.js?v=4',                   // catatan rujukan regulasi per menu/tab
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',
