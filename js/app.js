@@ -3442,7 +3442,7 @@
     }
     function snapshotOfflineDatasetsAll() {
       return {
-        allSiswa, allAttendance, allGrades, allJournals,
+        allSiswa, allSiswaSemua, allAttendance, allGrades, allJournals,
         allTeacherAttendance, allTeacherAttendanceToday,
         allEarlyLeaveRequests, allEvents, allEventAttendance, ekskulRates, allEkskulPicHonor,
         allUjian, allUjianAttendance, allInfaqSiswa, allInfaqPetugas, allReligiAttendance, allKedisiplinan, allKedisiplinanKategori, allBukuPenghubung, allMateri, allTugas, allTugasSubmission, allKalenderAkademik, allSaranKritik,
@@ -3501,7 +3501,7 @@
         }
         if (opts.syarat && !opts.syarat(cache)) { if (callback) callback(false); return; }   // cache tidak memenuhi syarat: jangan diterapkan
         const found = Object.keys(cache).length > 0;
-        if (cache.allSiswa) allSiswa = cache.allSiswa;
+        if (cache.allSiswaSemua) setAllSiswa(cache.allSiswaSemua); else if (cache.allSiswa) setAllSiswa(cache.allSiswa);   // cache lama (tanpa allSiswaSemua) = semua dianggap aktif
         if (cache.allAttendance) allAttendance = cache.allAttendance;
         if (cache.allGrades) allGrades = cache.allGrades;
         if (cache.allJournals) allJournals = cache.allJournals;
@@ -3920,7 +3920,7 @@
       const _tStart = performance.now();
 
       // ---- FASE 1: dibutuhkan dashboard & layar login ----
-      corePromises.push(fbTimeout(new Promise((resolve) => { infaqPetugasP.then(() => bacaSiswaSesuaiScope()).then(list => { allSiswa = list; resolve(); }).catch(err => { console.warn('[SI MAMBA] Query ditolak/gagal (siswa):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'siswa'));
+      corePromises.push(fbTimeout(new Promise((resolve) => { infaqPetugasP.then(() => bacaSiswaSesuaiScope()).then(list => { setAllSiswa(list); resolve(); }).catch(err => { console.warn('[SI MAMBA] Query ditolak/gagal (siswa):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'siswa'));
       corePromises.push(fbTimeout(new Promise((resolve) => { const todayStr = tglLokal(); db.ref('teacher_attendance').orderByChild('tanggal').equalTo(todayStr).once('value', snap => { allTeacherAttendanceToday = []; snap.forEach(child => { const ta = child.val(); ta.key = child.key; if (ta.tahunAjaran === currentTahunAjaran) allTeacherAttendanceToday.push(ta); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (teacher_attendance):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'teacher_attendance'));
       corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('guru_terajin').once('value', snap => { allGuruTerajin = snap.val() || {}; resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (guru_terajin):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'guru_terajin'));
       corePromises.push(fbTimeout(new Promise((resolve) => { db.ref('pengumuman').once('value', snap => { allPengumuman = []; snap.forEach(child => { const p = child.val(); p.key = child.key; allPengumuman.push(p); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (pengumuman):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'pengumuman'));
@@ -4121,7 +4121,7 @@
     }
 
     const DATASET_LOADERS = {
-      siswa:            () => fbTimeout(bacaSiswaSesuaiScope()).then(a => { if (a) allSiswa = a; }),
+      siswa:            () => fbTimeout(bacaSiswaSesuaiScope()).then(a => { if (a) setAllSiswa(a); }),
       attendance:       () => _fetchList(_byTahun('attendance'), _scopeKelasFn()).then(a => { if (a) allAttendance = a; }),
       grades:           () => _fetchList(_byTahun('grades'), _scopeKelasFn()).then(a => { if (a) allGrades = a; }),
       journal:          () => _fetchList(_byTahun('journal'), _scopeKelasFn()).then(a => { if (a) { allJournals = a; scheduleStatusBarRefresh(); } }),
@@ -4425,11 +4425,21 @@
     // Urutan nama siswa di-cache per referensi array allSiswa. Semua penugasan allSiswa mengganti referensinya
     // (tidak ada push/splice di tempat), jadi cek referensi + panjang cukup. Salinan -> allSiswa tidak termutasi.
     const _siswaCollator = new Intl.Collator('id');
+    // ---- STATUS SISWA (aktif / nonaktif) ----
+    // allSiswa  = hanya siswa AKTIF -> dipakai absensi, nilai, jurnal, dashboard, laporan, dst. (semua kode lama otomatis
+    //             tidak melihat siswa nonaktif tanpa perlu diubah satu per satu).
+    // allSiswaSemua = semua siswa termasuk nonaktif -> khusus halaman Data Siswa (Admin/Kepsek) & Surat.
+    // Field di Firebase: siswa/<key>/aktif (false = nonaktif). Tidak ada field / true = aktif, jadi data lama tetap aktif.
+    let allSiswaSemua = [];
+    function siswaAktif(s) { return !s || s.aktif !== false; }
+    function setAllSiswa(list) { allSiswaSemua = Array.isArray(list) ? list : []; allSiswa = allSiswaSemua.filter(siswaAktif); }
     let _siswaSortedSrc = null, _siswaSortedLen = -1, _siswaSorted = [];
     function getSiswaTerurut() {
-      if (_siswaSortedSrc !== allSiswa || _siswaSortedLen !== allSiswa.length) {
-        _siswaSortedSrc = allSiswa; _siswaSortedLen = allSiswa.length;
-        _siswaSorted = allSiswa.slice().sort((a, b) => _siswaCollator.compare(a.name, b.name));
+      // Admin/Kepsek melihat SEMUA siswa (termasuk nonaktif, untuk mengelola status); pengguna lain hanya yang aktif.
+      const sumber = (isAdmin() || isKepsek()) ? allSiswaSemua : allSiswa;
+      if (_siswaSortedSrc !== sumber || _siswaSortedLen !== sumber.length) {
+        _siswaSortedSrc = sumber; _siswaSortedLen = sumber.length;
+        _siswaSorted = sumber.slice().sort((a, b) => _siswaCollator.compare(a.name, b.name));
       }
       return _siswaSorted;
     }
@@ -4489,24 +4499,56 @@
       if (!isAdmin() && !isKepsek()) filtered = filtered.filter(s => siswaScopeKelas().includes(s.kelas));
       if (filterKelas) filtered = filtered.filter(s => s.kelas === filterKelas);
       if (searchQuery) filtered = filtered.filter(s => s.name.toLowerCase().includes(searchQuery) || s.kelas.toLowerCase().includes(searchQuery));
-      totalDisplay.textContent = `Total: ${filtered.length} siswa`;
+      // Filter status (aktif/nonaktif/semua) -- hanya relevan bagi Admin/Kepsek; pengguna lain memang hanya menerima siswa aktif.
+      const filterStatusEl = document.getElementById('filterStatusSiswa'), bisaKelolaStatus = isAdmin() || isKepsek();
+      if (filterStatusEl && filterStatusEl.parentElement) filterStatusEl.parentElement.style.display = bisaKelolaStatus ? '' : 'none';
+      const filterStatus = (filterStatusEl && bisaKelolaStatus) ? filterStatusEl.value : 'semua';
+      const jmlNonaktif = filtered.filter(s => !siswaAktif(s)).length, jmlAktif = filtered.length - jmlNonaktif;
+      if (filterStatus === 'aktif') filtered = filtered.filter(siswaAktif);
+      else if (filterStatus === 'nonaktif') filtered = filtered.filter(s => !siswaAktif(s));
+      totalDisplay.textContent = (isAdmin() || isKepsek()) ? `Total: ${filtered.length} siswa • ${jmlAktif} aktif, ${jmlNonaktif} nonaktif` : `Total: ${filtered.length} siswa`;
       list.innerHTML = '';
       if (filtered.length === 0) { list.innerHTML = `<p class="text-muted" style="text-align:center;padding:12px;">Tidak ada siswa yang sesuai.</p>`; document.getElementById('siswaPagination').innerHTML = ''; return; }
       const totalItems = filtered.length, ps = pagerSize('siswa') || totalItems, totalPages = Math.max(1, Math.ceil(totalItems/ps));
       if (siswaPage > totalPages) siswaPage = totalPages; if (siswaPage < 1) siswaPage = 1;
       const start = (siswaPage-1)*ps, end = Math.min(start+ps, totalItems), pageItems = filtered.slice(start,end);
-      let html = `<div style="overflow-x:auto;"><table><thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb;"><th style="padding:8px 12px;text-align:left;width:50px;">No</th><th style="padding:8px 12px;text-align:left;">Nama</th><th style="padding:8px 12px;text-align:left;width:120px;">Kelas</th><th style="padding:8px 12px;text-align:center;width:140px;">Aksi</th></tr></thead><tbody>`;
+      let html = `<div style="overflow-x:auto;"><table><thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb;"><th style="padding:8px 12px;text-align:left;width:50px;">No</th><th style="padding:8px 12px;text-align:left;">Nama</th><th style="padding:8px 12px;text-align:left;width:120px;">Kelas</th><th style="padding:8px 12px;text-align:center;width:110px;">Status</th><th style="padding:8px 12px;text-align:center;width:140px;">Aksi</th></tr></thead><tbody>`;
       pageItems.forEach((s, idx) => {
         const btnEdit = isAdmin() ? `<button class="btn btn-edit" style="padding:2px 10px;font-size:12px;" onclick="openEditSiswaModal('${s.key}')">✏️</button>` : '';
         const delBtn = isAdmin() ? `<button class="btn btn-danger" style="padding:2px 10px;font-size:12px;" onclick="hapusDataWithConfirm('siswa','${s.key}','Siswa ${escapeJs(s.name)}')">🗑️</button>` : '';
-        html += `<tr><td class="text-muted" style="padding:8px 12px;">${start+idx+1}</td><td style="padding:8px 12px;font-weight:500;">${escapeHtml(s.name)}</td><td class="text-medium" style="padding:8px 12px;">${escapeHtml(s.kelas)}</td><td style="padding:8px 12px;text-align:center;">${btnEdit} ${delBtn}</td></tr>`;
+        const aktif = siswaAktif(s);
+        // Tombol geser: Admin bisa menggeser; Kepsek hanya melihat (lencana). Baris nonaktif diredupkan.
+        const statusCell = isAdmin()
+          ? `<label class="sw-aktif" title="${aktif ? 'Aktif — geser untuk menonaktifkan' : 'Nonaktif — geser untuk mengaktifkan'}"><input type="checkbox" ${aktif ? 'checked' : ''} onchange="toggleStatusSiswa('${s.key}', this.checked)" aria-label="Status aktif ${escapeHtml(s.name)}"><span class="sw-aktif-slider"></span></label><div style="font-size:11px;margin-top:2px;color:${aktif ? '#059669' : '#9ca3af'};">${aktif ? 'Aktif' : 'Nonaktif'}</div>`
+          : `<span style="font-size:12px;font-weight:600;color:${aktif ? '#059669' : '#9ca3af'};">${aktif ? 'Aktif' : 'Nonaktif'}</span>`;
+        html += `<tr style="${aktif ? '' : 'opacity:.55;background:#f9fafb;'}"><td class="text-muted" style="padding:8px 12px;">${start+idx+1}</td><td style="padding:8px 12px;font-weight:500;">${escapeHtml(s.name)}</td><td class="text-medium" style="padding:8px 12px;">${escapeHtml(s.kelas)}</td><td style="padding:8px 12px;text-align:center;">${statusCell}</td><td style="padding:8px 12px;text-align:center;">${btnEdit} ${delBtn}</td></tr>`;
       });
       html += `</tbody></table></div>`;
       list.innerHTML = html;
       document.getElementById('siswaPagination').innerHTML = pagerHtml('siswa', totalItems, totalPages, start, end, 'siswa');
     }
+    // Aktifkan / nonaktifkan siswa (Admin). Data lama (absensi, nilai, infaq, dst.) TIDAK dihapus; siswa nonaktif hanya
+    // tidak muncul di daftar kerja (absensi, nilai, jurnal, dashboard). Bisa diaktifkan kembali kapan saja.
+    function toggleStatusSiswa(key, aktifBaru) {
+      if (!isAdmin()) { toast('🔒 Hanya Admin!', true); return renderSiswa(); }
+      const s = allSiswaSemua.find(x => x.key === key);
+      if (!s) { toast('Siswa tidak ditemukan!', true); return renderSiswa(); }
+      if (isBusy('statusSiswa')) { toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500); return renderSiswa(); }
+      if (!isReallyOnline()) { toast('📡 Sedang offline. Status siswa baru bisa diubah saat online.', true); return renderSiswa(); }
+      if (!aktifBaru && !confirm('Nonaktifkan ' + s.name + ' (' + s.kelas + ')?\n\nSiswa tidak akan muncul di absensi, nilai, jurnal, dan dashboard. Data lama tetap tersimpan, dan siswa bisa diaktifkan kembali kapan saja.')) return renderSiswa();
+      setBusy('statusSiswa');
+      tulisAdmin('statusSiswa', null, () => {
+        db.ref('siswa/' + key).update({ aktif: !!aktifBaru, statusDiubah: new Date().toISOString(), statusOleh: currentUser.name || null }, err => {
+          clearBusy('statusSiswa');
+          if (err) { toast('Gagal mengubah status: ' + err.message, true); return renderSiswa(); }
+          toast(aktifBaru ? '✅ ' + s.name + ' diaktifkan.' : '⏸️ ' + s.name + ' dinonaktifkan.');
+          addLog(aktifBaru ? 'aktifkan_siswa' : 'nonaktifkan_siswa', s.name + ' - ' + s.kelas);
+          reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); renderSiswa(); });
+        });
+      }, () => renderSiswa());
+    }
     function openEditSiswaModal(key) {
-      const siswa = allSiswa.find(s => s.key === key);
+      const siswa = allSiswaSemua.find(s => s.key === key);
       if (!siswa) return toast('Siswa tidak ditemukan!', true);
       editingSiswaKey = key;
       document.getElementById('editSiswaKey').value = key;
@@ -6574,14 +6616,14 @@
       select.innerHTML = '<option value="">-- Pilih Siswa --</option>';
       // Wali Kelas cuma boleh buat surat untuk siswa di kelas yang dia ampu -- Admin tetap
       // bisa untuk semua siswa.
-      const scoped = (isAdmin() || isKepsek()) ? allSiswa : allSiswa.filter(s => siswaScopeKelas().includes(s.kelas));
+      const scoped = (isAdmin() || isKepsek()) ? allSiswaSemua : allSiswa.filter(s => siswaScopeKelas().includes(s.kelas));   // Admin/Kepsek: termasuk siswa nonaktif (mis. surat pindah)
       const sorted = [...scoped].sort((a,b) => COLLATOR_ID.compare(a.name, b.name));
-      sorted.forEach(s => { select.innerHTML += `<option value="${s.key}">${escapeHtml(s.name)} - ${escapeHtml(s.kelas)}</option>`; });
+      sorted.forEach(s => { select.innerHTML += `<option value="${s.key}">${escapeHtml(s.name)} - ${escapeHtml(s.kelas)}${siswaAktif(s) ? '' : ' (nonaktif)'}</option>`; });
     }
     function isiDataSurat() {
       const key = document.getElementById('suratSiswaSelect').value;
       if (!key) { selectedSiswaSurat = null; document.getElementById('suratPreview').innerHTML = generateKopSuratHTML() + '<p class="text-muted" style="text-align:center;padding:40px 0;">Pilih siswa untuk melihat preview.</p>'; return; }
-      selectedSiswaSurat = allSiswa.find(s => s.key === key);
+      selectedSiswaSurat = allSiswaSemua.find(s => s.key === key) || allSiswa.find(s => s.key === key);
       if (selectedSiswaSurat) previewSurat();
     }
     function ubahTemplateSurat() {
