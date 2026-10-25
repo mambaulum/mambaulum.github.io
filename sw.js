@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.107';
+const APP_VERSION = 'v8.113';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -80,8 +80,8 @@ const PRECACHE_URLS = [
   './js/logo-fallback.js',
   './js/offline-db.js',
   './js/kas.js?v=9',
-  './js/administrasi-ujian.js?v=3',
-  './js/app.js?v=97',
+  './js/administrasi-ujian.js?v=4',
+  './js/app.js?v=100',
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
@@ -116,10 +116,10 @@ const PRECACHE_URLS = [
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
-  './js/surat-guru.js?v=29',               // surat resmi guru + kerangka tab Surat & Ijin
+  './js/surat-guru.js?v=31',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
   './js/undangan-rapat.js?v=3',           // undangan rapat bernomor (tab Surat & Ijin)
-  './js/edaran-wali.js?v=2',              // surat edaran wali murid (tab Surat & Ijin)
+  './js/edaran-wali.js?v=3',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=5',
   './js/rujukan.js?v=1',                   // catatan rujukan regulasi per menu/tab

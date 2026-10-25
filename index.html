@@ -86,14 +86,14 @@
 
   <!-- Menu Administrasi Ujian (Daftar Hadir, Tata Tertib, Denah, Berita Acara) -- juga dimuat SEBELUM app.js
        supaya setupAdministrasiUjianPage() & aujCanOpenMenu() sudah ada saat app.js berjalan. -->
-  <script defer src="js/administrasi-ujian.js?v=3"></script>
+  <script defer src="js/administrasi-ujian.js?v=4"></script>
 
   <!-- Logic utama aplikasi -- defer juga (bukan lagi ditaruh di akhir <body>) supaya urutan
        eksekusinya konsisten dengan script defer lain di atas (semua defer dijamin browser
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=97"></script>
+  <script defer src="js/app.js?v=100"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=22"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
@@ -156,12 +156,12 @@
   <script defer src="js/login-kode.js?v=12"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
   <script defer src="js/impersonate.js?v=7"></script>
-  <script defer src="js/surat-guru.js?v=29"></script>
+  <script defer src="js/surat-guru.js?v=31"></script>
   <script defer src="js/agenda-surat.js?v=5"></script>
   <!-- Undangan Rapat bernomor (tab di Surat & Ijin). WAJIB sesudah surat-guru.js dan agenda-surat.js. -->
   <script defer src="js/undangan-rapat.js?v=3"></script>
   <!-- Surat Edaran/Pemberitahuan wali murid (tab di Surat & Ijin). WAJIB sesudah surat-guru.js dan agenda-surat.js. -->
-  <script defer src="js/edaran-wali.js?v=2"></script>
+  <script defer src="js/edaran-wali.js?v=3"></script>
 
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
   <script defer src="js/tahfidz-grafik.js?v=4"></script>
