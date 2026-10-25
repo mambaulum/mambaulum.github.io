@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.113';
+const APP_VERSION = 'v8.118';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,7 +81,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=100',
+  './js/app.js?v=101',
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
@@ -112,17 +112,17 @@ const PRECACHE_URLS = [
   './js/modul-ajar.js?v=16',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
-  './js/tunggakan-infaq.js?v=10',
+  './js/tunggakan-infaq.js?v=12',
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
-  './js/surat-guru.js?v=31',               // surat resmi guru + kerangka tab Surat & Ijin
+  './js/surat-guru.js?v=34',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
-  './js/undangan-rapat.js?v=3',           // undangan rapat bernomor (tab Surat & Ijin)
-  './js/edaran-wali.js?v=3',              // surat edaran wali murid (tab Surat & Ijin)
+  './js/undangan-rapat.js?v=4',           // undangan rapat bernomor (tab Surat & Ijin)
+  './js/edaran-wali.js?v=4',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=5',
-  './js/rujukan.js?v=1',                   // catatan rujukan regulasi per menu/tab
+  './js/rujukan.js?v=2',                   // catatan rujukan regulasi per menu/tab
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',
@@ -138,6 +138,8 @@ const PRECACHE_URLS = [
   './icons/apple-touch-icon-v2-180x180.png',
   './logo/logo-lembaga.png',
   './logo/logo-yayasan.png',
+  './fonts/bookman-old-style-regular.ttf',   // font naskah penetapan (PMA 12/2026) untuk PDF SK
+  './fonts/bookman-old-style-bold.ttf',
 ];
 
 // Domain Firebase (Realtime Database, Auth, Storage) & domain lain yang
