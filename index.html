@@ -93,7 +93,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=114"></script>
+  <script defer src="js/app.js?v=115"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=1"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -641,7 +641,16 @@
            PAGE: SISWA (SINGKAT - SAMA SEPERTI SEBELUMNYA)
       ============================================================ -->
       <div id="page-students" class="page-content hidden">
-        <style id="swAktifCss">.sw-aktif{position:relative;display:inline-block !important;width:42px;height:24px;margin:0 !important;cursor:pointer;vertical-align:middle;}.sw-aktif input{position:absolute;opacity:0 !important;width:0 !important;height:0 !important;margin:0;}.sw-aktif-slider{position:absolute;inset:0;background:#cbd5e1;border-radius:24px;transition:background .2s;}.sw-aktif-slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.3);}.sw-aktif input:checked + .sw-aktif-slider{background:#059669;}.sw-aktif input:checked + .sw-aktif-slider:before{transform:translateX(18px);}.sw-aktif input:focus-visible + .sw-aktif-slider{outline:2px solid #2563eb;outline-offset:2px;}</style>
+        <style id="swAktifCss">.sw-aktif{position:relative;display:inline-block !important;flex:0 0 auto;width:46px;height:26px;margin:0 !important;cursor:pointer;vertical-align:middle;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;}.sw-aktif input{position:absolute;inset:0;opacity:0 !important;width:100% !important;height:100% !important;margin:0;pointer-events:none;}.sw-aktif-slider{position:absolute;inset:0;background:#cbd5e1;border-radius:26px;transition:background .2s;}.sw-aktif-slider:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.3);}.sw-aktif.on .sw-aktif-slider{background:#059669;}.sw-aktif.on .sw-aktif-slider:before{transform:translateX(20px);}.sw-aktif input:focus-visible + .sw-aktif-slider{outline:2px solid #2563eb;outline-offset:2px;}
+.siswa-rows{display:flex;flex-direction:column;}
+.siswa-row{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid #e5e7eb;}
+.siswa-row.nonaktif{opacity:.6;background:#f9fafb;}
+.siswa-no{flex:0 0 auto;min-width:22px;font-size:12px;color:#9ca3af;text-align:right;}
+.siswa-nama{flex:1 1 auto;min-width:0;}
+.siswa-nama-t{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.siswa-kelas{font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.siswa-btn{flex:0 0 auto;padding:4px 9px !important;font-size:13px !important;margin:0 !important;}
+@media (max-width:480px){.siswa-row{gap:6px;padding:8px 2px;}.siswa-no{display:none;}.siswa-btn{padding:4px 7px !important;}}</style>
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">🧑‍🎓 Manajemen Siswa</h3>
           <p id="siswaNote" style="font-size:13px;color:#6b7280;margin-bottom:12px;">🔒 Hanya Admin yang bisa mengelola siswa</p>
