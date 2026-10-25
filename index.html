@@ -93,7 +93,13 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=101"></script>
+  <script defer src="js/app.js?v=105"></script>
+  <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
+  <script defer src="js/portal-ortu.js?v=1"></script>
+  <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
+  <script defer src="js/infaq.js?v=1"></script>
+  <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
+  <script defer src="js/sikap-buku.js?v=1"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=22"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
@@ -2206,19 +2212,27 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
   <div id="portalOrtuLogin" class="auth-page" style="display:none;">
     <div class="auth-card">
       <div class="auth-head auth-head-ortu">
-        <div class="auth-head-emoji" aria-hidden="true">👨‍👩‍👧</div>
+        <div class="auth-logo-wrap">
+          <img class="auth-logo" src="logo/logo-lembaga.png" alt="Logo MI Mambaul Ulum" onerror="v4LogoFallback(this)">
+        </div>
         <h1 class="auth-title">Portal Orang Tua</h1>
         <p class="auth-sub">MI Mambaul Ulum — Cek data anak Anda</p>
       </div>
       <div style="margin-bottom:12px;"><label class="label">No. WhatsApp Orang Tua/Wali</label><input id="portalOrtuNoWa" class="field" placeholder="Contoh: 081234567890" inputmode="numeric" autocomplete="tel"></div>
       <div id="portalOrtuFormMasuk">
         <div style="margin-bottom:16px;"><label class="label">PIN (6 angka)</label><input id="portalOrtuPin" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="PIN Anda" onkeydown="if(event.key==='Enter') loginPortalOrtu()"></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:-6px 0 12px;cursor:pointer;"><input type="checkbox" id="ortuIngatPerangkat" checked> Ingat saya di perangkat ini (masuk otomatis)</label>
         <button class="btn btn-primary" style="width:100%;" onclick="loginPortalOrtu()">🔓 Masuk</button>
         <div style="text-align:center;margin-top:12px;font-size:13px;"><a href="javascript:void(0)" onclick="tampilFormBuatPinOrtu(true)" style="color:#059669;font-weight:600;text-decoration:none;">🆕 Belum punya PIN? Buat PIN</a></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db;text-align:center;">
+          <p style="font-size:12px;color:#6b7280;margin:0 0 8px;">Belum pernah punya PIN? Cukup isi nomor WhatsApp di atas, PIN dibuatkan otomatis dan tersimpan di perangkat ini.</p>
+          <button type="button" class="btn btn-soft" style="font-size:13px;" onclick="masukPertamaKaliOrtu()">✨ Masuk pertama kali (tanpa PIN)</button>
+        </div>
       </div>
       <div id="portalOrtuFormBuat" style="display:none;">
         <div style="margin-bottom:12px;"><label class="label">Buat PIN Baru (6 angka)</label><input id="portalOrtuPinBaru" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="Contoh: 6 angka yang mudah Anda ingat"></div>
         <div style="margin-bottom:16px;"><label class="label">Ulangi PIN Baru</label><input id="portalOrtuPinBaru2" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="Ketik ulang PIN" onkeydown="if(event.key==='Enter') buatPinOrtu()"></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:-6px 0 12px;cursor:pointer;"><input type="checkbox" id="ortuIngatPerangkatBuat" checked> Ingat saya di perangkat ini (masuk otomatis)</label>
         <button class="btn btn-primary" style="width:100%;" onclick="buatPinOrtu()">✅ Buat PIN &amp; Masuk</button>
         <div style="text-align:center;margin-top:12px;font-size:13px;"><a href="javascript:void(0)" onclick="tampilFormBuatPinOrtu(false)" style="color:#6b7280;text-decoration:none;">← Sudah punya PIN? Masuk</a></div>
       </div>
