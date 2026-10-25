@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.122",
-  "disimpan": "2026-10-25T12:41:39.771Z",
+  "appVersion": "v8.127",
+  "disimpan": "2026-10-25T13:14:39.707Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=105",
-      "hash": "f83a6fcee685f82832adf6ac63edab4c0d2227f2"
+      "v": "v=110",
+      "hash": "5034e4bdd6f262f0347c9ebf0f019c4f3863e1cc"
     },
     "js/portal-ortu.js": {
       "v": "v=1",
@@ -73,6 +73,58 @@
     "js/sikap-buku.js": {
       "v": "v=1",
       "hash": "bcedffd1f5650877872a5798f60cd152823a7bd4"
+    },
+    "js/materi-tugas.js": {
+      "v": "v=1",
+      "hash": "3700ebef46ef11a5254e1e55e9c00da89b2e5995"
+    },
+    "js/kelola-absen-guru.js": {
+      "v": "v=1",
+      "hash": "ff6bbb89002c034052966fbecdbcb7010fff9ca2"
+    },
+    "js/jadwal.js": {
+      "v": "v=1",
+      "hash": "2b67bc97fd27f4ded6fd46d767e3789215c2d5e4"
+    },
+    "js/laporan-rekap.js": {
+      "v": "v=1",
+      "hash": "e1b2c6244ccca448c2a2cda4acfa68f1b8760e0b"
+    },
+    "js/honor-guru.js": {
+      "v": "v=1",
+      "hash": "cf179b82a319cba585dc4c7ad477372a6c6caa80"
+    },
+    "js/event-ujian.js": {
+      "v": "v=1",
+      "hash": "4c777afa2466bbc300634e13168f9556e0350d6d"
+    },
+    "js/pengingat-absen-guru.js": {
+      "v": "v=1",
+      "hash": "195a226359bbeeb1a04cdff8a9bcc2254d91238f"
+    },
+    "js/v4-tahfidz-pramuka-ekskul.js": {
+      "v": "v=1",
+      "hash": "7d51055d1630efae76871e70865c946b283b15c9"
+    },
+    "js/v4-pengaturan-notif-rapor.js": {
+      "v": "v=1",
+      "hash": "4b4fd9c5cc1a59ecbd131e2f76ecb3e8b30816a2"
+    },
+    "js/rekap-nilai.js": {
+      "v": "v=1",
+      "hash": "95d39e4c4be9b7d895bccaca419470624e6a6694"
+    },
+    "js/kalender-akademik.js": {
+      "v": "v=1",
+      "hash": "a54ee8a38b091ea9d90331dda1289d84c6bb860a"
+    },
+    "js/saran-kritik.js": {
+      "v": "v=1",
+      "hash": "141de808df9959ab75b257583f0de6f6b2ac2127"
+    },
+    "js/ortu-akun-admin.js": {
+      "v": "v=1",
+      "hash": "4cab1cc5e42e2513151540022c97e068a2d74a00"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=22",
