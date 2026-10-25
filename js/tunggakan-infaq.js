@@ -559,7 +559,13 @@ async function tunggakanExportPDF() {
   doc.setFontSize(10);
   doc.text('Dibuat oleh,', xKiri, ySign, { align: 'center' }); doc.text('Bendahara Madrasah', xKiri, ySign + 5, { align: 'center' });
   doc.text('Mengetahui,', xKanan, ySign, { align: 'center' }); doc.text('Kepala Madrasah', xKanan, ySign + 5, { align: 'center' });
-  if (ttdKepalaData) {
+  // Tanda tangan Kepala: QR / gambar sesuai pengaturan Profil Sekolah (js/ttd-digital.js), sama dengan PDF Tagihan Bulanan.
+  // Tanpa modul itu, dipakai gambar tanda tangan lama.
+  if (typeof TTD !== 'undefined' && TTD && typeof TTD.tandai === 'function') {
+    try {
+      await TTD.tandai(doc, 'kepala', xKanan, ySign + 7, { lebar: 32, tinggiMaks: 20, hanyaPimpinan: true, meta: { jenis: 'Rekap Tunggakan Infaq', ket: `${tgLabelKelas()} | sejak ${mingguLabel(d.mulai)}`, nama: MADRASAH.kepala_sekolah || '', jabatan: 'Kepala Madrasah', nip: MADRASAH.nip_kepala_sekolah || '' } });
+    } catch (e) { console.error('[SI MAMBA] Gagal menambahkan tanda tangan digital ke PDF Tunggakan:', e); }
+  } else if (ttdKepalaData) {
     try {
       const ttdW = 32; const props = doc.getImageProperties(ttdKepalaData);
       doc.addImage(ttdKepalaData, 'PNG', xKanan - ttdW / 2, ySign + 7, ttdW, Math.min(16, ttdW * (props.height / props.width)), undefined, 'FAST');

@@ -13,6 +13,12 @@
   'use strict';
 
   // ---- Daftar rujukan (edit di sini) ----
+  // Status verifikasi (dicek 25 Okt 2026):
+  //   TERVERIFIKASI situs resmi : PMA 12/2026 (JDIH BPK: ditetapkan 13 Juli 2026, berlaku); KMA 347/2022 (naskah di sikurma.hdmadrasah.id);
+  //                               Kepdirjen 944/2026 (nomor disebut Kemenag Aceh Selatan; mencabut Kepdirjen 2067/2025 dan perubahannya)
+  //   HANYA SUMBER SEKUNDER     : Kepdirjen 4860/2026 (kaldik; blog), Kepdirjen 1843/2021 (PKG; blog/penjual buku)
+  //   TIDAK DITEMUKAN           : KMA 3607/2016 (izin madrasah; cocokkan dengan dokumen izin madrasah sendiri)
+  //   UU/PP (57/2021, 74/2008, 55/2007, UU 27/2022, UU 12/2010): peraturan baku, tidak dicari ulang
   var PMA12  = 'PMA No. 12 Tahun 2026 tentang Tata Naskah Dinas pada Kementerian Agama';
   var KALDIK = 'Kepdirjen Pendis No. 4860 Tahun 2026 tentang Pedoman Kalender Pendidikan Madrasah TA 2026/2027';
   var BOS    = 'Kepdirjen Pendis No. 944 Tahun 2026 tentang Juknis Pengelolaan BOP RA dan BOS Madrasah';

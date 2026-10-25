@@ -271,6 +271,7 @@
     var tb = lines(d.tembusan);
     if (tb.length) { y += 14; perlu(10 + tb.length * 5.5); doc.setFontSize(10); doc.text('Tembusan:', mk, y); y += 5; tb.forEach(function (t, i) { perlu(6); doc.text((i + 1) + '. ' + t, mk, y); y += 5; }); }
     for (var pg = 2; pg <= doc.getNumberOfPages(); pg++) { doc.setPage(pg); doc.setFontSize(10); doc.text('- ' + pg + ' -', pw / 2, 12, { align: 'center' }); }
+    try { if (window.SGCetakOleh) window.SGCetakOleh.pdf(doc, mk); } catch (e) { /* tanda pencetak opsional */ }
     return doc;
   }
 

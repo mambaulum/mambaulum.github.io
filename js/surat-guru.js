@@ -536,6 +536,25 @@
   // ---- PRATINJAU CETAK (tampilan seperti print preview) ----
   // Dibuka dari tombol Preview: kertas A4/F4 di atas latar abu-abu, zoom, Cetak (dialog print browser), Download PDF.
   var kertasTerakhir = 'A4';
+  // TANDA PENCETAK: setiap cetakan (PDF & cetak dari pratinjau) memuat baris kecil "Dicetak oleh: nama (peran) · waktu".
+  function teksPencetak() {
+    var u = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : null, peran = 'Guru';
+    try {
+      if (isAdmin()) peran = 'Admin'; else if (isKepsek()) peran = 'Kepala Madrasah';
+      else if (isWaliKelasAssigned()) peran = 'Wali Kelas ' + u.waliKelasOf; else if (isWaliKelas()) peran = 'Wali Kelas';
+    } catch (e) { }
+    var wkt = new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, '.');
+    return 'Dicetak oleh: ' + ((u && u.name) || '-') + ' (' + peran + ') · ' + wkt + ' WIB';
+  }
+  function tandaiPencetakPdf(doc, xKiri) {
+    var ph = doc.internal.pageSize.getHeight(), t = teksPencetak();
+    for (var i = 1; i <= doc.getNumberOfPages(); i++) {
+      doc.setPage(i); doc.setFont(undefined, 'normal'); doc.setFontSize(7); doc.setTextColor(110);
+      doc.text(t, xKiri, ph - 11);
+    }
+    doc.setTextColor(0);
+  }
+  window.SGCetakOleh = { teks: teksPencetak, pdf: tandaiPencetakPdf };
   // Gaya kertas pratinjau = gaya PDF (Arial 12 pt, jarak baris ~6,3 mm, judul tebal 13 pt, kop selebar margin 2 cm).
   var SG_CSS = '.sgKertas{font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:6.3mm;color:#000;}' +
     '.sgKertas .judul-surat{text-align:center;font-weight:700;font-size:13pt;line-height:5.5mm;margin:0;}' +
@@ -567,6 +586,10 @@
       'background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(' + tinggi + 'mm - 1px),#cbd5e1 calc(' + tinggi + 'mm - 1px),#cbd5e1 ' + tinggi + 'mm);');
     kertasEl.className = 'sgKertas';
     kertasEl.innerHTML = isi.innerHTML;
+    kertasEl.style.position = 'relative';
+    var co = document.createElement('div'); co.className = 'sgCetakOleh'; co.textContent = teksPencetak();
+    co.style.cssText = 'position:absolute;left:30mm;bottom:8mm;font-size:7pt;line-height:1;color:#6b7280;';
+    kertasEl.appendChild(co);
     var gy = document.createElement('style'); gy.textContent = SG_CSS; o.appendChild(gy);
     area.appendChild(kertasEl); o.appendChild(area);
     document.body.appendChild(o);
@@ -583,6 +606,8 @@
     document.removeEventListener('keydown', escPratinjau);
   }
   function cetakPratinjau(kertasEl, f4, margin) {
+    var klon = kertasEl.cloneNode(true), lama = klon.querySelector('.sgCetakOleh'); if (lama) lama.remove();   // di kertas cetak, tanda pencetak diulang di tiap halaman (fixed)
+    var isiCetak = klon.innerHTML;
     var fr = document.createElement('iframe');
     fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
     document.body.appendChild(fr);
@@ -591,7 +616,7 @@
     d.open();
     d.write('<!doctype html><html><head><meta charset="utf-8"><base href="' + document.baseURI + '"><title>Surat</title>' + css +
       '<style>@page{size:210mm ' + (f4 ? 330 : 297) + 'mm;margin:' + margin + '}html,body{margin:0;padding:0;background:#fff;}p,li,tr,img,.judul-surat,.nomor-surat,.footer{break-inside:avoid;page-break-inside:avoid;}p,li{orphans:2;widows:2;}' +
-      SG_CSS + '</style></head><body class="sgKertas">' + kertasEl.innerHTML + '</body></html>');
+      SG_CSS + '.sgFooterCetak{position:fixed;left:0;bottom:-9mm;font-size:7pt;line-height:1;color:#6b7280;}</style></head><body class="sgKertas">' + isiCetak + '<div class="sgFooterCetak">' + esc(teksPencetak()) + '</div></body></html>');
     d.close();
     var imgs = Array.prototype.slice.call(d.images || []);
     var tunggu = Promise.all(imgs.map(function (im) { return im.complete ? 1 : new Promise(function (r) { im.onload = im.onerror = r; }); }));
@@ -1014,6 +1039,7 @@
     // Nomor halaman: "- 2 -" di tengah atas, mulai halaman kedua
     for (var pg = 2; pg <= doc.getNumberOfPages(); pg++) { doc.setPage(pg); doc.setFontSize(10); doc.text('- ' + pg + ' -', pw / 2, 12, { align: 'center' }); }
 
+    tandaiPencetakPdf(doc, mk);
     doc.save(JENIS[jenis].file + '_' + String(g.name).replace(/[^\w]+/g, '_') + '_' + tglLokal() + '.pdf');
     toast('📥 Surat berhasil diunduh!'); addLog('download_surat_guru', JENIS[jenis].label + ' - ' + g.name);
   }
@@ -1236,12 +1262,13 @@
       y += 6;
       doc.text('NIP. ' + (MADRASAH.nip_kepala_sekolah || '-'), cx, y, { align: 'center' });
 
+      tandaiPencetakPdf(doc, marginKiri);
       doc.save(`Surat_${namaJenis}_${siswa.name}_${tglLokal()}.pdf`);
       toast('📥 Surat berhasil diunduh!'); 
       addLog('download_surat', `${jenis} - ${siswa.name}`);
     }
     function simpanSurat() {
-      if (!isAdmin() && !isWaliKelas()) return toast('Hanya Admin & Wali Kelas!', true);
+      if (!isAdmin() && !isKepsek() && !isWaliKelas() && !isWaliKelasAssigned()) return toast('Hanya Admin, Kepala Madrasah & Wali Kelas!', true);
       const siswa = selectedSiswaSurat;
       if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
       const jenis = document.getElementById('suratJenisSelect').value;
