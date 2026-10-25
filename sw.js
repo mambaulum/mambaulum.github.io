@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.138';
+const APP_VERSION = 'v8.139';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -128,17 +128,17 @@ const PRECACHE_URLS = [
   './js/modul-ajar.js?v=16',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
-  './js/tunggakan-infaq.js?v=12',
+  './js/tunggakan-infaq.js?v=13',
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
-  './js/surat-guru.js?v=34',               // surat resmi guru + kerangka tab Surat & Ijin
+  './js/surat-guru.js?v=35',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
-  './js/undangan-rapat.js?v=4',           // undangan rapat bernomor (tab Surat & Ijin)
-  './js/edaran-wali.js?v=4',              // surat edaran wali murid (tab Surat & Ijin)
+  './js/undangan-rapat.js?v=5',           // undangan rapat bernomor (tab Surat & Ijin)
+  './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=5',
-  './js/rujukan.js?v=2',                   // catatan rujukan regulasi per menu/tab
+  './js/rujukan.js?v=3',                   // catatan rujukan regulasi per menu/tab
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',
