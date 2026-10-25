@@ -42,13 +42,13 @@
    CARA UPDATE VERSI:
    Setiap kali file app shell diubah dan di-deploy ulang, naikkan APP_VERSION
    DAN angka ?v= file terkait di index.html serta PRECACHE_URLS di bawah
-   (css/styles.css, js/app.js, js/portal-ortu.js, js/infaq.js, js/sikap-buku.js, js/amalan-kegiatan.js, js/kas.js, js/administrasi-ujian.js,
+   (css/styles.css, js/app.js, js/portal-ortu.js, js/infaq.js, js/sikap-buku.js, js/materi-tugas.js, js/kelola-absen-guru.js, js/jadwal.js, js/laporan-rekap.js, js/honor-guru.js, js/event-ujian.js, js/pengingat-absen-guru.js, js/v4-tahfidz-pramuka-ekskul.js, js/v4-pengaturan-notif-rapor.js, js/rekap-nilai.js, js/kalender-akademik.js, js/saran-kritik.js, js/ortu-akun-admin.js, js/amalan-kegiatan.js, js/kas.js, js/administrasi-ujian.js,
    js/bacaan-shalat.js, js/menu-hub.js, js/rapat.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js,
    js/tunggakan-infaq.js, js/auto-logout.js, js/login-kode.js, js/tahfidz-grafik.js, js/monitor-petugas.js,
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.122';
+const APP_VERSION = 'v8.127';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,10 +81,23 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=105',
+  './js/app.js?v=110',
   './js/portal-ortu.js?v=1',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=1',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=1',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/kelola-absen-guru.js?v=1',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/jadwal.js?v=1',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/laporan-rekap.js?v=1',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-guru.js?v=1',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/pengingat-absen-guru.js?v=1',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/v4-tahfidz-pramuka-ekskul.js?v=1',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/v4-pengaturan-notif-rapor.js?v=1',  // V4: tarif honor, pengaturan Absen QR, notifikasi, persetujuan, Rapor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/rekap-nilai.js?v=1',                // Rekap Nilai + ekspor PDF/Excel (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/kalender-akademik.js?v=1',          // Kalender Akademik/Nasional + panel "Hari Ini" (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/ortu-akun-admin.js?v=1',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/amalan-kegiatan.js?v=22',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)

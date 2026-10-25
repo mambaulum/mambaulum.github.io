@@ -93,13 +93,31 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=105"></script>
+  <script defer src="js/app.js?v=110"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=1"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/sikap-buku.js?v=1"></script>
+  <!-- Hasil pecahan app.js tahap 2 (Materi & Tugas, Kelola Absen Guru + Koreksi Honor Sholat, Jadwal Pelajaran, Rekap/Laporan PDF). WAJIB sesudah app.js, sebelum skrip lain. -->
+  <script defer src="js/materi-tugas.js?v=1"></script>
+  <script defer src="js/kelola-absen-guru.js?v=1"></script>
+  <script defer src="js/jadwal.js?v=1"></script>
+  <script defer src="js/laporan-rekap.js?v=1"></script>
+  <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
+  <script defer src="js/honor-guru.js?v=1"></script>
+  <!-- Hasil pecahan app.js tahap 4 (Event & Ujian; Absen Guru Admin + Pengingat). WAJIB sesudah app.js, sebelum skrip lain. -->
+  <script defer src="js/event-ujian.js?v=1"></script>
+  <script defer src="js/pengingat-absen-guru.js?v=1"></script>
+  <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
+  <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=1"></script>
+  <script defer src="js/v4-pengaturan-notif-rapor.js?v=1"></script>
+  <!-- Hasil pecahan app.js tahap 6 (Rekap Nilai; Kalender Akademik + "Hari Ini"; Saran & Kritik; akun Ortu sisi Admin). WAJIB sesudah app.js, sebelum skrip lain. -->
+  <script defer src="js/rekap-nilai.js?v=1"></script>
+  <script defer src="js/kalender-akademik.js?v=1"></script>
+  <script defer src="js/saran-kritik.js?v=1"></script>
+  <script defer src="js/ortu-akun-admin.js?v=1"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=22"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
