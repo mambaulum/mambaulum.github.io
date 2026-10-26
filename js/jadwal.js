@@ -382,19 +382,28 @@
       });
     }
     function exportJadwalPDF() {
-      const kelas = document.getElementById('jadwalKelasFilter').value, hari = document.getElementById('jadwalHariFilter').value;
+      const kelas = document.getElementById('jadwalKelasFilter').value, hariPilih = document.getElementById('jadwalHariFilter').value;
+      const HARI = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+      // Tampilan Mingguan / Per Mapel (atau filter hari tidak valid) -> PDF memuat SEMUA hari; Harian -> hanya hari terpilih.
+      let semuaHari = jadwalView !== 'harian' || HARI.indexOf(hariPilih) < 0;
+      if (!semuaHari && !confirm('Unduh jadwal SEMUA HARI (Senin–Sabtu)?\n\nOK = semua hari\nBatal = hanya hari ' + hariPilih)) semuaHari = false; else if (!semuaHari) semuaHari = true;
       const semua = kelas === JADWAL_SEMUA, kl = jadwalDaftarKelas(), urutK = k => { const i = kl.indexOf(k); return i < 0 ? 999 : i; };
-      const filtered = allJadwal.filter(j => (semua || j.kelas === kelas) && j.hari === hari);
-      filtered.sort((a, b) => (semua ? urutK(a.kelas) - urutK(b.kelas) : 0) || (a.jam || 0) - (b.jam || 0));
-      if (filtered.length === 0) return toast(`Tidak ada jadwal untuk ${semua ? 'semua kelas' : kelas} - ${hari}`, true);
-      const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth();
+      const filtered = allJadwal.filter(j => (semua || j.kelas === kelas) && (semuaHari || j.hari === hariPilih));
+      filtered.sort((a, b) => (semuaHari ? HARI.indexOf(a.hari) - HARI.indexOf(b.hari) : 0) || (semua ? urutK(a.kelas) - urutK(b.kelas) : 0) || (a.jam || 0) - (b.jam || 0));
+      const labelHari = semuaHari ? 'Semua Hari' : hariPilih, labelKelas = semua ? 'Semua Kelas' : 'Kelas ' + kelas;
+      if (filtered.length === 0) return toast(`Tidak ada jadwal untuk ${semua ? 'semua kelas' : kelas} - ${labelHari.toLowerCase()}`, true);
+      const { jsPDF } = window.jspdf; const doc = new jsPDF(semuaHari && semua ? 'l' : 'p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth();
       doc.setFontSize(18); doc.text('JADWAL PELAJARAN', pageWidth/2, 20, { align: 'center' });
-      doc.setFontSize(14); doc.text(`${semua ? 'Semua Kelas' : 'Kelas ' + kelas} - ${hari}`, pageWidth/2, 30, { align: 'center' });
+      doc.setFontSize(14); doc.text(`${labelKelas} - ${labelHari}`, pageWidth/2, 30, { align: 'center' });
       doc.setFontSize(10); doc.text(`Dicetak: ${new Date().toLocaleString()}`, pageWidth - 20, 38, { align: 'right' });
       doc.line(20, 42, pageWidth - 20, 42);
-      const rows = filtered.map(j => { const waktu = jamSettings[j.jam] ? `${jamSettings[j.jam].mulai} - ${jamSettings[j.jam].selesai}` : '-'; const b = [`Jam ke-${j.jam}`, waktu, j.mapel || '-', j.guru || '-']; return semua ? [j.kelas || '-'].concat(b) : b; });
-      doc.autoTable({ startY: 48, head: [semua ? ['Kelas', 'Jam ke-', 'Waktu', 'Mata Pelajaran', 'Guru'] : ['Jam ke-', 'Waktu', 'Mata Pelajaran', 'Guru']], body: rows, theme: 'striped', styles: { fontSize: 10 }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 11, fontStyle: 'bold' }, margin: { left: 15, right: 15 } });
-      doc.save(`Jadwal_${semua ? 'Semua_Kelas' : kelas}_${hari}.pdf`); toast('📥 Jadwal berhasil diunduh!');
+      const head = [].concat(semuaHari ? ['Hari'] : [], semua ? ['Kelas'] : [], ['Jam ke-', 'Waktu', 'Mata Pelajaran', 'Guru']);
+      const rows = filtered.map(j => {
+        const waktu = jamSettings[j.jam] ? `${jamSettings[j.jam].mulai} - ${jamSettings[j.jam].selesai}` : '-';
+        return [].concat(semuaHari ? [j.hari || '-'] : [], semua ? [j.kelas || '-'] : [], [`Jam ke-${j.jam}`, waktu, j.mapel || '-', j.guru || '-']);
+      });
+      doc.autoTable({ startY: 48, head: [head], body: rows, theme: 'striped', styles: { fontSize: 10 }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 11, fontStyle: 'bold' }, margin: { left: 15, right: 15 } });
+      doc.save(`Jadwal_${semua ? 'Semua_Kelas' : kelas}_${semuaHari ? 'Semua_Hari' : hariPilih}.pdf`); toast('📥 Jadwal berhasil diunduh!');
     }
 
 // Pembungkus pemuat PDF malas (fungsi pembungkusnya didefinisikan di app.js, bagian "EXPORT PDF/EXCEL").
