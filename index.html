@@ -93,7 +93,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=119"></script>
+  <script defer src="js/app.js?v=122"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=1"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -106,7 +106,7 @@
   <script defer src="js/jadwal.js?v=2"></script>
   <script defer src="js/laporan-rekap.js?v=1"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/honor-guru.js?v=6"></script>
+  <script defer src="js/honor-guru.js?v=7"></script>
   <!-- Hasil pecahan app.js tahap 4 (Event & Ujian; Absen Guru Admin + Pengingat). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/event-ujian.js?v=1"></script>
   <script defer src="js/pengingat-absen-guru.js?v=1"></script>
@@ -1078,7 +1078,7 @@
             </div>
             <div id="riwayatAbsenSayaList" style="max-height:360px;overflow-y:auto;"></div>
           </details>
-          <div id="quotaInfo">💡 Datang: 06:00-07:30 | Pulang: <span id="labelJamPulangQuota">11:00-12:30</span> (masing-masing 1x/hari)<br><span style="font-size:11px;color:#6b7280;">📍 Verifikasi lokasi GPS tersimpan sebagai bukti kehadiran</span></div>
+          <div id="quotaInfo">💡 Datang: <span id="labelJamDatangQuota">06:00-07:30</span> | Pulang: <span id="labelJamPulangQuota">11:00-12:30</span> (masing-masing 1x/hari)<br><span style="font-size:11px;color:#6b7280;">📍 Verifikasi lokasi GPS tersimpan sebagai bukti kehadiran</span></div>
         </div>
       </div>
 
@@ -1306,6 +1306,22 @@
           <div style="margin-top:12px;padding:12px;background:#fef3c7;border-radius:12px;font-size:12px;color:#92400e;">
             ⚠️ Mengubah/menghapus nama kelas di sini <strong>tidak otomatis mengubah</strong> data siswa, jadwal, atau catatan lain yang sudah memakai nama kelas lama — pastikan data terkait disesuaikan juga kalau menghapus atau mengganti nama kelas yang sudah dipakai.
           </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">⏰ Jendela Absen Guru</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Jam (WIB) yang dipakai Absen Datang &amp; Pulang guru lewat QR. Absen di luar jendela tetap bisa, tetapi dicatat sebagai telat / pulang lebih awal / lebih lambat. Juga dipakai untuk penilaian "Datang tepat" di ranking kedisiplinan.</p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 150px;font-size:13px;font-weight:600;">Datang</span><input type="time" id="jaDatangMulai" class="field" style="width:120px;"><span>–</span><input type="time" id="jaDatangSelesai" class="field" style="width:120px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 150px;font-size:13px;font-weight:600;">Pulang (Senin–Kamis)</span><input type="time" id="jaPulangMulai" class="field" style="width:120px;"><span>–</span><input type="time" id="jaPulangSelesai" class="field" style="width:120px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 150px;font-size:13px;font-weight:600;">Pulang Jumat</span><input type="time" id="jaPulangJumatMulai" class="field" style="width:120px;"><span>–</span><input type="time" id="jaPulangJumatSelesai" class="field" style="width:120px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 150px;font-size:13px;font-weight:600;">Pulang Sabtu</span><input type="time" id="jaPulangSabtuMulai" class="field" style="width:120px;"><span>–</span><input type="time" id="jaPulangSabtuSelesai" class="field" style="width:120px;"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+            <button class="btn btn-success" onclick="simpanJendelaAbsen()">💾 Simpan Jam Absen</button>
+            <button class="btn btn-soft" onclick="resetJendelaAbsen()">↩️ Kembalikan ke Bawaan</button>
+          </div>
+          <p id="jendelaAbsenInfo" style="font-size:12px;color:#9ca3af;margin-top:10px;"></p>
         </div>
 
         <div class="card">

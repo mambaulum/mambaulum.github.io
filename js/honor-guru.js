@@ -277,7 +277,7 @@
         recs.forEach(a => {
           if (a.type === 'Alpha') alpha++;
           if (a.type === 'Datang' && a.waktu) {
-            const t = new Date(a.waktu), menit = t.getHours()*60 + t.getMinutes();
+            const menit = menitWIB(new Date(waktuMs(a.waktu))); // WIB, bukan jam perangkat (waktu bisa epoch-ms atau string ISO)
             if (menit >= datangMulai && menit <= datangSelesai) datangTepat++;
           }
         });

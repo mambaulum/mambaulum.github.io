@@ -25,6 +25,24 @@
       if (!Array.isArray(newList) || newList.length === 0) return;
       KELAS_LIST.splice(0, KELAS_LIST.length, ...newList);
     }
+    // Jendela jam Absen Datang/Pulang guru (WIB). Bawaan di bawah; Admin dapat mengubahnya di Profil Sekolah
+    // (disimpan di school_settings/jendelaAbsen). Nilai tidak valid per-jendela diabaikan -> kembali ke bawaan.
+    const JENDELA_ABSEN_DEFAULT = {
+      datang: { mulai: '06:00', selesai: '07:30' },
+      pulang: { mulai: '11:00', selesai: '12:30' },        // Senin-Kamis (dan Minggu)
+      pulangJumat: { mulai: '10:00', selesai: '12:00' },
+      pulangSabtu: { mulai: '10:30', selesai: '12:00' }
+    };
+    let JENDELA_ABSEN = JSON.parse(JSON.stringify(JENDELA_ABSEN_DEFAULT));
+    function jendelaAbsenValid(w) {
+      const re = /^([01]\d|2[0-3]):[0-5]\d$/;
+      return !!(w && re.test(String(w.mulai)) && re.test(String(w.selesai)) && String(w.mulai) < String(w.selesai));
+    }
+    function setJendelaAbsen(obj) {
+      const baru = JSON.parse(JSON.stringify(JENDELA_ABSEN_DEFAULT));
+      if (obj && typeof obj === 'object') Object.keys(baru).forEach(k => { if (jendelaAbsenValid(obj[k])) baru[k] = { mulai: obj[k].mulai, selesai: obj[k].selesai }; });
+      JENDELA_ABSEN = baru;
+    }
     // Isi ulang SEBUAH <select> dengan <option> untuk tiap kelas di KELAS_LIST. `extraFirst`
     // opsional untuk menambah satu <option> tetap di paling atas (mis. "Semua Kelas").
     // `selected` opsional untuk mempertahankan pilihan yang sedang aktif setelah re-render.
@@ -56,6 +74,7 @@
       ['studentClass','jadwalKelasFilter','jadwalFormKelas','promoteClass','editSiswaClass','reportClass'].forEach(id => {
         populateKelasSelect(document.getElementById(id));
       });
+      perbaruiLabelTombolLulus();
       // rekapNilaiKelas dibatasi ke kelas yang benar-benar boleh dilihat user (siswaScopeKelas):
       // Admin/Kepsek semua kelas, Wali Kelas cuma kelas yang dia ampu -- bukan semua kelas yang
       // kebetulan dia ajar sebagai guru mapel.
@@ -196,20 +215,19 @@
     });
 
     const ROLES = { TEACHER: 'teacher', HEADMASTER: 'headmaster', ADMIN: 'admin', WALI_KELAS: 'wali_kelas' };
-    // PIN Admin & Kepsek disimpan dalam bentuk hash SHA-256 TANPA salt (hardcode di source,
-    // beda dari PIN guru yang sekarang sudah bergaram per-akun -- lihat hashPinSalted/verifyGuruPin
-    // di atas). Tidak bisa diberi salt di sini karena hanya hash yang tersimpan, PIN aslinya
-    // tidak diketahui siapa pun termasuk Claude -- hash tidak bisa "dibalik". Dua hash di bawah
-    // ini SAMA PERSIS, artinya Admin & Kepsek memakai PIN yang identik saat ini.
-    // Untuk mengganti (disarankan, terutama karena dua akun berbagi PIN yang sama): di komputer
-    // Anda sendiri (BUKAN ke Claude/chat ini), buka console browser di halaman app, jalankan
-    // CryptoJS.SHA256("PIN_BARU_ANDA").toString() lalu tempel hasilnya menggantikan nilai di bawah.
+    // PIN Admin & Kepsek: hash SHA-256 TANPA salt yang ditanam di source (dua konstanta di bawah). Berbeda dari
+    // PIN guru, yang bergaram per-akun (hashPinSalted/verifyGuruPin) dan disimpan lewat js/kredensial.js.
+    // Konsekuensinya: siapa pun yang bisa membuka source (View Source/DevTools) dapat menebak PIN secara offline
+    // tanpa batas percobaan, dan PIN pendek/berupa angka biasanya ketemu dalam hitungan detik. Jadi hash ini hanya
+    // "pintu depan" di sisi client; perlindungan data yang sebenarnya harus datang dari Firebase Security Rules
+    // (firebase-security-rules.json). Batas percobaan di form login hanya per-perangkat (lihat ADMIN_LOGIN_LOCK_KEY).
+    // Kedua hash di bawah BERBEDA (Admin dan Kepsek tidak berbagi PIN); bila suatu hari identik, console.warn
+    // di bawah memberi peringatan.
+    // Mengganti PIN: di komputer Anda sendiri (jangan di chat/AI), buka Console browser di halaman aplikasi,
+    // jalankan CryptoJS.SHA256("PIN_BARU").toString(), lalu tempel hasilnya menggantikan nilai konstanta.
     const ADMIN_PIN_HASH = 'a9a634b2a16124e4cfc3d9b1ad4f772e865cbfed2eaf2025752cd0e3df15e37b';
     const KEPSEK_PIN_HASH = '4d9749d1e2616cbce46c84ac26cdc6cf8180e6e1678e4160008a8cd2fffd6d7a';
-    // FIX: kedua hash di atas saat ini IDENTIK -- kemungkinan masih nilai default yang belum
-    // diganti sejak deploy, yang berarti Admin & Kepsek login pakai PIN yang sama persis.
-    // Peringatan ini cuma pengingat di Console (tidak mengubah perilaku apa pun); kalau memang
-    // sudah sengaja diganti jadi PIN yang kebetulan sama, boleh diabaikan.
+    // Pengingat Console saja (tidak mengubah perilaku apa pun) bila kedua hash sama persis.
     if (ADMIN_PIN_HASH === KEPSEK_PIN_HASH) {
       console.warn('[SI MAMBA] PERINGATAN: ADMIN_PIN_HASH dan KEPSEK_PIN_HASH masih sama persis. Kalau ini bukan disengaja, ganti salah satunya: jalankan CryptoJS.SHA256("PIN_BARU_ANDA").toString() di Console lalu tempel hasilnya menggantikan salah satu konstanta di atas.');
     }
@@ -1453,8 +1471,8 @@
     // -------- Tanda tangan session localStorage (2026-09) --------
     // PENTING: SESSION_SECRET ini tertanam di kode client (bisa dilihat siapa pun lewat DevTools/
     // "View Source"), jadi ini BUKAN proteksi sungguhan terhadap orang yang niat & tahu caranya --
-    // itu tetap tugas Firebase Security Rules (server-side, belum ada di app ini -- lihat catatan
-    // di ADMIN_PIN_HASH). Tujuan tanda tangan ini cuma menaikkan "batas kesulitan": mencegah orang
+    // itu tetap tugas Firebase Security Rules (server-side; lihat firebase-security-rules.json
+    // dan catatan di ADMIN_PIN_HASH). Tujuan tanda tangan ini cuma menaikkan "batas kesulitan": mencegah orang
     // asal-edit sim_session di DevTools (mis. ganti role jadi admin) lolos begitu saja -- kalau
     // sim_session diubah manual tanpa ikut menghitung ulang signature, sistem akan mendeteksinya
     // dan memaksa login ulang, bukan diam-diam mempercayainya seperti sebelumnya.
@@ -1643,10 +1661,11 @@
         if (m.tahun) currentTahunAjaran = m.tahun;
         if (m.semester) currentSemesterAktif = m.semester;
         if (Array.isArray(m.kelasList) && m.kelasList.length > 0) setKelasList(m.kelasList);
+        if (m.jendelaAbsen) setJendelaAbsen(m.jendelaAbsen);
       } catch (e) { /* localStorage diblokir/rusak -> pakai default kode */ }
     }
     function simpanMirrorPengaturan() {
-      try { localStorage.setItem(SCHOOL_SETTINGS_MIRROR_KEY, JSON.stringify({ tahun: currentTahunAjaran, semester: currentSemesterAktif, kelasList: [...KELAS_LIST] })); } catch (e) {}
+      try { localStorage.setItem(SCHOOL_SETTINGS_MIRROR_KEY, JSON.stringify({ tahun: currentTahunAjaran, semester: currentSemesterAktif, kelasList: [...KELAS_LIST], jendelaAbsen: JENDELA_ABSEN })); } catch (e) {}
     }
     function terapkanSemesterKeInput() {
       const g = document.getElementById('gradeSemester'); if (g) g.value = currentSemesterAktif;
@@ -1694,6 +1713,11 @@
           setKelasList(s.kelasList);
           if (berubah && !firstLoad) refreshAllKelasDropdowns();
           if (berubah) simpanMirrorPengaturan();
+        }
+        { // jendela jam absen guru (null/tidak ada -> bawaan)
+          const sebelum = JSON.stringify(JENDELA_ABSEN);
+          setJendelaAbsen(s.jendelaAbsen);
+          if (JSON.stringify(JENDELA_ABSEN) !== sebelum) { simpanMirrorPengaturan(); updateLabelJamPulang(); }
         }
         if (document.getElementById('page-profil-sekolah') && !document.getElementById('page-profil-sekolah').classList.contains('hidden')) { renderKopSuratPreview(); renderKelasListEditor(); renderStrukturRingkasan(); }
         if (firstLoad) {
@@ -1786,6 +1810,7 @@
     // di surat/raport sungguhan, supaya pratinjau ini benar-benar mewakili tampilan aslinya
     // (bukan markup terpisah yang bisa beda/ketinggalan zaman).
     function renderKelasListEditor() {
+      renderJendelaAbsenEditor();
       const box = document.getElementById('kelasListEditor'); if (!box) return;
       box.value = KELAS_LIST.join('\n');
       const info = document.getElementById('kelasListInfo');
@@ -1795,6 +1820,47 @@
           info.textContent = (s && s.kelasListUpdatedBy) ? `Terakhir diubah oleh ${s.kelasListUpdatedBy} pada ${new Date(s.kelasListUpdatedAt).toLocaleString('id-ID')}` : `Masih memakai daftar default (${KELAS_LIST.length} kelas).`;
         });
       }
+    }
+    // ---- Editor jendela jam absen guru (kartu "Jendela Absen Guru" di Profil Sekolah) ----
+    const JA_FIELDS = [['datang','jaDatang'],['pulang','jaPulang'],['pulangJumat','jaPulangJumat'],['pulangSabtu','jaPulangSabtu']];
+    function renderJendelaAbsenEditor() {
+      JA_FIELDS.forEach(([k, id]) => {
+        const m = document.getElementById(id + 'Mulai'), e = document.getElementById(id + 'Selesai');
+        if (m) m.value = JENDELA_ABSEN[k].mulai;
+        if (e) e.value = JENDELA_ABSEN[k].selesai;
+      });
+      const info = document.getElementById('jendelaAbsenInfo');
+      if (info) {
+        db.ref('school_settings').once('value', snap => {
+          const s = snap.val() || {};
+          info.textContent = s.jendelaAbsenUpdatedBy ? `Terakhir diubah oleh ${s.jendelaAbsenUpdatedBy} pada ${new Date(s.jendelaAbsenUpdatedAt).toLocaleString('id-ID')}` : 'Masih memakai jam bawaan.';
+        });
+      }
+    }
+    function simpanJendelaAbsen() {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      const baru = {};
+      for (const [k, id] of JA_FIELDS) {
+        const m = (document.getElementById(id + 'Mulai') || {}).value, e = (document.getElementById(id + 'Selesai') || {}).value;
+        if (!jendelaAbsenValid({ mulai: m, selesai: e })) return toast('⚠️ Isi jam mulai dan selesai dengan benar (jam mulai harus lebih awal dari jam selesai).', true);
+        baru[k] = { mulai: m, selesai: e };
+      }
+      tulisSettingsAdmin('school_settings', { jendelaAbsen: baru, jendelaAbsenUpdatedBy: currentUser.name, jendelaAbsenUpdatedAt: new Date().toISOString() }, err => {
+        if (err) return toast('Gagal: ' + err.message, true);
+        setJendelaAbsen(baru); simpanMirrorPengaturan(); updateLabelJamPulang(); renderJendelaAbsenEditor();
+        toast('✅ Jendela jam absen guru diperbarui!');
+        addLog('ubah_jendela_absen', JSON.stringify(baru));
+      });
+    }
+    function resetJendelaAbsen() {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      if (!confirm('Kembalikan jendela jam absen guru ke jam bawaan (Datang 06:00-07:30; Pulang 11:00-12:30, Jumat 10:00-12:00, Sabtu 10:30-12:00)?')) return;
+      tulisSettingsAdmin('school_settings', { jendelaAbsen: null, jendelaAbsenUpdatedBy: currentUser.name, jendelaAbsenUpdatedAt: new Date().toISOString() }, err => {
+        if (err) return toast('Gagal: ' + err.message, true);
+        setJendelaAbsen(null); simpanMirrorPengaturan(); updateLabelJamPulang(); renderJendelaAbsenEditor();
+        toast('✅ Jam absen guru dikembalikan ke bawaan.');
+        addLog('reset_jendela_absen', '');
+      });
     }
     // Menyimpan daftar kelas baru dari textarea (satu nama kelas per baris) ke Firebase, lalu
     // langsung menerapkannya ke SELURUH aplikasi (semua dropdown/checkbox kelas ikut ter-refresh
@@ -3370,8 +3436,7 @@
     function getKelasSaatIni() {
       const today = tglLokal();
       const now = new Date();
-      const jamSekarang = now.getHours(), menitSekarang = now.getMinutes();
-      const sekarangMenit = jamSekarang * 60 + menitSekarang;
+      const sekarangMenit = menitWIB(now); // WIB (bukan jam perangkat) -- jamSettings ditulis dalam WIB
       for (const j of allJournals) {
         if (j.tanggal !== today || (j.guruKey ? j.guruKey !== currentUser.key : j.guru !== currentUser.name)) continue;
         const jamKe = j.jam_ke;
@@ -4018,7 +4083,7 @@
         // tapi flag sesi ini sudah kadung true sehingga fungsi TIDAK akan dicoba lagi sepanjang
         // sesi tsb -- retry baru terjadi kalau Admin logout/reload. Sekarang flag hanya di-set
         // setelah autoMarkAlphaGuru() betul-betul selesai (resolve), lewat callback di dalamnya.
-        if (isAdmin() && !alphaAutoCheckedThisSession) { autoMarkAlphaGuru(() => { alphaAutoCheckedThisSession = true; }); }
+        if (isAdmin() && !alphaAutoCheckedThisSession) { autoMarkAlphaGuru(() => { alphaAutoCheckedThisSession = true; bersihkanAlphaKeliru(); }); }
       }
 
       Promise.all(corePromises).then(() => {
@@ -4921,8 +4986,11 @@
       const block = document.getElementById('earlyLeaveBlock');
       const rapatBox = document.getElementById('earlyLeaveRapatSuggestion');
       if (!block || !currentUser) return;
-      const type = v4DeteksiTipeAbsenGuru();
-      if (type !== 'Pulang' || isAdmin()) { block.style.display = 'none'; if (rapatBox) rapatBox.style.display = 'none'; return; }
+      // PERBAIKAN: kotak ini hanya untuk peran yang BISA absen (Guru & Wali Kelas) -- syarat yang sama dengan
+      // startCamera()/verifyAndAbsen(). Dulu hanya Admin yang disembunyikan (isAdmin()), sehingga Kepala Madrasah,
+      // yang juga tidak bisa absen, masih melihat formnya.
+      const type = (isTeacher() || isWaliKelas()) ? v4DeteksiTipeAbsenGuru() : null;
+      if (type !== 'Pulang') { block.style.display = 'none'; if (rapatBox) rapatBox.style.display = 'none'; return; }
       const window_ = getJamAbsenWindow('Pulang');
       const now = new Date(), sekarangMenit = menitWIB(now);
       const mulai = window_.mulai.split(':'), mulaiMenit = parseInt(mulai[0])*60 + parseInt(mulai[1]);
@@ -4941,6 +5009,7 @@
       renderEarlyLeaveRapatSuggestion(form);
     }
     function submitEarlyLeaveRequest() {
+      if (!isTeacher() && !isWaliKelas()) return toast('Hanya Guru & Wali Kelas!', true);
       if (isBusy('submitEarlyLeaveRequest')) return toast('⏳ Sedang mengirim, mohon tunggu...', false, 1500);
       const alasan = document.getElementById('earlyLeaveAlasan').value.trim();
       if (!alasan) return toast('Isi alasan terlebih dahulu!', true);
@@ -4954,15 +5023,17 @@
         else { toast('📤 Alasan pulang duluan tercatat. Anda tetap bisa langsung absen Pulang.'); addLog('ajukan_pulang_duluan', today); document.getElementById('earlyLeaveAlasan').value = ''; reloadDataset('earlyLeave'); }
       });
     }
+    // Penyetuju catatan pulang duluan: satu definisi dipakai render, setujui, dan tolak (dulu ditulis ulang di tiga tempat).
+    function bolehSetujuiPulangDuluan() { return isKepsek() || isAdmin(); }
     function approveEarlyLeave(key) {
-      if (!isKepsek() && !isAdmin()) return toast('Hanya Kepala Madrasah/Admin!', true);
+      if (!bolehSetujuiPulangDuluan()) return toast('Hanya Kepala Madrasah/Admin!', true);
       db.ref('early_leave_requests/'+key).update({ status: 'approved', approvedBy: currentUser.name, approvedAt: new Date().toISOString() }, err => {
         if (err) toast('Gagal: '+err.message, true);
         else { toast('✅ Catatan pulang duluan ditandai disetujui!'); addLog('setujui_pulang_duluan', key); reloadDataset('earlyLeave'); }
       });
     }
     function rejectEarlyLeave(key) {
-      if (!isKepsek() && !isAdmin()) return toast('Hanya Kepala Madrasah/Admin!', true);
+      if (!bolehSetujuiPulangDuluan()) return toast('Hanya Kepala Madrasah/Admin!', true);
       const note = prompt('Catatan penolakan (opsional):') || '';
       db.ref('early_leave_requests/'+key).update({ status: 'rejected', rejectedBy: currentUser.name, rejectedAt: new Date().toISOString(), rejectedNote: note }, err => {
         if (err) toast('Gagal: '+err.message, true);
@@ -4972,7 +5043,7 @@
     function renderEarlyLeaveApprovals() {
       const section = document.getElementById('earlyLeaveApprovalSection'), list = document.getElementById('earlyLeaveApprovalList');
       if (!section || !list) return;
-      if (!isKepsek() && !isAdmin()) { section.style.display = 'none'; return; }
+      if (!bolehSetujuiPulangDuluan()) { section.style.display = 'none'; return; }
       const pending = allEarlyLeaveRequests.filter(r => r.status === 'pending');
       if (pending.length === 0) { section.style.display = 'none'; return; }
       section.style.display = 'block';
@@ -5562,14 +5633,14 @@
         const pulangHariIni = allTeacherAttendance.find(a => a.tanggal === tanggal && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && a.type === 'Pulang');
         if (pulangHariIni && pulangHariIni.waktu) {
           const pulangDate = new Date(pulangHariIni.waktu);
-          const pulangMenit = pulangDate.getHours() * 60 + pulangDate.getMinutes();
+          const pulangMenit = menitWIB(pulangDate); // WIB, sama dengan jamSettings
           const settingJamIni = jamSettings[jam_ke];
           if (settingJamIni) {
             const selesaiArr = settingJamIni.selesai.split(':');
             const jamSelesaiMenit = parseInt(selesaiArr[0]) * 60 + parseInt(selesaiArr[1]);
             const dalamGraceSatuJam = jamSelesaiMenit <= pulangMenit && jamSelesaiMenit >= pulangMenit - 60;
             if (!dalamGraceSatuJam) {
-              const jamPulangStr = pulangDate.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'});
+              const jamPulangStr = pulangDate.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',timeZone:'Asia/Jakarta'});
               return toast(`⚠️ Anda sudah Absen Pulang pukul ${jamPulangStr}. Jurnal hanya bisa diisi untuk jam yang berakhir maksimal 1 jam sebelum waktu pulang.`, true);
             }
           }
@@ -5639,7 +5710,7 @@
         const sudahPulangDuluan = absensiGuruDigantikan.some(a => a.type === 'Pulang');
         const sudahAbsenDatang = absensiGuruDigantikan.some(a => a.type === 'Datang');
         const todayB2 = tglLokal();
-        const sudahLewatJam8 = tanggal < todayB2 || (tanggal === todayB2 && new Date().getHours() >= 8);
+        const sudahLewatJam8 = tanggal < todayB2 || (tanggal === todayB2 && menitWIB() >= 8 * 60);
         const terbuktiTidakMasuk = sudahIzinSakit || sudahPulangDuluan || (!sudahAbsenDatang && sudahLewatJam8);
         if (!terbuktiTidakMasuk) {
           return toast(`⚠️ Guru "${mewakili}" belum tercatat Izin/Sakit/Pulang untuk tanggal ${tanggal}, dan belum lewat jam 08:00 tanpa Absen Datang. Jurnal "mewakili" hanya bisa dicatat kalau guru yang digantikan terbukti tidak masuk -- kalau memang mendadak & belum ada laporan, tunggu setelah jam 08:00, atau minta guru bersangkutan lapor Izin/Sakit dulu.`, true);
@@ -5663,7 +5734,7 @@
         const _catatanHariC = teacherAttendanceUntukValidasi.filter(a => a.tanggal === tanggal);
         const guruTidakHadirC = new Set(_catatanHariC.filter(a => a.type === 'Izin' || a.type === 'Sakit' || a.type === 'Alpha').map(_idGuruC));
         const _todayC = tglLokal();
-        const _sudahLewatJam8C = tanggal < _todayC || (tanggal === _todayC && new Date().getHours() >= 8);
+        const _sudahLewatJam8C = tanggal < _todayC || (tanggal === _todayC && menitWIB() >= 8 * 60);
         if (_sudahLewatJam8C) {
           const _adaCatatanC = new Set();
           _catatanHariC.forEach(a => { if (a.guruKey) _adaCatatanC.add(a.guruKey); if (a.guru) _adaCatatanC.add(a.guru); });
@@ -5989,15 +6060,9 @@
       const datangRec = todayAbsen.find(a => a.type === 'Datang');
       const pulangRec = todayAbsen.find(a => a.type === 'Pulang');
       if (datangRec && pulangRec) return null;
-      function dalamJendela(type) {
-        const w = getJamAbsenWindow(type);
-        const now = new Date(), sekarangMenit = menitWIB(now);
-        const mulai = w.mulai.split(':'), selesai = w.selesai.split(':');
-        const mulaiMenit = parseInt(mulai[0]) * 60 + parseInt(mulai[1]), selesaiMenit = parseInt(selesai[0]) * 60 + parseInt(selesai[1]);
-        return sekarangMenit >= mulaiMenit && sekarangMenit <= selesaiMenit;
-      }
-      if (!datangRec && dalamJendela('Datang')) return 'Datang';
-      if (!pulangRec && dalamJendela('Pulang')) return 'Pulang';
+      // PERBAIKAN: Pulang hanya sah setelah Datang tercatat. Dulu guru yang belum Datang tetapi scan di jendela
+      // Pulang (11:00-12:30) tercatat 'Pulang' tanpa Datang, lalu hilang dari hitungan hadir. Sekarang tanpa
+      // catatan Datang selalu jadi 'Datang' (di luar jam: otomatis dicatat "Telat X menit"), jam tidak lagi menentukan.
       if (!datangRec) return 'Datang';
       return 'Pulang';
     }
@@ -6073,6 +6138,11 @@
       qrScanRAF = requestAnimationFrame(v4TickQrScan);
     }
     function v4HandleQrDetected(data) {
+      if (!V4.absenQr || !V4.absenQr.token) { // Admin menghapus/mengganti QR saat guru sedang scan
+        v4SetFaceStatus('⚠️ QR Absensi belum diatur Admin atau baru diubah. Muat ulang halaman lalu coba lagi.', '#fee2e2', '#991b1b', '#dc2626');
+        stopCamera();
+        return;
+      }
       if (String(data).trim() !== String(V4.absenQr.token).trim()) {
         v4SetFaceStatus('❌ QR tidak dikenali, bukan QR Absensi resmi. Coba lagi...', '#fee2e2', '#991b1b', '#dc2626');
         qrScanRAF = requestAnimationFrame(v4TickQrScan);
@@ -6202,16 +6272,18 @@
       return !!(jamSettings[jamKe] && jamSettings[jamKe].isEkstra);
     }
     function getJamAbsenWindow(type) {
-      if (type === 'Datang') return { mulai: '06:00', selesai: '07:30' };
-      // Jendela Absen Pulang: beda untuk Jumat & Sabtu (pulang lebih awal), hari lain tetap normal.
+      if (type === 'Datang') return Object.assign({}, JENDELA_ABSEN.datang);
+      // Jendela Absen Pulang: beda untuk Jumat & Sabtu (pulang lebih awal), hari lain memakai jendela normal.
       const hari = hariWIB(); // 0=Minggu, 5=Jumat, 6=Sabtu (WIB)
-      if (hari === 5) return { mulai: '10:00', selesai: '12:00' };
-      if (hari === 6) return { mulai: '10:30', selesai: '12:00' };
-      return { mulai: '11:00', selesai: '12:30' };
+      if (hari === 5) return Object.assign({}, JENDELA_ABSEN.pulangJumat);
+      if (hari === 6) return Object.assign({}, JENDELA_ABSEN.pulangSabtu);
+      return Object.assign({}, JENDELA_ABSEN.pulang);
     }
     function updateLabelJamPulang() {
       const w = getJamAbsenWindow('Pulang');
       const teks = `${w.mulai}-${w.selesai}`;
+      const wd = getJamAbsenWindow('Datang'), elD = document.getElementById('labelJamDatangQuota');
+      if (elD) elD.textContent = `${wd.mulai}-${wd.selesai}`;
       ['labelJamPulangInfo','labelJamPulangRadio','labelJamPulangBlock','labelJamPulangQuota'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = teks;
@@ -6250,16 +6322,23 @@
       try {
       const today = new Date();
       const todayStr = tglLokal(today);
+      // PERBAIKAN: rentang tanggal dihitung sebagai STRING tanggal WIB (YYYY-MM-DD), bukan objek Date berjam.
+      // Dulu loop memakai `d < today` (today = sekarang, berjam): untuk startDate jam 00:00 HARI INI kondisi itu
+      // benar, sehingga hari ini ikut ditandai Alpha pagi-pagi sebelum guru sempat absen.
+      const tambahHari = (str, n) => { const x = new Date(str + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
       let lastCheck = localStorage.getItem('alphaCheckLastDate');
-      let startDate;
-      if (lastCheck) { startDate = new Date(lastCheck + 'T00:00:00'); startDate.setDate(startDate.getDate() + 1); } // 'T00:00:00' = tengah malam LOKAL (tanpa itu di-parse UTC -> hari ini ikut terhitung & Alpha hari ini tertulis sebelum guru absen)
-      else { startDate = new Date(today); startDate.setDate(startDate.getDate() - 14); }
+      if (lastCheck && !/^\d{4}-\d{2}-\d{2}$/.test(lastCheck)) lastCheck = null; // nilai rusak -> anggap belum pernah
+      let startStr = lastCheck ? tambahHari(lastCheck, 1) : tambahHari(todayStr, -14);
+      const batasAwalStr = tambahHari(todayStr, -60); // pengaman: perangkat lama tidak dibuka berbulan-bulan tidak memicu ratusan tulisan
+      if (startStr < batasAwalStr) startStr = batasAwalStr;
+
+
       const guruAktif = (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas');
       if (guruAktif.length === 0) { localStorage.setItem('alphaCheckLastDate', tglLokal(new Date(today.getTime() - 86400000))); alphaAutoCheckRunning = false; if (onDone) onDone(); return; }
       const tanggalList = [];
-      for (let d = new Date(startDate); d < today; d.setDate(d.getDate() + 1)) {
-        if (d.getDay() === 0) continue; // lewati hari Minggu
-        tanggalList.push(tglLokal(new Date(d)));
+      for (let tgl = startStr; tgl < todayStr; tgl = tambahHari(tgl, 1)) { // strictly < hari ini (WIB)
+        if (new Date(tgl + 'T00:00:00Z').getUTCDay() === 0) continue; // lewati hari Minggu
+        tanggalList.push(tgl);
       }
       if (tanggalList.length === 0) { localStorage.setItem('alphaCheckLastDate', tglLokal(new Date(today.getTime() - 86400000))); alphaAutoCheckRunning = false; if (onDone) onDone(); return; }
       let jumlahDitandai = 0;
@@ -6312,6 +6391,29 @@
       } finally {
         if (!menungguAsync) alphaAutoCheckRunning = false;
       }
+    }
+    // Membersihkan catatan Alpha OTOMATIS yang keliru (warisan bug lama): (a) Alpha bertanggal hari ini atau
+    // sesudahnya, (b) Alpha pada tanggal yang guru itu ternyata punya catatan Datang/Pulang/Izin/Sakit.
+    // Hanya menyentuh catatan buatan sistem (keterangan "ditandai otomatis sistem", key ..._Alpha, tanpa field metode);
+    // koreksi manual Admin tidak pernah dihapus.
+    function bersihkanAlphaKeliru() {
+      if (!isAdmin() || !isReallyOnline()) return;
+      try {
+        const todayStr = tglLokal();
+        const idGuru = a => a.guruKey || a.guru;
+        const adaCatatanLain = new Set();
+        allTeacherAttendance.forEach(a => { if (a.type === 'Datang' || a.type === 'Pulang' || a.type === 'Izin' || a.type === 'Sakit') adaCatatanLain.add(a.tanggal + '|' + idGuru(a)); });
+        const hapus = allTeacherAttendance.filter(a => a.type === 'Alpha' && a.key && /_Alpha$/.test(String(a.key)) && !a.metode &&
+          String(a.keterangan || '').indexOf('ditandai otomatis sistem') >= 0 &&
+          ((a.tanggal || '') >= todayStr || adaCatatanLain.has(a.tanggal + '|' + idGuru(a))));
+        if (hapus.length === 0) return;
+        const updates = {}; hapus.forEach(a => { updates[a.key] = null; });
+        db.ref('teacher_attendance').update(updates).then(() => {
+          addLog('bersihkan_alpha_keliru', hapus.length + ' catatan');
+          toast(`🧹 ${hapus.length} catatan Alpha otomatis yang keliru dibersihkan.`);
+          reloadDataset('teacherAttendance');
+        }).catch(err => console.error('[SI MAMBA] Gagal membersihkan Alpha keliru:', err));
+      } catch (err) { console.error('[SI MAMBA] bersihkanAlphaKeliru:', err); }
     }
     function verifyAndAbsen() {
       if (!isTeacher() && !isWaliKelas()) return toast('Hanya Guru & Wali Kelas!', true);
@@ -6638,7 +6740,7 @@
     // ada di DOM walau #loginPage sedang disembunyikan), jadi begitu user pilih "Guru/Staff"
     // dropdown-nya sudah terisi, tidak perlu nunggu lagi.
     function salamWaktu() {
-      const h = new Date().getHours();
+      const h = Math.floor(menitWIB() / 60); // WIB
       if (h < 10) return 'Selamat Pagi';
       if (h < 15) return 'Selamat Siang';
       if (h < 18) return 'Selamat Sore';
@@ -6768,25 +6870,58 @@
       container.innerHTML = html;
       pagination.innerHTML = pagerHtml('surat', totalItems, totalPages, start, end, 'surat');
     }
-    // PATCH v8.97: htmlContent dibaca dari Firebase (bisa ditulis siapa pun yang punya akses tulis ke node 'surat'),
-    // jadi WAJIB disanitasi sebelum masuk innerHTML (cegah stored XSS). Buang tag aktif, atribut on*, dan URL berbahaya.
+    // htmlContent dibaca dari Firebase (bisa ditulis siapa pun yang punya akses tulis ke node 'surat'), jadi WAJIB
+    // disanitasi sebelum masuk innerHTML (cegah stored XSS). PERBAIKAN: sebelumnya daftar-hitam (hapus tag/atribut
+    // yang "diketahui berbahaya"; <style> dan class bebas lolos). Sekarang DAFTAR-PUTIH: hanya tag & atribut yang
+    // dikenal aman yang dipertahankan; tag lain dilepas (isi teksnya tetap), tag aktif dibuang beserta isinya.
+    // Tanpa dependensi luar. Bila suatu hari DOMPurify dipasang di vendor/, ganti isi bersihkanHtmlSurat dengannya.
+    const SURAT_TAG_OK = new Set(['a','abbr','b','blockquote','br','caption','center','code','col','colgroup','dd','div','dl','dt','em','font','h1','h2','h3','h4','h5','h6','hr','i','img','li','ol','p','pre','s','small','span','strike','strong','sub','sup','table','tbody','td','tfoot','th','thead','tr','u','ul']);
+    const SURAT_TAG_BUANG = new Set(['script','style','iframe','frame','frameset','object','embed','applet','link','meta','base','form','input','button','textarea','select','option','svg','math','template','noscript','title','head','audio','video','source','track','canvas','dialog','portal','xmp','plaintext','noembed','noframes']);
+    const SURAT_ATTR_OK = new Set(['align','valign','colspan','rowspan','width','height','border','cellpadding','cellspacing','bgcolor','color','face','size','alt','title','dir','lang','nowrap','span','data-ttd']);
+    // Skema URL yang boleh: relatif (mis. logo/logo-lembaga.png), http(s); mailto/tel hanya untuk <a>; data:image base64 hanya untuk <img>.
+    function suratUrlAman(tag, nm, nilai) {
+      const v = String(nilai == null ? '' : nilai).replace(/[\s\u0000-\u001f]+/g, '').toLowerCase();
+      if (!/^[a-z][a-z0-9+.\-]*:/.test(v)) return true; // relatif
+      if (v.startsWith('http://') || v.startsWith('https://')) return true;
+      if (tag === 'a' && nm === 'href' && (v.startsWith('mailto:') || v.startsWith('tel:'))) return true;
+      if (tag === 'img' && nm === 'src' && /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+\/=]+$/.test(v)) return true;
+      return false;
+    }
+    // Saring deklarasi CSS inline: buang url(), expression, @import, binding, posisi melayang (fixed/absolute/sticky; cegah
+    // overlay palsu yang menutupi aplikasi), z-index. Escape CSS (\75rl) dan komentar dinormalkan dulu sebelum diperiksa.
+    function suratStyleAman(css) {
+      return String(css == null ? '' : css).split(';').map(d => d.trim()).filter(Boolean).filter(d => {
+        const i = d.indexOf(':'); if (i < 1) return false;
+        const prop = d.slice(0, i).trim().toLowerCase();
+        const val = d.slice(i + 1).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\\([0-9a-f]{1,6})\s?/gi, (m, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch (e) { return ''; } }).replace(/\\/g, '').replace(/\s+/g, '').toLowerCase();
+        if (!/^-?[a-z][a-z-]*$/.test(prop) || prop.startsWith('-moz-') || prop === 'behavior' || prop === 'z-index' || prop === 'content') return false;
+        if (/url\(|expression|javascript:|vbscript:|@import|binding|image-set|<|>/.test(val)) return false;
+        if (prop === 'position' && /fixed|absolute|sticky/.test(val)) return false;
+        return true;
+      }).join('; ');
+    }
+    function suratBersihkanNode(induk) {
+      Array.from(induk.childNodes).forEach(n => {
+        if (n.nodeType === 3) return; // teks
+        if (n.nodeType !== 1) { n.remove(); return; } // komentar, CDATA, dsb.
+        const tag = n.localName.toLowerCase();
+        if (SURAT_TAG_BUANG.has(tag)) { n.remove(); return; }
+        suratBersihkanNode(n); // anak dibersihkan lebih dulu
+        if (!SURAT_TAG_OK.has(tag)) { while (n.firstChild) induk.insertBefore(n.firstChild, n); n.remove(); return; }
+        Array.from(n.attributes).forEach(a => {
+          const nm = a.name.toLowerCase();
+          if (nm === 'style') { const st = suratStyleAman(a.value); if (st) n.setAttribute('style', st); else n.removeAttribute(a.name); return; }
+          if (nm === 'class') { const kl = String(a.value).split(/\s+/).filter(t => t && !/modal|overlay|toast|popup|sidebar|loading|notif|boot|fixed/i.test(t)).join(' '); if (kl) n.setAttribute('class', kl); else n.removeAttribute(a.name); return; }
+          if ((nm === 'href' && tag === 'a') || (nm === 'src' && tag === 'img')) { if (!suratUrlAman(tag, nm, a.value)) n.removeAttribute(a.name); return; }
+          if (!SURAT_ATTR_OK.has(nm)) n.removeAttribute(a.name);
+        });
+        if (tag === 'a') n.setAttribute('rel', 'noopener noreferrer');
+      });
+    }
     function bersihkanHtmlSurat(html) {
       try {
         const doc = new DOMParser().parseFromString('<body>' + String(html == null ? '' : html) + '</body>', 'text/html');
-        doc.querySelectorAll('script,iframe,frame,frameset,object,embed,applet,link,meta,base,form,input,button,textarea,select,svg,math,template,noscript').forEach(n => n.remove());
-        doc.body.querySelectorAll('*').forEach(el => {
-          Array.from(el.attributes).forEach(a => {
-            const nm = a.name.toLowerCase(), v = String(a.value || '').replace(/[\s\u0000-\u001f]+/g, '').toLowerCase();
-            if (nm.startsWith('on') || nm === 'srcdoc' || nm === 'formaction') { el.removeAttribute(a.name); return; }
-            if (nm === 'href' || nm === 'src' || nm === 'xlink:href' || nm === 'action' || nm === 'background') {
-              // URL relatif (mis. logo/logo-lembaga.png) aman; yang dibuang hanya yang berskema selain http(s) (javascript:, data:text/html, vbscript:, dst)
-              const adaSkema = /^[a-z][a-z0-9+.\-]*:/.test(v);
-              const aman = !adaSkema || v.startsWith('http://') || v.startsWith('https://') || (nm === 'src' && /^data:image\/(png|jpe?g|gif|webp);base64,/.test(v));
-              if (!aman) el.removeAttribute(a.name);
-            }
-            if (nm === 'style' && /expression\(|javascript:|url\(/.test(v)) el.removeAttribute('style');
-          });
-        });
+        suratBersihkanNode(doc.body);
         return doc.body.innerHTML;
       } catch (e) { return '<p>Konten tidak dapat ditampilkan dengan aman.</p>'; }
     }
@@ -6955,10 +7090,15 @@
     // ============================================================
     // NAIK KELAS & LULUS
     // ============================================================
+    // Kelas tertinggi = elemen TERAKHIR KELAS_LIST (urutan diatur Admin di Profil Sekolah), bukan teks 'Kelas 6' yang
+    // di-hardcode -- kalau Admin mengganti nama/jumlah kelas, naik kelas & kelulusan ikut menyesuaikan.
+    function kelasTertinggi() { return KELAS_LIST[KELAS_LIST.length - 1]; }
+    function perbaruiLabelTombolLulus() { const b = document.getElementById('btnGraduateClass'); if (b) b.textContent = '🎓 Luluskan ' + kelasTertinggi(); }
     function promoteClass() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
       const kelasAsal = document.getElementById('promoteClass').value;
-      if (kelasAsal === 'Kelas 6') return toast('Kelas 6 tidak bisa naik, gunakan tombol Lulus!', true);
+      const kelasAkhir = kelasTertinggi();
+      if (kelasAsal === kelasAkhir) return toast(`${kelasAkhir} tidak bisa naik, gunakan tombol Lulus!`, true);
       // kelasMap dibangun otomatis dari KELAS_LIST (memetakan tiap kelas ke kelas SESUDAHNYA
       // dalam urutan array) -- kalau Admin menambah/mengubah nama kelas, mapping ini otomatis ikut.
       const kelasMap = {}; for (let i = 0; i < KELAS_LIST.length - 1; i++) kelasMap[KELAS_LIST[i]] = KELAS_LIST[i+1];
@@ -6974,7 +7114,7 @@
     function graduateClass() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
       if (isBusy('graduateClass')) return toast('Sedang memproses, mohon tunggu...', false, 1500);
-      const kelas = 'Kelas 6';
+      const kelas = kelasTertinggi();
       const siswaLulus = allSiswa.filter(s => s.kelas === kelas);
       if (siswaLulus.length === 0) return toast(`Tidak ada siswa di ${kelas} untuk diluluskan.`, true);
       if (!doubleConfirm(`Luluskan ${siswaLulus.length} siswa dari ${kelas}? Siswa akan dipindahkan ke alumni.`)) return;
