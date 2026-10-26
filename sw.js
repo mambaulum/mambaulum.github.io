@@ -48,13 +48,13 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.171';
+const APP_VERSION = 'v8.173';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
 
 // Saat membuka/refresh app dengan cache tersedia: tunggu network maksimal segini lama.
-const NAV_NETWORK_TIMEOUT_MS = 3000;
+const NAV_NETWORK_TIMEOUT_MS = 1500;   // (dulu 3000) sinyal lemah: pakai cache lebih cepat; versi baru tetap diunduh di latar belakang
 // Kunjungan pertama (belum ada cache sama sekali): tunggu lebih lama, lalu tampilkan offline.html.
 const NAV_FIRST_VISIT_TIMEOUT_MS = 12000;
 
@@ -130,7 +130,7 @@ const PRECACHE_URLS = [
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=13',
   './js/auto-logout.js?v=5',
-  './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
+  './js/login-kode.js?v=14',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
   './js/surat-guru.js?v=41',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
@@ -220,10 +220,27 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(SHELL_CACHE).then(async cache => {
       const gagalKritis = [];
+      // Berkas ber-?v=N yang URL-nya SAMA dengan yang sudah ada di cache shell versi lama tidak diunduh ulang
+      // (konvensi proyek: isi berkas berubah => ?v= naik; sama seperti perlakuan staleWhileRevalidate di bawah).
+      // Dulu setiap naik APP_VERSION semua ±80 berkas diunduh ulang di tiap HP guru -> "Perbarui" lama & boros kuota.
+      // Hanya berkas tanpa ?v= (index.html, manifest, dsb.) dan berkas yang ?v=-nya naik yang diambil dari jaringan.
+      const cacheLama = [];
+      try { for (const k of await caches.keys()) if (k.startsWith('si-mamba-shell-') && k !== SHELL_CACHE) cacheLama.push(await caches.open(k)); } catch (e) {}
+      const pakaiUlang = async url => {
+        if (url.indexOf('?v=') === -1) return false;
+        for (const c of cacheLama) {
+          try {
+            const r = await c.match(url);
+            if (r && r.ok && isiCocok(url, r)) { await cache.put(url, r.clone()); return true; }
+          } catch (e) {}
+        }
+        return false;
+      };
       for (let i = 0; i < PRECACHE_URLS.length; i += 8) {
         await Promise.all(
           PRECACHE_URLS.slice(i, i + 8).map(async url => {
             try {
+              if (await pakaiUlang(url)) return;
               const res = await fetch(url, { cache: 'no-cache' });
               if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status));
               if (!isiCocok(url, res)) throw new Error('isi HTML tidak sesuai untuk file ini');
