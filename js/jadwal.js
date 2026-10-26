@@ -388,10 +388,12 @@
       let semuaHari = jadwalView !== 'harian' || HARI.indexOf(hariPilih) < 0;
       if (!semuaHari && !confirm('Unduh jadwal SEMUA HARI (Senin–Sabtu)?\n\nOK = semua hari\nBatal = hanya hari ' + hariPilih)) semuaHari = false; else if (!semuaHari) semuaHari = true;
       const semua = kelas === JADWAL_SEMUA, kl = jadwalDaftarKelas(), urutK = k => { const i = kl.indexOf(k); return i < 0 ? 999 : i; };
-      const filtered = allJadwal.filter(j => (semua || j.kelas === kelas) && (semuaHari || j.hari === hariPilih));
+      const gSel = document.getElementById('jadwalGuruFilter'), guruVal = gSel ? gSel.value : '';
+      const guruNama = gSel && gSel.selectedIndex > 0 ? gSel.options[gSel.selectedIndex].textContent : '';
+      const filtered = allJadwal.filter(j => (semua || j.kelas === kelas) && (semuaHari || j.hari === hariPilih) && (!guruVal || (j.guruKey || j.guru) === guruVal));
       filtered.sort((a, b) => (semuaHari ? HARI.indexOf(a.hari) - HARI.indexOf(b.hari) : 0) || (semua ? urutK(a.kelas) - urutK(b.kelas) : 0) || (a.jam || 0) - (b.jam || 0));
-      const labelHari = semuaHari ? 'Semua Hari' : hariPilih, labelKelas = semua ? 'Semua Kelas' : 'Kelas ' + kelas;
-      if (filtered.length === 0) return toast(`Tidak ada jadwal untuk ${semua ? 'semua kelas' : kelas} - ${labelHari.toLowerCase()}`, true);
+      const labelHari = semuaHari ? 'Semua Hari' : hariPilih, labelKelas = (semua ? 'Semua Kelas' : 'Kelas ' + kelas) + (guruNama ? ' - ' + guruNama : '');
+      if (filtered.length === 0) return toast(`Tidak ada jadwal untuk ${semua ? 'semua kelas' : kelas} - ${labelHari.toLowerCase()}${guruNama ? ' (guru ' + guruNama + ')' : ''}`, true);
       const { jsPDF } = window.jspdf; const doc = new jsPDF(semuaHari && semua ? 'l' : 'p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth();
       doc.setFontSize(18); doc.text('JADWAL PELAJARAN', pageWidth/2, 20, { align: 'center' });
       doc.setFontSize(14); doc.text(`${labelKelas} - ${labelHari}`, pageWidth/2, 30, { align: 'center' });
@@ -406,6 +408,8 @@
       doc.save(`Jadwal_${semua ? 'Semua_Kelas' : kelas}_${semuaHari ? 'Semua_Hari' : hariPilih}.pdf`); toast('📥 Jadwal berhasil diunduh!');
     }
 
+var _exportJadwalPDFMilik = exportJadwalPDF;   // simpan SEKARANG (sebelum skrip lain sempat menimpa nama fungsinya)
+
 // Pembungkus pemuat PDF malas (fungsi pembungkusnya didefinisikan di app.js, bagian "EXPORT PDF/EXCEL").
 if (typeof simambaBungkusExportLazy === 'function') simambaBungkusExportLazy([['exportJadwalPDF', 'pdf', 'PDF']]);
 
@@ -414,3 +418,12 @@ if (typeof refreshAllKelasDropdowns === 'function') {
   const _refreshAsli = refreshAllKelasDropdowns;
   refreshAllKelasDropdowns = function () { const r = _refreshAsli.apply(this, arguments); try { jadwalPastikanOpsiSemua(); } catch (e) {} return r; };
 }
+
+// Pastikan versi exportJadwalPDF di berkas ini yang dipakai tombol "Export PDF", walau ada skrip lain yang lebih dulu menimpanya.
+// Dipasang sesudah SEMUA skrip termuat (event load), lalu dibungkus pemuat PDF malas lagi.
+window.addEventListener('load', function () {
+  try {
+    window.exportJadwalPDF = _exportJadwalPDFMilik;
+    if (typeof simambaBungkusExportLazy === 'function') simambaBungkusExportLazy([['exportJadwalPDF', 'pdf', 'PDF']]);
+  } catch (e) { console.warn('[SI MAMBA] pasang exportJadwalPDF gagal:', e); }
+});
