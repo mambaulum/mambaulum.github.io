@@ -74,7 +74,7 @@
   // Penomoran otomatis mengikuti PMA 12/2026 (Tata Naskah Dinas): nomor urut/Kode Jabatan/Klasifikasi Arsip[/Kode Naskah]/bulan/tahun.
   // Ubah KODE & KLAS di sini bila madrasah memakai kode jabatan / klasifikasi arsip yang berbeda.
   var KODE = { kepala: 'MI-MU', yayasan: 'YPI-SU' };
-  var KLAS = { 'sk-pengangkatan': 'KP.01', 'ket-tmt': 'KP.01', 'sk-jadwal': 'KP.01', 'ket-aktif': 'KP.01', 'surat-tugas': 'KP.01', 'skmt': 'KP.01' };
+  var KLAS = { 'sk-pengangkatan': 'KP.01', 'ket-tmt': 'KP.01', 'sk-jadwal': 'KP.01', 'sk-tugas': 'KP.01', 'ket-aktif': 'KP.01', 'surat-tugas': 'KP.01', 'skmt': 'KP.01' };
   // Kode klasifikasi arsip surat SISWA — pilihan di dropdown "Kode Klasifikasi Arsip" (halaman Surat & Ijin).
   // CATATAN: daftar ini kode INTERNAL madrasah (bukan kode resmi Kemenag). Silakan ubah/tambah baris di sini;
   // dropdown otomatis mengikuti. KLAS_BAWAAN_SISWA = kode yang dipakai bila dropdown dibiarkan "Otomatis".
@@ -128,6 +128,7 @@
     rujukan: { l: 'Dasar Penugasan — satu baris per butir (mis. surat undangan / program kerja)', t: 'area' },
     masa:    { l: 'Masa Berlaku SK', t: 'sel', o: [['', 'Tidak dibatasi (berlaku sampai ada keputusan baru)'], ['tahun', 'Per tahun kalender (1 Januari – 31 Desember)'], ['ta', 'Per tahun ajaran (1 Juli – 30 Juni)'], ['kustom', 'Atur tanggal sendiri (isi Tanggal Mulai & Selesai)']] },
     ketuaYys:{ l: 'Nama Ketua Yayasan (penandatangan SK)', t: 'text' },
+    tugasTbh:{ l: 'Tugas tambahan — satu baris per butir (mis. Wali Kelas IV, Pembina Pramuka, Operator Madrasah). Wali kelas terisi otomatis bila tercatat di data guru', t: 'area' },
     tembusan:{ l: 'Tembusan — satu baris per butir', t: 'area' }
   };
   var JENIS = {
@@ -137,6 +138,8 @@
       f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk', 'keperluan'], wajib: ['tmt'] },
     'sk-jadwal': { label: 'SK Pembagian Jadwal Mengajar', file: 'SK_Jadwal_Mengajar',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'dasar', 'tembusan'], wajib: [] },
+    'sk-tugas': { label: 'SK Pembagian Tugas Guru', file: 'SK_Pembagian_Tugas',
+      f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'tugasTbh', 'dasar', 'tembusan'], wajib: [] },
     'ket-aktif': { label: 'Surat Keterangan Aktif Mengajar', file: 'Keterangan_Aktif_Mengajar',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'keperluan'], wajib: [] },
     'surat-tugas': { label: 'Surat Tugas', file: 'Surat_Tugas',
@@ -355,7 +358,7 @@
   }
   // SK Pembagian Jadwal Mengajar: dasar hukum diringkas (tanpa akta yayasan, PP 55/2007, PP 74/2008, KMA 1006/2021 yang khusus pengangkatan).
   var DASAR_JADWAL = [0, 1, 4, 5, 9].map(function (i) { return DASAR_DEFAULT.split('\n')[i]; }).join('\n');
-  function dasarDefault(jenis) { return jenis === 'sk-jadwal' ? DASAR_JADWAL : DASAR_DEFAULT; }
+  function dasarDefault(jenis) { return (jenis === 'sk-jadwal' || jenis === 'sk-tugas') ? DASAR_JADWAL : DASAR_DEFAULT; }
   function tembusanDefault(jenis) {
     var kemenag = 'Kepala Kantor Kementerian Agama Kabupaten Jember';
     if (jenis === 'sk-pengangkatan') return [kemenag, 'Kepala ' + titleCase(MADRASAH.nama), 'Yang bersangkutan', 'Arsip'].join('\n');
@@ -557,7 +560,7 @@
   window.SGCetakOleh = { teks: teksPencetak, pdf: tandaiPencetakPdf };
   // FONT NASKAH PENETAPAN (PMA 12/2026: Bookman Old Style 12): SK Pengangkatan & SK Jadwal. File di fonts/ (subset Latin ~21 KB per gaya),
   // dimuat sekali per sesi. Gagal dimuat -> PDF tetap jadi memakai Arial.
-  var JENIS_BOOKMAN = ['sk-pengangkatan', 'sk-jadwal'], bookmanB64 = null;
+  var JENIS_BOOKMAN = ['sk-pengangkatan', 'sk-jadwal', 'sk-tugas'], bookmanB64 = null;
   function bufKeB64(buf) {
     var b = new Uint8Array(buf), s = '', n = 0x8000;
     for (var i = 0; i < b.length; i += n) s += String.fromCharCode.apply(null, b.subarray(i, i + n));
@@ -670,7 +673,7 @@
   // ---------- Penomoran otomatis ----------
   var nomorToken = 0;
   function kodeJabatan(jenis) { return jenis === 'sk-pengangkatan' ? KODE.yayasan : KODE.kepala; }
-  function kategoriNomor(jenis) { if (jenis === 'surat-keluar') return 'B'; return (jenis === 'sk-pengangkatan' || jenis === 'sk-jadwal') ? 'SK' : (jenis === 'surat-tugas' ? 'ST' : 'SKET'); }
+  function kategoriNomor(jenis) { if (jenis === 'surat-keluar') return 'B'; return (jenis === 'sk-pengangkatan' || jenis === 'sk-jadwal' || jenis === 'sk-tugas') ? 'SK' : (jenis === 'surat-tugas' ? 'ST' : 'SKET'); }
   function bagianTanggal(d) { var iso = d.tanggal || tglLokal(); return { yy: iso.slice(0, 4), mm: iso.slice(5, 7) }; }
   function kunciCounter(jenis, yy) { return 'nomor_surat/' + yy + '/' + (kodeJabatan(jenis) + '_' + kategoriNomor(jenis)).replace(/[^A-Za-z0-9_-]/g, '_'); }
   function susunNomor(jenis, n, d) {
@@ -795,6 +798,31 @@
                               : [['-', 'Belum ada jadwal untuk guru ini pada menu Jadwal Pelajaran', '', '', '', '']] });
         B.push({ t: 'p', s: 'KEDUA : Total beban mengajar: ' + jadwal.length + ' jam pelajaran per minggu.' });
         B.push({ t: 'p', s: 'KETIGA : Keputusan ini mulai berlaku pada tanggal ditetapkan sampai dengan berakhirnya tahun ajaran tersebut.' });
+        S.jadwalKosong = !jadwal.length;
+        break;
+      case 'sk-tugas':
+        jadwal = jadwalGuru(g);
+        var jabKepT = 'KEPALA ' + mU, mapelT = [], tbh = (d.tugasTbh || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+        jadwal.forEach(function (j) { if (j.mapel && mapelT.indexOf(j.mapel) < 0) mapelT.push(j.mapel); });
+        if (g.waliKelasOf && !tbh.some(function (x) { return /wali\s*kelas/i.test(x); })) tbh.unshift('Wali Kelas ' + g.waliKelasOf);
+        S.sk = true; S.judul = ['KEPUTUSAN', jabKepT]; S.tentang = ['PEMBAGIAN TUGAS GURU', 'TAHUN AJARAN ' + ta.toUpperCase()];
+        pembukaSK(jabKepT);
+        B.push({ t: 'p', s: 'Menimbang :', b: true });
+        B.push({ t: 'ol', k: 'a.', s: 'bahwa untuk kelancaran penyelenggaraan pendidikan di ' + m + ' pada tahun ajaran ' + ta + ' perlu menetapkan pembagian tugas guru;' });
+        B.push({ t: 'ol', k: 'b.', s: 'bahwa guru yang namanya tercantum dalam keputusan ini dinilai memenuhi syarat untuk melaksanakan tugas tersebut;' });
+        pushMengingat(B, d);
+        B.push({ t: 'p', s: 'MEMUTUSKAN', b: true, c: true });
+        B.push({ t: 'p', s: 'Menetapkan : KEPUTUSAN ' + jabKepT + ' TENTANG PEMBAGIAN TUGAS GURU TAHUN AJARAN ' + ta.toUpperCase() + '.', b: true });
+        B.push({ t: 'p', s: 'KESATU : Menetapkan pembagian tugas kepada:' });
+        B.push({ t: 'kv', r: kvGuru(g, d, false) });
+        B.push({ t: 'p', s: 'KEDUA : Tugas pokok: ' + (d.jabatan || 'Guru') + (mapelT.length ? ' yang mengajar ' + mapelT.join(', ') : ' yang mengajar') + (kelasGuru(g, jadwal) ? ' di kelas ' + kelasGuru(g, jadwal) : '') +
+          (jadwal.length ? ' dengan beban mengajar ' + jadwal.length + ' jam pelajaran per minggu sesuai jadwal pelajaran' : '') + '.' });
+        if (tbh.length) {
+          B.push({ t: 'p', s: 'KETIGA : Tugas tambahan:' });
+          tbh.forEach(function (x, i) { B.push({ t: 'ol', k: (i + 1) + '.', s: x + (i === tbh.length - 1 ? '.' : ';') }); });
+        }
+        B.push({ t: 'p', s: (tbh.length ? 'KEEMPAT' : 'KETIGA') + ' : Guru yang bersangkutan wajib melaksanakan tugas dengan penuh tanggung jawab dan melaporkan pelaksanaannya kepada Kepala Madrasah.' });
+        B.push({ t: 'p', s: (tbh.length ? 'KELIMA' : 'KEEMPAT') + ' : Keputusan ini mulai berlaku pada tanggal ditetapkan sampai dengan berakhirnya tahun ajaran tersebut.' });
         S.jadwalKosong = !jadwal.length;
         break;
       case 'ket-aktif':
