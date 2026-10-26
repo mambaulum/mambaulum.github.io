@@ -841,11 +841,16 @@
         var barisS = (allGuru || []).slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); }).map(function (gg, i) {
           var jd = jadwalGuru(gg), peta = {}, urut = [];
           jd.forEach(function (j) { var m0 = j.mapel || '-'; if (!peta[m0]) { peta[m0] = []; urut.push(m0); } if (j.kelas && peta[m0].indexOf(j.kelas) < 0) peta[m0].push(j.kelas); });
-          var mengajar = urut.length ? urut.map(function (m0) { return m0 + (peta[m0].length ? ' (' + peta[m0].join(', ') + ')' : ''); }).join('; ') : '-';
+          var ringkasKelas = function (arr) {                      // ['Kelas 4','Kelas 3'] -> 'Kelas 3, 4'
+            var a2 = arr.slice().sort(function (x, y2) { return (parseInt(String(x).replace(/\D+/g, ''), 10) || 0) - (parseInt(String(y2).replace(/\D+/g, ''), 10) || 0) || String(x).localeCompare(String(y2), 'id'); });
+            return a2.every(function (x) { return /^Kelas\s+\S+$/i.test(x); }) ? 'Kelas ' + a2.map(function (x) { return String(x).replace(/^Kelas\s+/i, ''); }).join(', ') : a2.join(', ');
+          };
+          var mengajar = urut.length ? urut.map(function (m0) { return m0 + (peta[m0].length ? ' (' + ringkasKelas(peta[m0]) + ')' : ''); }).join('; ') : '-';
           var tb = (tambahan[String(gg.name || '').toLowerCase()] || []).slice();
           if (gg.waliKelasOf && !tb.some(function (x) { return /wali\s*kelas/i.test(x); })) tb.unshift('Wali Kelas ' + gg.waliKelasOf);
           return [String(i + 1), gg.name || '-', mengajar, jd.length ? String(jd.length) : '-', tb.length ? tb.join('; ') : '-'];
         });
+        S.padat = true;                                           // tata letak rapat: judul lebih rapat, tabel lebih kecil -> muat 2 lembar
         S.sk = true; S.judul = ['KEPUTUSAN', jabKepS]; S.tentang = ['PEMBAGIAN TUGAS MENGAJAR GURU DAN TUGAS TAMBAHAN', 'TAHUN AJARAN ' + ta.toUpperCase()];
         pembukaSK(jabKepS);
         B.push({ t: 'p', s: 'Menimbang :', b: true });
@@ -1029,7 +1034,7 @@
     d = ambil();
     var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });   // semua surat: A4; compress = ukuran berkas kecil
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-    var mk = 30, mr = 20, lebar = pw - mk - mr, LH = S.yys ? 6 : 6.3, y = 0;                                                    // margin PMA 12/2026 (Lampiran, Tata Letak No. 12): kiri 3 cm, kanan 2 cm, bawah 2,5 cm, atas 2 cm
+    var mk = 30, mr = 20, lebar = pw - mk - mr, LH = S.yys ? 6 : (S.padat ? 5.8 : 6.3), y = 0;                                                    // margin PMA 12/2026 (Lampiran, Tata Letak No. 12): kiri 3 cm, kanan 2 cm, bawah 2,5 cm, atas 2 cm
     var data = await Promise.all([S.yys ? null : Promise.resolve().then(function () { return v4LoadLogoForPdf(); }).then(muatLogoMadrasah, function () { return muatLogoMadrasah(null); }), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
 
     // Kop
@@ -1051,25 +1056,25 @@
         var tw = doc.getTextWidth(j); doc.text(j, pw / 2, y, { align: 'center' });
         doc.setLineWidth(0.3); doc.line(pw / 2 - tw / 2, y + 1, pw / 2 + tw / 2, y + 1); doc.setFontSize(13);
       } else doc.text(j, pw / 2, y, { align: 'center' });
-      y += 5.5;
+      y += S.padat ? 4.8 : 5.5;
     });
     doc.setFont(undefined, 'normal'); doc.setFontSize(12);
-    doc.text('NOMOR: ' + S.nomor, pw / 2, y, { align: 'center' }); y += 6;
+    doc.text('NOMOR: ' + S.nomor, pw / 2, y, { align: 'center' }); y += S.padat ? 5 : 6;
     if (S.tentang && S.tentang.length) {
       doc.setFont(undefined, 'bold'); doc.setFontSize(13);
-      doc.text('TENTANG', pw / 2, y, { align: 'center' }); y += 5.5;
-      S.tentang.forEach(function (j) { doc.splitTextToSize(j, lebar).forEach(function (r) { doc.text(r, pw / 2, y, { align: 'center' }); y += 5.5; }); });
-      doc.setFont(undefined, 'normal'); y += 1;
+      doc.text('TENTANG', pw / 2, y, { align: 'center' }); y += S.padat ? 4.8 : 5.5;
+      S.tentang.forEach(function (j) { doc.splitTextToSize(j, lebar).forEach(function (r) { doc.text(r, pw / 2, y, { align: 'center' }); y += S.padat ? 4.8 : 5.5; }); });
+      doc.setFont(undefined, 'normal'); y += S.padat ? 0 : 1;
     }
-    y += 1; doc.setFontSize(12);
+    y += S.padat ? 0.5 : 1; doc.setFontSize(12);
 
     S.blok.forEach(function (b, bi) {
       if (b.t === 'p') {
         doc.setFont(undefined, b.b ? 'bold' : 'normal');
         var rp = doc.splitTextToSize(b.s, lebar);
-        jaga(rp.length * LH + (b.b && S.blok[bi + 1] ? 2 * LH : 0));                  // judul bagian (mis. "Mengingat :") ikut butir pertamanya
+        jaga(rp.length * LH + (b.b && S.blok[bi + 1] ? (b.s === 'MEMUTUSKAN' ? 5 : 2) * LH : 0));                  // judul bagian (mis. "Mengingat :") ikut butir pertamanya
         rp.forEach(function (r, i) { tahanYatim(rp.length, i); perlu(7); if (b.c) doc.text(r, pw / 2, y, { align: 'center' }); else tulisRata(doc, r, mk, y, lebar, i < rp.length - 1); y += LH; });
-        doc.setFont(undefined, 'normal'); y += 2;
+        doc.setFont(undefined, 'normal'); y += S.padat ? 1 : 2;
       } else if (b.t === 'ol') {
         var rs = doc.splitTextToSize(b.s, lebar - 12);
         jaga(rs.length * LH);
@@ -1086,9 +1091,10 @@
       } else if (b.t === 'tabel') {
         perlu(30);
         doc.autoTable({ startY: y, head: [b.head], body: b.rows, margin: { left: mk, right: mr, bottom: 25, top: 20 }, theme: 'grid',
-          styles: { font: doc.getFont().fontName, fontSize: 10, cellPadding: 1.8, textColor: 0, lineColor: 0, lineWidth: 0.2 },
+          styles: { font: doc.getFont().fontName, fontSize: S.padat ? 9 : 10, cellPadding: S.padat ? 1.2 : 1.8, textColor: 0, lineColor: 0, lineWidth: 0.2 },
+          columnStyles: S.padat ? { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 34 }, 3: { cellWidth: 14, halign: 'center' }, 4: { cellWidth: 30 } } : {},
           headStyles: { fillColor: [235, 235, 235], textColor: 0, fontStyle: 'bold' } });
-        y = doc.lastAutoTable.finalY + 6;
+        y = doc.lastAutoTable.finalY + (S.padat ? 4 : 6);
       }
     });
 
