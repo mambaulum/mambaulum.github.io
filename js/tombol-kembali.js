@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/tombol-kembali.js (v2)
+   SI MAMBA - js/tombol-kembali.js (v3)
    Menyambungkan tombol KEMBALI (Android / gesek tepi iOS / tombol Back browser) ke navigasi aplikasi (PWA):
      1. Ada modal / menu samping terbuka  -> kembali = menutupnya (tetap di halaman yang sama).
      2. Ada riwayat halaman              -> kembali = ke halaman sebelumnya di dalam aplikasi.
@@ -78,6 +78,9 @@
   window.addEventListener('popstate', function (e) {
     if (!inited) return;
     var s = e.state;
+    // 0) Kamera scan QR terbuka -> tutup kamera saja
+    var vc = document.getElementById('videoContainer');
+    if (vc && vc.style.display === 'block' && typeof window.stopCamera === 'function') { try { window.stopCamera(); } catch (x) {} dorong(cur); return; }
     // 1) Modal / menu samping terbuka -> tutup saja, tetap di halaman ini
     var ov = overlayTerbuka();
     if (ov && tutupOverlay(ov)) { dorong(cur); return; }

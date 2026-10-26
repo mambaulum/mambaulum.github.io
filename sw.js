@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.147';
+const APP_VERSION = 'v8.152';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,7 +81,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=115',
+  './js/app.js?v=119',
   './js/portal-ortu.js?v=1',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=1',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=1',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -139,8 +139,8 @@ const PRECACHE_URLS = [
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=5',
   './js/rujukan.js?v=5',                   // catatan rujukan regulasi per menu/tab
-  './js/tombol-kembali.js?v=2',            // tombol kembali HP/PWA tersambung ke navigasi aplikasi
-  './js/tab-halaman.js?v=1',               // tab per bagian untuk halaman panjang di HP
+  './js/tombol-kembali.js?v=3',            // tombol kembali HP/PWA tersambung ke navigasi aplikasi
+  './js/tab-halaman.js?v=2',               // tab per bagian untuk halaman panjang di HP
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',

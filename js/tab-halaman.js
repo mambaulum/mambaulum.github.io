@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/tab-halaman.js (v1)
+   SI MAMBA - js/tab-halaman.js (v2)
    Memecah halaman panjang menjadi TAB di HP (<=768px) supaya tidak perlu scroll panjang.
    - Hanya mengatur tampilan: kartu/bagian yang tidak aktif disembunyikan lewat class .tk-hide
      (CSS di index.html #compactMobileCss). Tidak mengubah data, id, maupun fungsi halaman.
@@ -23,6 +23,13 @@
       { id: 'atur',   label: '⚙️ Pengaturan', sel: ['#infaqPetugasArea', '#infaqTargetArea'] },
       { id: 'rekap',  label: '📊 Rekap',      cards: [1] }
     ],
+    'kas-umum': [
+      { id: 'ringkas',  label: '💰 Ringkasan',    sel: ['#kasPeriodeWrap'] },
+      { id: 'buku',     label: '📑 Buku Kas',     sel: ['^#kasTableArea'] },
+      { id: 'kat',      label: '🗂️ Per Kategori', sel: ['^#kasKategoriArea'] },
+      { id: 'srekap',   label: '📊 Rekap Setoran', sel: ['^#setoranSemester'] },
+      { id: 'sriwayat', label: '🧾 Riwayat',      sel: ['^#setoranRiwayatArea'] }
+    ],
     'profil-sekolah': 'auto',
     'admin': 'auto',
     'events': 'auto',
@@ -30,13 +37,20 @@
     'kalender-akademik': 'auto'
   };
 
+  // Posisi tab-bar: setelah elemen ini (bawaan: paling atas halaman). Tanda '^' pada sel = ambil kartu (.card) yang memuat elemen itu.
+  var ANCHOR = { 'kas-umum': '#kasIntroText', 'infaq-madrasah': '#infaqIntroText' };
   var aktifPerHalaman = {}, terpasang = {}, antri = {};
   function $(id) { return document.getElementById(id); }
   function kartuLangsung(page) { return Array.prototype.filter.call(page.children, function (c) { return c.classList && c.classList.contains('card'); }); }
   function kosong(el) {
     if (!el) return true;
     if (el.classList.contains('hidden') || el.style.display === 'none') return true;
+    for (var a = el.parentElement; a && !(a.classList && a.classList.contains('page-content')); a = a.parentElement) { if (a.style && a.style.display === 'none') return true; }
     return el.children.length === 0 && !el.textContent.trim();
+  }
+  function cari(page, s) {
+    if (s.charAt(0) === '^') { var x = page.querySelector(s.slice(1)); return x ? x.closest('.card') : null; }
+    return page.querySelector(s);
   }
   function judul(card, i) {
     var h = card.querySelector('h3, h4'), t = h ? h.textContent.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim() : '';
@@ -51,7 +65,7 @@
       cfg.forEach(function (t) {
         var els = [];
         (t.cards || []).forEach(function (i) { if (cards[i]) els.push(cards[i]); });
-        (t.sel || []).forEach(function (s) { var e = page.querySelector(s); if (e) els.push(e); });
+        (t.sel || []).forEach(function (s) { var e = cari(page, s); if (e) els.push(e); });
         tabs.push({ id: t.id, label: t.label, els: els });
       });
     }
@@ -59,12 +73,12 @@
   }
   function terapkan(key) {
     var page = $('page-' + key); if (!page || !CFG[key]) return;
-    var tabs = susun(key, page), bar = page.querySelector(':scope > .tk-tabs');
+    var tabs = susun(key, page), bar = page.querySelector('.tk-tabs');
     var semua = [];
     // Semua elemen yang dikelola (termasuk tab kosong) ikut dibuka dulu bila tab < 2
     var cfg = CFG[key], cards = kartuLangsung(page);
     if (cfg === 'auto') semua = cards.slice();
-    else cfg.forEach(function (t) { (t.cards || []).forEach(function (i) { if (cards[i]) semua.push(cards[i]); }); (t.sel || []).forEach(function (s) { var e = page.querySelector(s); if (e) semua.push(e); }); });
+    else cfg.forEach(function (t) { (t.cards || []).forEach(function (i) { if (cards[i]) semua.push(cards[i]); }); (t.sel || []).forEach(function (s) { var e = cari(page, s); if (e) semua.push(e); }); });
     if (tabs.length < 2) {
       semua.forEach(function (e) { e.classList.remove('tk-hide'); });
       if (bar) bar.remove();
@@ -78,7 +92,11 @@
     semua.forEach(function (e) { e.classList.toggle('tk-hide', tampil.indexOf(e) === -1); });
     var sig = tabs.map(function (t) { return t.id + ':' + t.label; }).join('|') + '#' + aktif;
     if (bar && bar.getAttribute('data-sig') === sig) return;
-    if (!bar) { bar = document.createElement('div'); bar.className = 'tk-tabs'; bar.setAttribute('role', 'tablist'); page.insertBefore(bar, page.firstChild); }
+    if (!bar) {
+      bar = document.createElement('div'); bar.className = 'tk-tabs'; bar.setAttribute('role', 'tablist');
+      var ang = ANCHOR[key] ? page.querySelector(ANCHOR[key]) : null;
+      if (ang && ang.parentNode) ang.parentNode.insertBefore(bar, ang.nextSibling); else page.insertBefore(bar, page.firstChild);
+    }
     bar.setAttribute('data-sig', sig);
     bar.replaceChildren();
     tabs.forEach(function (t) {
@@ -105,7 +123,7 @@
     new MutationObserver(function (recs) {
       var luar = recs.some(function (r) { return !(r.target.closest && r.target.closest('.tk-tabs')) && !(r.target.classList && r.target.classList.contains('tk-tabs')); });
       if (luar) jadwalkan(key);
-    }).observe(page, { subtree: true, childList: true });
+    }).observe(page, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
   }
 
   var asli = window.navigateTo;

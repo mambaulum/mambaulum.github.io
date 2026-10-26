@@ -304,15 +304,28 @@
     // (mis. Absen QR Guru dianggap "sudah absen" padahal belum). tglLokal()/bulanLokal()
     // menggantikan SEMUA pemakaian toISOString().slice(0,10 atau 0,7) di file ini.
     // ============================================================
-    function tglLokal(d) {
-      d = d || new Date();
-      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), t = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${t}`;
+    // Semua tanggal/jam absen dihitung dalam WIB (Asia/Jakarta), BUKAN zona waktu HP. HP yang zona waktunya salah
+    // (mis. UTC / "waktu otomatis" mati) sebelumnya mendapat tanggal KEMARIN antara 00:00-07:00 WIB, sehingga absen
+    // Datang dianggap "sudah absen" dan guru tidak bisa absen sebelum jam 7 pagi.
+    let _wibFmt = null;
+    try { _wibFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short' }); } catch (e) { _wibFmt = null; }
+    function wibParts(d) {
+      if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) { const q = d.split('-'); return { year: q[0], month: q[1], day: q[2], hour: '00', minute: '00', weekday: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(+q[0], +q[1] - 1, +q[2]).getDay()] }; }
+      d = (d instanceof Date) ? d : (d === undefined || d === null ? new Date() : new Date(d));
+      if (isNaN(d.getTime())) return { year: 'NaN', month: 'NaN', day: 'NaN', hour: 'NaN', minute: 'NaN', weekday: 'NaN' }; // sama seperti perilaku lama: tidak melempar error
+      if (_wibFmt) {
+        const p = {}; _wibFmt.formatToParts(d).forEach(x => { p[x.type] = x.value; });
+        if (p.hour === '24') p.hour = '00';
+        return p;
+      }
+      const w = new Date(d.getTime() + 7 * 3600000 + d.getTimezoneOffset() * 60000); // cadangan: geser manual ke WIB
+      const z = n => String(n).padStart(2, '0');
+      return { year: String(w.getFullYear()), month: z(w.getMonth() + 1), day: z(w.getDate()), hour: z(w.getHours()), minute: z(w.getMinutes()), weekday: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][w.getDay()] };
     }
-    function bulanLokal(d) {
-      d = d || new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    }
+    function tglLokal(d) { const p = wibParts(d); return `${p.year}-${p.month}-${p.day}`; }
+    function bulanLokal(d) { const p = wibParts(d); return `${p.year}-${p.month}`; }
+    function menitWIB(d) { const p = wibParts(d); return parseInt(p.hour, 10) * 60 + parseInt(p.minute, 10); }
+    function hariWIB(d) { return { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[wibParts(d).weekday]; }
     // Field `waktu` di teacher_attendance/event_attendance/ujian_attendance bercampur dua format:
     // angka epoch-ms (ServerValue.TIMESTAMP, dari absen QR & lapor Izin/Sakit) dan string ISO
     // (semua jalur lain: koreksi admin, Alpha otomatis, data lama). new Date(x) menerima keduanya,
@@ -659,9 +672,8 @@
 
       const today = tglLokal();
       const now = new Date();
-      const jamSekarang = now.getHours();
-      const menitSekarang = now.getMinutes();
-      const sekarangMenit = jamSekarang * 60 + menitSekarang;
+      const sekarangMenit = menitWIB(now);
+      const jamSekarang = Math.floor(sekarangMenit / 60), menitSekarang = sekarangMenit % 60;
 
       const jamPertama = jamSettings[1] || { mulai: '07:30', selesai: '08:15' };
       const mulai = jamPertama.mulai.split(':');
@@ -4912,7 +4924,7 @@
       const type = v4DeteksiTipeAbsenGuru();
       if (type !== 'Pulang' || isAdmin()) { block.style.display = 'none'; if (rapatBox) rapatBox.style.display = 'none'; return; }
       const window_ = getJamAbsenWindow('Pulang');
-      const now = new Date(), sekarangMenit = now.getHours()*60 + now.getMinutes();
+      const now = new Date(), sekarangMenit = menitWIB(now);
       const mulai = window_.mulai.split(':'), mulaiMenit = parseInt(mulai[0])*60 + parseInt(mulai[1]);
       const selesai = window_.selesai.split(':'), selesaiMenit = parseInt(selesai[0])*60 + parseInt(selesai[1]);
       const isDalamJendela = sekarangMenit >= mulaiMenit && sekarangMenit <= selesaiMenit;
@@ -4987,7 +4999,7 @@
       if (belumDiisi.length > 0) { const namaBelum = belumDiisi.map(s => s.name).join(', '); if (!confirm(`⚠️ ${belumDiisi.length} siswa belum diisi: ${namaBelum}. Lanjutkan menyimpan?`)) return; }
       const today = tglLokal();
       if (date > today) return toast('Tidak bisa mengisi absensi untuk tanggal di masa depan!', true);
-      const now = new Date(), jamSekarang = now.getHours(), menitSekarang = now.getMinutes(), sekarangMenit = jamSekarang * 60 + menitSekarang;
+      const now = new Date(), sekarangMenit = menitWIB(now), jamSekarang = Math.floor(sekarangMenit / 60), menitSekarang = sekarangMenit % 60;
       const jamPertama = jamSettings[1] || { mulai: '07:30', selesai: '08:15' };
       const mulai = jamPertama.mulai.split(':'), selesai = jamPertama.selesai.split(':');
       const mulaiMenit = parseInt(mulai[0])*60 + parseInt(mulai[1]), selesaiMenit = parseInt(selesai[0])*60 + parseInt(selesai[1]);
@@ -5738,7 +5750,7 @@
         const btnSaveOffline = document.getElementById('btnSaveJournal');
         setBusy('saveJournal', btnSaveOffline);
         try { // try/finally: queueOfflineJournal menyentuh DOM & bisa melempar -> lock tak boleh nyangkut
-        const nowOffline = new Date(), menitSekarangOffline = nowOffline.getHours()*60 + nowOffline.getMinutes();
+        const nowOffline = new Date(), menitSekarangOffline = menitWIB(nowOffline);
         const settingJamOffline = jamSettings[jam_ke];
         // Sama dgn jalur online: tanpa pengaturan jam, jurnal tak bisa diverifikasi -> tolak. Dulu jalur offline
         // melewati seluruh cek jam kalau settingnya tidak ada & menyimpan langsung 'approved'.
@@ -5760,7 +5772,7 @@
         return;
       }
 
-      const now = new Date(), jamSekarang = now.getHours(), menitSekarang = now.getMinutes(), sekarangMenit = jamSekarang*60 + menitSekarang;
+      const now = new Date(), sekarangMenit = menitWIB(now), jamSekarang = Math.floor(sekarangMenit / 60), menitSekarang = sekarangMenit % 60;
       const settingJam = jamSettings[jam_ke];
       if (!settingJam) return toast('Pengaturan jam tidak ditemukan!', true);
       const mulai = settingJam.mulai.split(':');
@@ -5944,6 +5956,7 @@
     // TEACHER ATTENDANCE (QR + Lokasi, tanpa foto)
     // ============================================================
     let qrScanRAF = null;
+    let qrLastScan = 0, qrScanCount = 0; // pembatas laju decode jsQR
     let qrScanDetectedType = null; // 'Datang' | 'Pulang', diisi setelah QR & lokasi tervalidasi, siap dikonfirmasi
     let qrScanKeteranganTelat = null; // mis. "Telat 12 menit", diisi kalau Absen Datang lewat dari jam window
     let qrScanDetectedAt = null; // epoch ms saat QR + lokasi tervalidasi; dipakai sebagai jam absen kalau disimpan OFFLINE
@@ -5978,7 +5991,7 @@
       if (datangRec && pulangRec) return null;
       function dalamJendela(type) {
         const w = getJamAbsenWindow(type);
-        const now = new Date(), sekarangMenit = now.getHours() * 60 + now.getMinutes();
+        const now = new Date(), sekarangMenit = menitWIB(now);
         const mulai = w.mulai.split(':'), selesai = w.selesai.split(':');
         const mulaiMenit = parseInt(mulai[0]) * 60 + parseInt(mulai[1]), selesaiMenit = parseInt(selesai[0]) * 60 + parseInt(selesai[1]);
         return sekarangMenit >= mulaiMenit && sekarangMenit <= selesaiMenit;
@@ -6019,9 +6032,14 @@
         v4SetFaceStatus('⚠️ Browser tidak support kamera. Hubungi Admin.', '#fee2e2', '#991b1b', '#dc2626');
         return;
       }
+      // Segarkan token & lokasi QR dari Firebase di latar belakang (kalau Admin baru membuat token baru setelah
+      // guru login, token di memori basi dan QR yang benar malah dibilang "tidak dikenali").
+      if (isReallyOnline()) {
+        try { db.ref('absen_qr_settings').once('value').then(snap => { const d = snap.val(); if (d && d.token) { V4.absenQr = d; v4CacheAbsenQr(d); } }).catch(() => {}); } catch (e) {}
+      }
       document.getElementById('btnStartQrScan').style.display = 'none';
       document.getElementById('btnVerifyFace').style.display = 'none';
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 480 }, height: { ideal: 360 } }, audio: false })
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
         .then(stream => {
           cameraStream = stream; video.srcObject = stream; container.style.display = 'block'; video.style.display = 'block'; video.play();
           v4SetFaceStatus('🔎 Arahkan kamera ke QR Absensi yang ditempel di madrasah...', '#dcfce7', '#065f46', '#059669');
@@ -6037,20 +6055,25 @@
     function v4TickQrScan() {
       const video = document.getElementById('video'), canvas = document.getElementById('snapshotCanvas');
       if (!cameraStream) return; // sudah dihentikan
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const now = performance.now();
+      // readyState >= 2 (bukan harus 4): banyak HP Android berhenti di 2/3 saat kamera sudah tampil.
+      if (video.readyState >= 2 && video.videoWidth > 0 && now - qrLastScan >= 90) {
+        qrLastScan = now; qrScanCount++;
+        const skala = Math.min(1, 720 / video.videoWidth);
+        const w = Math.round(video.videoWidth * skala), h = Math.round(video.videoHeight * skala);
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, w, h);
         try {
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          const imageData = ctx.getImageData(0, 0, w, h);
+          const code = jsQR(imageData.data, w, h, { inversionAttempts: (qrScanCount % 4 === 0) ? 'attemptBoth' : 'dontInvert' });
           if (code && code.data) { v4HandleQrDetected(code.data); return; }
         } catch (e) { console.error('Gagal baca frame QR:', e); }
       }
       qrScanRAF = requestAnimationFrame(v4TickQrScan);
     }
     function v4HandleQrDetected(data) {
-      if (data !== V4.absenQr.token) {
+      if (String(data).trim() !== String(V4.absenQr.token).trim()) {
         v4SetFaceStatus('❌ QR tidak dikenali, bukan QR Absensi resmi. Coba lagi...', '#fee2e2', '#991b1b', '#dc2626');
         qrScanRAF = requestAnimationFrame(v4TickQrScan);
         return;
@@ -6070,21 +6093,23 @@
         document.getElementById('btnStartQrScan').style.display = 'block';
         return;
       }
-      navigator.geolocation.getCurrentPosition(pos => {
+      const segarAbsen = v4SegarkanAbsenHariIni(); // dijalankan BERSAMAAN dengan pengambilan GPS (tidak menambah waktu tunggu)
+      v4AmbilLokasiAbsen(pos => {
         const jarak = v4HitungJarakMeter(pos.coords.latitude, pos.coords.longitude, V4.absenQr.lat, V4.absenQr.lng);
         const radius = V4.absenQr.radius || 150;
         if (jarak > radius) {
-          v4SetFaceStatus(`❌ Anda terlalu jauh dari madrasah (±${Math.round(jarak)}m, maksimal ${radius}m). Absen harus dilakukan di lokasi madrasah.`, '#fee2e2', '#991b1b', '#dc2626');
+          v4SetFaceStatus(`❌ Anda terlalu jauh dari madrasah (±${Math.round(jarak)}m, maksimal ${radius}m; akurasi GPS ±${Math.round(pos.coords.accuracy || 0)}m). Absen harus dilakukan di lokasi madrasah. Bila Anda sudah di madrasah, aktifkan GPS/lokasi akurasi tinggi lalu coba lagi.`, '#fee2e2', '#991b1b', '#dc2626');
           document.getElementById('btnStartQrScan').style.display = 'block';
           return;
         }
+        segarAbsen.then(() => {
         const type = v4DeteksiTipeAbsenGuru();
         if (!type) {
           v4SetFaceStatus('✅ Anda sudah absen Datang & Pulang hari ini.', '#dcfce7', '#065f46', '#059669');
           document.getElementById('btnStartQrScan').style.display = 'none';
           return;
         }
-        const now = new Date(), sekarangMenit = now.getHours() * 60 + now.getMinutes();
+        const now = new Date(), sekarangMenit = menitWIB(now);
         let keteranganTelat = null;
         if (type === 'Datang') {
           // Absen Datang lewat QR selalu diizinkan (tidak diblokir jam) — kalau lewat jam
@@ -6110,7 +6135,7 @@
         qrScanKeteranganTelat = keteranganTelat;
         qrScanDetectedAt = now.getTime();
         const telatMsg = keteranganTelat ? ` <span style="color:#dc2626;font-weight:700;">(⚠️ ${keteranganTelat})</span>` : '';
-        v4SetFaceStatus(`✅ Lokasi terverifikasi (±${Math.round(jarak)}m dari madrasah). Siap absen <b>${type}</b> pukul ${now.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}${telatMsg}. Klik "Konfirmasi Absen".`, '#dcfce7', '#065f46', '#059669');
+        v4SetFaceStatus(`✅ Lokasi terverifikasi (±${Math.round(jarak)}m dari madrasah). Siap absen <b>${type}</b> pukul ${now.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',timeZone:'Asia/Jakarta'})} WIB${telatMsg}. Klik "Konfirmasi Absen".`, '#dcfce7', '#065f46', '#059669');
         document.getElementById('btnVerifyFace').textContent = `✅ Konfirmasi Absen ${type}`;
         document.getElementById('btnVerifyFace').style.display = 'block';
         document.getElementById('btnStartQrScan').style.display = 'none';
@@ -6120,11 +6145,34 @@
         const btnConfirm = document.getElementById('btnVerifyFace');
         btnConfirm.classList.add('btn-confirm-pulse');
         setTimeout(() => btnConfirm.classList.remove('btn-confirm-pulse'), 2700);
+        });
       }, err => {
         console.error(err);
-        v4SetFaceStatus('❌ Gagal mengambil lokasi GPS: ' + err.message + '. Pastikan izin lokasi diaktifkan lalu coba lagi.', '#fee2e2', '#991b1b', '#dc2626');
+        const hint = err && err.code === 1 ? 'Izin lokasi ditolak: buka pengaturan situs/browser, izinkan Lokasi untuk aplikasi ini.' : 'Pastikan GPS aktif dan izin lokasi diberikan, lalu coba lagi.';
+        v4SetFaceStatus('❌ Gagal mengambil lokasi GPS' + (err && err.message ? ' (' + err.message + ')' : '') + '. ' + hint, '#fee2e2', '#991b1b', '#dc2626');
         document.getElementById('btnStartQrScan').style.display = 'block';
-      }, { enableHighAccuracy: true, timeout: 10000 });
+      });
+    }
+    // GPS akurasi tinggi dulu (10 dtk); bila timeout/tidak tersedia, ulangi dengan akurasi biasa & lokasi tersimpan <=2 menit
+    // (di dalam gedung GPS akurasi tinggi sering timeout padahal lokasi jaringan cukup untuk radius madrasah).
+    function v4AmbilLokasiAbsen(sukses, gagal) {
+      navigator.geolocation.getCurrentPosition(sukses, err => {
+        if (err && err.code === 1) { gagal(err); return; } // izin ditolak: tidak ada gunanya mengulang
+        navigator.geolocation.getCurrentPosition(sukses, gagal, { enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 });
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
+    // Pastikan catatan Datang/Pulang hari ini yang SUDAH ada di Firebase ikut diperhitungkan sebelum menentukan jenis absen
+    // (key catatan tetap: tanggal_guru_tipe). Tanpa ini, bila dataset belum termuat, guru yang sudah Datang bisa dianggap
+    // "Datang" lagi dan Pulang-nya tidak pernah tercatat.
+    function v4SegarkanAbsenHariIni() {
+      if (!currentUser || !isReallyOnline()) return Promise.resolve();
+      const today = tglLokal(), g = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g, '_');
+      const baca = tipe => db.ref(`teacher_attendance/${today}_${g}_${tipe}`).once('value').then(snap => {
+        const v = snap.val(); if (!v) return;
+        const ada = allTeacherAttendance.some(a => a.tanggal === today && a.type === tipe && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
+        if (!ada) { v.key = snap.key; allTeacherAttendance.push(v); bumpTaRev(); }
+      }).catch(() => {});
+      return Promise.race([Promise.all([baca('Datang'), baca('Pulang')]), new Promise(r => setTimeout(r, 2500))]);
     }
     // Lepas stream kamera + batalkan RAF scan QR SAJA, tanpa reset tombol/status ke kondisi idle
     // -- dipakai bersama oleh stopCamera() (reset penuh, dipanggil saat user batal/keluar halaman)
@@ -6156,7 +6204,7 @@
     function getJamAbsenWindow(type) {
       if (type === 'Datang') return { mulai: '06:00', selesai: '07:30' };
       // Jendela Absen Pulang: beda untuk Jumat & Sabtu (pulang lebih awal), hari lain tetap normal.
-      const hari = new Date().getDay(); // 0=Minggu, 5=Jumat, 6=Sabtu
+      const hari = hariWIB(); // 0=Minggu, 5=Jumat, 6=Sabtu (WIB)
       if (hari === 5) return { mulai: '10:00', selesai: '12:00' };
       if (hari === 6) return { mulai: '10:30', selesai: '12:00' };
       return { mulai: '11:00', selesai: '12:30' };
@@ -6204,7 +6252,7 @@
       const todayStr = tglLokal(today);
       let lastCheck = localStorage.getItem('alphaCheckLastDate');
       let startDate;
-      if (lastCheck) { startDate = new Date(lastCheck); startDate.setDate(startDate.getDate() + 1); }
+      if (lastCheck) { startDate = new Date(lastCheck + 'T00:00:00'); startDate.setDate(startDate.getDate() + 1); } // 'T00:00:00' = tengah malam LOKAL (tanpa itu di-parse UTC -> hari ini ikut terhitung & Alpha hari ini tertulis sebelum guru absen)
       else { startDate = new Date(today); startDate.setDate(startDate.getDate() - 14); }
       const guruAktif = (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas');
       if (guruAktif.length === 0) { localStorage.setItem('alphaCheckLastDate', tglLokal(new Date(today.getTime() - 86400000))); alphaAutoCheckRunning = false; if (onDone) onDone(); return; }
