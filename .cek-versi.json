@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.166",
-  "disimpan": "2026-10-26T04:13:24.470Z",
+  "appVersion": "v8.167",
+  "disimpan": "2026-10-26T04:18:30.497Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -263,8 +263,8 @@
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
     },
     "js/surat-guru.js": {
-      "v": "v=36",
-      "hash": "94fdc0e8dfa7cad9363dba97831a7f3d695ba2ca"
+      "v": "v=37",
+      "hash": "943e8d30e8378561dcb16b6231178bf166638301"
     },
     "js/agenda-surat.js": {
       "v": "v=5",
