@@ -462,7 +462,7 @@
         const parts = x.tanggal.split('-');
         return parts[0] === year && parts[1] === monthStr && sesuaiTahunAjaranTermasukDataLama(x);
       });
-      const guruAktifTunjangan = (allGuru || []).filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && ((g.tunjanganMasaKerja||0) > 0 || (g.bantuanTransportasi||0) > 0));
+      const guruAktifTunjangan = honorGuruBertunjangan();
       // FIX: dulu fungsi ini return kosong kalau kelima sumber data guru kosong, PADAHAL
       // renderHonor() tetap menampilkan (dan menjumlahkan) bonus tetap Kepala Madrasah & Ketua
       // Yayasan setiap bulan, terlepas ada tidaknya data guru lain -- lihat guruTerajinBulanIni
@@ -473,56 +473,13 @@
         return `<p class="text-muted" style="text-align:center;padding:20px 0;">Tidak ada data untuk bulan ${monthName} ${year}.</p>`;
       }
 
-      // FIX: dulu dikelompokkan pakai `j.guruKey || j.guru` polos -- ini justru menghidupkan lagi
-      // bug yang sudah diperbaiki di renderHonor() (lihat catatan di sana): kalau untuk satu guru
-      // yang sama sebagian record sudah punya guruKey dan sebagian belum (mis. jurnal sudah,
-      // religi/event yang dicatat fitur lebih lama belum), guru itu pecah jadi 2 baris di laporan
-      // cetak ini dengan rincian honor berbeda-beda -- dan TOTAL HONOR laporan jadi tidak sama
-      // dengan yang tampil di layar Honor untuk bulan yang sama. Sekarang pakai resolveGuruKey
-      // yang SAMA seperti renderHonor(): guruKey dulu, kalau tidak ada coba cari lewat nama di
-      // allGuru, baru fallback ke nama mentah.
-      const namaGuruToKeyReport = {};
-      (allGuru || []).forEach(g => { if (g.key) namaGuruToKeyReport[g.name] = g.key; });
-      const resolveGuruKeyReport = (guruKey, namaGuru) => guruKey || namaGuruToKeyReport[namaGuru] || namaGuru;
-      const groupedJurnal = {};
-      filteredJournals.forEach(j => {
-        const gk = resolveGuruKeyReport(j.guruKey, j.guru);
-        if (!groupedJurnal[gk]) groupedJurnal[gk] = { nama: j.guru, reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 };
-        if (isJamEkstra(j.jam_ke)) { groupedJurnal[gk].ekstra += 1; groupedJurnal[gk].ekstraHonor += getEkstraRate(j.subject); }
-        else if (j.type === 'Non-Reguler') groupedJurnal[gk].nonReguler += 1;
-        else groupedJurnal[gk].reguler += 1;
-      });
-
-      const groupedReligi = hs.hasil.perGuru;   // dari check-in petugas yang lolos pemeriksaan
-
-      const groupedEvents = {};
-      const dlKepalaReport = { jumlah: 0, honor: 0 };   // Dinas Luar Kepala -> digabung ke baris Kepala Madrasah (sama seperti renderHonor)
-      filteredEvents.forEach(e => {
-        if (e.guruKey === 'kepsek') { dlKepalaReport.jumlah += 1; dlKepalaReport.honor += (e.honor || 0); return; }
-        const gk = resolveGuruKeyReport(e.guruKey, e.guru);
-        if (!groupedEvents[gk]) groupedEvents[gk] = { nama: e.guru, jumlah: 0, honor: 0 };
-        groupedEvents[gk].jumlah += 1;
-        groupedEvents[gk].honor += (e.honor || 0);
-      });
-
-      const groupedUjian = {};
-      filteredUjian.forEach(u => {
-        const gk = resolveGuruKeyReport(u.guruKey, u.guru);
-        if (!groupedUjian[gk]) groupedUjian[gk] = { nama: u.guru, jumlah: 0, honor: 0 };
-        groupedUjian[gk].jumlah += 1;
-        groupedUjian[gk].honor += (u.honor || 0);
-      });
-
-      const groupedEkskulPic = {};
-      filteredEkskulPic.forEach(x => {
-        const gk = resolveGuruKeyReport(x.guruKey, x.guru);
-        if (!groupedEkskulPic[gk]) groupedEkskulPic[gk] = { nama: x.guru, jumlah: 0, honor: 0 };
-        groupedEkskulPic[gk].jumlah += 1;
-        groupedEkskulPic[gk].honor += (x.honor || 0);
-      });
+      // Pengelompokan & rumus honor memakai util yang SAMA dengan layar Honor, Slip, dan PDF (js/honor-guru.js: honorKelompokkan, honorKunciGuru,
+      // honorRincianGuru) -- total laporan cetak selalu sama dengan yang tampil di layar Honor untuk bulan yang sama.
+      const grup = honorKelompokkan({ journals: filteredJournals, events: filteredEvents, ujian: filteredUjian, ekskulPic: filteredEkskulPic, religiPerGuru: hs.hasil.perGuru });
+      const dlKepalaReport = grup.dlKepala;   // Dinas Luar Kepala -> digabung ke baris Kepala Madrasah (sama seperti renderHonor)
 
       const rates = v4GetHonorRates(), HONOR_KEPSEK_REPORT = rates.kepsek, HONOR_KETUA_YAYASAN_REPORT = rates.yayasan;
-      const allTeacherKeys = new Set([...Object.keys(groupedJurnal), ...Object.keys(groupedReligi), ...Object.keys(groupedEvents), ...Object.keys(groupedUjian), ...Object.keys(groupedEkskulPic), ...guruAktifTunjangan.map(g => g.key || g.name)]);
+      const allTeacherKeys = honorKunciGuru(grup, guruAktifTunjangan);
       // FIX: bonus tetap Kepala Madrasah & Ketua Yayasan, plus Guru Terajin bulan ini kalau ada --
       // sebelumnya TIDAK ADA di laporan cetak sama sekali, padahal renderHonor() selalu
       // menyertakan & menjumlahkannya ke totalHonor. Baris ini yang membuat TOTAL HONOR di
@@ -564,22 +521,14 @@
         </tr>`;
       });
       for (const guruKey of allTeacherKeys) {
-        const j = groupedJurnal[guruKey] || { reguler: 0, nonReguler: 0, ekstra: 0, ekstraHonor: 0 };
-        const r = groupedReligi[guruKey] || { dluha: 0, dzuhur: 0 };
-        const ev = groupedEvents[guruKey] || { jumlah: 0, honor: 0 };
-        const uj = groupedUjian[guruKey] || { jumlah: 0, honor: 0 };
-        const ekpic = groupedEkskulPic[guruKey] || { jumlah: 0, honor: 0 };
-        const guruObj = allGuru.find(g => g.key === guruKey) || allGuru.find(g => g.name === guruKey);
-        const guru = j.nama || r.nama || ev.nama || uj.nama || ekpic.nama || (guruObj && guruObj.name) || guruKey;
-        const tunjangan = (guruObj && guruObj.tunjanganMasaKerja) || 0, transport = (guruObj && guruObj.bantuanTransportasi) || 0;
-        const honor = v4HitungHonor({ reguler: j.reguler, nonReguler: j.nonReguler, ekstraHonor: j.ekstraHonor + ekpic.honor, dluha: r.dluha, dzuhur: r.dzuhur, eventHonor: ev.honor, ujianHonor: uj.honor, tunjangan, transport }, rates);
+        const { j, r, ev, uj, ekpic, guru, tunjangan, transport, ekstraHonor, honor } = honorRincianGuru(guruKey, grup, rates);
         totalHonor += honor;
         html += `<tr>
           <td>${no++}</td>
           <td>${escapeHtml(guru)}</td>
           <td>${j.reguler}</td>
           <td>${j.nonReguler}</td>
-          <td>${j.ekstra}x (Rp ${(j.ekstraHonor + ekpic.honor).toLocaleString()})</td>
+          <td>${j.ekstra}x (Rp ${ekstraHonor.toLocaleString()})</td>
           <td>${r.dluha}</td>
           <td>${r.dzuhur}</td>
           <td>${ev.jumlah}x (Rp ${ev.honor.toLocaleString()})</td>

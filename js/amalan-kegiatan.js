@@ -1523,7 +1523,8 @@ function v4HonorPengisiLain(ci) {
   const gk = (typeof honorSholatResolve === 'function') ? honorSholatResolve(ci.guruKey, ci.guruName) : (ci.guruKey || ci.guruName);
   const h = c.hari.find(x => x.tgl === tgl && x.jenis === jenis && x.guruKey === gk);
   if (!h || !h.pengisi || !h.pengisi.length) return '';
-  const lain = h.pengisi.filter(n => !v4ActSamaGuru(ci.guruKey, ci.guruName, '', n) && n !== ci.guruName);
+  const petugasHari = h.petugas || [];   // semua PJ/pengganti yang check-in hari itu (bukan hanya guru ini)
+  const lain = h.pengisi.filter(n => !v4ActSamaGuru(ci.guruKey, ci.guruName, '', n) && n !== ci.guruName && !petugasHari.includes(n));
   return lain.length ? '⚠ Absensi siswa diisi: ' + lain.join(', ') : '';
 }
 // Status honor satu check-in untuk Rincian per Hari: terhitung / belum (+alasan), dan penanda check-in di luar jendela jam.
@@ -1546,7 +1547,7 @@ function v4HonorSholatTerapkan(ym, hs) {
     entri.status = 'siap';
     entri.hari = Object.keys(e).map(k => {
       const x = e[k], alasan = x.koreksi ? ((x.koreksi.aksi === 'Hadir' ? 'Dihitung Admin' : 'Dicabut Admin') + (x.koreksi.alasan ? ': ' + x.koreksi.alasan : '')) : (x.alasanSistem || []).join('; ');
-      return { tgl: x.tgl, typeKey: '', typeName: '', jenis: x.jenis, guruKey: x.gk, guruName: x.nama, ok: !!x.lolos, kurang: [], alasan, pengisi: x.pengisi || [] };
+      return { tgl: x.tgl, typeKey: '', typeName: '', jenis: x.jenis, guruKey: x.gk, guruName: x.nama, ok: !!x.lolos, kurang: [], alasan, pengisi: x.pengisi || [], petugas: x.petugas || [] };
     }).sort((a, b) => (a.tgl < b.tgl ? -1 : a.tgl > b.tgl ? 1 : COLLATOR_ID.compare(a.guruName, b.guruName)));
   } else {
     entri.msg = (hs && hs.gagal) || 'Honor sholat belum siap.';
