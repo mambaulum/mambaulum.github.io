@@ -581,7 +581,7 @@
       try {
         doc.addFileToVFS('BookmanOldStyle-Regular.ttf', b[0]); doc.addFont('BookmanOldStyle-Regular.ttf', 'BookmanOldStyle', 'normal');
         doc.addFileToVFS('BookmanOldStyle-Bold.ttf', b[1]); doc.addFont('BookmanOldStyle-Bold.ttf', 'BookmanOldStyle', 'bold');
-        doc.setFont('BookmanOldStyle', 'normal'); return true;
+        doc.setFont('BookmanOldStyle', 'normal'); return doc.getFont().fontName === 'BookmanOldStyle';
       } catch (e) { console.warn('[SI MAMBA] Font Bookman gagal dipasang ke PDF:', e); try { toast('Font Bookman gagal dipasang ke PDF (' + (e && e.message || e) + '), memakai Arial.', true); } catch (_) {} return false; }
     });
   }
@@ -1042,7 +1042,8 @@
     if (S.yys) off = Math.max(0, kopYayasanPdf(doc, pw, logoYys) - 41);
     else off = Math.max(0, kopMadrasahPdf(doc, pw, logo) - 40);
 
-    if (JENIS_BOOKMAN.indexOf(jenis) >= 0) await pasangBookman(doc);   // naskah penetapan: Bookman Old Style (kop sudah tergambar dgn fontnya sendiri)
+    var fontBookman = null;
+    if (JENIS_BOOKMAN.indexOf(jenis) >= 0) fontBookman = await pasangBookman(doc);   // naskah penetapan: Bookman Old Style (kop sudah tergambar dgn fontnya sendiri)
     y = 50 + off;
     var perlu = function (h) { if (y + h > ph - 25) { doc.addPage(); y = 20; } };
     var tinggiHal = ph - 25 - 20;
@@ -1135,7 +1136,7 @@
 
     tandaiPencetakPdf(doc, mk);
     doc.save(JENIS[jenis].file + '_' + String(g.name).replace(/[^\w]+/g, '_') + '_' + tglLokal() + '.pdf');
-    toast('📥 Surat berhasil diunduh!'); addLog('download_surat_guru', JENIS[jenis].label + ' - ' + g.name);
+    toast('📥 Surat berhasil diunduh!' + (fontBookman === true ? ' (font: Bookman Old Style)' : (fontBookman === false ? ' (font: Arial — Bookman tidak terpasang, lihat pesan merah / console)' : '')), fontBookman === false, 4500); addLog('download_surat_guru', JENIS[jenis].label + ' - ' + g.name);
   }
 
 
