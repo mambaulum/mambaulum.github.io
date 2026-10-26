@@ -44,6 +44,11 @@
     return !!a && !!b && (a === b || a === PFX + b || PFX + a === b);
   }
   function tampil(n) { return PREFIX + n; }
+  // Kata khusus login Admin/Kepsek. Dikenali HANYA bila yang diketik persis "admin"/"kepsek" (tanpa awalan MAMBA-),
+  // dan tidak pernah dipakai sebagai kode guru (kodeBaru() melewatinya). Kode "MAMBA-ADMIN" dsb. tidak bisa lagi
+  // membelokkan login ke jalur Admin (jalur itu tetap menuntut PIN Admin, tapi guru pemilik kodenya jadi tak bisa masuk).
+  var RESERVED = { ADMIN: 1, KEPSEK: 1 };
+  function kataKhusus(teks) { var t = bersih(teks); return RESERVED[t] ? t : ''; }
   function acak() {
     var out = '', buf = new Uint8Array(1), lim = 256 - (256 % CHARS.length);
     while (out.length < LEN) { crypto.getRandomValues(buf); if (buf[0] < lim) out += CHARS[buf[0] % CHARS.length]; }
@@ -57,15 +62,19 @@
       var o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
     }
   }
-  function kodeBaru(dipakai) { var k; do { k = acak(); } while (dipakai[k]); dipakai[k] = 1; return tampil(k); }
+  function kodeBaru(dipakai) { var k; do { k = acak(); } while (dipakai[k] || RESERVED[k]); dipakai[k] = 1; return tampil(k); }
 
   // ---------- Layar login ----------
   function pasangLogin() {
     var sel = $('loginGuru'); if (!sel || $('loginKode')) return;
-    var blok = sel.parentElement && sel.parentElement.parentElement;
-    if (blok) blok.style.display = 'none';
+    // Sembunyikan blok "Pilih User" = anak langsung kartu login yang memuat <select>. Bila strukturnya tak dikenali
+    // (tidak ada .auth-card / blok memuat kolom PIN), sembunyikan <select>-nya saja -- jangan dibiarkan tampil.
+    var kartu0 = sel.closest('.auth-card'), blok = sel;
+    while (blok.parentElement && blok.parentElement !== kartu0 && blok.parentElement !== document.body) blok = blok.parentElement;
+    if (kartu0 && blok.parentElement === kartu0 && !blok.contains($('loginPIN'))) blok.style.display = 'none';
+    else { sel.style.display = 'none'; blok = sel; }
     var html = '<div style="margin-bottom:12px;"><label class="label">Kode Guru</label>' +
-      '<input id="loginKode" class="field" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" ' +
+      '<input id="loginKode" class="field" type="text" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" ' +
       'placeholder="' + PREFIX + 'XXXXX" maxlength="16">' +
       '<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Masukkan kode yang diberikan Admin. Admin/Kepsek: ketik admin atau kepsek.</div></div>';
     (blok || sel).insertAdjacentHTML('beforebegin', html);
@@ -76,6 +85,23 @@
     // Di kolom PIN: langsung login. Dulu Enter di kolom kode hanya memindahkan fokus, dan handler Enter di PIN
     // adalah atribut inline di index.html.
     var pin = $('loginPIN');
+    // Pengelola sandi Chrome/HP: kolom Kode = username, kolom PIN = password, dan keduanya berada dalam satu <form>.
+    // Dengan begitu memilih sandi tersimpan langsung mengisi KODE sekaligus PIN (sebelumnya autocomplete="off",
+    // tanpa name & tanpa form -> hanya PIN yang terisi / sandi tidak tersimpan dengan kodenya).
+    if (pin) {
+      pin.setAttribute('name', 'password'); pin.setAttribute('autocomplete', 'current-password');
+      var kw = inp.parentElement, card = pin.closest('.auth-card'), btn = card && card.querySelector('button.btn-primary[onclick*="login("]');
+      if (!$('loginForm') && kw && btn && kw.parentNode === btn.parentNode) {
+        var urut = [], n = kw;
+        while (n) { urut.push(n); if (n === btn) break; n = n.nextElementSibling; }
+        if (n === btn) {
+          var f = document.createElement('form'); f.id = 'loginForm'; f.setAttribute('autocomplete', 'on'); f.noValidate = true;
+          kw.parentNode.insertBefore(f, kw);
+          urut.forEach(function (x) { f.appendChild(x); });
+          f.addEventListener('submit', function (e) { e.preventDefault(); });   // login dijalankan tombol Masuk / Enter, bukan submit
+        }
+      }
+    }
     function enterLogin(e) {
       if (e.key !== 'Enter' || e.isComposing) return;
       e.preventDefault();
@@ -89,8 +115,8 @@
     });
     if (pin && !pin._enterLogin) { pin._enterLogin = true; pin.addEventListener('keydown', enterLogin); }
     inp.addEventListener('input', function () {          // matikan "Ingat Saya" begitu terketik admin/kepsek
-      var n = norm(inp.value);
-      if (n === 'ADMIN' || n === 'KEPSEK') { pastikanOpsi(sel, n.toLowerCase()); sel.value = n.toLowerCase(); }
+      var khusus = kataKhusus(inp.value);
+      if (khusus) { pastikanOpsi(sel, khusus.toLowerCase()); sel.value = khusus.toLowerCase(); }
       else sel.value = '';
       if (typeof sinkronRememberMe === 'function') sinkronRememberMe();
     });
@@ -119,13 +145,13 @@
     window.toast = bungkus;
   })();
 
-  var loginAsli = window.login;
+  var loginAsli = window.login, loginSeq = 0;
   window.login = function () {
     var inp = $('loginKode'), sel = $('loginGuru');
     if (!inp || !sel || typeof loginAsli !== 'function') return loginAsli && loginAsli.apply(this, arguments);
-    var n = norm(inp.value);
+    var khusus = kataKhusus(inp.value), n = khusus || norm(inp.value);
     if (!n) return toast('Isi kode guru!', true);
-    var istimewa = (n === 'ADMIN' || n === 'KEPSEK'), kodeSimpan = null;
+    var istimewa = !!khusus, kodeSimpan = null;
     if (istimewa) { pastikanOpsi(sel, n.toLowerCase()); sel.value = n.toLowerCase(); }
     else {
       if (!allGuru || !allGuru.length) return toast('Data belum siap, coba lagi sebentar.', true);
@@ -154,12 +180,15 @@
     // atau tab tertutup/reload tepat saat masuk, penyimpanan sesudahnya tidak pernah sempat jalan dan prefill
     // kode / "Ingat Saya" terasa tidak bekerja. Kode ini hanya sampai sini kalau cocok dengan seorang guru.
     // Kalau ternyata login gagal (PIN salah dsb.), nilai sebelumnya dipulihkan.
-    var kodeSebelumnya = null, adaSebelumnya = false;
+    var kodeSebelumnya = null, adaSebelumnya = false, seqSaya = ++loginSeq;
     if (!istimewa) {
       try { kodeSebelumnya = localStorage.getItem(LAST_KEY); adaSebelumnya = kodeSebelumnya !== null; localStorage.setItem(LAST_KEY, kodeSimpan || tampil(n)); } catch (e) {}
     }
     var pulihkan = function () {
       if (istimewa) return;
+      // Klik ganda / login lain sedang berjalan: biarkan login TERAKHIR yang memutuskan (dulu klik kedua yang langsung
+      // kembali tanpa login memulihkan nilai lama selagi login pertama masih memeriksa PIN).
+      if (seqSaya !== loginSeq || window._loginGuruSedangDiperiksa) return;
       try {
         if (typeof currentUser !== 'undefined' && currentUser) return;          // login sukses -> biarkan
         if (adaSebelumnya) localStorage.setItem(LAST_KEY, kodeSebelumnya); else localStorage.removeItem(LAST_KEY);
@@ -328,13 +357,25 @@
   var menunggu = null, klaim = {}, pollIv = null, POLL_MS = 1000, POLL_MAKS = 90;
   function hentikanPoll() { if (pollIv) { clearInterval(pollIv); pollIv = null; } }
 
+  // g.dibuat ditulis app.js sebagai ISO (new Date().toISOString()), tapi data impor/edit manual bisa berbentuk lain:
+  // angka epoch (detik/milidetik), "25/10/2026 08.30", dsb. Tak bergantung pada perilaku Date.parse tiap browser.
+  function waktuDibuat(v) {
+    if (typeof v === 'number') return v < 1e12 ? v * 1000 : v;
+    var t = String(v || '').trim(); if (!t) return NaN;
+    if (/^\d{9,13}$/.test(t)) { var n = +t; return n < 1e12 ? n * 1000 : n; }
+    var iso = Date.parse(t); if (!isNaN(iso)) return iso;
+    var m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})(?:[ T,]+(\d{1,2})[:.](\d{2}))?/);
+    if (m) return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime();
+    return NaN;
+  }
+
   function beriKodeGuruBaru() {
     if (!menunggu) return false;
     var mt = menunggu;
     var baru = (allGuru || []).filter(function (g) {
       if (mt.sebelum[g.key] || g.kode || klaim[g.key]) return false;
       if (mt.snapshotKosong) {                              // daftar belum termuat saat tambahUser dipanggil: jangan salah sasaran ke guru lama
-        var t = Date.parse(g.dibuat || ''); return !isNaN(t) && t >= mt.sejak - 5 * 60 * 1000;
+        var t = waktuDibuat(g.dibuat); return !isNaN(t) && t >= mt.sejak - 5 * 60 * 1000;
       }
       return true;
     });
@@ -373,16 +414,34 @@
       return hasil;
     };
   }
-  var loadGuruAsli = window.loadGuruListForLogin;
-  if (typeof loadGuruAsli === 'function' && !loadGuruAsli._kodeHook) {
-    window.loadGuruListForLogin = function (callback) {
-      return loadGuruAsli.call(this, function () {
+  // Hook kode-otomatis + backfill pada loadGuruListForLogin. Bisa dipanggil berulang: bila skrip lain menimpa fungsi ini
+  // setelah kita membungkusnya (hook hilang), pasangHookLoadGuru() memasangnya lagi (dipanggil juga dari pemeriksa berkala).
+  // Catatan: polling beriKodeGuruBaru() (mulaiMenunggu) tetap jadi jalur cadangan walau hook hilang.
+  function pasangHookLoadGuru() {
+    var asli = window.loadGuruListForLogin;
+    if (typeof asli !== 'function' || asli._kodeHook) return;
+    var bungkus = function (callback) {
+      return asli.call(this, function () {
         try { if (typeof callback === 'function') callback.apply(this, arguments); }
-        finally { setTimeout(function () { beriKodeGuruBaru(); perbaruiLencana(); }, 0); }
+        finally { setTimeout(function () { beriKodeGuruBaru(); perbaruiLencana(); backfillCacheKode(); }, 0); }
       });
     };
-    window.loadGuruListForLogin._kodeHook = true;
+    bungkus._kodeHook = true;
+    window.loadGuruListForLogin = bungkus;
   }
+  pasangHookLoadGuru();
+
+  // Logout: buang cache memori "Kode Login Saya" (kode milik guru sebelumnya tidak boleh tertinggal di memori/UI).
+  (function pasangHookLogout() {
+    var lo = window.logout;
+    if (typeof lo !== 'function' || lo._kodeHook) return;
+    var b = function () {
+      kodeSayaCache = {}; kodeSayaSedangBaca = {};
+      var k = $('kodeSayaCard'); if (k) k.style.display = 'none';
+      return lo.apply(this, arguments);
+    };
+    b._kodeHook = true; window.logout = b;
+  })();
 
   // Jaring pengaman terakhir: label tombol admin menampilkan jumlah guru yang belum punya kode.
   function perbaruiLencana() {
@@ -495,12 +554,13 @@
     }).catch(function () { return false; });
   }
   (function jadwalkanBackfill() {
-    var coba = 0, iv = setInterval(function () {            // allGuru dimuat async oleh app.js -> tunggu (maks ~30 dtk)
+    var coba = 0, iv = setInterval(function () {            // allGuru dimuat async oleh app.js -> tunggu (maks ~3 menit)
       coba++;
+      pasangHookLoadGuru();                                  // jaga hook tetap terpasang bila ditimpa skrip lain
       if (typeof allGuru !== 'undefined' && allGuru && allGuru.length && navigator.onLine) {
         clearInterval(iv); backfillCacheKode();
-      } else if (coba >= 20) clearInterval(iv);
-    }, 1500);
+      } else if (coba >= 60) clearInterval(iv);
+    }, 3000);
     window.addEventListener('online', function () { setTimeout(backfillCacheKode, 2500); });
   })();
 
