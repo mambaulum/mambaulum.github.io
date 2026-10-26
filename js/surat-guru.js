@@ -74,7 +74,7 @@
   // Penomoran otomatis mengikuti PMA 12/2026 (Tata Naskah Dinas): nomor urut/Kode Jabatan/Klasifikasi Arsip[/Kode Naskah]/bulan/tahun.
   // Ubah KODE & KLAS di sini bila madrasah memakai kode jabatan / klasifikasi arsip yang berbeda.
   var KODE = { kepala: 'MI-MU', yayasan: 'YPI-SU' };
-  var KLAS = { 'sk-pengangkatan': 'KP.01', 'ket-tmt': 'KP.01', 'sk-jadwal': 'KP.01', 'sk-tugas': 'KP.01', 'ket-aktif': 'KP.01', 'surat-tugas': 'KP.01', 'skmt': 'KP.01' };
+  var KLAS = { 'sk-pengangkatan': 'KP.01', 'ket-tmt': 'KP.01', 'sk-jadwal': 'KP.01', 'sk-tugas': 'KP.01', 'sk-tugas-semua': 'KP.01', 'ket-aktif': 'KP.01', 'surat-tugas': 'KP.01', 'skmt': 'KP.01' };
   // Kode klasifikasi arsip surat SISWA — pilihan di dropdown "Kode Klasifikasi Arsip" (halaman Surat & Ijin).
   // CATATAN: daftar ini kode INTERNAL madrasah (bukan kode resmi Kemenag). Silakan ubah/tambah baris di sini;
   // dropdown otomatis mengikuti. KLAS_BAWAAN_SISWA = kode yang dipakai bila dropdown dibiarkan "Otomatis".
@@ -128,6 +128,7 @@
     rujukan: { l: 'Dasar Penugasan — satu baris per butir (mis. surat undangan / program kerja)', t: 'area' },
     masa:    { l: 'Masa Berlaku SK', t: 'sel', o: [['', 'Tidak dibatasi (berlaku sampai ada keputusan baru)'], ['tahun', 'Per tahun kalender (1 Januari – 31 Desember)'], ['ta', 'Per tahun ajaran (1 Juli – 30 Juni)'], ['kustom', 'Atur tanggal sendiri (isi Tanggal Mulai & Selesai)']] },
     ketuaYys:{ l: 'Nama Ketua Yayasan (penandatangan SK)', t: 'text' },
+    tugasSemua:{ l: 'Tugas tambahan per guru (opsional) — satu baris per guru, format: Nama guru = tugas 1; tugas 2  (wali kelas terisi otomatis bila tercatat di data guru)', t: 'area' },
     tugasTbh:{ l: 'Tugas tambahan — satu baris per butir (mis. Wali Kelas IV, Pembina Pramuka, Operator Madrasah). Wali kelas terisi otomatis bila tercatat di data guru', t: 'area' },
     tembusan:{ l: 'Tembusan — satu baris per butir', t: 'area' }
   };
@@ -138,8 +139,10 @@
       f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk', 'keperluan'], wajib: ['tmt'] },
     'sk-jadwal': { label: 'SK Pembagian Jadwal Mengajar', file: 'SK_Jadwal_Mengajar',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'dasar', 'tembusan'], wajib: [] },
-    'sk-tugas': { label: 'SK Pembagian Tugas Guru', file: 'SK_Pembagian_Tugas',
+    'sk-tugas': { label: 'SK Pembagian Tugas Mengajar Guru dan Tugas Tambahan', file: 'SK_Pembagian_Tugas',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'tugasTbh', 'dasar', 'tembusan'], wajib: [] },
+    'sk-tugas-semua': { label: 'SK Pembagian Tugas Mengajar dan Tugas Tambahan — SEMUA Guru (satu SK, tabel)', file: 'SK_Pembagian_Tugas_Semua_Guru',
+      f: ['nomor', 'klas', 'tanggal', 'tugasSemua', 'dasar', 'tembusan'], wajib: [] },
     'ket-aktif': { label: 'Surat Keterangan Aktif Mengajar', file: 'Keterangan_Aktif_Mengajar',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'keperluan'], wajib: [] },
     'surat-tugas': { label: 'Surat Tugas', file: 'Surat_Tugas',
@@ -168,6 +171,7 @@
   function T(s) { return s ? s : TITIK; }
   function tempatSurat() { return (MADRASAH && MADRASAH.desa) ? MADRASAH.desa : 'Mambaul Ulum'; }
   function guruTerpilih() {
+    if ($('sg_jenis') && $('sg_jenis').value === 'sk-tugas-semua') return { key: '__semua', name: 'Semua Guru', semuaGuru: true };   // SK untuk semua guru: tanpa memilih guru
     var k = $('sg_guru') ? $('sg_guru').value : '';
     if (!k) return null;
     return (allGuru || []).filter(function (g) { return (g.key || g.name) === k; })[0] || null;
@@ -314,7 +318,7 @@
     isiNomor(true).then(function () { preview(true); });
     kosongkanPeg(); setStatusPeg(''); sesuaikan();           // kosongkan dulu supaya data guru sebelumnya tidak terbawa
     var g = guruTerpilih();
-    if (!g) { preview(true); return; }
+    if (!g || g.semuaGuru) { preview(true); return; }
     if (!g.key) { setStatusPeg('Guru ini tidak punya key; data kepegawaian tidak bisa disimpan permanen.', '#b45309'); preview(true); return; }
     var k = g.key, masihGuruIni = function () { var e = $('sg_guru'); return !!e && e.value === (g.key || g.name); };
     if (cachePeg[k]) { isiPeg(cachePeg[k]); setStatusPeg(infoPeg(cachePeg[k])); preview(true); return; }
@@ -333,6 +337,7 @@
   function simpanDataGuru() {
     if (!bolehGuru()) return toast('Hanya Admin & Kepala Madrasah!', true);
     var g = guruTerpilih(); if (!g) return toast('Pilih guru terlebih dahulu!', true);
+    if (g.semuaGuru) return toast('Pilih jenis surat lain dan satu guru untuk menyimpan data kepegawaian.', true);
     if (!g.key) return toast('Guru ini tidak punya key; data tidak bisa disimpan.', true);
     if (isBusy('simpanDataGuru')) return toast('Sedang menyimpan...', false, 1500);
     var d = ambil(), data = { updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, btn = $('btnSimpanDataGuru');
@@ -351,6 +356,7 @@
       var w = $('sg_w_' + k); if (w) w.style.display = j.f.indexOf(k) >= 0 ? '' : 'none';
     });
     if ($('sg_jenis').value === 'sk-pengangkatan') { var kus = $('sg_masa') && $('sg_masa').value === 'kustom'; ['mulai', 'selesai'].forEach(function (k) { var w2 = $('sg_w_' + k); if (w2) w2.style.display = kus ? '' : 'none'; }); }
+    { var semuaG = $('sg_jenis').value === 'sk-tugas-semua', sg = $('sg_guru'); if (sg && sg.parentElement) sg.parentElement.style.display = semuaG ? 'none' : ''; }
     var t = $('sg_tanggal'); if (t && !t.value) t.value = tglLokal();
     var tb = $('sg_tembusan'); if (tb && tb.dataset.edit !== '1') tb.value = tembusanDefault($('sg_jenis').value);
     var ds = $('sg_dasar'); if (ds && ds.dataset.edit !== '1') ds.value = dasarDefault($('sg_jenis').value);
@@ -358,7 +364,7 @@
   }
   // SK Pembagian Jadwal Mengajar: dasar hukum diringkas (tanpa akta yayasan, PP 55/2007, PP 74/2008, KMA 1006/2021 yang khusus pengangkatan).
   var DASAR_JADWAL = [0, 1, 4, 5, 9].map(function (i) { return DASAR_DEFAULT.split('\n')[i]; }).join('\n');
-  function dasarDefault(jenis) { return (jenis === 'sk-jadwal' || jenis === 'sk-tugas') ? DASAR_JADWAL : DASAR_DEFAULT; }
+  function dasarDefault(jenis) { return (jenis === 'sk-jadwal' || jenis === 'sk-tugas' || jenis === 'sk-tugas-semua') ? DASAR_JADWAL : DASAR_DEFAULT; }
   function tembusanDefault(jenis) {
     var kemenag = 'Kepala Kantor Kementerian Agama Kabupaten Jember';
     if (jenis === 'sk-pengangkatan') return [kemenag, 'Kepala ' + titleCase(MADRASAH.nama), 'Yang bersangkutan', 'Arsip'].join('\n');
@@ -560,7 +566,7 @@
   window.SGCetakOleh = { teks: teksPencetak, pdf: tandaiPencetakPdf };
   // FONT NASKAH PENETAPAN (PMA 12/2026: Bookman Old Style 12): SK Pengangkatan & SK Jadwal. File di fonts/ (subset Latin ~21 KB per gaya),
   // dimuat sekali per sesi. Gagal dimuat -> PDF tetap jadi memakai Arial.
-  var JENIS_BOOKMAN = ['sk-pengangkatan', 'sk-jadwal', 'sk-tugas'], bookmanB64 = null;
+  var JENIS_BOOKMAN = ['sk-pengangkatan', 'sk-jadwal', 'sk-tugas', 'sk-tugas-semua'], bookmanB64 = null;
   function bufKeB64(buf) {
     var b = new Uint8Array(buf), s = '', n = 0x8000;
     for (var i = 0; i < b.length; i += n) s += String.fromCharCode.apply(null, b.subarray(i, i + n));
@@ -673,7 +679,7 @@
   // ---------- Penomoran otomatis ----------
   var nomorToken = 0;
   function kodeJabatan(jenis) { return jenis === 'sk-pengangkatan' ? KODE.yayasan : KODE.kepala; }
-  function kategoriNomor(jenis) { if (jenis === 'surat-keluar') return 'B'; return (jenis === 'sk-pengangkatan' || jenis === 'sk-jadwal' || jenis === 'sk-tugas') ? 'SK' : (jenis === 'surat-tugas' ? 'ST' : 'SKET'); }
+  function kategoriNomor(jenis) { if (jenis === 'surat-keluar') return 'B'; return (jenis === 'sk-pengangkatan' || jenis === 'sk-jadwal' || jenis === 'sk-tugas' || jenis === 'sk-tugas-semua') ? 'SK' : (jenis === 'surat-tugas' ? 'ST' : 'SKET'); }
   function bagianTanggal(d) { var iso = d.tanggal || tglLokal(); return { yy: iso.slice(0, 4), mm: iso.slice(5, 7) }; }
   function kunciCounter(jenis, yy) { return 'nomor_surat/' + yy + '/' + (kodeJabatan(jenis) + '_' + kategoriNomor(jenis)).replace(/[^A-Za-z0-9_-]/g, '_'); }
   function susunNomor(jenis, n, d) {
@@ -805,14 +811,14 @@
         var jabKepT = 'KEPALA ' + mU, mapelT = [], tbh = (d.tugasTbh || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
         jadwal.forEach(function (j) { if (j.mapel && mapelT.indexOf(j.mapel) < 0) mapelT.push(j.mapel); });
         if (g.waliKelasOf && !tbh.some(function (x) { return /wali\s*kelas/i.test(x); })) tbh.unshift('Wali Kelas ' + g.waliKelasOf);
-        S.sk = true; S.judul = ['KEPUTUSAN', jabKepT]; S.tentang = ['PEMBAGIAN TUGAS GURU', 'TAHUN AJARAN ' + ta.toUpperCase()];
+        S.sk = true; S.judul = ['KEPUTUSAN', jabKepT]; S.tentang = ['PEMBAGIAN TUGAS MENGAJAR GURU DAN TUGAS TAMBAHAN', 'TAHUN AJARAN ' + ta.toUpperCase()];
         pembukaSK(jabKepT);
         B.push({ t: 'p', s: 'Menimbang :', b: true });
-        B.push({ t: 'ol', k: 'a.', s: 'bahwa untuk kelancaran penyelenggaraan pendidikan di ' + m + ' pada tahun ajaran ' + ta + ' perlu menetapkan pembagian tugas guru;' });
+        B.push({ t: 'ol', k: 'a.', s: 'bahwa untuk kelancaran penyelenggaraan pendidikan di ' + m + ' pada tahun ajaran ' + ta + ' perlu menetapkan pembagian tugas mengajar dan tugas tambahan guru;' });
         B.push({ t: 'ol', k: 'b.', s: 'bahwa guru yang namanya tercantum dalam keputusan ini dinilai memenuhi syarat untuk melaksanakan tugas tersebut;' });
         pushMengingat(B, d);
         B.push({ t: 'p', s: 'MEMUTUSKAN', b: true, c: true });
-        B.push({ t: 'p', s: 'Menetapkan : KEPUTUSAN ' + jabKepT + ' TENTANG PEMBAGIAN TUGAS GURU TAHUN AJARAN ' + ta.toUpperCase() + '.', b: true });
+        B.push({ t: 'p', s: 'Menetapkan : KEPUTUSAN ' + jabKepT + ' TENTANG PEMBAGIAN TUGAS MENGAJAR GURU DAN TUGAS TAMBAHAN TAHUN AJARAN ' + ta.toUpperCase() + '.', b: true });
         B.push({ t: 'p', s: 'KESATU : Menetapkan pembagian tugas kepada:' });
         B.push({ t: 'kv', r: kvGuru(g, d, false) });
         B.push({ t: 'p', s: 'KEDUA : Tugas pokok: ' + (d.jabatan || 'Guru') + (mapelT.length ? ' yang mengajar ' + mapelT.join(', ') : ' yang mengajar') + (kelasGuru(g, jadwal) ? ' di kelas ' + kelasGuru(g, jadwal) : '') +
@@ -824,6 +830,35 @@
         B.push({ t: 'p', s: (tbh.length ? 'KEEMPAT' : 'KETIGA') + ' : Guru yang bersangkutan wajib melaksanakan tugas dengan penuh tanggung jawab dan melaporkan pelaksanaannya kepada Kepala Madrasah.' });
         B.push({ t: 'p', s: (tbh.length ? 'KELIMA' : 'KEEMPAT') + ' : Keputusan ini mulai berlaku pada tanggal ditetapkan sampai dengan berakhirnya tahun ajaran tersebut.' });
         S.jadwalKosong = !jadwal.length;
+        break;
+      case 'sk-tugas-semua':
+        var jabKepS = 'KEPALA ' + mU, tambahan = {};
+        (d.tugasSemua || '').split('\n').forEach(function (ln) {
+          var i = ln.indexOf('='); if (i < 0) return;
+          var nm = ln.slice(0, i).trim(), ts = ln.slice(i + 1).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
+          if (nm && ts.length) tambahan[nm.toLowerCase()] = ts;
+        });
+        var barisS = (allGuru || []).slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); }).map(function (gg, i) {
+          var jd = jadwalGuru(gg), peta = {}, urut = [];
+          jd.forEach(function (j) { var m0 = j.mapel || '-'; if (!peta[m0]) { peta[m0] = []; urut.push(m0); } if (j.kelas && peta[m0].indexOf(j.kelas) < 0) peta[m0].push(j.kelas); });
+          var mengajar = urut.length ? urut.map(function (m0) { return m0 + (peta[m0].length ? ' (' + peta[m0].join(', ') + ')' : ''); }).join('; ') : '-';
+          var tb = (tambahan[String(gg.name || '').toLowerCase()] || []).slice();
+          if (gg.waliKelasOf && !tb.some(function (x) { return /wali\s*kelas/i.test(x); })) tb.unshift('Wali Kelas ' + gg.waliKelasOf);
+          return [String(i + 1), gg.name || '-', mengajar, jd.length ? String(jd.length) : '-', tb.length ? tb.join('; ') : '-'];
+        });
+        S.sk = true; S.judul = ['KEPUTUSAN', jabKepS]; S.tentang = ['PEMBAGIAN TUGAS MENGAJAR GURU DAN TUGAS TAMBAHAN', 'TAHUN AJARAN ' + ta.toUpperCase()];
+        pembukaSK(jabKepS);
+        B.push({ t: 'p', s: 'Menimbang :', b: true });
+        B.push({ t: 'ol', k: 'a.', s: 'bahwa untuk kelancaran penyelenggaraan pendidikan di ' + m + ' pada tahun ajaran ' + ta + ' perlu menetapkan pembagian tugas mengajar dan tugas tambahan guru;' });
+        B.push({ t: 'ol', k: 'b.', s: 'bahwa guru yang namanya tercantum dalam keputusan ini dinilai memenuhi syarat untuk melaksanakan tugas tersebut;' });
+        pushMengingat(B, d);
+        B.push({ t: 'p', s: 'MEMUTUSKAN', b: true, c: true });
+        B.push({ t: 'p', s: 'Menetapkan : KEPUTUSAN ' + jabKepS + ' TENTANG PEMBAGIAN TUGAS MENGAJAR GURU DAN TUGAS TAMBAHAN TAHUN AJARAN ' + ta.toUpperCase() + '.', b: true });
+        B.push({ t: 'p', s: 'KESATU : Menetapkan pembagian tugas mengajar dan tugas tambahan guru di ' + m + ' tahun ajaran ' + ta + ' sebagaimana tercantum pada tabel berikut:' });
+        B.push({ t: 'tabel', head: ['No', 'Nama Guru', 'Tugas Mengajar (Mata Pelajaran & Kelas)', 'Jam/ Minggu', 'Tugas Tambahan'],
+          rows: barisS.length ? barisS : [['-', 'Belum ada data guru', '', '', '']] });
+        B.push({ t: 'p', s: 'KEDUA : Guru yang bersangkutan wajib melaksanakan tugas dengan penuh tanggung jawab dan melaporkan pelaksanaannya kepada Kepala Madrasah.' });
+        B.push({ t: 'p', s: 'KETIGA : Keputusan ini mulai berlaku pada tanggal ditetapkan sampai dengan berakhirnya tahun ajaran tersebut.' });
         break;
       case 'ket-aktif':
         jadwal = jadwalGuru(g);
@@ -1051,7 +1086,7 @@
       } else if (b.t === 'tabel') {
         perlu(30);
         doc.autoTable({ startY: y, head: [b.head], body: b.rows, margin: { left: mk, right: mr, bottom: 25, top: 20 }, theme: 'grid',
-          styles: { fontSize: 10, cellPadding: 1.8, textColor: 0, lineColor: 0, lineWidth: 0.2 },
+          styles: { font: doc.getFont().fontName, fontSize: 10, cellPadding: 1.8, textColor: 0, lineColor: 0, lineWidth: 0.2 },
           headStyles: { fillColor: [235, 235, 235], textColor: 0, fontStyle: 'bold' } });
         y = doc.lastAutoTable.finalY + 6;
       }
