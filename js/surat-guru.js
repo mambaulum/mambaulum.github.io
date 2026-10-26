@@ -549,17 +549,41 @@
   function tandaiPencetakPdf(doc, xKiri) {
     var ph = doc.internal.pageSize.getHeight(), t = teksPencetak();
     for (var i = 1; i <= doc.getNumberOfPages(); i++) {
-      doc.setPage(i); doc.setFont(undefined, 'normal'); doc.setFontSize(7); doc.setTextColor(110);
+      doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(110);
       doc.text(t, xKiri, ph - 11);
     }
     doc.setTextColor(0);
   }
   window.SGCetakOleh = { teks: teksPencetak, pdf: tandaiPencetakPdf };
+  // FONT NASKAH PENETAPAN (PMA 12/2026: Bookman Old Style 12): SK Pengangkatan & SK Jadwal. File di fonts/ (subset Latin ~21 KB per gaya),
+  // dimuat sekali per sesi. Gagal dimuat -> PDF tetap jadi memakai Arial.
+  var JENIS_BOOKMAN = ['sk-pengangkatan', 'sk-jadwal'], bookmanB64 = null;
+  function bufKeB64(buf) {
+    var b = new Uint8Array(buf), s = '', n = 0x8000;
+    for (var i = 0; i < b.length; i += n) s += String.fromCharCode.apply(null, b.subarray(i, i + n));
+    return btoa(s);
+  }
+  function pasangBookman(doc) {
+    if (!bookmanB64) bookmanB64 = Promise.all(['regular', 'bold'].map(function (g) {
+      return fetch('fonts/bookman-old-style-' + g + '.ttf').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }).then(bufKeB64);
+    })).catch(function (e) { console.warn('[SI MAMBA] Font Bookman Old Style gagal dimuat, memakai Arial:', e); try { toast('Font Bookman tidak termuat (' + (e && e.message || e) + '), PDF memakai Arial. Pastikan folder fonts/ ikut diunggah.', true); } catch (_) {} bookmanB64 = null; return null; });
+    return bookmanB64.then(function (b) {
+      if (!b) return false;
+      try {
+        doc.addFileToVFS('BookmanOldStyle-Regular.ttf', b[0]); doc.addFont('BookmanOldStyle-Regular.ttf', 'BookmanOldStyle', 'normal');
+        doc.addFileToVFS('BookmanOldStyle-Bold.ttf', b[1]); doc.addFont('BookmanOldStyle-Bold.ttf', 'BookmanOldStyle', 'bold');
+        doc.setFont('BookmanOldStyle', 'normal'); return true;
+      } catch (e) { console.warn('[SI MAMBA] Font Bookman gagal dipasang ke PDF:', e); try { toast('Font Bookman gagal dipasang ke PDF (' + (e && e.message || e) + '), memakai Arial.', true); } catch (_) {} return false; }
+    });
+  }
   // Gaya kertas pratinjau = gaya PDF (Arial 12 pt, jarak baris ~6,3 mm, judul tebal 13 pt, kop selebar margin 2 cm).
   var SG_CSS = '.sgKertas{font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:6.3mm;color:#000;}' +
     '.sgKertas .judul-surat{text-align:center;font-weight:700;font-size:13pt;line-height:5.5mm;margin:0;}' +
     '.sgKertas .nomor-surat{text-align:center;font-weight:400;font-size:12pt;margin:0 0 3mm;}' +
-    '.sgKertas .body p{margin:0 0 2mm;}.sgKertas .kop-surat{margin-left:-10mm;}';
+    '.sgKertas .body p{margin:0 0 2mm;}.sgKertas .kop-surat{margin-left:-10mm;}' +
+    "@font-face{font-family:'Bookman Old Style';src:url('fonts/bookman-old-style-regular.ttf');font-weight:400;}" +
+    "@font-face{font-family:'Bookman Old Style';src:url('fonts/bookman-old-style-bold.ttf');font-weight:700;}" +
+    ".sgBookman,.sgBookman .judul-surat,.sgBookman .body,.sgBookman .footer{font-family:'Bookman Old Style',Bookman,'URW Bookman',serif;}";
   function bukaPratinjau(kertas) {
     var isi = $('suratPreview'); if (!isi) return;
     tutupPratinjau();
@@ -584,7 +608,7 @@
     var kertasEl = el('div', null, 'display:block;width:210mm;min-height:' + tinggi + 'mm;margin:0 auto;box-sizing:border-box;background:#fff;color:#000;text-align:left;padding:' + pad + ';' +
       "box-shadow:0 2px 12px rgba(0,0,0,.5);" +
       'background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(' + tinggi + 'mm - 1px),#cbd5e1 calc(' + tinggi + 'mm - 1px),#cbd5e1 ' + tinggi + 'mm);');
-    kertasEl.className = 'sgKertas';
+    kertasEl.className = 'sgKertas' + (guru && JENIS_BOOKMAN.indexOf(($('sg_jenis') || {}).value) >= 0 ? ' sgBookman' : '');
     kertasEl.innerHTML = isi.innerHTML;
     kertasEl.style.position = 'relative';
     var co = document.createElement('div'); co.className = 'sgCetakOleh'; co.textContent = teksPencetak();
@@ -616,7 +640,7 @@
     d.open();
     d.write('<!doctype html><html><head><meta charset="utf-8"><base href="' + document.baseURI + '"><title>Surat</title>' + css +
       '<style>@page{size:210mm ' + (f4 ? 330 : 297) + 'mm;margin:' + margin + '}html,body{margin:0;padding:0;background:#fff;}p,li,tr,img,.judul-surat,.nomor-surat,.footer{break-inside:avoid;page-break-inside:avoid;}p,li{orphans:2;widows:2;}' +
-      SG_CSS + '.sgFooterCetak{position:fixed;left:0;bottom:-9mm;font-size:7pt;line-height:1;color:#6b7280;}</style></head><body class="sgKertas">' + isiCetak + '<div class="sgFooterCetak">' + esc(teksPencetak()) + '</div></body></html>');
+      SG_CSS + '.sgFooterCetak{position:fixed;left:0;bottom:-9mm;font-size:7pt;line-height:1;color:#6b7280;}</style></head><body class="' + kertasEl.className + '">' + isiCetak + '<div class="sgFooterCetak">' + esc(teksPencetak()) + '</div></body></html>');
     d.close();
     var imgs = Array.prototype.slice.call(d.images || []);
     var tunggu = Promise.all(imgs.map(function (im) { return im.complete ? 1 : new Promise(function (r) { im.onload = im.onerror = r; }); }));
@@ -950,6 +974,7 @@
     if (S.yys) off = Math.max(0, kopYayasanPdf(doc, pw, logoYys) - 41);
     else off = Math.max(0, kopMadrasahPdf(doc, pw, logo) - 40);
 
+    if (JENIS_BOOKMAN.indexOf(jenis) >= 0) await pasangBookman(doc);   // naskah penetapan: Bookman Old Style (kop sudah tergambar dgn fontnya sendiri)
     y = 50 + off;
     var perlu = function (h) { if (y + h > ph - 25) { doc.addPage(); y = 20; } };
     var tinggiHal = ph - 25 - 20;

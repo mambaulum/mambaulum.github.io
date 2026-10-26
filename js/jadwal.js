@@ -10,6 +10,17 @@
     // ============================================================
     // JADWAL PELAJARAN
     // ============================================================
+    // ===== OPSI "SEMUA KELAS" di filter kelas =====
+    var JADWAL_SEMUA = '__semua';
+    function jadwalAdaSemua() { return document.getElementById('jadwalKelasFilter') && document.getElementById('jadwalKelasFilter').value === JADWAL_SEMUA; }
+    function jadwalPastikanOpsiSemua() {
+      const sel = document.getElementById('jadwalKelasFilter'); if (!sel) return;
+      if (!Array.prototype.some.call(sel.options, o => o.value === JADWAL_SEMUA)) {
+        const o = document.createElement('option'); o.value = JADWAL_SEMUA; o.textContent = '📋 Semua Kelas';
+        sel.insertBefore(o, sel.firstChild);
+      }
+    }
+    function jadwalDaftarKelas() { return (typeof KELAS_LIST !== 'undefined' && KELAS_LIST.length) ? KELAS_LIST.slice() : [...new Set(allJadwal.map(j => j.kelas))].sort(COLLATOR_ID.compare); }
     function populateJadwalGuruFilter() {
       // FIX: dulu opsi filter dibangun dari SET NAMA unik (allJadwal.map(j=>j.guru)) -- kalau ada
       // 2 guru bernama sama, cuma muncul 1 opsi di dropdown ini dan memilihnya menampilkan jadwal
@@ -85,9 +96,11 @@
       const filterGuru = document.getElementById('jadwalGuruFilter').value;
       const container = document.getElementById('jadwalTableWrapper');
       const isAdminUser = isAdmin();
+      jadwalPastikanOpsiSemua();
 
       document.getElementById('btnTambahJadwal').style.display = isAdminUser ? 'inline-flex' : 'none';
 
+      if (kelas === JADWAL_SEMUA) { renderJadwalSemuaKelas(hari, filterGuru); return; }
       let filtered = allJadwal.filter(j => j.kelas === kelas);
       if (jadwalView === 'permapel') { renderJadwalPerMapel(filtered, kelas); return; }
       if (filterGuru) {
@@ -154,6 +167,40 @@
 
       const paginationEl = document.getElementById('jadwalPagination');
       paginationEl.innerHTML = pagerHtml('jadwal', totalItems, totalPages, start, end, 'jadwal');
+    }
+    // Tampilan SEMUA KELAS. Harian = satu tabel (kolom Kelas) untuk hari terpilih; Mingguan & Per Mapel = blok per kelas.
+    function renderJadwalSemuaKelas(hari, filterGuru) {
+      const container = document.getElementById('jadwalTableWrapper'), pag = document.getElementById('jadwalPagination');
+      const isAdminUser = isAdmin(), kelasList = jadwalDaftarKelas();
+      const guruSelect = document.getElementById('jadwalGuruFilter');
+      const filterGuruNama = guruSelect && guruSelect.selectedIndex > 0 ? guruSelect.options[guruSelect.selectedIndex].textContent : '';
+      const pakaiGuru = j => !filterGuru || (j.guruKey || j.guru) === filterGuru;
+      if (jadwalView === 'harian') {
+        const urutKelas = k => { const i = kelasList.indexOf(k); return i < 0 ? 999 : i; };
+        const filtered = allJadwal.filter(j => j.hari === hari && pakaiGuru(j)).sort((a, b) => urutKelas(a.kelas) - urutKelas(b.kelas) || (a.jam || 0) - (b.jam || 0));
+        if (!filtered.length) { container.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">Tidak ada jadwal untuk filter ini.</p>'; pag.innerHTML = ''; return; }
+        const ps = pagerSize('jadwal') || filtered.length || 1, totalPages = Math.max(1, Math.ceil(filtered.length / ps));
+        if (jadwalPage > totalPages) jadwalPage = totalPages; if (jadwalPage < 1) jadwalPage = 1;
+        const start = (jadwalPage - 1) * ps, end = Math.min(start + ps, filtered.length);
+        let html = `<p class="text-muted" style="font-size:12px;margin-bottom:8px;">📋 Semua kelas &bull; hari <strong>${escapeHtml(hari)}</strong></p><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr style="background:#f3f4f6;"><th style="padding:10px 12px;text-align:left;">Kelas</th><th style="padding:10px 12px;text-align:left;">Jam ke-</th><th style="padding:10px 12px;text-align:left;">Waktu</th><th style="padding:10px 12px;text-align:left;">Mata Pelajaran</th><th style="padding:10px 12px;text-align:left;">Guru</th>${isAdminUser ? '<th style="padding:10px 12px;text-align:center;width:100px;">Aksi</th>' : ''}</tr></thead><tbody>`;
+        filtered.slice(start, end).forEach(j => {
+          const waktu = jamSettings[j.jam] ? `${jamSettings[j.jam].mulai} - ${jamSettings[j.jam].selesai}` : '-';
+          const aksi = isAdminUser ? `<td style="padding:8px 12px;text-align:center;" class="jadwal-actions"><button class="btn btn-edit" style="padding:2px 10px;font-size:11px;" onclick="editJadwal('${j.key}')">✏️</button> <button class="btn btn-danger" style="padding:2px 10px;font-size:11px;" onclick="hapusJadwal('${j.key}')">🗑️</button></td>` : '';
+          html += `<tr class="jadwal-item"><td style="padding:8px 12px;font-weight:600;">${escapeHtml(j.kelas || '-')}</td><td style="padding:8px 12px;font-weight:600;">${j.jam || '-'}</td><td class="text-medium" style="padding:8px 12px;">${waktu}</td><td style="padding:8px 12px;">${escapeHtml(j.mapel || '-')}</td><td style="padding:8px 12px;">${escapeHtml(j.guru || '-')}</td>${aksi}</tr>`;
+        });
+        container.innerHTML = html + '</tbody></table></div>';
+        pag.innerHTML = pagerHtml('jadwal', filtered.length, totalPages, start, end, 'jadwal');
+        return;
+      }
+      // Mingguan / Per Mapel: gambar tiap kelas dengan fungsi tampilan satu-kelas yang sama, lalu gabungkan.
+      let gabung = '';
+      kelasList.forEach(k => {
+        const dk = allJadwal.filter(j => j.kelas === k);
+        if (jadwalView === 'permapel') renderJadwalPerMapel(dk, k);
+        else renderJadwalMingguan(dk.filter(pakaiGuru), k, filterGuruNama);
+        gabung += `<h4 style="margin:18px 0 8px;">${escapeHtml(k)}</h4>` + container.innerHTML;
+      });
+      container.innerHTML = gabung; pag.innerHTML = '';
     }
     function renderJadwalMingguan(filtered, kelas, filterGuru) {
       const container = document.getElementById('jadwalTableWrapper');
@@ -270,7 +317,7 @@
       document.getElementById('jadwalFormContainer').style.display = 'block';
       document.getElementById('jadwalFormTitle').textContent = '➕ Tambah Jadwal';
       document.getElementById('editJadwalKey').value = '';
-      document.getElementById('jadwalFormKelas').value = document.getElementById('jadwalKelasFilter').value;
+      { const kf = document.getElementById('jadwalKelasFilter').value; document.getElementById('jadwalFormKelas').value = kf === JADWAL_SEMUA ? (jadwalDaftarKelas()[0] || '') : kf; }
       document.getElementById('jadwalFormHari').value = document.getElementById('jadwalHariFilter').value;
       document.getElementById('jadwalFormJam').value = '1';
       document.getElementById('jadwalFormMapel').value = '';
@@ -336,18 +383,25 @@
     }
     function exportJadwalPDF() {
       const kelas = document.getElementById('jadwalKelasFilter').value, hari = document.getElementById('jadwalHariFilter').value;
-      const filtered = allJadwal.filter(j => j.kelas === kelas && j.hari === hari);
-      filtered.sort((a, b) => (a.jam || 0) - (b.jam || 0));
-      if (filtered.length === 0) return toast(`Tidak ada jadwal untuk ${kelas} - ${hari}`, true);
+      const semua = kelas === JADWAL_SEMUA, kl = jadwalDaftarKelas(), urutK = k => { const i = kl.indexOf(k); return i < 0 ? 999 : i; };
+      const filtered = allJadwal.filter(j => (semua || j.kelas === kelas) && j.hari === hari);
+      filtered.sort((a, b) => (semua ? urutK(a.kelas) - urutK(b.kelas) : 0) || (a.jam || 0) - (b.jam || 0));
+      if (filtered.length === 0) return toast(`Tidak ada jadwal untuk ${semua ? 'semua kelas' : kelas} - ${hari}`, true);
       const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth();
       doc.setFontSize(18); doc.text('JADWAL PELAJARAN', pageWidth/2, 20, { align: 'center' });
-      doc.setFontSize(14); doc.text(`Kelas ${kelas} - ${hari}`, pageWidth/2, 30, { align: 'center' });
+      doc.setFontSize(14); doc.text(`${semua ? 'Semua Kelas' : 'Kelas ' + kelas} - ${hari}`, pageWidth/2, 30, { align: 'center' });
       doc.setFontSize(10); doc.text(`Dicetak: ${new Date().toLocaleString()}`, pageWidth - 20, 38, { align: 'right' });
       doc.line(20, 42, pageWidth - 20, 42);
-      const rows = filtered.map(j => { const waktu = jamSettings[j.jam] ? `${jamSettings[j.jam].mulai} - ${jamSettings[j.jam].selesai}` : '-'; return [`Jam ke-${j.jam}`, waktu, j.mapel || '-', j.guru || '-']; });
-      doc.autoTable({ startY: 48, head: [['Jam ke-', 'Waktu', 'Mata Pelajaran', 'Guru']], body: rows, theme: 'striped', styles: { fontSize: 10 }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 11, fontStyle: 'bold' }, margin: { left: 15, right: 15 } });
-      doc.save(`Jadwal_${kelas}_${hari}.pdf`); toast('📥 Jadwal berhasil diunduh!');
+      const rows = filtered.map(j => { const waktu = jamSettings[j.jam] ? `${jamSettings[j.jam].mulai} - ${jamSettings[j.jam].selesai}` : '-'; const b = [`Jam ke-${j.jam}`, waktu, j.mapel || '-', j.guru || '-']; return semua ? [j.kelas || '-'].concat(b) : b; });
+      doc.autoTable({ startY: 48, head: [semua ? ['Kelas', 'Jam ke-', 'Waktu', 'Mata Pelajaran', 'Guru'] : ['Jam ke-', 'Waktu', 'Mata Pelajaran', 'Guru']], body: rows, theme: 'striped', styles: { fontSize: 10 }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 11, fontStyle: 'bold' }, margin: { left: 15, right: 15 } });
+      doc.save(`Jadwal_${semua ? 'Semua_Kelas' : kelas}_${hari}.pdf`); toast('📥 Jadwal berhasil diunduh!');
     }
 
 // Pembungkus pemuat PDF malas (fungsi pembungkusnya didefinisikan di app.js, bagian "EXPORT PDF/EXCEL").
 if (typeof simambaBungkusExportLazy === 'function') simambaBungkusExportLazy([['exportJadwalPDF', 'pdf', 'PDF']]);
+
+// Opsi "Semua Kelas" ikut dipasang kembali setiap kali app.js membangun ulang dropdown kelas.
+if (typeof refreshAllKelasDropdowns === 'function') {
+  const _refreshAsli = refreshAllKelasDropdowns;
+  refreshAllKelasDropdowns = function () { const r = _refreshAsli.apply(this, arguments); try { jadwalPastikanOpsiSemua(); } catch (e) {} return r; };
+}
