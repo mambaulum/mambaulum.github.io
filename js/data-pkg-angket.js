@@ -29,7 +29,7 @@
       judul: 'Angket Peserta Didik',
       sasaran: 'Peserta didik kelas 4\u20136 (kelas 1\u20133 dibacakan oleh guru lain, bukan guru yang dinilai)',
       pembuka: 'Jawablah sesuai yang kamu rasakan dan alami. Ini bukan ulangan, tidak ada jawaban benar atau salah. Gurumu tidak akan melihat jawaban pribadimu. Madrasah hanya mencatat apakah tautanmu sudah dipakai, bukan isi jawabanmu.',
-      min: 10,
+      min: 2,                          // minimal 2 responden; lebih dari itu dianggap bonus
       butir: [
         b('S1', 'Guruku membuat aku semangat belajar, misalnya dengan cerita, permainan, atau pujian.', '2.4'),
         b('S2', 'Guruku memakai cara yang berbeda-beda supaya aku tidak bosan.', '2.4'),
@@ -49,7 +49,7 @@
       judul: 'Angket Orang Tua / Komite Madrasah',
       sasaran: 'Orang tua peserta didik atau anggota komite madrasah',
       pembuka: 'Mohon jawab sesuai yang Bapak/Ibu ketahui sendiri. Pilih \u201cTidak tahu\u201d bila belum pernah mengalami atau mengetahuinya. Madrasah hanya mencatat sudah atau belum mengisi; jawaban hanya ditampilkan sebagai rekap, tidak per orang.',
-      min: 5,
+      min: 2,                          // minimal 2 responden; lebih dari itu dianggap bonus
       butir: [
         b('O1', 'Guru menyampaikan perkembangan belajar anak saya (lewat rapor, WhatsApp, buku penghubung, atau pertemuan).', '12.1', { x: true }),
         b('O2', 'Guru memberi tahu saya jika anak saya mengalami kesulitan, dan juga menyampaikan kelebihannya.', '12.1', { x: true }),
@@ -155,5 +155,5 @@
     return { nSiswa: rs.length, baris: baris };
   }
 
-  root.PKG_ANGKET = { versi: 3, pilihan: PILIHAN, nilai: NILAI, ambang: AMBANG, jenis: JENIS, urut: ['siswa', 'ortu', 'sejawat'], hitung: hitung, diri: DIRI, banding: banding };
+  root.PKG_ANGKET = { versi: 4, pilihan: PILIHAN, nilai: NILAI, ambang: AMBANG, jenis: JENIS, urut: ['siswa', 'ortu', 'sejawat'], hitung: hitung, diri: DIRI, banding: banding };
 })(typeof window !== 'undefined' ? window : this);

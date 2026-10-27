@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg-sumber.js  (v2 - disesuaikan dengan struktur asli app.js; v8: absensi menampilkan hari tanpa catatan dan tidak mengusulkan skor bila hadir 0 tetapi ada hari tanpa catatan; v9: sumber baru tugasadm untuk indikator 10.5; v10: sumber baru rapat untuk indikator 12.2; v11: RPE ikut dihitung pada indikator 13.2; v12: tugasadm menyertakan penunjukan sebagai PJ kegiatan Amalan Yaumiyah)
+   SI MAMBA - js/pkg-sumber.js  (v14: Alpha di hari libur/tanpa jadwal tidak dihitung, Izin/Sakit di hari tanpa jadwal juga dibuang; v13: hari efektif absensi hanya hari berjadwal guru; v2 - disesuaikan dengan struktur asli app.js; v8: absensi menampilkan hari tanpa catatan dan tidak mengusulkan skor bila hadir 0 tetapi ada hari tanpa catatan; v9: sumber baru tugasadm untuk indikator 10.5; v10: sumber baru rapat untuk indikator 12.2; v11: RPE ikut dihitung pada indikator 13.2; v12: tugasadm menyertakan penunjukan sebagai PJ kegiatan Amalan Yaumiyah; v13: absensi mengembalikan perInd (10.1 tepat waktu, 10.3 kehadiran, 10.4 izin/sakit vs alpa dipisah), jurnal dipotong dengan tanggalHadir dan 7.4 dikeluarkan dari indikator jurnal)
    Pembaca data SI MAMBA yang dijadikan BUKTI OTOMATIS untuk menu "PKG Guru" (js/pkg.js):
      1) absensi guru    -> kehadiran, keterlambatan, izin/sakit/alpa
      2) jurnal mengajar -> jumlah jurnal dan hari berjurnal dibanding hari hadir
@@ -42,7 +42,7 @@
     hariLiburMingguan: [0],            // 0 = Minggu (sama dengan penanda Alpha otomatis di app.js: Senin-Sabtu)
     fieldNilai: ['h1', 'h2', 'h3', 'mid', 'pas'],
     // Ambang usulan skor (persen). Penilai tetap memutuskan.
-    ambang: { hadirBaik: 90, hadirCukup: 75, jurnalBaik: 85, jurnalCukup: 60, nilaiLengkap: 80, kkm: 70, bukuBaik: 4, bukuCukup: 1, kegiatanBaik: 3, tikCukup: 1, refleksiMin: 30 },   // buku*: catatan per bulan; kegiatanBaik: jumlah kegiatan berbeda
+    ambang: { hadirBaik: 90, hadirCukup: 75, tepatBaik: 90, tepatCukup: 75, izinBaik: 90, izinCukup: 75, jurnalBaik: 85, jurnalCukup: 60, nilaiLengkap: 80, kkm: 70, bukuBaik: 4, bukuCukup: 1, kegiatanBaik: 3, tikCukup: 1, refleksiMin: 30 },   // buku*: catatan per bulan; kegiatanBaik: jumlah kegiatan berbeda
     petugasMulai: '2026-10-15',        // check-in petugas shalat via QR berlaku sejak tanggal ini (sama dengan HONOR_SHOLAT_MULAI_CHECKIN di app.js; data sebelumnya tidak ada)
     maksBaca: 5000                     // batas baca node nilai bila tahun ajaran tidak diketahui
   };
@@ -71,6 +71,20 @@
       out.push(t);
     }
     return out;
+  }
+  // v13: hari mengajar guru dari jadwal (allJadwal di app.js). Hari tanpa jadwal tidak dihitung sebagai hari efektif guru itu,
+  // sehingga Alpha otomatis / "tanpa catatan" di hari tanpa jadwal tidak menurunkan kehadiran. null = jadwal tidak terbaca (pakai cara lama).
+  var NAMA_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  function hariJadwalGuru(ctx) {
+    var all = (typeof allJadwal !== 'undefined' && Array.isArray(allJadwal)) ? allJadwal : [];
+    if (!all.length) return null;
+    var b = normNama(ctx.guruNama), set = {}, n = 0;
+    all.forEach(function (j) {
+      if (!obj(j) || !j.hari) return;
+      var milik = j.guruKey ? j.guruKey === ctx.guruKey : (!!b && normNama(j.guru) === b);
+      if (milik) { set[j.hari] = 1; n++; }
+    });
+    return n ? set : null;
   }
   function parseAngka(v) {
     if (typeof v === 'number') return isFinite(v) ? v : null;
@@ -109,11 +123,20 @@
   // Utamakan kueri per guru (guruKey): hanya rekaman guru ini yang diunduh. Bila tidak ada hasil (catatan lama tanpa
   // guruKey, atau indeks belum dipasang lalu kueri ditolak), jatuh ke cara lama: unduh rentang tanggal lalu saring.
   function bacaGuru(db, path, ctx, dari, sampai) {
-    return db.ref(path).orderByChild('guruKey').equalTo(ctx.guruKey).once('value').then(function (s) {
+    // v13: hasil kueri guruKey SELALU digabung dengan catatan lama tanpa guruKey (dicocokkan lewat nama, titik/spasi diabaikan),
+    // supaya catatan lama tidak hilang begitu ada satu catatan baru ber-guruKey. Rentang tanggal terindeks (tanggal) dan dibatasi periode.
+    var b = normNama(ctx.guruNama);
+    var perKunci = db.ref(path).orderByChild('guruKey').equalTo(ctx.guruKey).once('value').then(function (s) {
       var arr = []; if (s.exists()) s.forEach(function (c) { var v = c.val(); if (obj(v) && v.tanggal >= dari && v.tanggal <= sampai) { v.__key = c.key; arr.push(v); } });
       return arr;
-    }).then(function (arr) { return arr.length ? arr : bacaRentang(db, path, dari, sampai); },
-            function () { return bacaRentang(db, path, dari, sampai); });
+    }, function () { return null; });
+    var perRentang = b ? bacaRentang(db, path, dari, sampai).catch(function () { return []; }) : Promise.resolve([]);
+    return Promise.all([perKunci, perRentang]).then(function (h) {
+      var kunci = h[0], lama = h[1].filter(function (v) { return !v.guruKey && normNama(v.guru) === b; });
+      if (kunci === null) return bacaRentang(db, path, dari, sampai);   // kueri guruKey ditolak (indeks belum ada): cara lama
+      var ada = {}; kunci.forEach(function (v) { ada[v.__key] = 1; });
+      return kunci.concat(lama.filter(function (v) { return !ada[v.__key]; }));
+    });
   }
 
   // ---------- 1) absensi guru ----------
@@ -125,9 +148,21 @@
       if (!semua.length) return { ok: false, alasan: 'Absensi guru: node ' + CFG.path.absensi + ' tidak punya catatan pada rentang ' + ctx.dari + ' s.d. ' + batas + ' (belum ada yang absen, atau rentang di luar tahun ajaran).' };
       var milik = semua.filter(function (r) { return milikGuru(r, ctx); });
       if (!milik.length) return { ok: false, alasan: 'Absensi guru: ada ' + semua.length + ' catatan pada rentang ini, tetapi tidak satu pun atas nama guru ini (kunci ' + ctx.guruKey + (ctx.guruNama ? ', nama ' + ctx.guruNama : '') + '). Periksa apakah guru ini memang memakai absensi QR.' };
-      var efektif = hariEfektif(ctx.dari, batas, kal.libur), ef = {}, perTgl = {}, diabaikan = 0;
+      var efektif = hariEfektif(ctx.dari, batas, kal.libur), ef = {}, perTgl = {}, diabaikan = 0, tanpaJadwal = 0, alphaDibuang = 0;
+      // v13/v14: hanya hari berjadwal yang dihitung. Hari tanpa jadwal tetap dihitung bila guru tercatat Datang (mis. mewakili);
+      // Izin, Sakit, Alpha, atau "tanpa catatan" di hari tanpa jadwal dibuang. Alpha di hari libur (mingguan/kalender) juga dibuang.
+      var hj = hariJadwalGuru(ctx);
+      if (hj) {
+        var adaHadirTgl = {};
+        milik.forEach(function (r) { if (r.tanggal && r.type === 'Datang') adaHadirTgl[r.tanggal] = 1; });   // v14: hanya Datang (mis. mewakili) yang mempertahankan hari tanpa jadwal; Izin/Sakit/Alpha di hari itu dibuang
+        efektif = efektif.filter(function (t) {
+          var h = NAMA_HARI[new Date(t + 'T00:00:00').getDay()];
+          if (hj[h] || adaHadirTgl[t]) return true;
+          tanpaJadwal++; return false;
+        });
+      }
       efektif.forEach(function (t) { ef[t] = 1; });
-      milik.forEach(function (r) { if (!r.tanggal || !ef[r.tanggal]) { diabaikan++; return; } (perTgl[r.tanggal] = perTgl[r.tanggal] || []).push(r); });
+      milik.forEach(function (r) { if (!r.tanggal || !ef[r.tanggal]) { if (r.tanggal && r.type === 'Alpha') alphaDibuang++; else diabaikan++; return; } (perTgl[r.tanggal] = perTgl[r.tanggal] || []).push(r); });
       var today = hariIni();
       // hari ini yang belum punya catatan belum bisa dihitung (hari belum selesai; Alpha ditandai sistem untuk hari lampau)
       if (ef[today] && !perTgl[today]) { delete ef[today]; efektif = efektif.filter(function (t) { return t !== today; }); }
@@ -142,24 +177,46 @@
         else c.tanpaCatatan++;
       });
       var n = efektif.length, p = pct(c.hadir, n), A = CFG.ambang, perkiraan = !kal.diketahui;
-      var saran = (perkiraan || n === 0) ? null : (p >= A.hadirBaik ? 2 : (p >= A.hadirCukup ? 1 : 0));
+      var saran103 = (perkiraan || n === 0) ? null : (p >= A.hadirBaik ? 2 : (p >= A.hadirCukup ? 1 : 0));
       // v8: tidak ada satu pun catatan Datang. Bila masih ada hari tanpa catatan apa pun, kemungkinan data absensi tidak terbaca atas nama guru ini
       // (kunci/nama berbeda, atau guru tidak memakai absensi QR), sehingga skor 0 dari persen kehadiran bisa merugikan guru: usulan dikosongkan.
       var hadirNol = n > 0 && c.hadir === 0, tanpaUsulan = hadirNol && c.tanpaCatatan > 0;
-      if (tanpaUsulan) saran = null;
+      if (tanpaUsulan) saran103 = null;
+      // v13: usulan dipisah per indikator (hasil.perInd), karena tiga indikator ini mengukur hal berbeda:
+      //   10.1 tepat waktu    -> hari hadir tanpa catatan terlambat / hari hadir
+      //   10.3 memenuhi jam   -> hari hadir / hari efektif (rumus lama)
+      //   10.4 izin & kabar   -> izin+sakit tercatat / (izin+sakit+alpa); tanpa ketidakhadiran sama sekali = 2
+      var tepat = c.hadir - c.terlambat, pTepat = pct(tepat, c.hadir);
+      var tidakHadir = c.izin + c.sakit + c.alpa, pIzin = pct(c.izin + c.sakit, tidakHadir);
+      var pakai = !(perkiraan || n === 0 || tanpaUsulan);
+      var saran101 = (pakai && c.hadir > 0) ? (pTepat >= A.tepatBaik ? 2 : (pTepat >= A.tepatCukup ? 1 : 0)) : null;
+      var saran104 = null;
+      if (pakai) { if (tidakHadir > 0) saran104 = pIzin >= A.izinBaik ? 2 : (pIzin >= A.izinCukup ? 1 : 0); else if (c.tanpaCatatan === 0) saran104 = 2; }
+      var perInd = { '10_1': saran101, '10_3': saran103, '10_4': saran104 };
       ctx.hari = { efektif: n, hadir: c.hadir, tanggalHadir: tglHadir, perkiraan: perkiraan };
-      var rincian = ['Rentang: ' + ctx.dari + ' s.d. ' + batas + (batas !== ctx.sampai ? ' (dipotong sampai hari ini)' : ''), 'Sumber data: ' + CFG.path.absensi + '; hari efektif = Senin-Sabtu dikurangi libur di kalender akademik'];
+      var rincian = ['Rentang: ' + ctx.dari + ' s.d. ' + batas + (batas !== ctx.sampai ? ' (dipotong sampai hari ini)' : ''), 'Sumber data: ' + CFG.path.absensi + '; hari efektif = hari berjadwal guru (Senin-Sabtu) dikurangi libur di kalender akademik'];
+      if (pakai) {
+        var tt = function (s) { return s == null ? 'tanpa usulan' : 'usulan ' + s; };
+        rincian.unshift(
+          '10.1 Tepat waktu → ' + tt(saran101) + ': ' + (c.hadir ? tepat + ' dari ' + c.hadir + ' hari hadir tanpa terlambat = ' + f1(pTepat) + '% (≥' + A.tepatBaik + '% → 2; ' + A.tepatCukup + '–' + (A.tepatBaik - 0.1) + '% → 1)' : 'tidak ada hari hadir'),
+          '10.3 Memenuhi jam mengajar → ' + tt(saran103) + ': hadir ' + c.hadir + ' dari ' + n + ' hari efektif = ' + f1(p) + '%',
+          '10.4 Izin & pemberitahuan → ' + tt(saran104) + ': ' + (tidakHadir ? 'izin/sakit tercatat ' + (c.izin + c.sakit) + ', alpa ' + c.alpa + ' = ' + f1(pIzin) + '% ber-izin; kebenaran alasan/surat dinilai penilai' : (saran104 == null ? 'tidak ada izin/sakit/alpa, tetapi ' + c.tanpaCatatan + ' hari tanpa catatan' : 'tidak ada hari tidak hadir'))
+        );
+      }
       if (c.tanpaPulang) rincian.push('Hari hadir tanpa absen Pulang: ' + c.tanpaPulang);
       if (c.tanpaCatatan) rincian.push('Hari efektif tanpa catatan apa pun (belum ditandai Alpha oleh sistem): ' + c.tanpaCatatan);
       if (hadirNol) rincian.push('Peringatan: tidak ada satu pun catatan Datang atas nama guru ini pada rentang ini. Periksa apakah guru ini memakai absensi QR dan apakah kunci guru (' + ctx.guruKey + ') sama dengan yang tercatat di ' + CFG.path.absensi + ' sebelum memakai angka ini sebagai bukti.');
+      if (alphaDibuang) rincian.push('Alpha di hari libur atau hari tanpa jadwal mengajar tidak dihitung: ' + alphaDibuang + ' catatan');
       if (diabaikan) rincian.push('Catatan di hari libur/Minggu tidak dihitung: ' + diabaikan);
+      if (hj && tanpaJadwal) rincian.push('Hari tanpa jadwal mengajar guru ini tidak dihitung sebagai hari efektif (Alpha di hari tersebut diabaikan): ' + tanpaJadwal + ' hari');
+      if (!hj) rincian.push('Peringatan: jadwal mengajar guru ini tidak terbaca (allJadwal kosong / belum dimuat), jadi semua hari Senin-Sabtu dihitung efektif.');
       if (perkiraan) rincian.push('Peringatan: ' + kal.catatan + ', jadi libur tidak diketahui dan hari efektif hanya perkiraan.');
       return {
-        ok: true, path: CFG.path.absensi, saran: saran,
-        dasar: perkiraan ? 'Tidak ada usulan skor: ' + kal.catatan + ', sehingga hari efektif tidak bisa dipastikan.' : (tanpaUsulan ? 'Tidak ada usulan skor: tidak ada catatan Datang sama sekali dan ' + c.tanpaCatatan + ' hari efektif tanpa catatan, sehingga data absensi perlu diperiksa dulu (penilai menetapkan skor).' : n === 0 ? 'Tidak ada hari efektif pada rentang ini.' : 'Kehadiran ≥' + A.hadirBaik + '% → 2; ' + A.hadirCukup + '–' + (A.hadirBaik - 0.1) + '% → 1; di bawahnya → 0'),
+        ok: true, path: CFG.path.absensi, saran: null, perInd: perInd,   // saran tunggal dikosongkan: usulan per indikator ada di perInd (pkg.js memakai perInd lebih dulu)
+        dasar: perkiraan ? 'Tidak ada usulan skor: ' + kal.catatan + ', sehingga hari efektif tidak bisa dipastikan.' : (tanpaUsulan ? 'Tidak ada usulan skor: tidak ada catatan Datang sama sekali dan ' + c.tanpaCatatan + ' hari efektif tanpa catatan, sehingga data absensi perlu diperiksa dulu (penilai menetapkan skor).' : n === 0 ? 'Tidak ada hari efektif pada rentang ini.' : 'Usulan per indikator: 10.1 hadir tanpa telat ÷ hari hadir; 10.3 hadir ÷ hari efektif; 10.4 izin+sakit ÷ (izin+sakit+alpa). Ambang ≥90% → 2; 75–89,9% → 1; di bawahnya → 0'),
         ringkas: 'Hadir ' + c.hadir + ' dari ' + n + ' hari efektif' + (perkiraan ? ' (perkiraan)' : '') + ' = ' + f1(p) + '%; terlambat ' + c.terlambat + 'x; izin ' + c.izin + ', sakit ' + c.sakit + ', alpa ' + c.alpa + (c.tanpaCatatan ? ', tanpa catatan ' + c.tanpaCatatan : ''),
         rincian: rincian,
-        angka: { hadir: c.hadir, izin: c.izin, sakit: c.sakit, alpa: c.alpa, terlambat: c.terlambat, efektif: n, persen: p }
+        angka: { hadir: c.hadir, izin: c.izin, sakit: c.sakit, alpa: c.alpa, terlambat: c.terlambat, efektif: n, persen: p, persenTepat: c.hadir ? pTepat : null, persenIzin: tidakHadir ? pIzin : null }
       };
     });
   }
@@ -182,8 +239,15 @@
         var m = r.subject; if (m) mapel[String(m)] = (mapel[String(m)] || 0) + 1;
         var j = r.type || 'Reguler'; jenis[j] = (jenis[j] || 0) + 1;
       });
-      var nHari = Object.keys(hari).length;
-      var punyaPenyebut = !!(h && h.hadir > 0 && !h.perkiraan);
+      var nHariAll = Object.keys(hari).length, nHari = nHariAll, hariLuar = 0;
+      var punyaPenyebut = !!(h && h.hadir > 0 && !h.perkiraan && Array.isArray(h.tanggalHadir));
+      // v13: hanya hari berjurnal yang jatuh pada hari hadir (tanggalHadir dari absensi) yang dihitung, supaya pembilang dan penyebut
+      // memakai himpunan hari yang sama (jurnal di hari tak hadir, mis. mewakili/sakit, tidak menaikkan persen).
+      if (punyaPenyebut) {
+        var hdr = {}; h.tanggalHadir.forEach(function (t) { hdr[t] = 1; });
+        nHari = Object.keys(hari).filter(function (t) { return hdr[t]; }).length;
+        hariLuar = nHariAll - nHari;
+      }
       var penyebut = punyaPenyebut ? h.hadir : (h && h.efektif ? h.efektif : 0), ket = punyaPenyebut ? 'hari hadir' : 'hari efektif';
       var p = penyebut > 0 ? Math.min(100, pct(nHari, penyebut)) : 0, A = CFG.ambang;
       var andal = !!(h && !h.perkiraan && penyebut > 0);
@@ -192,14 +256,15 @@
       var rincian = ['Rentang: ' + ctx.dari + ' s.d. ' + batas, 'Sumber data: ' + CFG.path.jurnal + ' (hanya jurnal berstatus disetujui)',
         'Jenis: ' + Object.keys(jenis).map(function (j) { return j + ' ' + jenis[j]; }).join(', ')];
       if (menunggu || ditolak) rincian.push('Tidak dihitung: menunggu persetujuan ' + menunggu + ', ditolak ' + ditolak);
+      if (hariLuar) rincian.push('Hari berjurnal di luar hari hadir tidak dihitung: ' + hariLuar + ' dari ' + nHariAll + ' hari berjurnal');
       if (top.length) rincian.push('Mata pelajaran: ' + top.join(', '));
       if (!andal) rincian.push('Peringatan: hari hadir/efektif tidak dapat dipastikan (absensi tidak terbaca atau kalender libur kosong), jadi tidak ada usulan skor.');
       return {
         ok: true, path: CFG.path.jurnal, saran: saran,
         dasar: andal ? 'Hari berjurnal ÷ ' + ket + ' ≥' + A.jurnalBaik + '% → 2; ' + A.jurnalCukup + '–' + (A.jurnalBaik - 0.1) + '% → 1; di bawahnya → 0' : 'Tidak ada usulan skor: pembagi (hari hadir/efektif) tidak dapat dipastikan.',
-        ringkas: sah.length + ' jurnal pada ' + nHari + ' hari' + (penyebut > 0 ? ' (' + f1(p) + '% dari ' + penyebut + ' ' + ket + (andal ? '' : ', perkiraan') + ')' : ''),
+        ringkas: sah.length + ' jurnal pada ' + nHariAll + ' hari' + (hariLuar ? ', ' + nHari + ' di antaranya hari hadir' : '') + (penyebut > 0 ? ' (' + f1(p) + '% dari ' + penyebut + ' ' + ket + (andal ? '' : ', perkiraan') + ')' : ''),
         rincian: rincian,
-        angka: { jurnal: sah.length, hari: nHari, penyebut: penyebut, persen: p }
+        angka: { jurnal: sah.length, hari: nHari, hariBerjurnal: nHariAll, penyebut: penyebut, persen: p }
       };
     });
   }
@@ -622,7 +687,7 @@
   // perilaku santun/teladan, dan kelengkapan input nilai memberi usulan untuk 11.1 (adil). Indikator di luar daftar = tanpa usulan.
   var DAFTAR = {
     absensi: { label: 'Absensi guru', ikon: '🕘', indikator: ['10_1', '10_3', '10_4'], ambil: ambilAbsensi },
-    jurnal: { label: 'Jurnal mengajar', ikon: '📓', indikator: ['7_4', '14_2'], ambil: ambilJurnal },
+    jurnal: { label: 'Jurnal mengajar', ikon: '📓', indikator: ['14_2'], ambil: ambilJurnal },
     nilai: { label: 'Nilai siswa', ikon: '📊', indikator: ['5_1', '7_1', '7_2', '7_3'], ambil: ambilNilai },
     perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '7_1', '13_2'], ambil: ambilPerangkat },
     buku: { label: 'Buku Penghubung (komunikasi dengan orang tua)', ikon: '💬', indikator: ['12_1'], ambil: ambilBuku },
@@ -645,5 +710,5 @@
     }, Promise.resolve()).then(function () { return hasil; });
   }
 
-  window.PKG_SUMBER = { versi: 12, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
+  window.PKG_SUMBER = { versi: 13, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
 })();
