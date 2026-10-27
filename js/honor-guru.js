@@ -123,7 +123,8 @@
             // Kelas wajib tanpa data siswa TIDAK boleh dianggap "lengkap" (daftar kosong lolos tanpa absensi apa pun). Bisa karena data siswa
             // belum termuat / nama kelas salah / Rules menolak baca; kelasnya tidak bisa diverifikasi -> hari ditolak + alasan jelas.
             if (!g.siswa || g.siswa.length === 0) { kelasKosong.push(g.kelas); return; }
-            const belum = g.siswa.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + g.siswa.length + ' siswa');
+            const wajibHariIni = g.siswa.filter(s => !(s.masuk && s.masuk > tgl)); // belum terdaftar pada tanggal itu -> tidak wajib
+            const belum = wajibHariIni.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + wajibHariIni.length + ' siswa');
           });
           if (kelasKosong.length) alasan.push('Kelas wajib tanpa data siswa (' + kelasKosong.join(', ') + '): kelengkapan absensi tidak dapat diverifikasi. Bila kelas itu memang tidak ikut sholat, atur "kelas tidak ikut" pada kegiatannya; bila ada siswanya, periksa data siswa');
           if (rinci.length) alasan.push('Absensi siswa belum lengkap (' + rinci.join(', ') + ')');
@@ -168,7 +169,10 @@
     // Siswa per kelas untuk pemeriksaan kelengkapan. Admin/Kepsek (boleh baca seluruh node siswa, sama seperti bacaSiswaSesuaiScope): SATU
     // pembacaan lalu disaring per kelas, bukan N query paralel. Akun lain tetap per-kelas (Rules membatasi). Di-cache selama HONOR_SHOLAT_TTL_MS
     // supaya ganti bulan / muat ulang tidak membaca ulang.
-    let honorSiswaKelasCache = null;   // { at, peta: { kelas: [{key,name}] } }
+    let honorSiswaKelasCache = null;   // { at, peta: { kelas: [{key,name,masuk}] } }
+    // Tanggal (WIB) siswa ditambahkan ke sistem (field `dibuat`); '' bila tidak diketahui (data lama) -> dianggap sudah ada sejak awal.
+    // Dipakai agar siswa yang baru masuk di tengah bulan tidak membuat hari-hari SEBELUM tanggal masuknya dianggap "absensi belum lengkap".
+    function honorSiswaMasuk(v) { const ms = Date.parse(v && v.dibuat); return ms > 0 ? honorSholatWib(ms).tgl : ''; }
     function honorSiswaPerKelas(kelasList) {
       const ambilDari = peta => { const o = {}; kelasList.forEach(k => { o[k] = peta[k] || []; }); return o; };
       const c = honorSiswaKelasCache;
@@ -182,11 +186,11 @@
         const perlu = new Set(kelasList);
         return db.ref('siswa').once('value').then(snap => {
           const peta = {}; kelasList.forEach(k => { peta[k] = []; });
-          snap.forEach(ch => { const v = ch.val() || {}; if (perlu.has(v.kelas)) peta[v.kelas].push({ key: ch.key, name: v.name || ch.key }); });
+          snap.forEach(ch => { const v = ch.val() || {}; if (perlu.has(v.kelas)) peta[v.kelas].push({ key: ch.key, name: v.name || ch.key, masuk: honorSiswaMasuk(v) }); });
           return simpan(peta);
         });
       }
-      return Promise.all(kelasList.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(sn => { const arr = []; sn.forEach(ch => { const v = ch.val() || {}; arr.push({ key: ch.key, name: v.name || ch.key }); }); return [k, arr]; })))
+      return Promise.all(kelasList.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(sn => { const arr = []; sn.forEach(ch => { const v = ch.val() || {}; arr.push({ key: ch.key, name: v.name || ch.key, masuk: honorSiswaMasuk(v) }); }); return [k, arr]; })))
         .then(pasangan => { const peta = {}; pasangan.forEach(x => { peta[x[0]] = x[1]; }); return simpan(peta); });
     }
     function honorSholatMuat(ym) {
@@ -441,7 +445,7 @@
         if (menit > datangSelesai) return 0;
         return menit < BATAS_DATANG_AWAL ? 2 : 1;
       };
-      const ranking = guruAktif.map(g => {
+      const semuaGuruRank = guruAktif.map(g => {
         const recs = recsBulanIni.filter(a => milikGuru(a, g));
         let datangTepat = 0, datangAwal = 0, alpha = 0, hadirHari = 0, mewakiliTanpaJadwal = 0;
         // Hari-hari dalam seminggu yang MEMANG ada jadwal mengajar guru ini. Alpha hanya dihitung di hari berjadwal;
@@ -479,7 +483,12 @@
         });
         const skor = (datangTepat * 2) + datangAwal + (mewakiliTanpaJadwal * POIN_MEWAKILI_TANPA_JADWAL) - (alpha * 5) - (tanpaPulang * 2);
         return { guru: g.name, guruKey: g.key || null, datangTepat, datangAwal, mewakiliTanpaJadwal, alpha, hadirHari, tanpaPulang, skor };
-      }).filter(r => r.hadirHari > 0 || r.alpha > 0 || r.mewakiliTanpaJadwal > 0);
+      });
+      // Yang punya catatan masuk peringkat; yang belum punya catatan sama sekali bulan ini dikembalikan terpisah (ranking.tanpaData)
+      // supaya SEMUA guru tampil di daftar, tetapi tidak ikut diberi nomor peringkat / pilihan penetapan Guru Terajin.
+      const adaCatatan = r => r.hadirHari > 0 || r.alpha > 0 || r.mewakiliTanpaJadwal > 0;
+      const ranking = semuaGuruRank.filter(adaCatatan);
+      ranking.tanpaData = semuaGuruRank.filter(r => !adaCatatan(r)).map(r => r.guru).sort((a, b) => String(a).localeCompare(String(b), 'id'));
       // Urutan: skor tertinggi; bila sama -> alpha paling sedikit, tanpa-pulang paling sedikit,
       // datang tepat paling banyak, hadir paling banyak, terakhir nama (supaya urutan stabil).
       ranking.sort((a,b) => (b.skor - a.skor) || (a.alpha - b.alpha) || (a.tanpaPulang - b.tanpaPulang) || (b.datangTepat - a.datangTepat) || (b.datangAwal - a.datangAwal) || (b.mewakiliTanpaJadwal - a.mewakiliTanpaJadwal) || (b.hadirHari - a.hadirHari) || String(a.guru).localeCompare(String(b.guru), 'id'));
@@ -515,11 +524,13 @@
       const sudahDitetapkan = allGuruTerajin[key];
       if (ranking.length === 0) { container.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada data absen guru bulan ini.</p>'; document.getElementById('guruTerajinSetForm').style.display = 'none'; document.getElementById('guruTerajinSudahDitetapkan').style.display = 'none'; return; }
       let html = '<div style="overflow-x:auto;"><table style="font-size:12px;"><thead><tr><th>Rank</th><th>Nama</th><th>Datang Tepat Waktu</th><th>Sebelum 07.00</th><th>Mewakili (tanpa jadwal)</th><th>Alpha</th><th>Tanpa Pulang</th><th>Skor</th></tr></thead><tbody>';
-      // Tampilkan 5 teratas, tetapi seluruh yang seri di batas ke-5 ikut ditampilkan (tidak ada yang terpotong tak adil).
-      const batasRank = ranking[Math.min(4, ranking.length - 1)].rank;
-      ranking.filter(r => r.rank <= batasRank).forEach(r => {
+      // Tampilkan SEMUA guru (dulu hanya 5 teratas).
+      ranking.forEach(r => {
         const medali = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank;
         html += `<tr ${r.rank===1 ? 'style="background:#fef3c7;font-weight:600;"' : ''}><td>${medali}</td><td>${escapeHtml(r.guru)}</td><td>${r.datangTepat}x</td><td>${r.datangAwal}x</td><td>${r.mewakiliTanpaJadwal}x</td><td>${r.alpha}x</td><td>${r.tanpaPulang}x</td><td>${r.skor}</td></tr>`;
+      });
+      (ranking.tanpaData || []).forEach(nm => {
+        html += `<tr style="color:#9ca3af;"><td>–</td><td>${escapeHtml(nm)} <span style="font-size:11px;">(belum ada absen)</span></td><td>–</td><td>–</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`;
       });
       html += '</tbody></table></div>';
       const prefiks = year + '-' + String(month).padStart(2,'0') + '-';

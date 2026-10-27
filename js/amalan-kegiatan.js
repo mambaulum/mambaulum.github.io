@@ -1612,7 +1612,8 @@ function v4ActPeriksaAbsensiLengkap(namaSholat, tanggal) {
   });
 }
 function v4ActNowMs() { return Date.now() + v4ActServerOffset; }
-function v4ActMenitSekarang() { const d = new Date(v4ActNowMs()); return d.getHours() * 60 + d.getMinutes(); }
+// Menit sejak 00:00 WIB (UTC+7), bukan jam perangkat -- jam mulai kegiatan, telat, dan jam buka klaim ditulis dalam WIB.
+function v4ActMenitSekarang() { const d = new Date(v4ActNowMs() + 7 * 3600 * 1000); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
 function v4ActMenit(jam) { const p = String(jam || '').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
 function v4ActFmtMenit(m) { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
 // Jam mulai: yang diatur Admin di kartu kegiatan; kalau belum diatur pakai bawaan per jenis (Dhuha 06:45, Dzuhur 11:05).
