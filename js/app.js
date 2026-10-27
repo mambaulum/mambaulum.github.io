@@ -3632,10 +3632,15 @@
       lastCoreRenderTs = Date.now();
     }
 
-    function setOfflineBannerVisible(show) {
+    // lambat=true: perangkat ONLINE tetapi pemuatan dari server melewati batas waktu (sinyal lemah) -> teks banner jujur ("Koneksi lambat"),
+    // bukan "Mode Offline". Teks asli di HTML disimpan di data-asli dan dipulihkan untuk mode offline sungguhan.
+    function setOfflineBannerVisible(show, lambat) {
       isOfflineMode = show;
       const banner = document.getElementById('offlineBanner');
-      if (banner) banner.style.display = show ? 'block' : 'none';
+      if (!banner) return;
+      if (!banner.dataset.asli) banner.dataset.asli = banner.innerHTML;
+      banner.innerHTML = (show && lambat) ? '⏳ Koneksi lambat — menampilkan data tersimpan terakhir, sedang memperbarui dari server. Absensi & jurnal yang diisi sekarang tetap aman.' : banner.dataset.asli;
+      banner.style.display = show ? 'block' : 'none';
     }
 
     function updatePendingBadge() {
@@ -4036,7 +4041,7 @@
       const timeoutTimer = setTimeout(() => {
         if (settled) return;
         settled = true;
-        setOfflineBannerVisible(true);
+        setOfflineBannerVisible(true, navigator.onLine);   // online tapi lambat -> "Koneksi lambat", bukan "Mode Offline"
         restoreDatasetsFromIndexedDB(() => { if (callback) callback(); if (onFullyLoaded) onFullyLoaded(); });
       }, FB_LOAD_FALLBACK_MS);
 
@@ -4087,7 +4092,20 @@
       }
 
       Promise.all(corePromises).then(() => {
-        if (settled) return; // timeout/offline fallback sudah lebih dulu ambil alih
+        if (settled) {
+          // Fallback cache (sinyal lambat) sudah tampil lebih dulu. Dulu di sini langsung return, sehingga banner "Mode Offline" TIDAK PERNAH dicabut
+          // walau data dari server akhirnya masuk lengkap. Kini: bila memang tersambung, cabut banner, segarkan tampilan, lalu lanjutkan fase 2.
+          if (navigator.onLine && fbConnected) {
+            setOfflineBannerVisible(false);
+            try { renderCoreUI(); } catch (e) { console.warn('[SI MAMBA] render susulan (core) gagal:', e); }
+            Promise.all(secondaryPromises).then(() => {
+              cacheDatasetsToIndexedDB(_owner, true);
+              dataLoaded = true; lastFullLoadAt = Date.now();
+              try { renderFullUI(); } catch (e) { console.warn('[SI MAMBA] render susulan (penuh) gagal:', e); }
+            }).catch(err => console.warn('[SI MAMBA] Load data susulan (sekunder) gagal:', err));
+          }
+          return;
+        }
         clearTimeout(timeoutTimer);
         setOfflineBannerVisible(false);
         settled = true;
@@ -4121,7 +4139,7 @@
         if (!settled) {
           settled = true;
           toast('⚠️ Gagal memuat dari server, menampilkan data tersimpan terakhir.', true);
-          setOfflineBannerVisible(true);
+          setOfflineBannerVisible(true, navigator.onLine);
           restoreDatasetsFromIndexedDB(() => { if (callback) callback(); if (onFullyLoaded) onFullyLoaded(); });
         }
       });
@@ -6051,19 +6069,19 @@
     // Pastikan token QR Absensi ada di memori. Dulu: bila pembacaan saat login gagal/timeout (sinyal lemah), V4.absenQr tetap null dan guru
     // itu terus diberi "QR Absensi belum diatur Admin" walau Admin sudah mengatur -- padahal online dianggap "percaya Firebase". Sekarang bila token
     // kosong dan online, dibaca ulang dari Firebase (maks 8 dtk); bila gagal/timeout, pakai salinan di perangkat (localStorage) bila ada.
-    let v4AbsenQrMuat = null;
+    let v4AbsenQrMuat = null, v4AbsenQrAlasan = '';   // alasan terakhir token tidak tersedia (ditampilkan di pesan supaya mudah dilacak)
     function v4PastikanAbsenQr() {
       if (V4.absenQr && V4.absenQr.token) return Promise.resolve(true);
       const dariCache = () => { try { const raw = localStorage.getItem(ABSEN_QR_CACHE_KEY), d = raw && JSON.parse(raw); if (d && d.token) { V4.absenQr = d; return true; } } catch (e) {} return false; };
-      if (!isReallyOnline() || typeof db === 'undefined' || !db) return Promise.resolve(dariCache());
+      if (!isReallyOnline() || typeof db === 'undefined' || !db) { v4AbsenQrAlasan = navigator.onLine ? 'Firebase belum tersambung' : 'perangkat offline'; return Promise.resolve(dariCache()); }
       if (!v4AbsenQrMuat) v4AbsenQrMuat = new Promise(res => {
         let selesai = false;
         const fin = ok => { if (selesai) return; selesai = true; clearTimeout(t); v4AbsenQrMuat = null; res(ok); };
-        const t = setTimeout(() => fin(dariCache()), 8000);
+        const t = setTimeout(() => { v4AbsenQrAlasan = 'server tidak menjawab dalam 8 detik'; fin(dariCache()); }, 8000);
         db.ref('absen_qr_settings').once('value').then(snap => {
           const d = snap.val();
-          if (d && d.token) { V4.absenQr = d; v4CacheAbsenQr(d); fin(true); } else fin(false);   // null = benar-benar belum diatur Admin
-        }).catch(() => fin(dariCache()));
+          if (d && d.token) { V4.absenQr = d; v4CacheAbsenQr(d); fin(true); } else { v4AbsenQrAlasan = d ? 'data QR ada tetapi token kosong' : 'node absen_qr_settings kosong di server'; fin(false); }   // kosong = benar-benar belum diatur Admin
+        }).catch(e => { v4AbsenQrAlasan = 'gagal membaca (' + ((e && e.message) || e) + ')'; fin(dariCache()); });
       });
       return v4AbsenQrMuat;
     }
@@ -6100,7 +6118,7 @@
       v4PulihkanAbsenQrDariCache();
       if (!(V4.absenQr && V4.absenQr.token)) {   // token belum ada di memori: baca ulang dulu sebelum menyerah
         toast('⏳ Memuat data QR Absensi...', false, 1500);
-        return v4PastikanAbsenQr().then(ok => { if (ok) bottomNavScanQr(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin, atau belum bisa dimuat (cek sinyal lalu coba lagi). Bila tetap begini, hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); });
+        return v4PastikanAbsenQr().then(ok => { if (ok) bottomNavScanQr(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum bisa dimuat' + (v4AbsenQrAlasan ? ' [' + v4AbsenQrAlasan + ']' : '') + '. Cek sinyal lalu coba lagi; bila tetap begini, hubungi Admin dan sebutkan tulisan di dalam kurung.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); });
       }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('⚠️ Browser tidak support kamera!', true);
       navigateTo('teacher-attendance');
@@ -6112,7 +6130,7 @@
       const izinSakitHariIni = allTeacherAttendance.find(a => a.tanggal === tglLokal() && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && (a.type === 'Izin' || a.type === 'Sakit'));
       if (izinSakitHariIni) { toast(`⚠️ Anda sudah melaporkan ${izinSakitHariIni.type} hari ini.`, true); return; }
       v4PulihkanAbsenQrDariCache();
-      if (!(V4.absenQr && V4.absenQr.token)) { v4PastikanAbsenQr().then(ok => { if (ok) startCamera(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin, atau belum bisa dimuat (cek sinyal lalu coba lagi). Bila tetap begini, hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); }); return; }
+      if (!(V4.absenQr && V4.absenQr.token)) { v4PastikanAbsenQr().then(ok => { if (ok) startCamera(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum bisa dimuat' + (v4AbsenQrAlasan ? ' [' + v4AbsenQrAlasan + ']' : '') + '. Cek sinyal lalu coba lagi; bila tetap begini, hubungi Admin dan sebutkan tulisan di dalam kurung.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); }); return; }
       const video = document.getElementById('video'), container = document.getElementById('videoContainer');
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast('⚠️ Browser tidak support kamera!', true);
