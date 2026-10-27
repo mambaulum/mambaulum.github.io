@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.205",
-  "disimpan": "2026-10-27T09:38:38.409Z",
+  "appVersion": "v8.212",
+  "disimpan": "2026-10-27T12:09:10.278Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,20 +59,20 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=133",
-      "hash": "195528e7196e5dc3f603515db10b37093465c5e1"
+      "v": "v=134",
+      "hash": "c695dd8fae3be8be5dbee9fd1e3bd8f63f5aa37b"
     },
     "js/portal-ortu.js": {
-      "v": "v=1",
-      "hash": "3911ecfe53a704356b20a811e3640d30817fce98"
+      "v": "v=2",
+      "hash": "48a9737cd38edc368d929d31aec5da10c8593798"
     },
     "js/infaq.js": {
       "v": "v=1",
       "hash": "09c9c81a277fa6564dd28c43bce8e0f378908b49"
     },
     "js/sikap-buku.js": {
-      "v": "v=1",
-      "hash": "bcedffd1f5650877872a5798f60cd152823a7bd4"
+      "v": "v=2",
+      "hash": "b741352c528ec1a199ee1eada6a930d0ad48801f"
     },
     "js/materi-tugas.js": {
       "v": "v=1",
@@ -107,8 +107,8 @@
       "hash": "195a226359bbeeb1a04cdff8a9bcc2254d91238f"
     },
     "js/v4-tahfidz-pramuka-ekskul.js": {
-      "v": "v=1",
-      "hash": "7d51055d1630efae76871e70865c946b283b15c9"
+      "v": "v=2",
+      "hash": "d10c16b9b5f24fc25de13434b0e0da14f1109254"
     },
     "js/v4-pengaturan-notif-rapor.js": {
       "v": "v=3",
@@ -131,8 +131,8 @@
       "hash": "4cab1cc5e42e2513151540022c97e068a2d74a00"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=28",
-      "hash": "345fde18f522665df49a5e08414ca836277b889f"
+      "v": "v=32",
+      "hash": "34159a71de85f2b52b3db843fb190dc754005648"
     },
     "js/bacaan-shalat.js": {
       "v": "v=3",
