@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.204';
+const APP_VERSION = 'v8.205';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -100,7 +100,7 @@ const PRECACHE_URLS = [
   './js/kalender-akademik.js?v=1',          // Kalender Akademik/Nasional + panel "Hari Ini" (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/ortu-akun-admin.js?v=1',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/amalan-kegiatan.js?v=27',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
+  './js/amalan-kegiatan.js?v=28',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)

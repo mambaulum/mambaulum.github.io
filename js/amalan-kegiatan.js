@@ -1916,7 +1916,9 @@ function v4ActResetCheckin(typeKey) {
   // Cek koneksi SEBELUM konfirmasi: jangan minta Admin menyetujui sesuatu yang pasti gagal.
   if (!v4ActButuhOnline('Reset petugas butuh koneksi internet.')) return;
   if (!confirm('Reset petugas hari ini (' + ci.guruName + ')? Guru bisa check-in/klaim ulang. Absensi siswa yang sudah tersimpan tidak terhapus.')) return;
-  db.ref('activity_checkin_v4/' + tgl + '_' + typeKey).remove().then(() => {
+  // Rules: hapus check-in hanya sesi Admin (sesi_admin) atau Kepala (sesi_kepsek). Siapkan sesi sesuai peran dulu; bila Kunci belum diisi, galat yang jelas muncul.
+  const siapSesiReset = v4IsAdmin() ? window.kredAdminSiap : window.kredKepsekSiap;
+  Promise.resolve((typeof siapSesiReset === 'function') ? siapSesiReset() : true).then(() => db.ref('activity_checkin_v4/' + tgl + '_' + typeKey).remove()).then(() => {
     delete v4ActCheckins[tgl + '_' + typeKey];
     v4ActLogAman('reset_petugas_kegiatan', typeKey + ' - ' + ci.guruName);
     toast('Petugas hari ini di-reset');
