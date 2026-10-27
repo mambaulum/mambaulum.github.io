@@ -106,8 +106,8 @@
   <script defer src="js/jadwal.js?v=5"></script>
   <script defer src="js/laporan-rekap.js?v=2"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/honor-guru.js?v=23"></script>
-  <script defer src="js/honor-kebersihan.js?v=2"></script>
+  <script defer src="js/honor-guru.js?v=25"></script>
+  <script defer src="js/honor-kebersihan.js?v=3"></script>
   <!-- Hasil pecahan app.js tahap 4 (Event & Ujian; Absen Guru Admin + Pengingat). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/event-ujian.js?v=1"></script>
   <script defer src="js/pengingat-absen-guru.js?v=1"></script>
@@ -130,6 +130,8 @@
   <script defer src="js/menu-hub.js?v=12"></script>
   <!-- Cari menu (Ctrl+K) + menu aksi topbar. WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/menu-polish.js?v=31"></script>
+  <!-- Penampil versi aplikasi + Cek pembaruan (footer menu samping, #versiAppInfo). Berdiri sendiri, tidak memakai app.js. -->
+  <script defer src="js/versi-app.js?v=2"></script>
   <!-- Rekap Jurnal Mengajar (menu Pembelajaran, Admin & Kepsek). WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rekap-jurnal.js?v=1"></script>
   <!-- Menu Rapat (daftar hadir guru, pimpinan pengganti, notulen, cetak). Halaman dibuat sendiri oleh JS; WAJIB sesudah app.js & menu-hub.js. -->
@@ -181,8 +183,8 @@
   <script defer src="js/login-kode.js?v=12"></script>
   <!-- Admin "Lihat sebagai Guru" (impersonasi, mode lihat saja). Dimuat SESUDAH app.js & login-kode.js. -->
   <script defer src="js/impersonate.js?v=7"></script>
-  <script defer src="js/absen-manual-gps.js?v=1"></script>   <!-- konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (sesudah app.js) -->
-  <script defer src="js/surat-guru.js?v=41"></script>
+  <script defer src="js/absen-manual-gps.js?v=2"></script>   <!-- konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (sesudah app.js) -->
+  <script defer src="js/surat-guru.js?v=42"></script>
   <script defer src="js/agenda-surat.js?v=5"></script>
   <!-- Undangan Rapat bernomor (tab di Surat & Ijin). WAJIB sesudah surat-guru.js dan agenda-surat.js. -->
   <script defer src="js/undangan-rapat.js?v=5"></script>
@@ -435,7 +437,8 @@
         </div>
         <button class="ganti-pin-btn" onclick="showGantiPinModal()"><svg class="ico ico-sm" aria-hidden="true" focusable="false"><use href="#i-_key"/></svg> Ganti PIN</button>
         <button class="logout-btn" onclick="logout()"><svg class="ico ico-sm" aria-hidden="true" focusable="false"><use href="#i-_logout"/></svg> Keluar</button>
-        <div style="margin-top:8px;font-size:10px;opacity:0.3;text-align:center;">v4.0 • © 2026</div>
+        <div id="versiAppInfo" role="button" tabindex="0" title="Klik untuk melihat versi & cek pembaruan" style="margin-top:8px;font-size:10px;opacity:0.5;text-align:center;cursor:pointer;">SI MAMBA 4.0 • Versi <span id="versiAppNo">…</span></div>
+        <div style="font-size:10px;opacity:0.5;text-align:center;">© 2026 Mambaul Ulum Karangharjo</div>
       </div>
     </aside>
 

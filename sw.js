@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.190';
+const APP_VERSION = 'v8.196';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -89,8 +89,9 @@ const PRECACHE_URLS = [
   './js/kelola-absen-guru.js?v=3',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=5',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/laporan-rekap.js?v=2',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-guru.js?v=23',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-kebersihan.js?v=2',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
+  './js/honor-guru.js?v=25',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-kebersihan.js?v=3',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
+  './js/versi-app.js?v=2',                   // Penampil versi + Cek pembaruan (footer menu samping; berdiri sendiri)
   './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=1',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-tahfidz-pramuka-ekskul.js?v=1',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -133,8 +134,8 @@ const PRECACHE_URLS = [
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
-  './js/absen-manual-gps.js?v=1',          // konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (dimuat SESUDAH app.js)
-  './js/surat-guru.js?v=41',               // surat resmi guru + kerangka tab Surat & Ijin
+  './js/absen-manual-gps.js?v=2',          // konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (dimuat SESUDAH app.js)
+  './js/surat-guru.js?v=42',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
   './js/undangan-rapat.js?v=5',           // undangan rapat bernomor (tab Surat & Ijin)
   './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
@@ -392,5 +393,9 @@ self.addEventListener('sync', event => {
 self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  // js/versi-app.js menanyakan nomor versi Service Worker ini (aktif maupun yang sedang menunggu) lewat MessageChannel.
+  if (event.data && event.data.type === 'GET_VERSION' && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ type: 'VERSION', version: APP_VERSION });
   }
 });
