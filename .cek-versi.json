@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.178",
-  "disimpan": "2026-10-27T00:54:58.274Z",
+  "appVersion": "v8.179",
+  "disimpan": "2026-10-27T01:41:18.188Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -79,12 +79,8 @@
       "hash": "3700ebef46ef11a5254e1e55e9c00da89b2e5995"
     },
     "js/kelola-absen-guru.js": {
-      "v": "v=1",
-      "hash": "ff6bbb89002c034052966fbecdbcb7010fff9ca2"
-    },
-    "js/kag-fix.js": {
-      "v": "v=1",
-      "hash": "6ea95d2460a3037e4c4745661abc81bef6735046"
+      "v": "v=2",
+      "hash": "8f7740f92d76b03f5c72f3e18ec0a97491adcdee"
     },
     "js/jadwal.js": {
       "v": "v=5",
