@@ -268,8 +268,10 @@
     function infoOrtuItemsBelumKirim() {
       const kelasRelevan = infoOrtuKelasRelevan();
       if (!kelasRelevan.length) return [];
-      const buku = (allBukuPenghubung || []).filter(b => kelasRelevan.includes(b.kelas) && !b.notifSent).map(b => ({ ...b, _tipe: 'buku' }));
-      const pelanggaran = (allKedisiplinan || []).filter(d => d.jenis === 'pelanggaran' && kelasRelevan.includes(d.kelas) && !d.notifSent).map(d => ({ ...d, _tipe: 'sikap' }));
+      // Siswa NONAKTIF tidak perlu dikirimi info ke ortu (catatannya tetap tersimpan, hanya tidak masuk daftar siap-kirim).
+      const nonaktif = new Set((typeof allSiswaSemua !== 'undefined' ? allSiswaSemua : []).filter(s => s && s.aktif === false).map(s => s.key));
+      const buku = (allBukuPenghubung || []).filter(b => kelasRelevan.includes(b.kelas) && !b.notifSent && !nonaktif.has(b.siswaKey)).map(b => ({ ...b, _tipe: 'buku' }));
+      const pelanggaran = (allKedisiplinan || []).filter(d => d.jenis === 'pelanggaran' && kelasRelevan.includes(d.kelas) && !d.notifSent && !nonaktif.has(d.siswaKey)).map(d => ({ ...d, _tipe: 'sikap' }));
       return [...buku, ...pelanggaran].sort((a,b) => COLLATOR_ID.compare((b.tanggal||''), a.tanggal||''));
     }
     function updateInfoOrtuNotifDot() {

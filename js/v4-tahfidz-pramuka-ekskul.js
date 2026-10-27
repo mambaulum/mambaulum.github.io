@@ -38,7 +38,8 @@
       try {
         db.ref('siswa').orderByChild('kelas').equalTo(kelas).once('value', snap => {
           clearTimeout(timer);
-          const arr = []; snap.forEach(child => { const s = child.val(); s.key = child.key; arr.push(s); });
+          // Siswa NONAKTIF (aktif === false) tidak ikut: panel Dhuha/Dzuhur, Tahfidz, Pramuka, dst. memakai cache ini.
+          const arr = []; snap.forEach(child => { const s = child.val(); if (s && s.aktif === false) return; s.key = child.key; arr.push(s); });
           v4PanelSiswaCache[kelas] = arr;
           delete v4PanelSiswaGagal[kelas];
           cb(arr);

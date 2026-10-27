@@ -59,7 +59,7 @@
       const hasil = [];
       snap.forEach(c => {
         const x = c.val();
-        if (!x) return;
+        if (!x || x.aktif === false) return;   // siswa NONAKTIF (pindah/keluar) tidak ditampilkan di Portal Orang Tua
         if (cocokkanManual ? (x.noWaOrtu && formatNomorWa(x.noWaOrtu) === waKey) : true) hasil.push({ key: c.key, ...x });
       });
       return hasil.sort((a, b) => COLLATOR_ID.compare((a.name || ''), b.name || ''));

@@ -45,7 +45,7 @@ let v4RekapPetugasCache = {};   // 'YYYY-MM' -> { status:'loading'|'ok'|'gagal',
 
 // Dipanggil dari logout() di app.js supaya state akun lama tidak bocor ke akun berikutnya.
 function amalanKegiatanResetState() {
-  v4ActOpenTypeKey = null; v4ActAttendanceDraft = {}; v4ActDateSel = {}; v4ActKelasSel = {}; v4ActFastMode = {};
+  v4ActOpenTypeKey = null; v4ActTabKey = null; v4ActAttendanceDraft = {}; v4ActDateSel = {}; v4ActKelasSel = {}; v4ActFastMode = {};
   v4SubstituteFormOpenFor = null; v4ActKelasFormOpen = null; v4RekapReligiLast = null;
   v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas', petugasMode: 'detail', alpaMin: 3 };
   v4RekapPetugasCache = {};
@@ -347,6 +347,17 @@ function v4RenderActivityCards() {
     </div>`;
   }).join('') : '<div class="v4-card"><h4>Belum ada jenis kegiatan</h4><div class="v4-muted">Admin dapat menambahkan amalan/kegiatan (mis. Sholat Dhuha, Sholat Dzuhur) beserta penanggung jawabnya.</div></div>';
 }
+// Tab kegiatan (Dhuha | Dzuhur | ...): hanya satu kegiatan tampil sekaligus supaya halaman tidak panjang.
+let v4ActTabKey = null;
+function v4ActPilihTab(typeKey) {
+  if (v4ActTabKey === typeKey) return;
+  if (v4ActOpenTypeKey && v4ActOpenTypeKey !== typeKey && !v4ActLepasDraft(v4ActOpenTypeKey)) return;  // batal pindah: draft belum disimpan
+  const lama = v4ActOpenTypeKey;
+  v4ActTabKey = typeKey;
+  if (lama) delete v4ActAttendanceDraft[lama];
+  v4ActOpenTypeKey = typeKey; delete v4ActAttendanceDraft[typeKey]; if (!v4ActKelasSel[typeKey]) v4ActKelasSel[typeKey] = '';
+  v4RenderActivityFill();
+}
 function v4RenderActivityFill() {
   const fillBox = document.getElementById('v4ActivityFillSection'); if (!fillBox) return;
   const types = V4.activityTypes || [];
@@ -355,7 +366,9 @@ function v4RenderActivityFill() {
     fillBox.innerHTML = types.length ? '<p class="v4-muted">Anda belum ditunjuk sebagai PJ kegiatan apa pun.</p>' : '';
     return;
   }
-  fillBox.innerHTML = myTypes.map(type => {
+  if (!myTypes.some(t => t.key === v4ActTabKey)) v4ActTabKey = (v4ActOpenTypeKey && myTypes.some(t => t.key === v4ActOpenTypeKey)) ? v4ActOpenTypeKey : myTypes[0].key;
+  const tabBar = myTypes.length > 1 ? `<div class="v4-act-tabs" role="tablist">${myTypes.map(t => `<button type="button" role="tab" aria-selected="${t.key === v4ActTabKey}" class="v4-act-tab${t.key === v4ActTabKey ? ' aktif' : ''}" onclick="v4ActPilihTab('${escapeJs(t.key)}')">${v4Safe(v4NamaEja(t.name))}${v4ActOpenTypeKey === t.key ? ' •' : ''}</button>`).join('')}</div>` : '';
+  fillBox.innerHTML = tabBar + myTypes.filter(t => myTypes.length === 1 || t.key === v4ActTabKey).map(type => {
     const isOpen = v4ActOpenTypeKey === type.key;
     const dateVal = v4ActDateSel[type.key] || v4Date();
     v4ActDateSel[type.key] = dateVal;
@@ -938,8 +951,11 @@ function v4ActExistingMap(typeKey, dateVal) {
 const V4_ACT_SEMUA_KELAS = '*';
 // Kembalikan { siap, muat, total, grup:[{kelas, siswa}], siswa:[...], gagal:[kelas yang gagal dimuat] }. 'siap' = semua kelas yang diminta sudah ada di cache.
 // 'type' (opsional): untuk "Semua Kelas", kelas yang tidak ikut kegiatan itu dilewati (lihat v4ActKelasAktif).
+// Siswa NONAKTIF (siswa/<key>/aktif === false) tidak boleh muncul di absensi kegiatan. Cache kelas diisi query
+// langsung ke Firebase (tanpa saringan status), jadi disaring di sini; data lama (tanpa field aktif) tetap aktif.
+const v4ActHanyaAktif = arr => (arr || []).filter(s => !s || s.aktif !== false);
 function v4ActSiswaKelas(kelasVal, type) {
-  const urut = arr => arr.slice().sort((a, b) => COLLATOR_ID.compare(a.name, b.name));
+  const urut = arr => v4ActHanyaAktif(arr).sort((a, b) => COLLATOR_ID.compare(a.name, b.name));
   if (kelasVal !== V4_ACT_SEMUA_KELAS) {
     const arr = v4PanelSiswaCache[kelasVal];
     if (!arr) return { siap: false, muat: 0, total: 1, grup: [], siswa: [] };
@@ -999,10 +1015,13 @@ function v4RenderActivityFillPanel(type) {
   const k = escapeJs(type.key);
   const kelasOptions = `<option value="${V4_ACT_SEMUA_KELAS}" ${kelasVal === V4_ACT_SEMUA_KELAS ? 'selected' : ''}>📚 Semua Kelas</option>` +
     KELAS_LIST.map(x => `<option value="${escapeHtml(x)}" ${kelasVal === x ? 'selected' : ''}>${escapeHtml(x)}${v4ActKelasTidakIkut(type, x) ? ' (tidak ikut)' : ''}</option>`).join('');
+  const kelasTab = [[V4_ACT_SEMUA_KELAS, '📚 Semua']].concat(KELAS_LIST.map(x => [x, x])).map(([v, t]) =>
+    `<button type="button" role="tab" aria-selected="${kelasVal === v}" class="v4-act-tab v4-act-tab-k${kelasVal === v ? ' aktif' : ''}${v !== V4_ACT_SEMUA_KELAS && v4ActKelasTidakIkut(type, v) ? ' tdk' : ''}" onclick="v4SetActivityKelas('${k}','${escapeJs(v)}')" ${v !== V4_ACT_SEMUA_KELAS && v4ActKelasTidakIkut(type, v) ? 'title="Kelas ini tidak ikut kegiatan"' : ''}>${escapeHtml(t)}</button>`).join('');
+  const kelasTabBar = `<div class="v4-act-tabs v4-act-tabs-k" role="tablist" aria-label="Pilih kelas">${kelasTab}</div>`;
   if (!kelasVal) {
     return `<div class="border-muted" style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;">
       <label class="label">Pilih kelas untuk mulai mengisi</label>
-      <select class="field" style="max-width:220px;" onchange="v4SetActivityKelas('${k}', this.value)"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select>
+      ${kelasTabBar}
     </div>`;
   }
   const dat = v4ActSiswaKelas(kelasVal, type);
@@ -1055,11 +1074,10 @@ function v4RenderActivityFillPanel(type) {
   const bannerAntrean = (nAntrean || nCi || offline) ? `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">${offline ? '📡 Offline: absensi akan disimpan di perangkat dan dikirim otomatis saat online.' : ''}${nAntrean ? `${offline ? '<br>' : ''}⏳ ${nAntrean} perubahan absensi menunggu dikirim ke server. <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" onclick="v4ActAntreanKirim(true)">Kirim sekarang</button>${v4ActAntreanErr ? ` <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;" onclick="v4ActAntreanBuang()">Buang antrean</button><br><span style="color:#b91c1c;">Terakhir gagal: ${v4Safe(v4ActAntreanErr)}</span>` : ''}` : ''}${nCi ? `${(offline || nAntrean) ? '<br>' : ''}⏳ ${nCi} check-in petugas menunggu dikirim. <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" onclick="v4ActCiTundaKirim(true)">Kirim sekarang</button>` : ''}</div>` : '';
   return `<div style="margin-top:10px;">
     ${bannerAntrean}
+    ${kelasTabBar}
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
       <label class="label" style="margin:0;">Tanggal:</label>
       <input type="date" class="field" style="max-width:150px;" value="${v4Safe(dateVal)}" max="${v4Safe(v4Date())}" onchange="v4SetActivityDate('${k}', this.value)">
-      <label class="label" style="margin:0;">Kelas:</label>
-      <select class="field" style="max-width:170px;" onchange="v4SetActivityKelas('${k}', this.value)"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select>
       <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" title="Muat ulang data dari server (lihat isian guru lain)" onclick="v4LoadCore()">🔄 Segarkan</button>
     </div>
     ${siswa.length > 0 ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;"><button class="btn ${fast ? 'btn-success' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="v4ToggleActivityFast('${k}')">${fast ? '⚡ Mode Cepat (aktif) · ketuk untuk ganti ke Tabel' : '📋 Mode Tabel · ketuk untuk ganti ke Mode Cepat'}</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="v4FillAllActivityHadir('${k}')">✅ Isi Semua Hadir (yang belum diisi)</button></div>` : ''}
@@ -1601,7 +1619,7 @@ function v4ActPeriksaAbsensiLengkap(namaSholat, tanggal) {
   const bacaAbsen = Promise.all(keys.map(k => db.ref('activity_attendance_v4').orderByKey().startAt(k + '_' + tanggal + '_').endAt(k + '_' + tanggal + '_').once('value')
     .then(snap => { snap.forEach(c => { const r = c.val() || {}; if (r.studentId && v4NormStatusKegiatan(r.status)) sudah.add(r.studentId); }); })));
   const bacaSiswa = Promise.all(kelasWajib.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(snap => {
-    const arr = []; snap.forEach(c => { const s = c.val() || {}; arr.push({ key: c.key, name: s.name || c.key }); }); return { kelas: k, siswa: arr };
+    const arr = []; snap.forEach(c => { const s = c.val() || {}; if (s.aktif === false) return; arr.push({ key: c.key, name: s.name || c.key }); }); return { kelas: k, siswa: arr };
   })));
   const batas = new Promise((_, tolak) => setTimeout(() => tolak(new Error('Server belum merespons.')), 15000));
   return Promise.race([Promise.all([bacaAbsen, bacaSiswa]), batas]).then(([, grup]) => {
@@ -2015,8 +2033,8 @@ function v4ActIngatKurang(type, tgl) {
     .then(snap => { snap.forEach(c => { const r = c.val() || {}; if (r.studentId && v4NormStatusKegiatan(r.status)) sudah.add(r.studentId); }); });
   const bacaSiswa = Promise.all(v4ActKelasAktif(type).map(k => {
     const cache = (typeof v4PanelSiswaCache !== 'undefined') ? v4PanelSiswaCache[k] : null;
-    if (cache) return Promise.resolve({ kelas: k, ids: cache.map(s => s.key) });
-    return db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(snap => { const ids = []; snap.forEach(c => { ids.push(c.key); }); return { kelas: k, ids }; });
+    if (cache) return Promise.resolve({ kelas: k, ids: v4ActHanyaAktif(cache).map(s => s.key) });
+    return db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(snap => { const ids = []; snap.forEach(c => { const sv = c.val() || {}; if (sv.aktif !== false) ids.push(c.key); }); return { kelas: k, ids }; });
   }));
   return Promise.all([bacaAbsen, bacaSiswa]).then(([, grup]) =>
     grup.map(g => ({ kelas: g.kelas, total: g.ids.length, terisi: g.ids.filter(id => sudah.has(id)).length })).filter(x => x.total && x.terisi < x.total));

@@ -5237,7 +5237,7 @@
       document.getElementById('mewakiliAbsensiList').innerHTML = '<p class="text-muted" style="text-align:center;padding:12px;">⏳ Memuat data siswa...</p>';
       document.getElementById('mewakiliAbsensiModal').classList.add('show');
       db.ref('siswa').orderByChild('kelas').equalTo(kelas).once('value', snap => {
-        snap.forEach(child => { const s = child.val(); s.key = child.key; mewakiliAttendanceSiswa.push(s); });
+        snap.forEach(child => { const s = child.val(); s.key = child.key; if (siswaAktif(s)) mewakiliAttendanceSiswa.push(s); });
         db.ref('attendance').orderByChild('tanggal').equalTo(tanggal).once('value', snap2 => {
           snap2.forEach(child => { const a = child.val(); if (a.kelas === kelas) mewakiliAttendanceDraft = a.data || {}; });
           renderMewakiliAbsensi();
