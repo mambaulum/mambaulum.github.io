@@ -15,7 +15,7 @@
     // ============================================================
     // HONOR SHOLAT (Dhuha & Dzuhur) -- DIHITUNG DARI CHECK-IN PETUGAS
     // ============================================================
-    // Aturan: honor sholat = check-in QR petugas (activity_checkin_v4) + absensi siswa LENGKAP + jam check-in dalam jendela.
+    // Aturan: honor sholat = check-in QR petugas (activity_checkin_v4) + jam check-in dalam jendela. Absensi siswa lengkap hanya jadi syarat bila HONOR_SHOLAT_WAJIB_ABSENSI_SISWA = true.
     // "Absen Religi Saya" tidak dipakai lagi (saveReligi dicabut). Check-in boleh offline, jadi honor tidak bergantung pada langkah kedua.
     // Pemeriksaan jam & kelengkapan dilakukan SAAT REKAP DIHITUNG (data sudah di server), bukan saat guru menyimpan.
     // Hari yang tidak lolos TIDAK dihitung dan ditandai (beserta alasannya) di Rekap Honor, Slip, dan Laporan.
@@ -23,6 +23,10 @@
     // Tanggal < HONOR_SHOLAT_MULAI_CHECKIN tetap dihitung dari Absen Religi lama (religi_attendance) supaya honor/slip lama tidak berubah.
     // Koreksi Admin (>= tanggal itu) disimpan di honor_koreksi_sholat, bukan mengubah check-in.
     const HONOR_SHOLAT_MULAI_CHECKIN = '2026-10-15';
+    // SAKELAR: false = honor sholat HANYA butuh check-in QR petugas yang jamnya dalam jendela sholat (absensi siswa TIDAK jadi syarat).
+    // true = seperti sebelumnya: wajib absensi siswa lengkap, dicocokkan menurut TANGGAL SHOLAT (bukan kapan diisi), jadi isian susulan
+    // untuk tanggal lampau tetap melengkapi hari itu.
+    const HONOR_SHOLAT_WAJIB_ABSENSI_SISWA = true;
     const HONOR_SHOLAT_TTL_MS = 5 * 60 * 1000;
     const HONOR_SHOLAT_TOLERANSI_MS = 5 * 60 * 1000;   // jam check-in boleh "lebih maju" maksimal ini dari jam server
     let honorSholatCache = {};   // 'YYYY-MM' -> { status:'loading'|'ok'|'gagal', at, hasil, error, tunggu:[] }
@@ -112,20 +116,18 @@
           else if (w.menit < honorSholatMenit(win.mulai) || w.menit > honorSholatMenit(win.selesai)) alasan.push('Check-in pukul ' + w.jam + ' di luar jam ' + win.mulai + '-' + win.selesai);
           if (Number(ci.serverAt) > 0 && ms > Number(ci.serverAt) + HONOR_SHOLAT_TOLERANSI_MS) alasan.push('Jam check-in lebih maju dari jam server');
         }
-        const sudah = ((c.hadirSiswa || {})[jenis] || {})[tgl] || new Set(), rinci = [];
-        const kelasKosong = [], daftarWajib = (c.siswaWajib || {})[jenis] || [];
-        // Tanpa kelas wajib sama sekali (mis. semua kelas ditandai "tidak ikut", atau kegiatannya tidak punya kelas peserta) tidak ada yang bisa diperiksa:
-        // JANGAN lolos diam-diam. Dan bila belum ada satu pun absensi siswa pada hari itu, hari itu pasti belum lengkap.
-        if (!daftarWajib.length) alasan.push('Tidak ada kelas peserta yang terdaftar pada kegiatan Sholat ' + nm + ': kelengkapan absensi siswa tidak dapat diperiksa (cek "kelas peserta" kegiatannya di Amalan Yaumiyah)');
-        else if (!sudah.size) alasan.push('Belum ada absensi siswa sama sekali untuk Sholat ' + nm + ' pada hari itu');
-        daftarWajib.forEach(g => {
-          // Kelas wajib tanpa data siswa TIDAK boleh dianggap "lengkap" (daftar kosong lolos tanpa absensi apa pun). Bisa karena data siswa
-          // belum termuat / nama kelas salah / Rules menolak baca; kelasnya tidak bisa diverifikasi -> hari ditolak + alasan jelas.
-          if (!g.siswa || g.siswa.length === 0) { kelasKosong.push(g.kelas); return; }
-          const belum = g.siswa.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + g.siswa.length + ' siswa');
-        });
-        if (kelasKosong.length) alasan.push('Kelas wajib tanpa data siswa (' + kelasKosong.join(', ') + '): kelengkapan absensi tidak dapat diverifikasi. Bila kelas itu memang tidak ikut sholat, atur "kelas tidak ikut" pada kegiatannya; bila ada siswanya, periksa data siswa');
-        if (rinci.length) alasan.push('Absensi siswa belum lengkap (' + rinci.join(', ') + ')');
+        if (HONOR_SHOLAT_WAJIB_ABSENSI_SISWA) {   // kunci = tanggal sholat (tgl), bukan waktu pengisian
+          const sudah = ((c.hadirSiswa || {})[jenis] || {})[tgl] || new Set(), rinci = [];
+          const kelasKosong = [];
+          ((c.siswaWajib || {})[jenis] || []).forEach(g => {
+            // Kelas wajib tanpa data siswa TIDAK boleh dianggap "lengkap" (daftar kosong lolos tanpa absensi apa pun). Bisa karena data siswa
+            // belum termuat / nama kelas salah / Rules menolak baca; kelasnya tidak bisa diverifikasi -> hari ditolak + alasan jelas.
+            if (!g.siswa || g.siswa.length === 0) { kelasKosong.push(g.kelas); return; }
+            const belum = g.siswa.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + g.siswa.length + ' siswa');
+          });
+          if (kelasKosong.length) alasan.push('Kelas wajib tanpa data siswa (' + kelasKosong.join(', ') + '): kelengkapan absensi tidak dapat diverifikasi. Bila kelas itu memang tidak ikut sholat, atur "kelas tidak ikut" pada kegiatannya; bila ada siswanya, periksa data siswa');
+          if (rinci.length) alasan.push('Absensi siswa belum lengkap (' + rinci.join(', ') + ')');
+        }
         const ek = gk + '|' + tgl + '|' + jenis, lolos = alasan.length === 0, e = entri[ek];
         const pengisiHari = [...((((c.pengisi || {})[jenis] || {})[tgl]) || [])];
         // Semua petugas yang check-in pada tanggal+jenis ini (nama), supaya Rekap Petugas QR tidak menandai petugas lain sebagai "pengisi selain petugas".
@@ -210,7 +212,7 @@
         const bacaCi = db.ref('activity_checkin_v4').orderByKey().startAt(awal).endAt(akhir).once('value').then(s => { c.checkins = s.val() || {}; });
         const bacaKor = db.ref('honor_koreksi_sholat').orderByKey().startAt(awal).endAt(akhir).once('value').then(s => { c.koreksi = s.val() || {}; });
         const semuaKelas = Array.from(new Set([].concat(kelasWajib.sholat_dluha, kelasWajib.sholat_dzuhur)));
-        const bacaSiswa = honorSiswaPerKelas(semuaKelas)
+        const bacaSiswa = !HONOR_SHOLAT_WAJIB_ABSENSI_SISWA ? Promise.resolve() : honorSiswaPerKelas(semuaKelas)
           .then(m => {
             jenisList.forEach(j => { c.siswaWajib[j] = kelasWajib[j].map(k => ({ kelas: k, siswa: m[k] || [] })); });
             const kosong = semuaKelas.filter(k => !(m[k] || []).length);
@@ -252,7 +254,7 @@
     function honorSholatDitolakHtml(daftar, semuaGuru) {
       if (!daftar || !daftar.length) return '';
       const baris = daftar.map(d => `<tr>${semuaGuru ? `<td>${escapeHtml(d.nama)}</td>` : ''}<td>${escapeHtml(d.tgl)}</td><td>${honorSholatNama(d.jenis)}</td><td>${escapeHtml(d.alasan)}</td></tr>`).join('');
-      return `<details open style="margin-top:16px;background:#fffbeb;border-radius:12px;padding:12px;border:1px solid #fcd34d;"><summary style="font-weight:700;cursor:pointer;color:#92400e;">⚠️ Hari sholat tidak dihitung honor (${daftar.length})</summary><div style="margin-top:10px;overflow-x:auto;"><table><thead><tr>${semuaGuru ? '<th>Guru</th>' : ''}<th>Tanggal</th><th>Sholat</th><th>Alasan</th></tr></thead><tbody>${baris}</tbody></table></div><p class="text-muted" style="font-size:11px;margin:8px 0 0;">Honor sholat dihitung dari check-in petugas yang jamnya dalam jendela sholat dan absensi siswanya lengkap. Untuk koreksi, Admin memakai kartu "Koreksi Absen Religi Guru".</p></details>`;
+      return `<details open style="margin-top:16px;background:#fffbeb;border-radius:12px;padding:12px;border:1px solid #fcd34d;"><summary style="font-weight:700;cursor:pointer;color:#92400e;">⚠️ Hari sholat tidak dihitung honor (${daftar.length})</summary><div style="margin-top:10px;overflow-x:auto;"><table><thead><tr>${semuaGuru ? '<th>Guru</th>' : ''}<th>Tanggal</th><th>Sholat</th><th>Alasan</th></tr></thead><tbody>${baris}</tbody></table></div><p class="text-muted" style="font-size:11px;margin:8px 0 0;">Honor sholat dihitung dari check-in QR petugas yang jamnya dalam jendela sholat${HONOR_SHOLAT_WAJIB_ABSENSI_SISWA ? ' dan absensi siswanya lengkap' : ''}. Untuk koreksi, Admin memakai kartu "Koreksi Absen Religi Guru".</p></details>`;
     }
 
     // ============================================================

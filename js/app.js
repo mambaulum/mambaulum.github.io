@@ -302,6 +302,9 @@
         if (typeof cb === 'function') cb({ message: '🔒 ' + ((e && e.message) || 'Sesi admin gagal') });
       });
     }
+    // Rules teacher_attendance mengikat catatan guru ke sesi_guru/{uid}: pastikan bukti sesi guru terisi dulu. Tidak pernah menolak:
+    // bila gagal, penulisan tetap dicoba (server yang memutuskan) supaya alur absen tidak macet karena modul kredensial.
+    function guruSesiSiap() { try { return Promise.resolve((typeof window.kredGuruSiap === 'function') ? window.kredGuruSiap() : true).catch(() => true); } catch (e) { return Promise.resolve(true); } }
     function isBusy(key) { return !!_busyLocks[key]; }
     function setBusy(key, btn) {
       _busyLocks[key] = true;
@@ -3855,7 +3858,7 @@
       return new Promise((resolve, reject) => {
         const p = Object.assign({}, item.payload); const fbKey = p._fbKey; delete p._fbKey;
         if (!fbKey) { SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve); return; } // item rusak, buang
-        db.ref('teacher_attendance/' + fbKey).transaction(existing => {
+        guruSesiSiap().then(() => db.ref('teacher_attendance/' + fbKey).transaction(existing => {
           if (existing !== null) return; // sudah ada -- batalkan, jangan timpa
           return p;
         }, (err) => {
@@ -3863,7 +3866,7 @@
           const idx = allTeacherAttendance.findIndex(a => a._pendingId === item.id);
           if (idx > -1) { allTeacherAttendance[idx] = Object.assign({ key: fbKey }, p); bumpTaRev(); }
           SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve);
-        }, false);
+        }, false));
       });
     }
 
@@ -6593,7 +6596,7 @@
       // ulang memakai transaction yang menolak kalau data sudah ada.
       let transaksiSelesai = false, dialihkanOffline = false;
       const timerFallback = setTimeout(() => { if (transaksiSelesai) return; dialihkanOffline = true; simpanAbsenOffline(); }, 15000);
-      dbRef.transaction(existing => {
+      guruSesiSiap().then(() => dbRef.transaction(existing => {
         if (existing !== null) return; // sudah ada -- batalkan transaksi, jangan ditimpa
         return { tanggal: today, guru: currentUser.name, guruKey: currentUser.key, kelas: currentUser.kelas, waktu: firebase.database.ServerValue.TIMESTAMP, type: type, tahunAjaran: currentTahunAjaran, metode: 'qr_lokasi', verified: true, keterangan: keteranganTelat || null };
       }, (err, committed, snapshot) => {
@@ -6614,7 +6617,7 @@
         const newAttendance = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key, kelas: currentUser.kelas, waktu: (snapshot && snapshot.val() && snapshot.val().waktu) || Date.now(), type: type, key: snapshot.key, tahunAjaran: currentTahunAjaran, metode: 'qr_lokasi', keterangan: keteranganTelat || null };
         allTeacherAttendance.push(newAttendance); bumpTaRev();
         renderTeacherAttendance(); renderJikaAktif('dashboard', updateDashboard); stopCamera();
-      });
+      }));
     }
     function renderTeacherAttendance() {
       const container = document.getElementById('teacherAttendanceHistory');
@@ -6694,7 +6697,7 @@
       const guruKeyAman = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g,'_');
       const dbRef = db.ref(`teacher_attendance/${today}_${guruKeyAman}_${type}`);
       const dataBaru = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key, kelas: currentUser.kelas, waktu: firebase.database.ServerValue.TIMESTAMP, type: type, keterangan: keterangan || null, tahunAjaran: currentTahunAjaran, metode: 'lapor_sendiri' };
-      dbRef.transaction(existing => existing !== null ? undefined : dataBaru, (err, committed, snapshot) => {
+      guruSesiSiap().then(() => dbRef.transaction(existing => existing !== null ? undefined : dataBaru, (err, committed, snapshot) => {
         clearBusy('submitIzinSakit', btn);
         if (err) return toast('Gagal: '+err.message, true);
         if (!committed) { toast('⚠️ Anda sudah punya catatan kehadiran hari ini (tercatat dari sesi lain).', true); reloadDataset('teacherAttendance', () => renderTeacherAttendance()); return; }
@@ -6705,7 +6708,7 @@
         const newRecord = { tanggal: today, guru: currentUser.name, guruKey: currentUser.key, kelas: currentUser.kelas, waktu: (snapshot && snapshot.val() && snapshot.val().waktu) || Date.now(), type: type, keterangan: keterangan || null, key: snapshot.key, tahunAjaran: currentTahunAjaran, metode: 'lapor_sendiri' };
         allTeacherAttendance.push(newRecord); bumpTaRev();
         renderTeacherAttendance(); renderJikaAktif('dashboard', updateDashboard);
-      });
+      }));
     }
 
     // ============================================================

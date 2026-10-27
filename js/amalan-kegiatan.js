@@ -583,7 +583,7 @@ function v4RenderActivityFill() {
             const g = per[n], hp = honorPer[n] || { ok: 0, belum: 0, rp: 0, alasan: [] };
             return [n, g.jadwal || '-', g.jadwal ? g.hadirPj : '-', g.jadwal ? Math.round(g.hadirPj / g.jadwal * 100) + '%' : '-', g.n, g.peng, g.klaim, g.off, g.ciDl, g.ciDz, hp.ok, hp.belum ? 'BELUM ' + hp.belum : 0, hp.rp, hp.alasan.join('; ') || '-'];
           }),
-          catatan: 'Honor sholat dihitung dari check-in + absensi siswa lengkap (berlaku mulai ' + V4_HONOR_SHOLAT_CHECKIN_MULAI + '). Dh = Dhuha, Dz = Dzuhur. Rp = perkiraan dari tarif sekarang.',
+          catatan: 'Honor sholat dihitung dari check-in QR' + ((typeof HONOR_SHOLAT_WAJIB_ABSENSI_SISWA !== 'undefined' && HONOR_SHOLAT_WAJIB_ABSENSI_SISWA) ? ' + absensi siswa lengkap' : ' (absensi siswa bukan syarat)') + ' (berlaku mulai ' + V4_HONOR_SHOLAT_CHECKIN_MULAI + '). Dh = Dhuha, Dz = Dzuhur. Rp = perkiraan dari tarif sekarang.',
           kosong: 'Belum ada check-in petugas pada bulan ini.'
         };
       } else {
@@ -1224,11 +1224,14 @@ function v4ActAntreanKirim(manual) {
     if (manual) toast('⏳ Server belum merespons. Antrean tetap tersimpan dan dicoba lagi otomatis.', true);
     v4ActAntreanUI();
   }, V4_ACT_SIMPAN_TIMEOUT_MS);
-  db.ref('activity_attendance_v4').update(payload).then(() => {
+  // Rules membatasi tulis absensi ke sesi yang terverifikasi (Admin/Kepsek/guru): pastikan bukti sesi guru terisi dulu.
+  v4ActSiapSesiGuru().then(() => db.ref('activity_attendance_v4').update(payload)).then(() => {
     clearTimeout(tmo); selesai = true; v4ActAntreanJalan = false; v4ActAntreanErr = '';
     const toks = {}; items.forEach(q => { toks[q.id] = q.tok; });
     v4ActAntreanHapusToks(toks);
     v4ActTerapkanKeV4(items);   // jaga salinan lokal tetap benar walau data sempat dimuat ulang dari server
+    // Antrean offline baru sampai ke server: hasil honor bulan-bulan terkait (menurut tanggal sholat) harus dihitung ulang.
+    try { if (typeof honorSholatInvalidate === 'function') honorSholatInvalidate(); if (typeof v4HonorSholatCache !== 'undefined') items.forEach(q => { const t = q.tgl || (q.rec && q.rec.tanggal) || ''; if (t) delete v4HonorSholatCache[String(t).slice(0, 7)]; }); } catch (e) { /* cache opsional */ }
     const per = {}; items.forEach(q => { per[q.tk] = (per[q.tk] || 0) + 1; });
     Object.keys(per).forEach(tk => v4Audit('SYNC_ACTIVITY_ATTENDANCE', 'ACTIVITY_TYPE', tk, null, { jumlah: per[tk], dariAntreanOffline: true }));
     v4ActPersistCache();
@@ -1302,7 +1305,7 @@ function v4SaveActivityAttendance(typeKey) {
     touched.forEach(st => {
       // status null (pilihan dibatalkan) TIDAK boleh ditulis sebagai record -- Rules mewajibkan child 'status';
       // dikirim sebagai null = hapus record (hapus selalu lolos validasi).
-      records[`${typeKey}_${dateVal}_${st.key}`] = snap[st.key] ? { activityTypeId: typeKey, studentId: st.key, studentName: st.name, kelas: st.kelas, tanggal: dateVal, status: snap[st.key], recordedBy: currentUser.name, guruKey: currentUser.key || null, recordedAt: nowIso, tahunAjaran: currentTahunAjaran } : null;
+      records[`${typeKey}_${dateVal}_${st.key}`] = snap[st.key] ? { activityTypeId: typeKey, studentId: st.key, studentName: st.name, kelas: st.kelas, tanggal: dateVal, status: snap[st.key], recordedBy: currentUser.name, guruKey: v4ActMyId() || null, recordedAt: nowIso, tahunAjaran: currentTahunAjaran } : null;
     });
   } catch (e) {
     clearBusy('v4SaveAct_' + typeKey, getBtn());
@@ -1328,13 +1331,15 @@ function v4SaveActivityAttendance(typeKey) {
     toast('📶 Sinyal lemah: absensi disimpan di perangkat dan dikirim otomatis saat server merespons.', false, 4500);
   }, V4_ACT_SIMPAN_TIMEOUT_MS);
   // Satu update() multi-path = atomik: semua tersimpan atau tidak sama sekali.
-  db.ref('activity_attendance_v4').update(records).then(() => {
+  v4ActSiapSesiGuru().then(() => db.ref('activity_attendance_v4').update(records)).then(() => {   // sesi guru dulu: Rules mengikat guruKey ke akun
     clearTimeout(tmo);
     if (selesai) { v4ActAntreanHapusToks(toksTelat); return; } // sudah dialihkan ke antrean oleh timeout
     selesai = true;
     clearBusy('v4SaveAct_' + typeKey, getBtn());
     toast('✅ Absensi tersimpan!');
     v4Audit('SAVE_ACTIVITY_ATTENDANCE', 'ACTIVITY_TYPE', typeKey, null, { kelas: kelasVal, tanggal: dateVal, jumlah: touched.length });
+    // Isian (termasuk susulan tanggal lampau) mengubah hasil rekap bulan TANGGAL SHOLAT itu: buang cache honor supaya dihitung ulang.
+    try { if (typeof honorSholatInvalidate === 'function') honorSholatInvalidate(); if (typeof v4HonorSholatCache !== 'undefined') delete v4HonorSholatCache[String(dateVal).slice(0, 7)]; } catch (e) { /* cache opsional */ }
     // Perbarui salinan lokal SEKARANG. FIX: dulu setelah ini memanggil v4LoadCore() yang mengunduh ulang ±13 dataset
     // (termasuk seluruh absensi tahun ajaran) di SETIAP simpan -- boros kuota. Salinan lokal sudah akurat; tombol
     // "🔄 Segarkan" tersedia kalau ingin melihat isian guru lain.
@@ -1404,7 +1409,7 @@ function v4ActSimpanTertunda(type, jarak, el) {
   const tgl = v4Date(), key = tgl + '_' + type.key;
   const telat = Math.max(0, v4ActMenitSekarang() - v4ActMenit(v4ActJamMulai(type)));
   const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran, klaim: false, via: 'qr',
-    jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), offline: true };
+    jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), atMs: v4ActNowMs(), offline: true };
   const sebelum = Object.assign({}, v4ActCiTunda);
   v4ActCiTunda[key] = data;
   if (!v4ActCiTundaSimpan()) { v4ActCiTunda = sebelum; throw new Error('Gagal menyimpan check-in di perangkat (penyimpanan penuh atau diblokir).'); }
@@ -1452,7 +1457,7 @@ function v4ActCiTundaKirim(manual) {
   keys.forEach(key => {
     const d = v4ActCiTunda[key]; let beres = false;
     const tmo = setTimeout(() => { if (beres) return; beres = true; if (manual) toast('⏳ Server belum merespons. Dicoba lagi otomatis.', true); satuSelesai(); }, 20000);
-    v4ActSiapSesiGuru().then(() => db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString() }); })).then(res => {
+    v4ActSiapSesiGuru().then(() => db.ref('activity_checkin_v4/' + key).transaction(cur => { if (cur) return; return Object.assign({}, d, { disinkronAt: new Date().toISOString(), serverAt: firebase.database.ServerValue.TIMESTAMP }); })).then(res => {
       clearTimeout(tmo);
       const type = v4ActTypeByKey(d.typeId), nama = type ? type.name : d.typeId;
       const cur = res.snapshot.val();
@@ -1890,10 +1895,12 @@ function v4ActTulisCheckin(type, jarak) {
   if (!el.ok) return Promise.reject(new Error(el.msg));
   const tgl = v4Date();
   const telat = Math.max(0, v4ActMenitSekarang() - v4ActMenit(v4ActJamMulai(type)));
-  const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran + (el.klaim ? ' (klaim)' : ''), klaim: !!el.klaim, via: 'qr', jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString() };
-  return v4ActSiapSesiGuru().then(() => db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return data; })).then(res => {
+  const data = { typeId: type.key, tanggal: tgl, guruKey: v4ActMyId(), guruName: currentUser.name, peran: el.peran + (el.klaim ? ' (klaim)' : ''), klaim: !!el.klaim, via: 'qr', jarak: jarak == null ? null : Math.round(jarak), telatMenit: telat, at: new Date(v4ActNowMs()).toISOString(), atMs: v4ActNowMs() };
+  // serverAt = jam SERVER (Rules: harus sama dengan now) -> bukti jam check-in tidak dimundurkan lewat jam perangkat; dipakai honor-guru.js.
+  const dataServer = Object.assign({}, data, { serverAt: firebase.database.ServerValue.TIMESTAMP });
+  return v4ActSiapSesiGuru().then(() => db.ref('activity_checkin_v4/' + tgl + '_' + type.key).transaction(cur => { if (cur) return; return dataServer; })).then(res => {
     if (!res.committed) { const cur = res.snapshot.val(); throw new Error('Sudah ada petugas hari ini: ' + ((cur && cur.guruName) || 'guru lain') + '.'); }
-    v4ActCheckins[tgl + '_' + type.key] = data;
+    v4ActCheckins[tgl + '_' + type.key] = Object.assign({}, data, { serverAt: v4ActNowMs() });   // salinan lokal: angka, bukan penanda server
     // Check-in sudah tercatat di server. Kegagalan log/audit tidak boleh membuatnya dilaporkan sebagai gagal.
     try {
       addLog(el.klaim ? 'klaim_petugas_kegiatan' : 'checkin_petugas_kegiatan', type.key + ' - ' + currentUser.name);
