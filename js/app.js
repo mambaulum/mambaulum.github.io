@@ -4930,7 +4930,10 @@
     // ============================================================
     function sudahAbsenDatangHariIni() {
       const today = tglLokal();
-      return allTeacherAttendance.some(a => a.tanggal === today && a.type === 'Datang' && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
+      const cocok = a => a.tanggal === today && a.type === 'Datang' && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name);
+      // allTeacherAttendanceToday (query per tanggal) ikut dicek: allTeacherAttendance disaring per tahunAjaran, sehingga catatan Datang
+      // yang tahunAjaran-nya kosong/berbeda (mis. hasil koreksi/edit manual) tidak terhitung walau sudah ada di server.
+      return allTeacherAttendance.some(cocok) || (allTeacherAttendanceToday || []).some(cocok);
     }
     function bolehIsiAbsensiSiswa() {
       if (isAdmin() || isKepsek()) return true;
@@ -6303,7 +6306,17 @@
         const ada = allTeacherAttendance.some(a => a.tanggal === today && a.type === tipe && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
         if (!ada) { v.key = snap.key; allTeacherAttendance.push(v); bumpTaRev(); }
       }).catch(() => {});
-      return Promise.race([Promise.all([baca('Datang'), baca('Pulang')]), new Promise(r => setTimeout(r, 2500))]);
+      // Cadangan: catatan dengan key berbeda dari pola tanggal_guruKey_tipe (mis. hasil edit/koreksi, key lama berbasis nama, push-id) tidak
+      // ketemu lewat baca() di atas. Query per tanggal lalu cocokkan guruKey/nama -- tanpa syarat tahunAjaran.
+      const cadangan = () => db.ref('teacher_attendance').orderByChild('tanggal').equalTo(today).once('value').then(snap => {
+        snap.forEach(child => { // callback TIDAK boleh me-return nilai truthy
+          const v = child.val(); if (!v || (v.type !== 'Datang' && v.type !== 'Pulang')) return;
+          if (!(v.guruKey ? v.guruKey === currentUser.key : v.guru === currentUser.name)) return;
+          const ada = allTeacherAttendance.some(a => a.tanggal === today && a.type === v.type && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
+          if (!ada) { v.key = child.key; allTeacherAttendance.push(v); bumpTaRev(); }
+        });
+      }).catch(() => {});
+      return Promise.race([Promise.all([baca('Datang'), baca('Pulang')]).then(() => cadangan()), new Promise(r => setTimeout(r, 4000))]);
     }
     // Lepas stream kamera + batalkan RAF scan QR SAJA, tanpa reset tombol/status ke kondisi idle
     // -- dipakai bersama oleh stopCamera() (reset penuh, dipanggil saat user batal/keluar halaman)
