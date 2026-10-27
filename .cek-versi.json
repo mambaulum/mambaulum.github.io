@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.201",
-  "disimpan": "2026-10-27T08:47:34.708Z",
+  "appVersion": "v8.204",
+  "disimpan": "2026-10-27T09:33:43.030Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=130",
-      "hash": "439cf27d94d71e015a7234082b259b7a7ea28c2a"
+      "v": "v=133",
+      "hash": "195528e7196e5dc3f603515db10b37093465c5e1"
     },
     "js/portal-ortu.js": {
       "v": "v=1",
@@ -79,8 +79,8 @@
       "hash": "3700ebef46ef11a5254e1e55e9c00da89b2e5995"
     },
     "js/kelola-absen-guru.js": {
-      "v": "v=3",
-      "hash": "c22a89c4cb34be63686ac817d883731271543a2d"
+      "v": "v=5",
+      "hash": "20a3332882b5f7e25fb93953ef948e642a8428be"
     },
     "js/jadwal.js": {
       "v": "v=5",
@@ -271,8 +271,8 @@
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
     },
     "js/absen-manual-gps.js": {
-      "v": "v=2",
-      "hash": "91addd931794a56f22567d4d8d4b592a2174b4bf"
+      "v": "v=5",
+      "hash": "34fcc78c75bfdd332e865ce7fa353c617711525a"
     },
     "js/surat-guru.js": {
       "v": "v=47",
