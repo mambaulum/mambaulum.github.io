@@ -54,7 +54,7 @@ const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
 
 // Saat membuka/refresh app dengan cache tersedia: tunggu network maksimal segini lama.
-const NAV_NETWORK_TIMEOUT_MS = 1500;   // (dulu 3000) sinyal lemah: pakai cache lebih cepat; versi baru tetap diunduh di latar belakang
+const NAV_NETWORK_TIMEOUT_MS = 3000;
 // Kunjungan pertama (belum ada cache sama sekali): tunggu lebih lama, lalu tampilkan offline.html.
 const NAV_FIRST_VISIT_TIMEOUT_MS = 12000;
 
@@ -81,7 +81,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=122',
+  './js/app.js?v=123',
   './js/portal-ortu.js?v=1',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=1',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=1',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -89,7 +89,7 @@ const PRECACHE_URLS = [
   './js/kelola-absen-guru.js?v=1',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=5',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/laporan-rekap.js?v=2',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-guru.js?v=16',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-guru.js?v=17',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=1',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-tahfidz-pramuka-ekskul.js?v=1',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -130,7 +130,7 @@ const PRECACHE_URLS = [
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=13',
   './js/auto-logout.js?v=5',
-  './js/login-kode.js?v=14',               // juga dipakai login OFFLINE (membungkus login())
+  './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
   './js/surat-guru.js?v=41',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
@@ -220,27 +220,10 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(SHELL_CACHE).then(async cache => {
       const gagalKritis = [];
-      // Berkas ber-?v=N yang URL-nya SAMA dengan yang sudah ada di cache shell versi lama tidak diunduh ulang
-      // (konvensi proyek: isi berkas berubah => ?v= naik; sama seperti perlakuan staleWhileRevalidate di bawah).
-      // Dulu setiap naik APP_VERSION semua ±80 berkas diunduh ulang di tiap HP guru -> "Perbarui" lama & boros kuota.
-      // Hanya berkas tanpa ?v= (index.html, manifest, dsb.) dan berkas yang ?v=-nya naik yang diambil dari jaringan.
-      const cacheLama = [];
-      try { for (const k of await caches.keys()) if (k.startsWith('si-mamba-shell-') && k !== SHELL_CACHE) cacheLama.push(await caches.open(k)); } catch (e) {}
-      const pakaiUlang = async url => {
-        if (url.indexOf('?v=') === -1) return false;
-        for (const c of cacheLama) {
-          try {
-            const r = await c.match(url);
-            if (r && r.ok && isiCocok(url, r)) { await cache.put(url, r.clone()); return true; }
-          } catch (e) {}
-        }
-        return false;
-      };
       for (let i = 0; i < PRECACHE_URLS.length; i += 8) {
         await Promise.all(
           PRECACHE_URLS.slice(i, i + 8).map(async url => {
             try {
-              if (await pakaiUlang(url)) return;
               const res = await fetch(url, { cache: 'no-cache' });
               if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status));
               if (!isiCocok(url, res)) throw new Error('isi HTML tidak sesuai untuk file ini');

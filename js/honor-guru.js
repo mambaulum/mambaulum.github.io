@@ -113,8 +113,12 @@
           if (Number(ci.serverAt) > 0 && ms > Number(ci.serverAt) + HONOR_SHOLAT_TOLERANSI_MS) alasan.push('Jam check-in lebih maju dari jam server');
         }
         const sudah = ((c.hadirSiswa || {})[jenis] || {})[tgl] || new Set(), rinci = [];
-        const kelasKosong = [];
-        ((c.siswaWajib || {})[jenis] || []).forEach(g => {
+        const kelasKosong = [], daftarWajib = (c.siswaWajib || {})[jenis] || [];
+        // Tanpa kelas wajib sama sekali (mis. semua kelas ditandai "tidak ikut", atau kegiatannya tidak punya kelas peserta) tidak ada yang bisa diperiksa:
+        // JANGAN lolos diam-diam. Dan bila belum ada satu pun absensi siswa pada hari itu, hari itu pasti belum lengkap.
+        if (!daftarWajib.length) alasan.push('Tidak ada kelas peserta yang terdaftar pada kegiatan Sholat ' + nm + ': kelengkapan absensi siswa tidak dapat diperiksa (cek "kelas peserta" kegiatannya di Amalan Yaumiyah)');
+        else if (!sudah.size) alasan.push('Belum ada absensi siswa sama sekali untuk Sholat ' + nm + ' pada hari itu');
+        daftarWajib.forEach(g => {
           // Kelas wajib tanpa data siswa TIDAK boleh dianggap "lengkap" (daftar kosong lolos tanpa absensi apa pun). Bisa karena data siswa
           // belum termuat / nama kelas salah / Rules menolak baca; kelasnya tidak bisa diverifikasi -> hari ditolak + alasan jelas.
           if (!g.siswa || g.siswa.length === 0) { kelasKosong.push(g.kelas); return; }

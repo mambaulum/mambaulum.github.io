@@ -6048,6 +6048,25 @@
       } catch (e) {}
       return false;
     }
+    // Pastikan token QR Absensi ada di memori. Dulu: bila pembacaan saat login gagal/timeout (sinyal lemah), V4.absenQr tetap null dan guru
+    // itu terus diberi "QR Absensi belum diatur Admin" walau Admin sudah mengatur -- padahal online dianggap "percaya Firebase". Sekarang bila token
+    // kosong dan online, dibaca ulang dari Firebase (maks 8 dtk); bila gagal/timeout, pakai salinan di perangkat (localStorage) bila ada.
+    let v4AbsenQrMuat = null;
+    function v4PastikanAbsenQr() {
+      if (V4.absenQr && V4.absenQr.token) return Promise.resolve(true);
+      const dariCache = () => { try { const raw = localStorage.getItem(ABSEN_QR_CACHE_KEY), d = raw && JSON.parse(raw); if (d && d.token) { V4.absenQr = d; return true; } } catch (e) {} return false; };
+      if (!isReallyOnline() || typeof db === 'undefined' || !db) return Promise.resolve(dariCache());
+      if (!v4AbsenQrMuat) v4AbsenQrMuat = new Promise(res => {
+        let selesai = false;
+        const fin = ok => { if (selesai) return; selesai = true; clearTimeout(t); v4AbsenQrMuat = null; res(ok); };
+        const t = setTimeout(() => fin(dariCache()), 8000);
+        db.ref('absen_qr_settings').once('value').then(snap => {
+          const d = snap.val();
+          if (d && d.token) { V4.absenQr = d; v4CacheAbsenQr(d); fin(true); } else fin(false);   // null = benar-benar belum diatur Admin
+        }).catch(() => fin(dariCache()));
+      });
+      return v4AbsenQrMuat;
+    }
     function v4SetFaceStatus(html, bg, color, border) {
       const el = document.getElementById('faceStatus');
       if (!el) return;
@@ -6079,7 +6098,10 @@
       const izinSakitHariIni = allTeacherAttendance.find(a => a.tanggal === tglLokal() && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && (a.type === 'Izin' || a.type === 'Sakit'));
       if (izinSakitHariIni) return toast(`⚠️ Anda sudah melaporkan ${izinSakitHariIni.type} hari ini.`, true);
       v4PulihkanAbsenQrDariCache();
-      if (!V4.absenQr || !V4.absenQr.token) return toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin. Hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true);
+      if (!(V4.absenQr && V4.absenQr.token)) {   // token belum ada di memori: baca ulang dulu sebelum menyerah
+        toast('⏳ Memuat data QR Absensi...', false, 1500);
+        return v4PastikanAbsenQr().then(ok => { if (ok) bottomNavScanQr(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin, atau belum bisa dimuat (cek sinyal lalu coba lagi). Bila tetap begini, hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); });
+      }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('⚠️ Browser tidak support kamera!', true);
       navigateTo('teacher-attendance');
       startCamera();
@@ -6090,7 +6112,7 @@
       const izinSakitHariIni = allTeacherAttendance.find(a => a.tanggal === tglLokal() && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && (a.type === 'Izin' || a.type === 'Sakit'));
       if (izinSakitHariIni) { toast(`⚠️ Anda sudah melaporkan ${izinSakitHariIni.type} hari ini.`, true); return; }
       v4PulihkanAbsenQrDariCache();
-      if (!V4.absenQr || !V4.absenQr.token) { toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin. Hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); return; }
+      if (!(V4.absenQr && V4.absenQr.token)) { v4PastikanAbsenQr().then(ok => { if (ok) startCamera(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum diatur Admin, atau belum bisa dimuat (cek sinyal lalu coba lagi). Bila tetap begini, hubungi Admin.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); }); return; }
       const video = document.getElementById('video'), container = document.getElementById('videoContainer');
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast('⚠️ Browser tidak support kamera!', true);
