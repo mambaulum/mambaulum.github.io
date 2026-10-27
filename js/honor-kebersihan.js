@@ -70,9 +70,9 @@ function hkHitung(p, id, ym, hari, abaikanDraft) {
   return { set, efektif, hadirEf, hadirLibur, tidakHadir, hadirLiburTgl, tarif, dibayar, honor: dibayar * tarif, draft: !!dk };
 }
 
-function hkSinkronBulan() {
+function hkSinkronBulan(paksa) {
   const b = document.getElementById('hkBulan'), t = document.getElementById('hkTahun');
-  if (!hkYm) {
+  if (paksa || !hkYm) {   // paksa = tab dibuka: ikuti Bulan/Tahun yang dipilih di Rekap Honor
     const m = (document.getElementById('honorMonth') || {}).value, y = (document.getElementById('honorYear') || {}).value;
     const now = new Date(Date.now() + 7 * 3600 * 1000);
     hkYm = (parseInt(y, 10) || now.getUTCFullYear()) + '-' + hkPad(parseInt(m, 10) || (now.getUTCMonth() + 1));
@@ -84,20 +84,24 @@ function hkGantiBulan() {
   const m = parseInt((document.getElementById('hkBulan') || {}).value, 10), y = parseInt((document.getElementById('hkTahun') || {}).value, 10);
   if (!(m >= 1 && m <= 12) || !(y >= 2000 && y <= 2100)) return;
   hkYm = y + '-' + hkPad(m);
-  renderHonorKebersihan();
+  // Samakan juga pemilih Bulan/Tahun di Rekap Honor, lalu hitung ulang rekap setelah data bulan ini termuat.
+  const hm = document.getElementById('honorMonth'), hy = document.getElementById('honorYear');
+  if (hm) hm.value = String(m);
+  if (hy) hy.value = String(y);
+  renderHonorKebersihan(false, hkSegarkanRekapHonor);
 }
 
 // Dipanggil honorMenuTab('kebersihan'): muat Kalender Akademik (lazy) + data, lalu gambar.
-function renderHonorKebersihan() {
+function renderHonorKebersihan(ikutiRekap, sesudah) {
   const box = document.getElementById('hkIsi'); if (!box) return;
   if (!_hkKalenderDicoba && typeof lazyLoadedSet !== 'undefined' && !lazyLoadedSet.has('kalenderAkademik') && typeof ensureLazyDatasets === 'function') {
     _hkKalenderDicoba = true;
-    ensureLazyDatasets(['kalenderAkademik'], () => renderHonorKebersihan());
+    ensureLazyDatasets(['kalenderAkademik'], () => renderHonorKebersihan(ikutiRekap, sesudah));
     return;
   }
-  hkSinkronBulan();
+  hkSinkronBulan(!!ikutiRekap);
   box.innerHTML = '<p class="text-muted" style="font-size:13px;">⏳ Memuat data petugas kebersihan…</p>';
-  hkMuat(hkYm, hkGambar);
+  hkMuat(hkYm, () => { hkGambar(); if (typeof sesudah === 'function') sesudah(); });
 }
 
 function hkMuat(ym, selesai) {
@@ -356,6 +360,27 @@ function hkRekapBulan(ym, onReady) {
     });
   const kalenderAda = (typeof allKalenderAkademik !== 'undefined') && allKalenderAkademik && (Array.isArray(allKalenderAkademik) ? allKalenderAkademik.length : Object.keys(allKalenderAkademik).length);
   return { siap: true, gagal: false, total, baris, kalenderAda: !!kalenderAda };
+}
+// HTML bagian "Honor Petugas Kebersihan" untuk tab Rekap Honor (terlihat oleh semua peran yang melihat rekap, bukan hanya Admin).
+// kbr = hasil hkRekapBulan(); ym = 'YYYY-MM'; totalGuru = total honor guru bulan itu.
+function hkRekapHtml(kbr, ym, totalGuru) {
+  const bln = HK_NAMA_BULAN[parseInt(ym.slice(5), 10) - 1] + ' ' + ym.slice(0, 4);
+  const judul = '<h4 style="font-size:14px;font-weight:700;margin:18px 0 8px;">🧹 Honor Petugas Kebersihan — ' + escapeHtml(bln) + '</h4>';
+  const kotak = (bg, warna, isi) => '<div style="padding:10px 12px;background:' + bg + ';border-radius:10px;font-size:12px;color:' + warna + ';">' + isi + '</div>';
+  const muat = ' <button type="button" class="btn btn-soft" style="min-height:0;padding:4px 10px;font-size:12px;" onclick="hkRekapReset();renderHonor()">🔄 Muat ulang</button>';
+  if (!kbr || !kbr.siap) return judul + kotak('#f3f4f6', '#6b7280', '⏳ Memuat honor petugas kebersihan…');
+  if (kbr.gagal) return judul + kotak('#fef3c7', '#92400e', '⚠️ Honor petugas kebersihan TIDAK termuat (' + escapeHtml(kbr.pesan || 'galat') + '), jadi belum ikut di rekap ini.' + muat);
+  if (!kbr.baris.length) return judul + kotak('#f9fafb', '#6b7280', 'Belum ada kehadiran petugas kebersihan yang tersimpan untuk bulan ini. Isi di tab <b>🧹 Petugas Kebersihan</b> lalu tekan <b>Simpan</b> (centang yang belum disimpan tidak dihitung).' + muat);
+  let tb = '<div style="overflow-x:auto;"><table class="honor-rekap-tbl"><thead><tr><th>No</th><th>Petugas</th><th>Hari efektif</th><th>Hadir</th><th>Tidak hadir</th><th>Hadir di libur</th><th>Tarif/hari</th><th>Hari dibayar</th><th>Honor</th></tr></thead><tbody>';
+  kbr.baris.forEach((b, i) => {
+    tb += '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(b.nama) + '</td><td>' + b.efektif + '</td><td>' + b.hadirEf + '</td><td>' + b.tidakHadir + '</td><td>'
+      + (b.hadirLibur ? b.hadirLibur + (b.bayarLibur ? ' (dibayar)' : ' (tidak dibayar)') : '-') + '</td><td>' + hkRp(b.tarif) + '</td><td>' + b.dibayar + '</td><td>' + hkRp(b.honor) + '</td></tr>';
+  });
+  tb += '</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th colspan="8" style="text-align:right;">TOTAL PETUGAS KEBERSIHAN</th><th style="color:#059669;">' + hkRp(kbr.total) + '</th></tr></tfoot></table></div>';
+  const gab = '<div style="margin-top:10px;font-size:13px;">Honor guru <b>' + hkRp(totalGuru) + '</b> + petugas kebersihan <b>' + hkRp(kbr.total) + '</b> = <b style="color:#059669;">' + hkRp((Number(totalGuru) || 0) + kbr.total) + '</b>'
+    + ' <span style="color:#6b7280;font-size:12px;">(sebelum dikurangi panjar)</span>' + muat + '</div>';
+  const kal = kbr.kalenderAda ? '' : '<div style="margin-top:8px;">' + kotak('#fef3c7', '#92400e', '⚠️ Kalender Akademik belum terbaca/kosong, jadi hari libur kalender tidak dikecualikan pada honor petugas kebersihan.') + '</div>';
+  return judul + tb + gab + kal;
 }
 // Setelah data kebersihan berubah, Rekap Honor Guru (total gabungan, Kas, PDF) ikut dihitung ulang bila halamannya sudah pernah dibuka.
 function hkSegarkanRekapHonor() { try { if (typeof renderHonor === 'function' && window._honorData) renderHonor(); } catch (e) { console.warn('[SI MAMBA] segarkan rekap honor:', e); } }

@@ -715,7 +715,7 @@
       document.querySelectorAll('#honorMenuTabs .honor-tab-btn').forEach(b => b.classList.toggle('aktif', b.getAttribute('data-menutab') === id));
       document.querySelectorAll('#page-honor .card[data-menutab]').forEach(c => { c.style.display = c.getAttribute('data-menutab') === id ? '' : 'none'; });
       // Render kartu hanya saat tab-nya dibuka (bukan tiap renderHonor), memakai Bulan/Tahun yang sedang dipilih.
-      try { if (id === 'ekskul') renderEkskulRateList(); else if (id === 'terajin') renderGuruTerajinRanking(); else if (id === 'kebersihan' && typeof renderHonorKebersihan === 'function') renderHonorKebersihan(); } catch (e) { console.warn('[SI MAMBA] honorMenuTab:', e); }
+      try { if (id === 'ekskul') renderEkskulRateList(); else if (id === 'terajin') renderGuruTerajinRanking(); else if (id === 'kebersihan' && typeof renderHonorKebersihan === 'function') renderHonorKebersihan(true); } catch (e) { console.warn('[SI MAMBA] honorMenuTab:', e); }
     }
     // tabs: [{ id, label, html, badge? }] -- tab dengan html kosong dilewati.
     function honorTabBungkus(tabs) {
@@ -811,6 +811,7 @@
         html += `<tr ${bgStyle}><td>${no++}</td><td>${escapeHtml(item.guru)}</td><td>${item.reguler}</td><td>${item.nonReguler}</td><td>${ekstraCell}</td><td>${item.dluha}</td><td>${item.dzuhur}</td><td>${eventCell}</td><td>${ujianCell}</td><td>${tunjanganCell}</td><td>${transportCell}</td><td>Rp ${item.honor.toLocaleString()}</td><td>${panjarCell}</td><td>${sisaCell}</td></tr>`;
       }
       html += `</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th colspan="2" style="text-align:right;">TOTAL</th><th>${totalReguler}</th><th>${totalNonReguler}</th><th>${totalEkstra}x (Rp ${totalEkstraHonor.toLocaleString()})</th><th>${totalDluha}</th><th>${totalDzuhur}</th><th>${totalEventJumlah}x (Rp ${totalEventHonor.toLocaleString()})</th><th>${totalUjianJumlah}x (Rp ${totalUjianHonor.toLocaleString()})</th><th>Rp ${totalTunjangan.toLocaleString()}</th><th>Rp ${totalTransport.toLocaleString()}</th><th style="color:#059669;">Rp ${totalHonor.toLocaleString()}</th><th>${panjarOk ? 'Rp ' + totalPanjar.toLocaleString() : PANJAR_TAK_TAHU}</th><th>${panjarOk ? 'Rp ' + (totalHonor - totalPanjar).toLocaleString() : PANJAR_TAK_TAHU}</th></tr></tfoot></table></div>`;
+      html += (typeof hkRekapHtml === 'function') ? hkRekapHtml(kbr, year + '-' + month, totalHonor) : '';   // fix_44: honor kebersihan tampil juga di tab Rekap Honor
       const htmlPanjar = (panjarStatus === 'offline' || panjarStatus === 'memuat')
         ? `<p class="text-muted" style="font-size:13px;">${panjarPesan} Daftar panjar belum dapat ditampilkan. <button class="btn btn-soft" onclick="honorPanjarInvalidate();renderHonor()">🔄 Muat ulang</button></p>`
         : honorPanjarRincianHtml(hpAdm, tableData).replace('<details ', '<details open ');
