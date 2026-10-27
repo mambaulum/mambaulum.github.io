@@ -372,13 +372,19 @@
       const out = new Set();
       const sumber = (typeof allKalenderAkademik !== 'undefined' && allKalenderAkademik) ? allKalenderAkademik : [];
       const daftar = Array.isArray(sumber) ? sumber : Object.values(sumber);
+      const murni = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
       daftar.forEach(e => {
         if (!e || typeof e !== 'object') return;
-        if (String(e.jenis || e.tipe || e.type || '').toLowerCase() !== 'libur') return;
-        const tgls = Object.values(e).filter(v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)).map(v => v.slice(0, 10)).sort();
-        if (!tgls.length) return;
-        let cur = tgls[0]; const akhir = tgls[tgls.length - 1];
-        for (let i = 0; i < 400 && cur <= akhir; i++) { // pengaman 400 hari
+        if (e.jenis !== 'libur') return;
+        // Field resmi Kalender Akademik (js/kalender-akademik.js): tanggalMulai & tanggalSelesai (selesai boleh kosong = 1 hari).
+        // JANGAN membaca isian lain: entri juga berisi inputAt (cap waktu ISO) -- membacanya sebagai tanggal membuat rentang libur
+        // melebar dari tanggal libur sampai tanggal entri diimpor/dibuat (hari-hari biasa ikut dianggap libur).
+        const mulai = e.tanggalMulai, akhir = e.tanggalSelesai || e.tanggalMulai;
+        if (!murni(mulai) || !murni(akhir) || akhir < mulai) return;
+        // Libur lebih dari 62 hari berturut-turut hampir pasti salah ketik (mis. tahun keliru): lewati, jangan sampai menghapus hari efektif sebulan penuh.
+        if ((Date.parse(akhir + 'T00:00:00Z') - Date.parse(mulai + 'T00:00:00Z')) / 86400000 > 62) { console.warn('[SI MAMBA] Entri libur Kalender Akademik dilewati (rentang > 62 hari):', e); return; }
+        let cur = mulai;
+        for (let i = 0; i < 63 && cur <= akhir; i++) {
           out.add(cur);
           const x = new Date(cur + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); cur = x.toISOString().slice(0, 10);
         }
@@ -703,13 +709,13 @@
       root.querySelectorAll('.honor-tab-btn').forEach(b => b.classList.toggle('aktif', b.getAttribute('data-tab') === id));
       root.querySelectorAll('.honor-tab-panel').forEach(p => p.classList.toggle('aktif', p.getAttribute('data-tab') === id));
     }
-    // Tab tingkat halaman Honor (Rekap / Rate Ekskul / Guru Terajin): menampilkan satu kartu pada satu waktu.
+    // Tab tingkat halaman Honor (Rekap / Rate Ekskul / Guru Terajin / Petugas Kebersihan): menampilkan satu kartu pada satu waktu.
     function honorMenuTab(id) {
       honorTabCss();
       document.querySelectorAll('#honorMenuTabs .honor-tab-btn').forEach(b => b.classList.toggle('aktif', b.getAttribute('data-menutab') === id));
       document.querySelectorAll('#page-honor .card[data-menutab]').forEach(c => { c.style.display = c.getAttribute('data-menutab') === id ? '' : 'none'; });
       // Render kartu hanya saat tab-nya dibuka (bukan tiap renderHonor), memakai Bulan/Tahun yang sedang dipilih.
-      try { if (id === 'ekskul') renderEkskulRateList(); else if (id === 'terajin') renderGuruTerajinRanking(); } catch (e) { console.warn('[SI MAMBA] honorMenuTab:', e); }
+      try { if (id === 'ekskul') renderEkskulRateList(); else if (id === 'terajin') renderGuruTerajinRanking(); else if (id === 'kebersihan' && typeof renderHonorKebersihan === 'function') renderHonorKebersihan(); } catch (e) { console.warn('[SI MAMBA] honorMenuTab:', e); }
     }
     // tabs: [{ id, label, html, badge? }] -- tab dengan html kosong dilewati.
     function honorTabBungkus(tabs) {
@@ -730,6 +736,9 @@
       // Honor sholat: dari check-in petugas + jam + kelengkapan absensi siswa (lihat honorSholatHitung). Absen Religi lama hanya untuk tanggal sebelum HONOR_SHOLAT_MULAI_CHECKIN.
       const hs = honorSholatDapat(year, month, () => renderHonor());
       if (!hs.siap) { container.innerHTML = honorSholatStatusHtml(hs, 'renderHonor()'); btnPdf.style.display = 'none'; paginationEl.innerHTML = ''; return; }
+      // Honor Petugas Kebersihan (honor-kebersihan.js) digabung ke total yang dicatat di Kas Umum & PDF Rekap Honor. Hanya data tersimpan.
+      const kbr = (typeof hkRekapBulan === 'function') ? hkRekapBulan(year + '-' + month, () => renderHonor()) : { siap: true, gagal: false, total: 0, baris: [] };
+      const totalKebersihan = (kbr.siap && !kbr.gagal) ? kbr.total : 0;
       const filteredReligi = Object.keys(hs.hasil.perGuru);   // hanya dipakai untuk cek "ada data bulan ini"
       const filteredEvents = allEventAttendance.filter(e => { if (!e.tanggal) return false; const parts = e.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(e); });
       const filteredUjian = allUjianAttendance.filter(u => { if (!u.tanggal) return false; const parts = u.tanggal.split('-'); return parts[0] === year && parts[1] === month && sesuaiTahunAjaranTermasukDataLama(u); });
@@ -806,11 +815,19 @@
         ? `<p class="text-muted" style="font-size:13px;">${panjarPesan} Daftar panjar belum dapat ditampilkan. <button class="btn btn-soft" onclick="honorPanjarInvalidate();renderHonor()">🔄 Muat ulang</button></p>`
         : honorPanjarRincianHtml(hpAdm, tableData).replace('<details ', '<details open ');
       // Catat honor yang sudah dibayarkan ke Kas Umum (hanya Admin). Key tetap honor_<tahun>-<bulan> => tidak bisa tercatat dobel.
+      // Nominal Kas = honor guru + honor petugas kebersihan (satu catatan gabungan).
+      const totalGabungan = totalHonor + totalKebersihan;
       if (isAdmin()) {
+        const rincianKasHtml = !kbr.siap
+          ? `<div class="text-muted" style="font-size:12px;margin-top:14px;">⏳ Memuat honor petugas kebersihan… (dihitung ke total Kas setelah siap)</div>`
+          : kbr.gagal
+            ? `<div style="margin-top:14px;padding:10px 12px;background:#fef3c7;border-radius:10px;font-size:12px;color:#92400e;">⚠️ Honor petugas kebersihan TIDAK termuat (${escapeHtml(kbr.pesan || '')}), jadi total di bawah hanya honor guru. <button class="btn btn-soft" style="min-height:0;padding:4px 10px;font-size:12px;" onclick="hkRekapReset();renderHonor()">🔄 Muat ulang</button></div>`
+            : (kbr.baris.length ? `<div style="margin-top:14px;font-size:13px;">Honor guru <b>Rp ${totalHonor.toLocaleString('id-ID')}</b> + petugas kebersihan <b>Rp ${totalKebersihan.toLocaleString('id-ID')}</b> = <b>Rp ${totalGabungan.toLocaleString('id-ID')}</b></div>` : '');
+        htmlKas += rincianKasHtml;
         const sudahKas = (allKasUmum || []).find(k => k.key === 'honor_' + year + '-' + month);
         htmlKas += `<div style="margin-top:14px;padding:12px;border:1px solid #d1d5db;border-radius:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">` + (sudahKas
-          ? `<span>✅ Sudah dicatat di Kas Umum: <b>Rp ${Number(sudahKas.nominal || 0).toLocaleString('id-ID')}</b> (${escapeHtml(sudahKas.tanggal || '')}). Untuk mengubah nominal, pakai Edit di Kas Madrasah.</span>${Number(sudahKas.nominal || 0) !== totalHonor ? `<span style="color:#b45309;font-size:13px;">⚠️ Rekap honor sekarang Rp ${totalHonor.toLocaleString('id-ID')} (selisih Rp ${Math.abs(totalHonor - Number(sudahKas.nominal || 0)).toLocaleString('id-ID')}).</span><button id="btnHonorSamakan" class="btn btn-soft" onclick="honorSamakanKas()">Samakan dengan rekap</button>` : ''}`
-          : `<button id="btnHonorKeKas" class="btn btn-soft" onclick="honorCatatKeKas()">💸 Catat honor bulan ini ke Kas Umum</button><span class="text-muted" style="font-size:12px;">Klik setelah honor dibayarkan. Yang dicatat = total honor SEBELUM dikurangi panjar (panjar tidak dicatat terpisah di Kas).</span>`) + `</div>`;
+          ? `<span>✅ Sudah dicatat di Kas Umum: <b>Rp ${Number(sudahKas.nominal || 0).toLocaleString('id-ID')}</b> (${escapeHtml(sudahKas.tanggal || '')}). Untuk mengubah nominal, pakai Edit di Kas Madrasah.</span>${Number(sudahKas.nominal || 0) !== totalGabungan ? `<span style="color:#b45309;font-size:13px;">⚠️ Rekap honor sekarang Rp ${totalGabungan.toLocaleString('id-ID')} (selisih Rp ${Math.abs(totalGabungan - Number(sudahKas.nominal || 0)).toLocaleString('id-ID')}).</span><button id="btnHonorSamakan" class="btn btn-soft" onclick="honorSamakanKas()">Samakan dengan rekap</button>` : ''}`
+          : `<button id="btnHonorKeKas" class="btn btn-soft" onclick="honorCatatKeKas()">💸 Catat honor bulan ini ke Kas Umum</button><span class="text-muted" style="font-size:12px;">Klik setelah honor dibayarkan. Yang dicatat = total honor guru + petugas kebersihan SEBELUM dikurangi panjar (panjar tidak dicatat terpisah di Kas).</span>`) + `</div>`;
         const tglBayar = parseInt(MADRASAH.honorTanggalBayar, 10) || 0, bulanBayar = MADRASAH.honorBulanBayar === 'ini' ? 'ini' : 'lalu';
         htmlKas += `<div style="margin-top:10px;padding:12px;border:1px dashed #d1d5db;border-radius:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;">
           <b>🔔 Pengingat bayar honor</b>
@@ -835,7 +852,7 @@
       ]);
       container.innerHTML = html; btnPdf.style.display = 'inline-block';
       paginationEl.innerHTML = pagerHtml('honor', totalItems, totalPages, start, end, 'data');
-      window._honorData = { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, kunciGuru: [...allTeacherKeys], totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList, tableData };
+      window._honorData = { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, kunciGuru: [...allTeacherKeys], totalHonor, month, year, totalReguler, totalNonReguler, totalEkstra, totalEkstraHonor, totalDluha, totalDzuhur, totalEventJumlah, totalEventHonor, totalUjianJumlah, totalUjianHonor, totalTunjangan, totalTransport, bonusList, tableData, totalKebersihan, kebersihanBaris: kbr.baris || [], kebersihanSiap: !!kbr.siap, kebersihanGagal: !!kbr.gagal, kebersihanPesan: kbr.pesan || '', kebersihanKalenderAda: kbr.kalenderAda !== false, totalGabungan };
       if (honorSetelahRenderHook && honorSetelahRenderHook.year === String(year) && honorSetelahRenderHook.bln === month) { const h = honorSetelahRenderHook; honorSetelahRenderHook = null; clearTimeout(h.timer); try { h.fn(); } catch (e) { console.warn('[SI MAMBA] hook honor:', e); } }
     }
     // ============================================================
@@ -1070,14 +1087,16 @@
     // disetujui, honor sholat dikoreksi, dst). Hanya Admin; tampil bila nominal di Kas berbeda dari rekap. Catatan lain tidak disentuh.
     function honorSamakanKas() {
       if (!isAdmin()) return toast('Hanya Admin yang bisa mengubah catatan Kas.', true);
-      const d = window._honorData; if (!d || !(d.totalHonor > 0)) return toast('Rekap honor belum siap.', true);
+      const d = window._honorData; if (!d || !(d.totalGabungan > 0)) return toast('Rekap honor belum siap.', true);
+      if (!d.kebersihanSiap) return toast('Honor petugas kebersihan masih dimuat — coba lagi sebentar.', true);
+      if (d.kebersihanGagal) return toast('Honor petugas kebersihan tidak termuat (' + (d.kebersihanPesan || 'galat') + '), nominal Kas tidak disamakan supaya tidak berkurang keliru. Klik Muat ulang di tab Kas.', true, 7000);
       const key = 'honor_' + d.year + '-' + d.month, rec = (allKasUmum || []).find(k => k.key === key);
       if (!rec) return toast('Catatan Kas honor bulan ini tidak ditemukan — muat ulang halaman.', true);
       if (isBusy('honorSamakan')) return;
       if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
-      const lama = Number(rec.nominal || 0), baru = d.totalHonor;
+      const lama = Number(rec.nominal || 0), baru = d.totalGabungan;
       if (lama === baru) return toast('Nominal sudah sama dengan rekap.');
-      if (!confirm(`Ubah catatan Kas Umum "${rec.uraian || 'Honor'}"?\n\nNominal sekarang: Rp ${lama.toLocaleString('id-ID')}\nMenjadi (total rekap): Rp ${baru.toLocaleString('id-ID')}`)) return;
+      if (!confirm(`Ubah catatan Kas Umum "${rec.uraian || 'Honor'}"?\n\nNominal sekarang: Rp ${lama.toLocaleString('id-ID')}\nMenjadi (total rekap guru + petugas kebersihan): Rp ${baru.toLocaleString('id-ID')}`)) return;
       const btn = document.getElementById('btnHonorSamakan');
       setBusy('honorSamakan', btn);
       db.ref('kas_umum/' + key).update({ nominal: baru, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
@@ -1095,12 +1114,14 @@
     function honorCatatKeKas() {
       if (!isAdmin()) return toast('Hanya Admin yang bisa mencatat ke Kas.', true);
       const d = window._honorData;
-      if (!d || !(d.totalHonor > 0)) return toast('Belum ada total honor untuk dicatat.', true);
+      if (!d || !(d.totalGabungan > 0)) return toast('Belum ada total honor untuk dicatat.', true);
+      if (!d.kebersihanSiap) return toast('Honor petugas kebersihan masih dimuat — coba lagi sebentar.', true);
+      if (d.kebersihanGagal && !confirm('⚠️ Honor petugas kebersihan TIDAK termuat (' + (d.kebersihanPesan || 'galat') + ').\n\nBila dilanjutkan, yang dicatat HANYA honor guru (Rp ' + d.totalHonor.toLocaleString('id-ID') + ').\n\nLanjutkan?')) return;
       if (isBusy('honorKeKas')) return toast('Sedang menyimpan...', false, 1500);
       if (!isReallyOnline()) return toast('📡 Sedang offline. Pencatatan kas butuh koneksi internet — coba lagi setelah online.', true);
       const NAMA_BLN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
       const lbl = NAMA_BLN[parseInt(d.month, 10) - 1] + ' ' + d.year;
-      const input = prompt(`Catat honor ${lbl} ke Kas Umum.\n\nTotal honor di rekap: Rp ${d.totalHonor.toLocaleString('id-ID')}\nNominal yang dicatat (total honor, sebelum dikurangi panjar):`, String(d.totalHonor));
+      const input = prompt(`Catat honor ${lbl} ke Kas Umum.\n\nHonor guru: Rp ${d.totalHonor.toLocaleString('id-ID')}${d.totalKebersihan > 0 ? `\nHonor petugas kebersihan: Rp ${d.totalKebersihan.toLocaleString('id-ID')}` : ''}\nTotal di rekap: Rp ${d.totalGabungan.toLocaleString('id-ID')}\nNominal yang dicatat (total honor, sebelum dikurangi panjar):`, String(d.totalGabungan));
       if (input === null) return;
       const bersih = String(input).replace(/^\s*Rp\.?/i, '').replace(/[.\s]/g, '');
       if (!/^\d+$/.test(bersih)) return toast('Nominal harus berupa angka bulat.', true);
@@ -1109,7 +1130,7 @@
       if (nominal > 1000000000) return toast('Nominal terlalu besar (> Rp 1 miliar) — periksa lagi jumlah nolnya.', true);
       if (!confirm(`Catat pengeluaran Kas Umum?\n\nHonor ${lbl}\nNominal: Rp ${nominal.toLocaleString('id-ID')}\nTanggal: hari ini\n\nSaldo Kas Umum akan berkurang.`)) return;
       const key = 'honor_' + d.year + '-' + d.month;
-      const rec = { buku: 'umum', tanggal: tglLokal(), jenis: 'keluar', kategori: 'Honor / Transport / Insentif', uraian: 'Honor bulan ' + lbl, nominal, tahunAjaran: currentTahunAjaran, inputBy: currentUser.name, inputByKey: currentUser.key || null, inputAt: new Date().toISOString() };
+      const rec = { buku: 'umum', tanggal: tglLokal(), jenis: 'keluar', kategori: 'Honor / Transport / Insentif', uraian: 'Honor bulan ' + lbl + (d.totalKebersihan > 0 ? ' (guru + petugas kebersihan)' : ''), nominal, tahunAjaran: currentTahunAjaran, inputBy: currentUser.name, inputByKey: currentUser.key || null, inputAt: new Date().toISOString() };
       const btn = document.getElementById('btnHonorKeKas');
       setBusy('honorKeKas', btn);
       db.ref('kas_umum/' + key).transaction(cur => (cur === null ? rec : undefined), (err, committed) => {
@@ -1269,6 +1290,10 @@
       // Logo: resolusi 600 px dan proporsi aslinya dijaga (tidak melar).
       // Pemuatan aset opsional (logo/TTD gambar): gagal -> PDF tetap dibuat tanpa aset itu, dan pengguna diberi tahu di akhir.
       const peringatanPdf = [];
+      if (!data.kebersihanSiap) return toast('Honor petugas kebersihan masih dimuat — coba unduh lagi sebentar.', true, 4000);
+      if (data.kebersihanGagal) peringatanPdf.push('honor petugas kebersihan tidak ikut tercetak (' + (data.kebersihanPesan || 'galat') + ')');
+      const kbrPdf = (data.kebersihanGagal ? [] : (data.kebersihanBaris || []));
+      if (kbrPdf.length && data.kebersihanKalenderAda === false) peringatanPdf.push('Kalender Akademik belum terbaca, hari libur tidak dikecualikan pada honor petugas kebersihan');
       const muatAman = async (nama, fn) => { try { return await fn(); } catch (e) { console.warn('[SI MAMBA] ' + nama + ' gagal dimuat untuk PDF Honor:', e); peringatanPdf.push(nama); return null; } };
       const logoHonor = await muatAman('logo', async () => kecilkanGambar(await v4LoadLogoForPdf(), 600));
       const lcx = 28, lcy = 18.5, lr = 11.5;
@@ -1309,11 +1334,27 @@
       for (const guruKey of allTeacherKeysPdf) { const { j, r, ev, uj, guru, tunjangan, transport, honor } = honorRincianGuru(guruKey, grupPdf, rates); const pjP = honorPanjarTotal(hpPdf.data[guruKey]); totalPanjarPdf += pjP; totalPanjarEfektifPdf += Math.min(pjP, honor); rows.push([no++, guru, j.reguler, j.nonReguler, `${j.ekstra}x`, r.dluha, r.dzuhur, `${ev.jumlah}x`, `${uj.jumlah}x`, `${(tunjangan+transport).toLocaleString()}`, `Rp ${honor.toLocaleString()}`, panjarTakAdaPdf ? '?' : (pjP > 0 ? `Rp ${pjP.toLocaleString()}` : '-'), panjarTakAdaPdf ? '?' : `Rp ${Math.max(0, honor - pjP).toLocaleString()}`, '']); }
       bonusLainnyaPdf.forEach(bonus => { bonusRowIndices.add(rows.length); rows.push([no++, bonus.label, '-', '-', '-', '-', '-', '-', '-', '-', `Rp ${bonus.amount.toLocaleString()}`, '-', `Rp ${bonus.amount.toLocaleString()}`, '']); });
       // Tinggi baris menyesuaikan jumlah guru supaya tabel + tanda tangan muat 1 halaman.
-      const ruangTabel = pageHeight - 116;   // tinggi halaman - (awal tabel 38 + judul kolom 8 + baris TOTAL 10 + jarak 10 + blok TTD 40 + margin bawah 10)
-      const tinggiBaris = Math.max(8, Math.min(12, ruangTabel / Math.max(rows.length, 1)));
+      const cadanganKbr = kbrPdf.length ? (30 + 6 * kbrPdf.length) : 0;   // ruang untuk tabel petugas kebersihan di halaman yang sama
+      const ruangTabel = pageHeight - 116 - cadanganKbr;   // tinggi halaman - (awal tabel 38 + judul kolom 8 + baris TOTAL 10 + jarak 10 + blok TTD 40 + margin bawah 10)
+      const tinggiBaris = Math.max(kbrPdf.length ? 6 : 8, Math.min(12, ruangTabel / Math.max(rows.length, 1)));   // sedikit lebih rapat hanya bila ada tabel kebersihan, supaya tidak menambah lembar
       const ukuranFont = tinggiBaris >= 9 ? 9 : 8;
-      doc.autoTable({ startY: 38, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dhuha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Panjar', 'Sisa Dibayar', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, panjarTakAdaPdf ? '?' : (totalPanjarPdf > 0 ? `Rp ${totalPanjarPdf.toLocaleString()}` : '-'), panjarTakAdaPdf ? '?' : `Rp ${(totalHonor - totalPanjarEfektifPdf).toLocaleString()}`, '']], theme: 'grid', styles: { fontSize: ukuranFont, valign: 'middle', cellPadding: 1.8, lineWidth: 0.15, lineColor: [203, 213, 225], textColor: [30, 41, 59] }, alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' }, 8: { halign: 'center' }, 9: { halign: 'center' }, 10: { halign: 'right', fontStyle: 'bold' }, 11: { halign: 'right' }, 12: { halign: 'right', fontStyle: 'bold' }, 13: { cellWidth: 42 } }, headStyles: { fillColor: BIRU, textColor: [255, 255, 255], fontSize: ukuranFont, fontStyle: 'bold', lineColor: BIRU }, footStyles: { fillColor: [226, 232, 240], textColor: NAVY, fontStyle: 'bold', fontSize: 9.5 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = tinggiBaris; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [255,247,214]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
-      const finalY = doc.lastAutoTable.finalY;
+      doc.autoTable({ startY: 38, head: [['No', 'Guru', 'Reg', 'Non-Reg', 'Ekstra', 'Dhuha', 'Dzuhur', 'Lembur', 'Ujian', 'Tunj+Trans', 'Honor', 'Panjar', 'Sisa Dibayar', 'Tanda Tangan']], body: rows, foot: [['', 'TOTAL', totalReguler, totalNonReguler, `${totalEkstra}x`, totalDluha, totalDzuhur, `${totalEventJumlah}x`, `${totalUjianJumlah}x`, `${(totalTunjangan+totalTransport).toLocaleString()}`, `Rp ${totalHonor.toLocaleString()}`, panjarTakAdaPdf ? '?' : (totalPanjarPdf > 0 ? `Rp ${totalPanjarPdf.toLocaleString()}` : '-'), panjarTakAdaPdf ? '?' : `Rp ${(totalHonor - totalPanjarEfektifPdf).toLocaleString()}`, '']], theme: 'grid', styles: { fontSize: ukuranFont, valign: 'middle', cellPadding: kbrPdf.length ? 1.2 : 1.8, lineWidth: 0.15, lineColor: [203, 213, 225], textColor: [30, 41, 59] }, alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' }, 8: { halign: 'center' }, 9: { halign: 'center' }, 10: { halign: 'right', fontStyle: 'bold' }, 11: { halign: 'right' }, 12: { halign: 'right', fontStyle: 'bold' }, 13: { cellWidth: 42 } }, headStyles: { fillColor: BIRU, textColor: [255, 255, 255], fontSize: ukuranFont, fontStyle: 'bold', lineColor: BIRU }, footStyles: { fillColor: [226, 232, 240], textColor: NAVY, fontStyle: 'bold', fontSize: 9.5 }, didParseCell: function(data) { if (data.section === 'foot' && data.column.index === 10) { data.cell.styles.fillColor = [5,150,105]; data.cell.styles.textColor = [255,255,255]; data.cell.styles.fontSize = 10; data.cell.styles.fontStyle = 'bold'; } if (data.section === 'body') { data.cell.styles.minCellHeight = tinggiBaris; } if (data.section === 'body' && bonusRowIndices.has(data.row.index)) { data.cell.styles.fillColor = [255,247,214]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
+      let finalY = doc.lastAutoTable.finalY;
+      // Honor Petugas Kebersihan: satu file/ukuran kertas yang sama dengan rekap guru, ditaruh tepat di bawah tabel guru (sebelum tanda tangan).
+      if (kbrPdf.length) {
+        let yK = finalY + 7;
+        // Tabel kebersihan (+ total gabungan) harus muat DI ATAS ruang tanda tangan (sisa >= 55 mm dari dasar halaman); kalau tidak, pindah ke halaman
+        // baru -- tanda tangan ikut di halaman itu, jadi tidak ada halaman yang berisi tanda tangan saja.
+        if (yK + 29 + 6 * kbrPdf.length > pageHeight - 55) { doc.addPage(); yK = 18; }
+        doc.setFont(undefined, 'bold'); doc.setFontSize(10); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]); doc.text('Honor Petugas Kebersihan', 15, yK);
+        const totalKbrPdf = kbrPdf.reduce((a, b) => a + b.honor, 0);
+        const rowsKbr = kbrPdf.map((b, i) => [i + 1, b.nama, b.efektif, b.hadirEf, b.tidakHadir, b.hadirLibur ? b.hadirLibur + (b.bayarLibur ? ' (dibayar)' : ' (tidak dibayar)') : '-', `Rp ${b.tarif.toLocaleString()}`, b.dibayar, `Rp ${b.honor.toLocaleString()}`]);
+        doc.autoTable({ startY: yK + 2, head: [['No', 'Petugas Kebersihan', 'Hari Efektif', 'Hadir', 'Tidak Hadir', 'Hadir di Libur', 'Tarif/Hari', 'Hari Dibayar', 'Honor']], body: rowsKbr, foot: [['', 'TOTAL PETUGAS KEBERSIHAN', '', '', '', '', '', '', `Rp ${totalKbrPdf.toLocaleString()}`]], theme: 'grid', styles: { fontSize: 8.5, valign: 'middle', cellPadding: 1.2, lineWidth: 0.15, lineColor: [203, 213, 225], textColor: [30, 41, 59] }, alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'right' }, 7: { halign: 'center' }, 8: { halign: 'right', fontStyle: 'bold' } }, headStyles: { fillColor: BIRU, textColor: [255, 255, 255], fontSize: 8.5, fontStyle: 'bold', lineColor: BIRU }, footStyles: { fillColor: [226, 232, 240], textColor: NAVY, fontStyle: 'bold', fontSize: 9 }, margin: { left: 15, right: 15 }, showFoot: 'lastPage' });
+        finalY = doc.lastAutoTable.finalY;
+        doc.setFont(undefined, 'bold'); doc.setFontSize(10); doc.setTextColor(BIRU[0], BIRU[1], BIRU[2]);
+        doc.text(`TOTAL HONOR GURU + PETUGAS KEBERSIHAN:  Rp ${(totalHonor + totalKbrPdf).toLocaleString()}`, pageWidth - 15, finalY + 7, { align: 'right' });
+        finalY += 8;
+      }
       const ttdKepalaDataHonor = await muatAman('gambar tanda tangan Kepala', async () => kecilkanGambar(await v4LoadTtdKepalaForPdf(), 360));
       let ySignHonor = finalY + 10;
       if (ySignHonor > pageHeight - 45) { doc.addPage(); ySignHonor = 20; }   // tanda tangan hanya di halaman terakhir; pindah halaman kalau sisa ruang kurang
@@ -1328,7 +1369,7 @@
       // tanda tangan Kepala dan pengguna diberi peringatan jelas (silakan unduh ulang atau tanda tangani manual).
       let ttdHonor = { dipakai: false }, ttdGagal = false;
       try {
-        ttdHonor = await ttdKepalaPdf(doc, xKepala, ySignHonor + 7, { lebar: 30, tinggiMaks: 18, hanyaPimpinan: true, meta: { jenis: 'Rekap Honor Guru', ket: monthName + ' ' + year } });
+        ttdHonor = await ttdKepalaPdf(doc, xKepala, ySignHonor + 7, { lebar: 30, tinggiMaks: 18, hanyaPimpinan: true, meta: { jenis: kbrPdf.length ? 'Rekap Honor Guru & Petugas Kebersihan' : 'Rekap Honor Guru', ket: monthName + ' ' + year } });
         ttdHonor = ttdHonor || { dipakai: false };
       } catch (e) { ttdGagal = true; console.error('[SI MAMBA] ttdKepalaPdf gagal:', e); peringatanPdf.push('tanda tangan digital Kepala (' + ((e && e.message) || 'galat tidak diketahui') + ')'); }
       if (!ttdGagal && !ttdHonor.dipakai && ttdKepalaDataHonor) {

@@ -106,7 +106,8 @@
   <script defer src="js/jadwal.js?v=5"></script>
   <script defer src="js/laporan-rekap.js?v=2"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/honor-guru.js?v=19"></script>
+  <script defer src="js/honor-guru.js?v=23"></script>
+  <script defer src="js/honor-kebersihan.js?v=2"></script>
   <!-- Hasil pecahan app.js tahap 4 (Event & Ujian; Absen Guru Admin + Pengingat). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/event-ujian.js?v=1"></script>
   <script defer src="js/pengingat-absen-guru.js?v=1"></script>
@@ -1432,6 +1433,7 @@
           <button type="button" class="honor-tab-btn aktif" data-menutab="rekap" onclick="honorMenuTab('rekap')">📊 Rekap Honor</button>
           <button type="button" class="honor-tab-btn" data-menutab="ekskul" onclick="honorMenuTab('ekskul')">⚙️ Tarif & Ekskul</button>
           <button type="button" class="honor-tab-btn" data-menutab="terajin" onclick="honorMenuTab('terajin')">🏆 Guru Terajin</button>
+          <button type="button" class="honor-tab-btn" data-menutab="kebersihan" onclick="honorMenuTab('kebersihan')">🧹 Petugas Kebersihan</button>
         </div>
         <div class="card" id="ekskulRateCard" data-menutab="ekskul" style="display:none;">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🎯 Rate Ekstrakurikuler per Kegiatan</h3>
@@ -1456,6 +1458,16 @@
             </div>
           </div>
           <div id="guruTerajinSudahDitetapkan" style="display:none;margin-top:12px;padding:12px;background:#dcfce7;border-radius:12px;"></div>
+        </div>
+
+        <div class="card" id="honorKebersihanCard" data-menutab="kebersihan" style="display:none;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🧹 Honor Petugas Kebersihan</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Input manual (tanpa QR): centang tanggal petugas masuk, lalu Simpan. Setiap tanggal dibandingkan dengan hari libur (Minggu dan Kalender Akademik): hari libur tidak dihitung sebagai hari efektif, dan kehadiran di hari libur ditandai oranye.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <select id="hkBulan" class="field" style="flex:1;min-width:130px;" onchange="hkGantiBulan()"><option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option><option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option><option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option></select>
+            <input id="hkTahun" class="field" type="number" style="flex:1;min-width:100px;" value="2026" onchange="hkGantiBulan()">
+          </div>
+          <div id="hkIsi"><p style="color:#6b7280;font-size:13px;">Memuat...</p></div>
         </div>
 
         <div class="card" id="honorRekapCard" data-menutab="rekap">

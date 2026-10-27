@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.186';
+const APP_VERSION = 'v8.190';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -89,7 +89,8 @@ const PRECACHE_URLS = [
   './js/kelola-absen-guru.js?v=3',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=5',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/laporan-rekap.js?v=2',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-guru.js?v=19',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-guru.js?v=23',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-kebersihan.js?v=2',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
   './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=1',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-tahfidz-pramuka-ekskul.js?v=1',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
