@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.176",
-  "disimpan": "2026-10-27T00:35:03.861Z",
+  "appVersion": "v8.177",
+  "disimpan": "2026-10-27T00:48:41.650Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=125",
-      "hash": "84a87d074fcaa86adca92ad449b368190d124f27"
+      "v": "v=126",
+      "hash": "ffe16fee20bead58225aa3901c9ffdf56dbc4dcb"
     },
     "js/portal-ortu.js": {
       "v": "v=1",
