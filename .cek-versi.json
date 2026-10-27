@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.204",
-  "disimpan": "2026-10-27T09:33:43.030Z",
+  "appVersion": "v8.205",
+  "disimpan": "2026-10-27T09:38:38.409Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -131,8 +131,8 @@
       "hash": "4cab1cc5e42e2513151540022c97e068a2d74a00"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=27",
-      "hash": "dfa54089293dc2487733f53ba88ee501a147b5dd"
+      "v": "v=28",
+      "hash": "345fde18f522665df49a5e08414ca836277b889f"
     },
     "js/bacaan-shalat.js": {
       "v": "v=3",
