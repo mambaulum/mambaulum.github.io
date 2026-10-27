@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.177",
-  "disimpan": "2026-10-27T00:48:41.650Z",
+  "appVersion": "v8.178",
+  "disimpan": "2026-10-27T00:54:58.274Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=126",
-      "hash": "ffe16fee20bead58225aa3901c9ffdf56dbc4dcb"
+      "v": "v=127",
+      "hash": "831eb5049b885ca3af7a5f1ed37e655b254544c7"
     },
     "js/portal-ortu.js": {
       "v": "v=1",
@@ -81,6 +81,10 @@
     "js/kelola-absen-guru.js": {
       "v": "v=1",
       "hash": "ff6bbb89002c034052966fbecdbcb7010fff9ca2"
+    },
+    "js/kag-fix.js": {
+      "v": "v=1",
+      "hash": "6ea95d2460a3037e4c4745661abc81bef6735046"
     },
     "js/jadwal.js": {
       "v": "v=5",
