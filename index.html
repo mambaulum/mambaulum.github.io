@@ -93,13 +93,13 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=133"></script>
+  <script defer src="js/app.js?v=134"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=1"></script>
+  <script defer src="js/portal-ortu.js?v=2"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/sikap-buku.js?v=1"></script>
+  <script defer src="js/sikap-buku.js?v=2"></script>
   <!-- Hasil pecahan app.js tahap 2 (Materi & Tugas, Kelola Absen Guru + Koreksi Honor Sholat, Jadwal Pelajaran, Rekap/Laporan PDF). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/materi-tugas.js?v=1"></script>
   <script defer src="js/kelola-absen-guru.js?v=5"></script>
@@ -112,7 +112,7 @@
   <script defer src="js/event-ujian.js?v=1"></script>
   <script defer src="js/pengingat-absen-guru.js?v=1"></script>
   <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=1"></script>
+  <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=2"></script>
   <script defer src="js/v4-pengaturan-notif-rapor.js?v=3"></script>
   <!-- Hasil pecahan app.js tahap 6 (Rekap Nilai; Kalender Akademik + "Hari Ini"; Saran & Kritik; akun Ortu sisi Admin). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/rekap-nilai.js?v=2"></script>
@@ -120,7 +120,7 @@
   <script defer src="js/saran-kritik.js?v=1"></script>
   <script defer src="js/ortu-akun-admin.js?v=1"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
-  <script defer src="js/amalan-kegiatan.js?v=28"></script>
+  <script defer src="js/amalan-kegiatan.js?v=32"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=3"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
@@ -1977,6 +1977,7 @@
 .amalan-admin{display:flex;gap:5px;flex-wrap:wrap;padding-top:6px;border-top:1px dashed rgba(128,128,128,.3);}
 .amalan-admin .btn{padding:3px 9px;font-size:11px;min-height:28px;}
 #v4ActivityFillSection .v4-task{padding:8px 10px;margin:0 0 8px;}
+.v4-act-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:2px solid #e5e7eb;margin:0 0 8px;-webkit-overflow-scrolling:touch;}.v4-act-tab{flex:0 0 auto;border:0;background:transparent;padding:8px 14px;font-weight:600;font-size:13px;color:#6b7280;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0;white-space:nowrap;}.v4-act-tab:hover{background:#f3f4f6;}.v4-act-tab.aktif{color:#059669;border-bottom-color:#059669;background:#ecfdf5;}.v4-act-tabs-k{border-bottom:1px solid #e5e7eb;margin:6px 0 8px;}.v4-act-tab-k{padding:6px 11px;font-size:12px;}.v4-act-tab-k.tdk{opacity:.5;text-decoration:line-through;}
 #v4ActivityFillSection [style*="margin-top:10px"]{margin-top:6px !important;}
 #v4ActivityFillSection [style*="margin-bottom:8px"]{margin-bottom:5px !important;}
 #v4RekapReligiSiswa .v4-card{margin:0 0 8px;padding:8px 10px !important;}
