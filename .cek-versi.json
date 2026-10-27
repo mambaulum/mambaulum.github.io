@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.181",
-  "disimpan": "2026-10-27T02:13:07.921Z",
+  "appVersion": "v8.185",
+  "disimpan": "2026-10-27T02:45:41.041Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=129",
-      "hash": "c048e1b9123b488c8d0f2d9b11b40bb706517a6f"
+      "v": "v=130",
+      "hash": "439cf27d94d71e015a7234082b259b7a7ea28c2a"
     },
     "js/portal-ortu.js": {
       "v": "v=1",
@@ -91,8 +91,8 @@
       "hash": "03c2c7e6153a1d0f7a158e6ced225112b4f03d3f"
     },
     "js/honor-guru.js": {
-      "v": "v=17",
-      "hash": "c4cb906ae7c52c4a4e7ea1d24c843dab01d7aa2c"
+      "v": "v=18",
+      "hash": "79000c6486f8584b0e667b8da656dc69b8c4e34e"
     },
     "js/event-ujian.js": {
       "v": "v=1",
@@ -127,8 +127,8 @@
       "hash": "4cab1cc5e42e2513151540022c97e068a2d74a00"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=23",
-      "hash": "d6a4dc47684123e3310b216be7bcee9e1d890252"
+      "v": "v=26",
+      "hash": "60e1453db6dde3fa397d40a920cf093b1e4461a4"
     },
     "js/bacaan-shalat.js": {
       "v": "v=3",
