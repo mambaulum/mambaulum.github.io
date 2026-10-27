@@ -19,6 +19,17 @@
     function kagEl(id) { return document.getElementById(id); }
     function kagGuruList() { return (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas').sort((a, b) => COLLATOR_ID.compare((a.name || ''), b.name || '')); }
     function kagCocokGuru(a, g) { return a.guruKey ? a.guruKey === g.key : a.guru === g.name; }
+    // Pesan galat yang bisa ditindaklanjuti. Firebase melaporkan data yang melanggar aturan validasi Rules (mis. `waktu` bukan angka,
+    // tanggal bukan YYYY-MM-DD, jenis di luar daftar) sebagai PERMISSION_DENIED yang sama dengan penolakan izin -- jadi sebutkan keduanya.
+    function kagPesanGalat(e, aksi) {
+      if (e && e.tampil) return e.tampil;
+      const msg = String((e && e.message) || e || '');
+      if (/permission[_ ]denied/i.test(msg)) {
+        return aksi + ' ditolak server (PERMISSION_DENIED). Penyebab umum: format data tidak sesuai aturan Firebase Rules (jam/tanggal/jenis) atau sesi login belum aktif. Muat ulang halaman lalu coba lagi; bila tetap, kirim tangkapan layar Console (F12) ke pengembang.';
+      }
+      if (/network|timeout|offline|disconnect/i.test(msg)) return aksi + ' gagal: koneksi bermasalah. Periksa sinyal lalu coba lagi.';
+      return aksi + ' gagal: ' + msg;
+    }
     function setupKelolaAbsenGuruPage() {
       if (!isAdmin() && !isKepsek()) return;
       if (isAdmin()) { try { krgSetupCard(); } catch (e) { console.error('[SI MAMBA] krgSetupCard gagal:', e); } }
@@ -155,7 +166,7 @@
         toast(oldKey ? '✅ Catatan absen diperbarui.' : '✅ Catatan absen ditambahkan.');
         addLog(oldKey ? 'edit_absen_guru' : 'tambah_absen_guru', `${guru.name} - ${tanggal} - ${jenis}: ${alasan}`);
         kagTutup(); reloadDataset('teacherAttendance'); loadKelolaAbsenGuru();
-      }).catch(e => toast('❌ ' + ((e && e.tampil) || ('Gagal menyimpan: ' + ((e && e.message) || e))), true))
+      }).catch(e => toast('❌ ' + kagPesanGalat(e, 'Penyimpanan'), true, 8000))
         .finally(() => { kagSaving = false; });
     }
     function kagHapus(key) {
@@ -166,7 +177,7 @@
         toast('🗑️ Catatan dihapus.');
         addLog('hapus_absen_guru', `${a.guru} - ${a.tanggal} - ${a.type}`);
         reloadDataset('teacherAttendance'); loadKelolaAbsenGuru();
-      }).catch(err => toast('Gagal menghapus: ' + err.message, true));
+      }).catch(err => toast('❌ ' + kagPesanGalat(err, 'Penghapusan'), true, 8000));
     }
     // ============================================================
     // KOREKSI ABSEN RELIGI GURU (khusus Admin)
@@ -313,7 +324,7 @@
         toast(`✅ Koreksi tersimpan. Dampak honor ${guru.name}: ${krgRupiah(h.rupiah)}`);
         addLog('koreksi_honor_sholat', `${guru.name} | ${tanggal} | ${label}: ${aksi} | ${h.sekarang ? 'dihitung' : 'tidak dihitung'} → ${h.baru ? 'dihitung' : 'tidak dihitung'} | honor ${krgRupiah(h.rupiah)} | alasan: ${alasan}`);
         honorSholatInvalidate(); krgEl('krgAlasan').value = ''; krgPreview();
-      }).catch(e => toast('❌ Gagal menyimpan: ' + ((e && e.message) || e), true))
+      }).catch(e => toast('❌ ' + kagPesanGalat(e, 'Penyimpanan'), true, 8000))
         .finally(() => { krgSaving = false; if (btn) btn.disabled = false; });
     }
     function krgMuatUlangReligi() {
@@ -359,7 +370,7 @@
         krgCache = { key: '', records: null };
         krgEl('krgAlasan').value = '';
         krgMuatUlangReligi(); krgPreview();
-      }).catch(e => toast('❌ ' + ((e && e.tampil) || ('Gagal menyimpan: ' + ((e && e.message) || e))), true))
+      }).catch(e => toast('❌ ' + kagPesanGalat(e, 'Penyimpanan'), true, 8000))
         .finally(() => { krgSaving = false; if (btn) btn.disabled = false; });
     }
 

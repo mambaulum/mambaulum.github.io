@@ -4016,7 +4016,7 @@
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allAttendance = []; snap.forEach(child => { const a = child.val(); a.key = child.key; if (loaderScopeKelas().includes(a.kelas)) allAttendance.push(a); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (attendance):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'attendance'));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('grades').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allGrades = []; snap.forEach(child => { const g = child.val(); g.key = child.key; if (loaderScopeKelas().includes(g.kelas)) allGrades.push(g); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (grades):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'grades'));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('journal').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allJournals = []; snap.forEach(child => { const j = child.val(); j.key = child.key; if (loaderScopeKelas().includes(j.kelas)) allJournals.push(j); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (journal):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'journal'));
-      secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('teacher_attendance').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allTeacherAttendance = []; snap.forEach(child => { const ta = child.val(); ta.key = child.key; if (isAdmin() || isKepsek() || (ta.guruKey ? ta.guruKey === currentUser.key : ta.guru === currentUser.name)) allTeacherAttendance.push(ta); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (teacher_attendance):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'teacher_attendance'));
+      secondaryPromises.push(_muatAbsenGuruSaya().then(a => { if (_basi()) return; if (a) allTeacherAttendance = a; }).catch(err => { console.warn('[SI MAMBA] Query ditolak/gagal (teacher_attendance):', err && err.message ? err.message : err); }));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('early_leave_requests').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allEarlyLeaveRequests = []; snap.forEach(child => { const r = child.val(); r.key = child.key; if (isAdmin() || isKepsek() || (r.guruKey ? r.guruKey === currentUser.key : r.guru === currentUser.name)) allEarlyLeaveRequests.push(r); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (early_leave_requests):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'early_leave_requests'));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('events').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => { if (_basi()) { resolve(); return; } allEvents = []; snap.forEach(child => { const ev = child.val(); ev.key = child.key; allEvents.push(ev); }); resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (events):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'events'));
       secondaryPromises.push(fbTimeout(new Promise((resolve) => { db.ref('ekskul_rates').once('value', snap => { ekskulRates = snap.val() || {}; resolve(); }, err => { console.warn('[SI MAMBA] Query ditolak/gagal (ekskul_rates):', err && err.message ? err.message : err); resolve(); }); }), undefined, 'ekskul_rates'));
@@ -4189,6 +4189,25 @@
       }));
     }
 
+    // Absen guru tahun ajaran aktif. Admin/Kepsek membutuhkan semua guru (query per tahunAjaran). Guru/Wali Kelas HANYA butuh catatannya
+    // sendiri: dulu tiap guru mengunduh absen SELURUH guru setahun lalu menyaringnya di HP (berat di sinyal lemah, sering timeout sehingga
+    // data kosong & guru ditahan "absen datang dulu"). Kini memakai query terindeks guruKey (+ nama untuk catatan lama tanpa guruKey).
+    // Hasil `undefined` bila semua query timeout/gagal (data lama tidak ditimpa kosong).
+    function _muatAbsenGuruSaya() {
+      if (isAdmin() || isKepsek()) return _fetchList(_byTahun('teacher_attendance'), _scopeGuru);
+      const ref = db.ref('teacher_attendance');
+      const filter = r => r.tahunAjaran === currentTahunAjaran && _scopeGuru(r);
+      const q = [];
+      if (currentUser && currentUser.key) q.push(_fetchList(ref.orderByChild('guruKey').equalTo(currentUser.key), filter));
+      if (currentUser && currentUser.name) q.push(_fetchList(ref.orderByChild('guru').equalTo(currentUser.name), filter));
+      if (!q.length) return Promise.resolve(undefined);
+      return Promise.all(q).then(hasil => {
+        const ada = hasil.filter(Array.isArray); if (!ada.length) return undefined;
+        const peta = {}; ada.forEach(arr => arr.forEach(x => { peta[x.key] = x; }));
+        return Object.keys(peta).map(k => peta[k]);
+      });
+    }
+
     // Muat data siswa sesuai scope kelas pengguna (scopeKelasData: kelas ajar + wali + tugas Petugas Infaq).
     // Dulu: SEMUA siswa diunduh lalu disaring di browser -- guru kelas 3 pun mengunduh siswa kelas 1-6, tiap
     // login. Sekarang guru dengan <= 3 kelas memakai satu query terindeks per kelas (siswa/kelas, butuh
@@ -4221,7 +4240,7 @@
       grades:           () => _fetchList(_byTahun('grades'), _scopeKelasFn()).then(a => { if (a) allGrades = a; }),
       journal:          () => _fetchList(_byTahun('journal'), _scopeKelasFn()).then(a => { if (a) { allJournals = a; scheduleStatusBarRefresh(); } }),
       teacherAttendance: () => Promise.all([
-        _fetchList(_byTahun('teacher_attendance'), _scopeGuru).then(a => { if (a) { allTeacherAttendance = a; scheduleStatusBarRefresh(); } }),
+        _muatAbsenGuruSaya().then(a => { if (a) { allTeacherAttendance = a; scheduleStatusBarRefresh(); } }),
         _fetchList(db.ref('teacher_attendance').orderByChild('tanggal').equalTo(tglLokal()), ta => ta.tahunAjaran === currentTahunAjaran)
           .then(a => { if (a) allTeacherAttendanceToday = a; })
       ]),
@@ -4933,7 +4952,12 @@
       const cocok = a => a.tanggal === today && a.type === 'Datang' && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name);
       // allTeacherAttendanceToday (query per tanggal) ikut dicek: allTeacherAttendance disaring per tahunAjaran, sehingga catatan Datang
       // yang tahunAjaran-nya kosong/berbeda (mis. hasil koreksi/edit manual) tidak terhitung walau sudah ada di server.
-      return allTeacherAttendance.some(cocok) || (allTeacherAttendanceToday || []).some(cocok);
+      const ada = allTeacherAttendance.some(cocok) || (allTeacherAttendanceToday || []).some(cocok);
+      // Penanda di perangkat: begitu catatan Datang hari ini pernah terlihat (di memori/server), ingat sampai ganti hari. Data memori bisa
+      // kosong lagi saat muat ulang di sinyal lemah/offline; tanpa penanda ini guru yang sudah absen ditahan lagi.
+      const kunciPenanda = 'simamba_datang_' + today + '_' + (currentUser.key || currentUser.name);
+      try { if (ada) localStorage.setItem(kunciPenanda, '1'); else if (localStorage.getItem(kunciPenanda) === '1') return true; } catch (e) {}
+      return ada;
     }
     function bolehIsiAbsensiSiswa() {
       if (isAdmin() || isKepsek()) return true;
@@ -5663,7 +5687,12 @@
       // berhasil isi jurnal jam 1 tetap diminta lagi saat isi jurnal jam 2, 3, dst. Sekarang cukup
       // divalidasi sekali di jam pertama; jam-jam berikutnya tidak perlu cek ulang.
       if (!isAdmin() && !isKepsek() && jam_ke === 1) {
-        const sudahAbsenDatangJurnal = allTeacherAttendance.some(a => a.tanggal === tanggal && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && a.type === 'Datang');
+        const sudahAbsenDatangJurnal = allTeacherAttendance.some(a => a.tanggal === tanggal && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && a.type === 'Datang') || (tanggal === tglLokal() && sudahAbsenDatangHariIni());
+        if (!sudahAbsenDatangJurnal && tanggal === tglLokal() && !saveJournal._cekDatang) {
+          // Memori bisa basi: periksa langsung ke server dulu, lalu ulangi simpan bila catatan Datang ternyata ada.
+          saveJournal._cekDatang = true; toast('⏳ Memeriksa absen datang Anda...', false, 1500);
+          return v4SegarkanAbsenHariIni().catch(() => {}).then(() => { try { return saveJournal(); } finally { saveJournal._cekDatang = false; } }); // flag tetap true selama ulangan: tidak berputar
+        }
         if (!sudahAbsenDatangJurnal) return toast(`⚠️ Anda belum Absen Datang untuk tanggal ${tanggal}. Silakan Absen Guru dulu sebelum mengisi jurnal.`, true);
       }
       // ===== VALIDASI: Setelah Absen Pulang, jurnal tidak bisa diisi lagi -- KECUALI untuk jam
@@ -6299,24 +6328,36 @@
     // (key catatan tetap: tanggal_guru_tipe). Tanpa ini, bila dataset belum termuat, guru yang sudah Datang bisa dianggap
     // "Datang" lagi dan Pulang-nya tidak pernah tercatat.
     function v4SegarkanAbsenHariIni() {
-      if (!currentUser || !isReallyOnline()) return Promise.resolve();
+      if (!currentUser || !navigator.onLine) return v4CekAntreanAbsenHariIni();
       const today = tglLokal(), g = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g, '_');
-      const baca = tipe => db.ref(`teacher_attendance/${today}_${g}_${tipe}`).once('value').then(snap => {
-        const v = snap.val(); if (!v) return;
-        const ada = allTeacherAttendance.some(a => a.tanggal === today && a.type === tipe && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
-        if (!ada) { v.key = snap.key; allTeacherAttendance.push(v); bumpTaRev(); }
+      const punyaSaya = a => a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name;
+      const tambah = (v, key) => {
+        if (!v || (v.type !== 'Datang' && v.type !== 'Pulang') || v.tanggal !== today || !punyaSaya(v)) return;
+        if (!allTeacherAttendance.some(a => a.tanggal === today && a.type === v.type && punyaSaya(a))) { v.key = key; allTeacherAttendance.push(v); bumpTaRev(); }
+      };
+      const baca = tipe => db.ref(`teacher_attendance/${today}_${g}_${tipe}`).once('value').then(snap => tambah(snap.val(), snap.key)).catch(() => {});
+      // Cadangan (jalan BERSAMAAN, bukan menunggu baca() selesai): catatan dengan key di luar pola tanggal_guruKey_tipe (hasil edit/koreksi,
+      // key lama berbasis nama, push-id) tidak ketemu lewat baca(). Query per tanggal lalu cocokkan guruKey/nama -- tanpa syarat tahunAjaran.
+      const cadangan = db.ref('teacher_attendance').orderByChild('tanggal').equalTo(today).once('value').then(snap => {
+        snap.forEach(child => { tambah(child.val(), child.key); }); // callback TIDAK boleh me-return nilai truthy
       }).catch(() => {});
-      // Cadangan: catatan dengan key berbeda dari pola tanggal_guruKey_tipe (mis. hasil edit/koreksi, key lama berbasis nama, push-id) tidak
-      // ketemu lewat baca() di atas. Query per tanggal lalu cocokkan guruKey/nama -- tanpa syarat tahunAjaran.
-      const cadangan = () => db.ref('teacher_attendance').orderByChild('tanggal').equalTo(today).once('value').then(snap => {
-        snap.forEach(child => { // callback TIDAK boleh me-return nilai truthy
-          const v = child.val(); if (!v || (v.type !== 'Datang' && v.type !== 'Pulang')) return;
-          if (!(v.guruKey ? v.guruKey === currentUser.key : v.guru === currentUser.name)) return;
-          const ada = allTeacherAttendance.some(a => a.tanggal === today && a.type === v.type && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
-          if (!ada) { v.key = child.key; allTeacherAttendance.push(v); bumpTaRev(); }
-        });
-      }).catch(() => {});
-      return Promise.race([Promise.all([baca('Datang'), baca('Pulang')]).then(() => cadangan()), new Promise(r => setTimeout(r, 4000))]);
+      return Promise.race([Promise.all([baca('Datang'), baca('Pulang'), cadangan, v4CekAntreanAbsenHariIni()]), new Promise(r => setTimeout(r, 7000))]);
+    }
+    // Absen Datang/Pulang yang diantre offline di perangkat ini (belum terkirim) tetap dihitung sebagai "sudah absen".
+    function v4CekAntreanAbsenHariIni() {
+      try {
+        if (!currentUser || !window.SIMambaOfflineDB || !SIMambaOfflineDB.getAllPendingWrites) return Promise.resolve();
+        const today = tglLokal();
+        return SIMambaOfflineDB.getAllPendingWrites().then(items => {
+          (items || []).forEach(it => {
+            const p = it && it.type === 'teacher_attendance' && it.payload; if (!p || p.tanggal !== today) return;
+            if (!(p.guruKey ? p.guruKey === currentUser.key : p.guru === currentUser.name)) return;
+            if (!allTeacherAttendance.some(a => a.tanggal === today && a.type === p.type && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name))) {
+              allTeacherAttendance.push(Object.assign({ key: 'pending-' + it.id, pendingSync: true }, p)); bumpTaRev();
+            }
+          });
+        }).catch(() => {});
+      } catch (e) { return Promise.resolve(); }
     }
     // Lepas stream kamera + batalkan RAF scan QR SAJA, tanpa reset tombol/status ke kondisi idle
     // -- dipakai bersama oleh stopCamera() (reset penuh, dipanggil saat user batal/keluar halaman)
