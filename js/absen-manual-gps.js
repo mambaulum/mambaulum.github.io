@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/absen-manual-gps.js (v1)
+   SI MAMBA - js/absen-manual-gps.js (v2: lencana jumlah permintaan di menu "Absen Guru" + toast saat ada permintaan baru, khusus Admin/Kepala)
    Jalur KONFIRMASI MANUAL oleh Admin untuk guru yang GPS-nya bermasalah saat scan QR Absen.
 
    ALUR
@@ -181,5 +181,43 @@
     pasang();
     var n = 0, t = setInterval(function () { n++; pasangTombolGuru(); if ((($('faceStatus') || {}).dataset || {}).amg === '1' || n > 60) clearInterval(t); }, 1000);
   });
+  // ---------- Lencana & pemberitahuan untuk Admin / Kepala ----------
+  // Satu pendengar (listener) realtime pada permintaan berstatus PENDING saja: hanya perubahan kecil yang diunduh, bukan seluruh node.
+  var pendengar = null, jumlahPending = -1, sudahToast = false;
+  function pasangLencana(n) {
+    var item = document.querySelectorAll('.menu-item[data-page="teacher-attendance"]');
+    Array.prototype.forEach.call(item, function (m) {
+      var b = m.querySelector('.amg-badge');
+      if (!n) { if (b) b.remove(); return; }
+      if (!b) { b = document.createElement('span'); b.className = 'amg-badge'; b.style.cssText = 'margin-left:6px;background:#dc2626;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;'; m.appendChild(b); }
+      b.textContent = n; b.title = n + ' permintaan konfirmasi absen menunggu persetujuan';
+    });
+  }
+  function pasangPendengar() {
+    if (pendengar || typeof db === 'undefined' || !db) return;
+    try {
+      pendengar = db.ref(NODE).orderByChild('status').equalTo('PENDING');
+      pendengar.on('value', function (snap) {
+        var n = snap.numChildren(), lama = jumlahPending; jumlahPending = n; pasangLencana(n);
+        if (n > 0 && (lama < n) && (!sudahToast || lama >= 0)) {
+          sudahToast = true;
+          toast('📨 ' + n + ' permintaan konfirmasi absen guru menunggu persetujuan (menu Absen Guru).', false, 6000);
+        }
+        var kartu = $('absenManualCard'); if (kartu && kartu.style.display !== 'none' || (n > 0 && $('absenManualCard'))) { try { renderAdmin(); } catch (e) {} }
+      }, function (err) { console.warn('[SI MAMBA] Pendengar permintaan konfirmasi absen ditolak:', err && err.message ? err.message : err); pendengar = null; });
+    } catch (e) { pendengar = null; }
+  }
+  function lepasPendengar() {
+    if (pendengar) { try { pendengar.off(); } catch (e) {} pendengar = null; }
+    jumlahPending = -1; sudahToast = false; pasangLencana(0);
+  }
+  setInterval(function () {
+    try {
+      if (typeof currentUser === 'undefined' || !currentUser || !bolehAdmin()) { if (pendengar) lepasPendengar(); return; }
+      pasangPendengar();
+      if (jumlahPending > 0) pasangLencana(jumlahPending);   // menu bisa dibangun ulang oleh skrip lain
+    } catch (e) { /* abaikan */ }
+  }, 3000);
+
   window.AbsenManualGps = { muat: renderAdmin };
 })();

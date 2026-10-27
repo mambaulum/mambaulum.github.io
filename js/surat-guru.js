@@ -128,6 +128,7 @@
     rujukan: { l: 'Dasar Penugasan — satu baris per butir (mis. surat undangan / program kerja)', t: 'area' },
     masa:    { l: 'Masa Berlaku SK', t: 'sel', o: [['', 'Tidak dibatasi (berlaku sampai ada keputusan baru)'], ['tahun', 'Per tahun kalender (1 Januari – 31 Desember)'], ['ta', 'Per tahun ajaran (1 Juli – 30 Juni)'], ['kustom', 'Atur tanggal sendiri (isi Tanggal Mulai & Selesai)']] },
     ketuaYys:{ l: 'Nama Ketua Yayasan (penandatangan SK)', t: 'text' },
+    guruKecuali:{ l: 'Guru yang TIDAK dimasukkan ke SK (opsional, mis. guru nonaktif) — tahan Ctrl / tekan lama untuk memilih beberapa', t: 'multi' },
     tugasSemua:{ l: 'Tugas tambahan per guru (opsional) — satu baris per guru, format: Nama guru = tugas 1; tugas 2  (wali kelas terisi otomatis bila tercatat di data guru)', t: 'area' },
     tugasTbh:{ l: 'Tugas tambahan — satu baris per butir (mis. Wali Kelas IV, Pembina Pramuka, Operator Madrasah). Wali kelas terisi otomatis bila tercatat di data guru', t: 'area' },
     tembusan:{ l: 'Tembusan — satu baris per butir', t: 'area' }
@@ -142,7 +143,7 @@
     'sk-tugas': { label: 'SK Pembagian Tugas Mengajar Guru dan Tugas Tambahan', file: 'SK_Pembagian_Tugas',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'tugasTbh', 'dasar', 'tembusan'], wajib: [] },
     'sk-tugas-semua': { label: 'SK Pembagian Tugas Mengajar dan Tugas Tambahan — SEMUA Guru (satu SK, tabel)', file: 'SK_Pembagian_Tugas_Semua_Guru',
-      f: ['nomor', 'klas', 'tanggal', 'tugasSemua', 'dasar', 'tembusan'], wajib: [] },
+      f: ['nomor', 'klas', 'tanggal', 'guruKecuali', 'tugasSemua', 'dasar', 'tembusan'], wajib: [] },
     'ket-aktif': { label: 'Surat Keterangan Aktif Mengajar', file: 'Keterangan_Aktif_Mengajar',
       f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'keperluan'], wajib: [] },
     'surat-tugas': { label: 'Surat Tugas', file: 'Surat_Tugas',
@@ -291,6 +292,13 @@
     s.innerHTML = '';
     (allGuru || []).slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); })
       .forEach(function (g) { var k = g.key || g.name; if (k === utama) return; var o = el('option'); o.value = k; o.textContent = g.name; o.selected = !!pilih[k]; s.appendChild(o); });
+    var kc = $('sg_guruKecuali');                             // daftar "guru yang tidak dimasukkan" (SK semua guru): semua guru, pilihan lama dipertahankan
+    if (kc) {
+      var pk = {}; Array.prototype.forEach.call(kc.options || [], function (o) { if (o.selected) pk[o.value] = true; });
+      kc.innerHTML = '';
+      (allGuru || []).slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); })
+        .forEach(function (g) { var k = g.key || g.name; var o = el('option'); o.value = k; o.textContent = g.name; o.selected = !!pk[k]; kc.appendChild(o); });
+    }
   }
   function daftarGuruLain(d) {                                // [{name, nip, jab}] dari pilihan "Guru lain"
     return String(d.guruLain || '').split('\n').filter(Boolean).map(function (k) {
@@ -838,7 +846,8 @@
           var nm = ln.slice(0, i).trim(), ts = ln.slice(i + 1).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
           if (nm && ts.length) tambahan[nm.toLowerCase()] = ts;
         });
-        var barisS = (allGuru || []).slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); }).map(function (gg, i) {
+        var kecualiS = String(d.guruKecuali || '').split('\n').filter(Boolean);
+        var barisS = (allGuru || []).filter(function (gg) { return kecualiS.indexOf(gg.key || gg.name) < 0; }).sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); }).map(function (gg, i) {
           var jd = jadwalGuru(gg), peta = {}, urut = [];
           jd.forEach(function (j) { var m0 = j.mapel || '-'; if (!peta[m0]) { peta[m0] = []; urut.push(m0); } if (j.kelas && peta[m0].indexOf(j.kelas) < 0) peta[m0].push(j.kelas); });
           var ringkasKelas = function (arr) {                      // ['Kelas 4','Kelas 3'] -> 'Kelas 3, 4'
@@ -939,10 +948,10 @@
   }
   function htmlSurat(S) {
     var h = S.yys ? kopYayasanHTML() : kopMadrasahHTML();
-    h += '<div class="judul-surat"' + (S.garis ? ' style="text-decoration:underline;"' : '') + '>' + S.judul.map(esc).join('<br>') + '</div>';
-    h += '<div class="nomor-surat">NOMOR: ' + esc(S.nomor) + '</div>';
-    if (S.tentang && S.tentang.length) h += '<div class="judul-surat" style="margin-top:2px;line-height:1.3;">TENTANG<br>' + S.tentang.map(esc).join('<br>') + '</div>';
-    h += '<div class="body">';
+    h += '<div class="judul-surat"' + (S.garis ? ' style="text-decoration:underline;"' : (S.padat ? ' style="line-height:1.2;"' : '')) + '>' + S.judul.map(esc).join('<br>') + '</div>';
+    h += '<div class="nomor-surat"' + (S.padat ? ' style="margin:0;"' : '') + '>NOMOR: ' + esc(S.nomor) + '</div>';
+    if (S.tentang && S.tentang.length) h += '<div class="judul-surat" style="margin-top:' + (S.padat ? '0' : '2px') + ';line-height:' + (S.padat ? '1.2' : '1.3') + ';">TENTANG<br>' + S.tentang.map(esc).join('<br>') + '</div>';
+    h += '<div class="body"' + (S.padat ? ' style="line-height:1.4;"' : '') + '>';
     S.blok.forEach(function (b) {
       if (b.t === 'p') h += '<p style="' + (b.c ? 'text-align:center;' : 'text-align:justify;') + (b.b ? 'font-weight:700;' : '') + '">' + esc(b.s) + '</p>';
       else if (b.t === 'ol') h += '<p style="margin:0 0 4px 24px;text-indent:-20px;text-align:justify;"><span style="display:inline-block;width:20px;">' + esc(b.k) + '</span>' + esc(b.s) + '</p>';
@@ -951,9 +960,11 @@
         b.r.forEach(function (r) { h += '<tr><td style="padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top;">' + esc(r[0]) + '</td><td style="vertical-align:top;">:</td><td style="padding-left:8px;vertical-align:top;"><strong>' + esc(r[1]) + '</strong></td></tr>'; });
         h += '</table>';
       } else if (b.t === 'tabel') {
-        h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 10px;"><tr>' +
-          b.head.map(function (x) { return '<th style="border:1px solid #000;padding:4px;background:#eee;">' + esc(x) + '</th>'; }).join('') + '</tr>' +
-          b.rows.map(function (r) { return '<tr>' + r.map(function (x) { return '<td style="border:1px solid #000;padding:4px;">' + esc(x) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
+        var pd = S.padat ? '2px 4px' : '4px', fz = S.padat ? '11.5px' : '13px';     // SK semua guru: tabel rapat agar pratinjau sebanding dengan PDF 2 lembar
+        h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:' + fz + ';margin:6px 0 ' + (S.padat ? '6px' : '10px') + ';' + (S.padat ? 'table-layout:fixed;' : '') + '">' +
+          (S.padat ? '<colgroup><col style="width:6%"><col style="width:20%"><col style="width:44%"><col style="width:8%"><col style="width:22%"></colgroup>' : '') + '<tr>' +
+          b.head.map(function (x) { return '<th style="border:1px solid #000;padding:' + pd + ';background:#eee;">' + esc(x) + '</th>'; }).join('') + '</tr>' +
+          b.rows.map(function (r) { return '<tr>' + r.map(function (x) { return '<td style="border:1px solid #000;padding:' + pd + ';' + (S.padat ? 'vertical-align:top;word-wrap:break-word;' : '') + '">' + esc(x) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
       }
     });
     var tb = tembusanBlok(S.tembusan);
