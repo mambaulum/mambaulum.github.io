@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.173",
-  "disimpan": "2026-10-27T00:26:51.052Z",
+  "appVersion": "v8.176",
+  "disimpan": "2026-10-27T00:35:03.861Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=123",
-      "hash": "dcb7e06c3188a6a8137bb63a49af71c3b4fa4ee7"
+      "v": "v=125",
+      "hash": "84a87d074fcaa86adca92ad449b368190d124f27"
     },
     "js/portal-ortu.js": {
       "v": "v=1",
@@ -261,6 +261,10 @@
     "js/impersonate.js": {
       "v": "v=7",
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
+    },
+    "js/absen-manual-gps.js": {
+      "v": "v=1",
+      "hash": "92f0e822c5212ac4d72e6ddfeb352c45a811c136"
     },
     "js/surat-guru.js": {
       "v": "v=41",
