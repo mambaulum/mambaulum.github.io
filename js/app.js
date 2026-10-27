@@ -304,7 +304,14 @@
     }
     // Rules teacher_attendance mengikat catatan guru ke sesi_guru/{uid}: pastikan bukti sesi guru terisi dulu. Tidak pernah menolak:
     // bila gagal, penulisan tetap dicoba (server yang memutuskan) supaya alur absen tidak macet karena modul kredensial.
-    function guruSesiSiap() { try { return Promise.resolve((typeof window.kredGuruSiap === 'function') ? window.kredGuruSiap() : true).catch(() => true); } catch (e) { return Promise.resolve(true); } }
+    // Sama untuk Admin: tulis ke teacher_attendance (alpha otomatis, koreksi, migrasi, Kelola Absen Guru) butuh sesi_admin terisi. Tidak pernah menolak.
+    // Batas tunggu 8 dtk: sinyal setengah putus tidak boleh menggantung aksi Admin; setelah batas, penulisan tetap dicoba (server yang memutuskan).
+    // Mode diam (proses latar belakang, mis. Alpha otomatis): TIDAK memunculkan prompt Kunci Admin. Sesi hanya diperbarui bila Kunci masih tersimpan di
+    // perangkat (kredensial.js menyimpannya 12 jam); bila tidak, penulisan tetap dicoba memakai sesi_admin yang masih ada di server dan, bila ditolak,
+    // dicoba ulang oleh mekanisme percobaan ulang Alpha (checkpoint tidak maju).
+    function adminKunciTersimpan() { try { if (sessionStorage.getItem('sim_kunci_admin')) return true; const o = JSON.parse(localStorage.getItem('sim_kunci_admin') || 'null'); return !!(o && o.k && o.exp > Date.now()); } catch (e) { return false; } }
+    function adminSesiSiap(diam) { try { if (diam && !adminKunciTersimpan()) return Promise.resolve(true); return Promise.race([Promise.resolve((typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : true).catch(() => true), new Promise(r => setTimeout(r, 8000))]); } catch (e) { return Promise.resolve(true); } }
+    function guruSesiSiap() { try { return Promise.race([Promise.resolve((typeof window.kredGuruSiap === 'function') ? window.kredGuruSiap() : true).catch(() => true), new Promise(r => setTimeout(r, 8000))]); } catch (e) { return Promise.resolve(true); } }
     function isBusy(key) { return !!_busyLocks[key]; }
     function setBusy(key, btn) {
       _busyLocks[key] = true;
@@ -403,6 +410,7 @@
       try {
         for (let i = 0; i < paths.length; i += 200) { // 200 path/update: tiap potongan atomik, seluruhnya idempotent
           const potongan = {}; paths.slice(i, i + 200).forEach(pp => { potongan[pp] = rencana[pp]; });
+          await adminSesiSiap();
           await db.ref('teacher_attendance').update(potongan);
           ringkasan.diubah += Object.keys(potongan).length;
         }
@@ -6482,7 +6490,7 @@
             // bikin record baru -- Alpha utk 1 guru di 1 tanggal dijamin cuma ada 1 di database.
             const guruKeyAman = g.key || (g.name || '').replace(/[^a-zA-Z0-9]/g,'_');
             const ref = db.ref(`teacher_attendance/${tgl}_${guruKeyAman}_Alpha`);
-            tugas.push(ref.set({ tanggal: tgl, guru: g.name, guruKey: g.key || null, kelas: g.kelas || [], type: 'Alpha', keterangan: 'Tidak ada laporan kehadiran (ditandai otomatis sistem)', tahunAjaran: currentTahunAjaran, waktu: new Date(tgl + 'T23:59:00').getTime(), metode: 'otomatis_sistem' }));
+            tugas.push(adminSesiSiap(true).then(() => ref.set({ tanggal: tgl, guru: g.name, guruKey: g.key || null, kelas: g.kelas || [], type: 'Alpha', keterangan: 'Tidak ada laporan kehadiran (ditandai otomatis sistem)', tahunAjaran: currentTahunAjaran, waktu: new Date(tgl + 'T23:59:00').getTime(), metode: 'otomatis_sistem' })));
           }
         });
       });
@@ -6526,7 +6534,7 @@
           ((a.tanggal || '') >= todayStr || adaCatatanLain.has(a.tanggal + '|' + idGuru(a))));
         if (hapus.length === 0) return;
         const updates = {}; hapus.forEach(a => { updates[a.key] = null; });
-        db.ref('teacher_attendance').update(updates).then(() => {
+        adminSesiSiap(true).then(() => db.ref('teacher_attendance').update(updates)).then(() => {
           addLog('bersihkan_alpha_keliru', hapus.length + ' catatan');
           toast(`🧹 ${hapus.length} catatan Alpha otomatis yang keliru dibersihkan.`);
           reloadDataset('teacherAttendance');
@@ -7125,7 +7133,7 @@
           else if (v.type === jenis || v.type === 'Alpha') updates[child.key] = null;
         });
         updates[keyBaru] = dataBaru; // diset TERAKHIR: kalau catatan lama memakai key yang sama, ditimpa (bukan dihapus)
-        return db.ref('teacher_attendance').update(updates);
+        return adminSesiSiap().then(() => db.ref('teacher_attendance').update(updates));
       }).then(() => {
         clearBusy('simpanKoreksiAbsenGuru', null);
         toast(`✅ Koreksi absen ${jenis} untuk ${guru} tersimpan!`);

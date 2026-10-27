@@ -160,7 +160,7 @@
         };
         const updates = {}; updates['teacher_attendance/' + newKey] = rec;
         if (oldKey && oldKey !== newKey) updates['teacher_attendance/' + oldKey] = null;
-        return db.ref().update(updates).then(() => true);
+        return Promise.race([((typeof window.kredAdminSiap === 'function') ? Promise.resolve(window.kredAdminSiap()).catch(() => true) : Promise.resolve(true)), new Promise(r => setTimeout(r, 8000))]).then(() => db.ref().update(updates)).then(() => true);
       }).then(ok => {
         if (!ok) return;
         toast(oldKey ? '✅ Catatan absen diperbarui.' : '✅ Catatan absen ditambahkan.');
@@ -173,7 +173,7 @@
       if (!isAdmin()) return toast('Hanya Admin!', true);
       const a = kagRows.find(r => r.key === key); if (!a) return toast('Catatan tidak ditemukan. Muat ulang daftar.', true);
       if (!doubleConfirm(`Hapus catatan ${a.type} untuk ${a.guru} (${a.tanggal})?\n\nTidak bisa dibatalkan.`)) return;
-      db.ref('teacher_attendance/' + key).remove().then(() => {
+      Promise.race([((typeof window.kredAdminSiap === 'function') ? Promise.resolve(window.kredAdminSiap()).catch(() => true) : Promise.resolve(true)), new Promise(r => setTimeout(r, 8000))]).then(() => db.ref('teacher_attendance/' + key).remove()).then(() => {
         toast('🗑️ Catatan dihapus.');
         addLog('hapus_absen_guru', `${a.guru} - ${a.tanggal} - ${a.type}`);
         reloadDataset('teacherAttendance'); loadKelolaAbsenGuru();

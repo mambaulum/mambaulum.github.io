@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.201';
+const APP_VERSION = 'v8.204';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,12 +81,12 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=9',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=130',
+  './js/app.js?v=133',
   './js/portal-ortu.js?v=1',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=1',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=1',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/kelola-absen-guru.js?v=3',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/kelola-absen-guru.js?v=5',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=5',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/laporan-rekap.js?v=2',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-guru.js?v=25',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -134,7 +134,7 @@ const PRECACHE_URLS = [
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
-  './js/absen-manual-gps.js?v=2',          // konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (dimuat SESUDAH app.js)
+  './js/absen-manual-gps.js?v=5',          // konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (dimuat SESUDAH app.js)
   './js/surat-guru.js?v=47',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
   './js/undangan-rapat.js?v=5',           // undangan rapat bernomor (tab Surat & Ijin)

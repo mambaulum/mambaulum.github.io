@@ -26,6 +26,17 @@
   function bolehAdmin() { try { return isAdmin() || (typeof isKepsek === 'function' && isKepsek()); } catch (e) { return false; } }
   function guruKeyAman() { return currentUser.key || String(currentUser.name || '').replace(/[^a-zA-Z0-9]/g, '_'); }
   function teksBersih(html) { var d = document.createElement('div'); d.innerHTML = html; return (d.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300); }
+  // Rules teacher_attendance butuh sesi Admin terisi sebelum Admin/Kepala menulis catatan absen guru. Tidak pernah menolak.
+  // Admin -> kredAdminSiap (sesi_admin); Kepala Madrasah -> kredKepsekSiap (sesi_kepsek, Kunci Kepala terpisah). Galat jelas (mis. Kunci belum diisi)
+  // diteruskan supaya pengguna tahu sebabnya; bila penyiapan hanya LAMBAT (>8 dtk) penulisan tetap dicoba dan server yang memutuskan.
+  function siapAdmin() {
+    try {
+      var kep = (typeof isKepsek === 'function' && isKepsek()) && !(typeof isAdmin === 'function' && isAdmin());
+      var fn = kep ? window.kredKepsekSiap : window.kredAdminSiap;
+      if (typeof fn !== 'function') return Promise.resolve(true);
+      return Promise.race([Promise.resolve(fn()), new Promise(function (r) { setTimeout(r, 8000); })]);
+    } catch (e) { return Promise.resolve(true); }
+  }
   function jamTeks(ms) { try { return new Date(Number(ms)).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }); } catch (e) { return '-'; } }
 
   // ---------- Sisi GURU ----------
@@ -136,7 +147,7 @@
     var telat = keteranganJam(d);
     var ket = 'Dikonfirmasi Admin (GPS bermasalah) oleh ' + currentUser.name + (telat ? ' · ' + telat : '') + (d.alasan ? ' · Alasan guru: ' + d.alasan : '');
     var baru = { tanggal: d.tanggal, guru: d.guru, guruKey: d.guruKey || null, kelas: d.kelas || [], waktu: Number(d.waktu), type: d.type, tahunAjaran: d.tahunAjaran || (typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : ''), metode: 'qr_manual_admin', verified: true, keterangan: ket };
-    db.ref('teacher_attendance/' + kunciAbsen).transaction(function (cur) { if (cur !== null) return; return baru; }, function (err, committed, snap) {
+    siapAdmin().then(function () { db.ref('teacher_attendance/' + kunciAbsen).transaction(function (cur) { if (cur !== null) return; return baru; }, function (err, committed, snap) {
       if (err) { if (btn) btn.disabled = false; return toast('❌ Gagal menyimpan absen: ' + err.message, true); }
       var catatan = committed ? '' : 'Absen ' + d.type + ' sudah tercatat sebelumnya (tidak ditimpa)';
       db.ref(NODE + '/' + key).update({ status: 'APPROVED', approvedBy: currentUser.name, approvedAt: new Date().toISOString(), catatan: catatan }).then(function () {
@@ -145,7 +156,7 @@
         try { addLog('setuju_absen_manual_gps', d.guru + ' - ' + kunciAbsen); } catch (e) {}
         renderAdmin(); try { if (typeof renderTeacherAttendance === 'function') renderTeacherAttendance(); } catch (e) {}
       }).catch(function (e) { toast('❌ Absen tersimpan, tetapi status permintaan gagal diubah: ' + e.message, true); renderAdmin(); });
-    });
+    }); }, function (e) { if (btn) btn.disabled = false; toast('❌ ' + ((e && e.message) || 'Sesi belum siap.'), true); });
   }
   function tolak(key, btn) {
     var d = daftar[key]; if (!d || !bolehAdmin()) return;
