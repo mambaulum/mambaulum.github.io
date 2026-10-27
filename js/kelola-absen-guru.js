@@ -138,9 +138,10 @@
         snap.forEach(c => { const v = c.val() || {}; if (c.key === oldKey || c.key === newKey) return; if (kagCocokGuru(v, guru)) lain.push(v.type); });
         const bentrok = KAG_HARI_PENUH.includes(jenis) ? lain.length > 0 : lain.some(t => KAG_HARI_PENUH.includes(t));
         if (bentrok && !confirm(`Di tanggal ini ${guru.name} juga punya catatan: ${lain.join(', ')}.\n\nIzin/Sakit/Alpha adalah status satu hari penuh, jadi bisa bertabrakan dengan catatan lain.\n\nTetap simpan?`)) return false;
-        const waktuIso = new Date(`${tanggal}T${KAG_HARI_PENUH.includes(jenis) ? '00:00' : jam}:00`).toISOString();
+        // Rules teacher_attendance: `waktu` WAJIB angka (epoch-ms). Dulu disimpan sebagai teks ISO -> ditolak PERMISSION_DENIED.
+        const waktuMsBaru = new Date(`${tanggal}T${KAG_HARI_PENUH.includes(jenis) ? '00:00' : jam}:00`).getTime();
         const rec = {
-          tanggal, guru: guru.name, guruKey: guru.key, kelas: guru.kelas || [], waktu: waktuIso, type: jenis,
+          tanggal, guru: guru.name, guruKey: guru.key, kelas: guru.kelas || [], waktu: waktuMsBaru, type: jenis,
           tahunAjaran: (lama && lama.tahunAjaran) || currentTahunAjaran,
           metode: lama ? (lama.metode || 'manual_admin') : 'manual_admin',
           keterangan: ket || null, catatanKoreksi: alasan, dikoreksi: true,
