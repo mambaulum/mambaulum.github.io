@@ -109,6 +109,10 @@
     nomor:   { l: 'Nomor Surat (otomatis)', t: 'text', ph: 'terisi otomatis; boleh diketik manual' },
     klas:    { l: 'Kode Klasifikasi Arsip', t: 'text', ph: 'mis. KP.01' },
     tanggal: { l: 'Tanggal Surat', t: 'date' },
+    ta:      { l: 'Tahun Pelajaran', t: 'sel', o: [] },      // pilihan diisi dinamis oleh isiPilihanTA() (aktif + tahun-tahun lama)
+    smt:     { l: 'Semester', t: 'sel', o: [] },
+    kepala:  { l: 'Nama Kepala Madrasah (penandatangan)', t: 'text' },     // kosong = Kepala saat ini; isi untuk surat tahun lama (Kepala saat itu)
+    nipKepala:{ l: 'NIP Kepala Madrasah', t: 'text' },
     nip:     { l: 'NIP / NIY', t: 'text' },
     nuptk:   { l: 'PegID', t: 'text' },
     ttl:     { l: 'Tempat, Tanggal Lahir', t: 'text', ph: 'mis. Banyuwangi, 12 Mei 1990' },
@@ -135,21 +139,21 @@
   };
   var JENIS = {
     'sk-pengangkatan': { label: 'SK Pengangkatan sebagai Guru (oleh Yayasan)', file: 'SK_Pengangkatan_Guru',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'ttl', 'pend', 'jabatan', 'status', 'tmt', 'masa', 'mulai', 'selesai', 'dasar', 'ketuaYys', 'tembusan'], wajib: ['tmt'] },
+      f: ['nomor', 'klas', 'tanggal', 'ta', 'nip', 'nuptk', 'ttl', 'pend', 'jabatan', 'status', 'tmt', 'masa', 'mulai', 'selesai', 'dasar', 'ketuaYys', 'tembusan'], wajib: ['tmt'] },
     'ket-tmt': { label: 'Surat Keterangan Keaslian TMT', file: 'Keterangan_Keaslian_TMT',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk', 'keperluan'], wajib: ['tmt'] },
+      f: ['nomor', 'klas', 'tanggal', 'kepala', 'nipKepala', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk', 'keperluan'], wajib: ['tmt'] },
     'sk-jadwal': { label: 'SK Pembagian Jadwal Mengajar', file: 'SK_Jadwal_Mengajar',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'dasar', 'tembusan'], wajib: [] },
+      f: ['nomor', 'klas', 'tanggal', 'ta', 'smt', 'kepala', 'nipKepala', 'nip', 'jabatan', 'dasar', 'tembusan'], wajib: [] },
     'sk-tugas': { label: 'SK Pembagian Tugas Mengajar Guru dan Tugas Tambahan', file: 'SK_Pembagian_Tugas',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'tugasTbh', 'dasar', 'tembusan'], wajib: [] },
+      f: ['nomor', 'klas', 'tanggal', 'ta', 'smt', 'kepala', 'nipKepala', 'nip', 'jabatan', 'tugasTbh', 'dasar', 'tembusan'], wajib: [] },
     'sk-tugas-semua': { label: 'SK Pembagian Tugas Mengajar dan Tugas Tambahan — SEMUA Guru (satu SK, tabel)', file: 'SK_Pembagian_Tugas_Semua_Guru',
-      f: ['nomor', 'klas', 'tanggal', 'guruKecuali', 'tugasSemua', 'dasar', 'tembusan'], wajib: [] },
+      f: ['nomor', 'klas', 'tanggal', 'ta', 'smt', 'kepala', 'nipKepala', 'guruKecuali', 'tugasSemua', 'dasar', 'tembusan'], wajib: [] },
     'ket-aktif': { label: 'Surat Keterangan Aktif Mengajar', file: 'Keterangan_Aktif_Mengajar',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'keperluan'], wajib: [] },
+      f: ['nomor', 'klas', 'tanggal', 'ta', 'smt', 'kepala', 'nipKepala', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'keperluan'], wajib: [] },
     'surat-tugas': { label: 'Surat Tugas', file: 'Surat_Tugas',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'jabatan', 'guruLain', 'tugas', 'mulai', 'selesai', 'tempat', 'rujukan'], wajib: ['tugas'] },
+      f: ['nomor', 'klas', 'tanggal', 'ta', 'smt', 'kepala', 'nipKepala', 'nip', 'jabatan', 'guruLain', 'tugas', 'mulai', 'selesai', 'tempat', 'rujukan'], wajib: ['tugas'] },
     'skmt': { label: 'SKMT (Surat Keterangan Melaksanakan Tugas)', file: 'SKMT',
-      f: ['nomor', 'klas', 'tanggal', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk', 'keperluan'], wajib: ['tmt'] }
+      f: ['nomor', 'klas', 'tanggal', 'kepala', 'nipKepala', 'nip', 'nuptk', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk', 'keperluan'], wajib: ['tmt'] }
   };
 
   var mode = 'siswa';
@@ -250,6 +254,9 @@
       if (k === 'tanggal') i.addEventListener('change', function () { isiNomor(false).then(function () { preview(true); }); });
       w.appendChild(l); w.appendChild(i);
       if (k === 'nomor') { var inf = el('p', null, 'font-size:11px;color:#6b7280;margin:3px 0 0;'); inf.id = 'sg_nomorInfo'; w.appendChild(inf); }
+      if (k === 'kepala') i.addEventListener('change', function () { catatanTA(); });
+      if (k === 'nipKepala') { var infK = el('p', null, 'font-size:11px;color:#b45309;margin:3px 0 0;display:none;'); infK.id = 'sg_kepInfo'; w.appendChild(infK); }
+      if (k === 'smt') { var infT = el('p', null, 'font-size:11px;color:#b45309;margin:3px 0 0;display:none;'); infT.id = 'sg_taInfo'; w.appendChild(infT); }
       kolom.appendChild(w);
     });
     p.appendChild(kolom);
@@ -358,12 +365,48 @@
     });
   }
 
+  // Tahun Pelajaran & Semester: default = yang aktif; tahun-tahun lama bisa dipilih untuk surat arsip/susulan.
+  // Pilihan dibangun ulang HANYA bila tahun ajaran aktif berubah (pilihan Admin tidak tertimpa saat ganti jenis surat).
+  function isiPilihanTA() {
+    var sTa = $('sg_ta'), sSm = $('sg_smt'); if (!sTa || !sSm) return;
+    var aktif = String(currentTahunAjaran || ''), m = aktif.match(/(\d{4})/), y0 = m ? parseInt(m[1], 10) : new Date().getFullYear();
+    if (sTa.dataset.base !== aktif) {
+      sTa.innerHTML = '';
+      for (var y = y0 + 1; y >= y0 - 6; y--) {
+        var v = y + '/' + (y + 1), o = el('option'); o.value = v; o.textContent = v + (v === aktif ? ' (aktif)' : (y > y0 ? ' (mendatang)' : '')); sTa.appendChild(o);
+      }
+      sTa.value = y0 + '/' + (y0 + 1);
+      sTa.dataset.base = aktif;
+    }
+    var smAktif = String(currentSemesterAktif || '');
+    if (sSm.dataset.base !== smAktif) {
+      sSm.innerHTML = '';
+      ['Ganjil', 'Genap'].forEach(function (v) { var o = el('option'); o.value = v; o.textContent = v + (v === smAktif ? ' (aktif)' : ''); sSm.appendChild(o); });
+      sSm.value = smAktif === 'Genap' ? 'Genap' : 'Ganjil'; sSm.dataset.base = smAktif;
+    }
+  }
+  // Jadwal/kelas guru di aplikasi hanya menyimpan data TERKINI (tanpa arsip per tahun ajaran): beri peringatan bila TA/semester dipilih lama.
+  function catatanTA() {
+    var n = $('sg_taInfo'); if (!n) return;
+    var jenis = $('sg_jenis') ? $('sg_jenis').value : '', pakaiJadwal = ['sk-jadwal', 'sk-tugas', 'sk-tugas-semua', 'ket-aktif'].indexOf(jenis) >= 0;
+    var lama = ($('sg_ta') && $('sg_ta').value && $('sg_ta').value !== String(currentTahunAjaran || '')) || ($('sg_smt') && $('sg_smt').value && $('sg_smt').value !== String(currentSemesterAktif || ''));
+    if (pakaiJadwal && lama) { n.style.display = ''; n.textContent = '⚠ Daftar jadwal/kelas pada surat ini diambil dari jadwal TERKINI di aplikasi (belum ada arsip jadwal per tahun ajaran). Periksa isinya untuk tahun pelajaran/semester yang bukan aktif.'; }
+    else { n.style.display = 'none'; n.textContent = ''; }
+    var nk = $('sg_kepInfo'); if (nk) {
+      var dk = { kepala: $('sg_kepala') ? $('sg_kepala').value : '', nipKepala: $('sg_nipKepala') ? $('sg_nipKepala').value : '' };
+      if (kepalaInfo(dk).lain) { nk.style.display = ''; nk.textContent = 'ℹ Nama berbeda dari Kepala saat ini: tanda tangan digital Kepala TIDAK ditempel (ruang dikosongkan untuk tanda tangan basah). Isi NIP bila ada.'; }
+      else { nk.style.display = 'none'; nk.textContent = ''; }
+    }
+  }
+
   function sesuaikan() {                                     // tampilkan hanya kolom yang relevan
     var j = JENIS[$('sg_jenis').value]; if (!j) return;
     Object.keys(FIELD).forEach(function (k) {
       var w = $('sg_w_' + k); if (w) w.style.display = j.f.indexOf(k) >= 0 ? '' : 'none';
     });
-    if ($('sg_jenis').value === 'sk-pengangkatan') { var kus = $('sg_masa') && $('sg_masa').value === 'kustom'; ['mulai', 'selesai'].forEach(function (k) { var w2 = $('sg_w_' + k); if (w2) w2.style.display = kus ? '' : 'none'; }); }
+    if ($('sg_jenis').value === 'sk-pengangkatan') { var kus = $('sg_masa') && $('sg_masa').value === 'kustom'; ['mulai', 'selesai'].forEach(function (k) { var w2 = $('sg_w_' + k); if (w2) w2.style.display = kus ? '' : 'none'; }); var wTa = $('sg_w_ta'); if (wTa) wTa.style.display = ($('sg_masa') && $('sg_masa').value === 'ta') ? '' : 'none'; }
+    isiPilihanTA(); catatanTA();
+    { var kp = $('sg_kepala'), nk = $('sg_nipKepala'); if (kp) kp.placeholder = 'kosongkan = Kepala saat ini: ' + (MADRASAH.kepala_sekolah || '-'); if (nk) nk.placeholder = 'kosongkan = NIP Kepala saat ini'; }
     { var semuaG = $('sg_jenis').value === 'sk-tugas-semua', sg = $('sg_guru'); if (sg && sg.parentElement) sg.parentElement.style.display = semuaG ? 'none' : ''; }
     var t = $('sg_tanggal'); if (t && !t.value) t.value = tglLokal();
     var tb = $('sg_tembusan'); if (tb && tb.dataset.edit !== '1') tb.value = tembusanDefault($('sg_jenis').value);
@@ -431,6 +474,11 @@
       if (e && FIELD[k].t === 'multi') { d[k] = Array.prototype.filter.call(e.options || [], function (o) { return o.selected; }).map(function (o) { return o.value; }).join('\n'); return; }
       d[k] = e ? String(e.value || '').trim() : '';
     });
+    // ta/smt hanya berlaku untuk jenis surat yang memuatnya (pilihan tersembunyi tidak boleh terbawa); SK Pengangkatan: hanya bila masa = per tahun ajaran
+    var jn = JENIS[$('sg_jenis') ? $('sg_jenis').value : '']; if (jn) {
+      ['ta', 'smt', 'kepala', 'nipKepala'].forEach(function (k) { if (jn.f.indexOf(k) < 0) d[k] = ''; });
+      if ($('sg_jenis').value === 'sk-pengangkatan' && d.masa !== 'ta') d.ta = '';
+    }
     return d;
   }
   function kvGuru(g, d, lengkap) {
@@ -735,25 +783,33 @@
     r.push(['Jabatan', d.jabatan || 'Guru']);
     return r;
   }
-  function kvKepala() {
-    return [['Nama', MADRASAH.kepala_sekolah], ['NIP', MADRASAH.nip_kepala_sekolah], ['Jabatan', 'Kepala ' + MADRASAH.nama]];
+  // Kepala Madrasah penandatangan: kosong = Kepala saat ini (data MADRASAH). Bila Admin mengisi nama yang BERBEDA (surat tahun lama), NIP tidak
+  // boleh jatuh ke NIP Kepala sekarang (jadi '-' bila tidak diisi) dan tanda tangan digital Kepala sekarang tidak ditempel (lain = true).
+  function kepalaInfo(d) {
+    var cur = String(MADRASAH.kepala_sekolah || '').trim(), nm = String((d && d.kepala) || '').trim(), np = String((d && d.nipKepala) || '').trim();
+    var lain = !!nm && nm.toLowerCase() !== cur.toLowerCase();
+    return { nama: nm || cur, nip: lain ? (np || '-') : (np || MADRASAH.nip_kepala_sekolah), lain: lain };
+  }
+  function kvKepala(d) {
+    var k = kepalaInfo(d);
+    return [['Nama', k.nama], ['NIP', k.nip], ['Jabatan', 'Kepala ' + MADRASAH.nama]];
   }
   // Masa berlaku SK pengangkatan: kembalikan {a, b} (ISO) atau null bila tidak dibatasi.
   function masaSK(d) {
     var iso = d.tanggal || tglLokal(), y = parseInt(String(iso).slice(0, 4), 10);
     if (d.masa === 'tahun') return { a: y + '-01-01', b: y + '-12-31' };
     if (d.masa === 'ta') {
-      var m0 = String(currentTahunAjaran || '').match(/(\d{4})/), y0 = m0 ? parseInt(m0[1], 10) : y;
+      var m0 = String(d.ta || currentTahunAjaran || '').match(/(\d{4})/), y0 = m0 ? parseInt(m0[1], 10) : y;
       return { a: y0 + '-07-01', b: (y0 + 1) + '-06-30' };
     }
     if (d.masa === 'kustom' && d.mulai && d.selesai) return { a: d.mulai, b: d.selesai };
     return null;
   }
   function susun(jenis, d, g) {
-    var m = MADRASAH.nama, mU = m.toUpperCase(), ta = currentTahunAjaran + ' Semester ' + currentSemesterAktif;
+    var m = MADRASAH.nama, mU = m.toUpperCase(), ta = (d.ta || currentTahunAjaran) + ' Semester ' + (d.smt || currentSemesterAktif);
     var tgl = fmtTgl(d.tanggal) || fmtTgl(tglLokal());
     var S = { judul: [], tentang: [], nomor: d.nomor || TITIK, blok: [], tempat: tempatSurat(), tanggal: tgl,
-              ttd: 'Kepala ' + titleCase(m), penanda: tanpaGelar(MADRASAH.kepala_sekolah), sk: false, yys: false, tembusan: [] };
+              ttd: 'Kepala ' + titleCase(m), penanda: tanpaGelar(kepalaInfo(d).nama), kepalaLain: kepalaInfo(d).lain, sk: false, yys: false, tembusan: [] };
     var B = S.blok, tmt = fmtTgl(d.tmt), jab = d.jabatan || 'Guru', jadwal = [], kep = d.keperluan || 'kelengkapan administrasi';
     function pembukaSK(jabatanPembentuk) {
       B.push({ t: 'p', s: 'DENGAN RAHMAT TUHAN YANG MAHA ESA', b: true, c: true });
@@ -784,7 +840,7 @@
       case 'ket-tmt':
         S.judul = ['SURAT KETERANGAN', 'KEASLIAN TANGGAL MULAI TUGAS (TMT)'];
         B.push({ t: 'p', s: 'Yang bertanda tangan di bawah ini:' });
-        B.push({ t: 'kv', r: kvKepala() });
+        B.push({ t: 'kv', r: kvKepala(d) });
         B.push({ t: 'p', s: 'Menerangkan dengan sebenarnya bahwa:' });
         B.push({ t: 'kv', r: kvGuru(g, d, false) });
         B.push({ t: 'p', s: 'adalah benar telah melaksanakan tugas sebagai ' + jab + ' di ' + m + ' terhitung mulai tanggal ' + T(tmt) +
@@ -878,7 +934,7 @@
         jadwal = jadwalGuru(g);
         S.judul = ['SURAT KETERANGAN', 'AKTIF MENGAJAR'];
         B.push({ t: 'p', s: 'Yang bertanda tangan di bawah ini:' });
-        B.push({ t: 'kv', r: kvKepala() });
+        B.push({ t: 'kv', r: kvKepala(d) });
         B.push({ t: 'p', s: 'Menerangkan bahwa:' });
         B.push({ t: 'kv', r: kvGuru(g, d, false) });
         B.push({ t: 'p', s: 'adalah benar guru aktif di ' + m + ' pada tahun ajaran ' + ta + (kelasGuru(g, jadwal) ? ', yang mengajar di kelas ' + kelasGuru(g, jadwal) : '') +
@@ -914,7 +970,7 @@
       case 'skmt':
         S.judul = ['SURAT KETERANGAN', 'MELAKSANAKAN TUGAS'];
         B.push({ t: 'p', s: 'Yang bertanda tangan di bawah ini:' });
-        B.push({ t: 'kv', r: kvKepala() });
+        B.push({ t: 'kv', r: kvKepala(d) });
         B.push({ t: 'p', s: 'Menerangkan bahwa:' });
         B.push({ t: 'kv', r: kvGuru(g, d, false) });
         B.push({ t: 'p', s: 'telah nyata melaksanakan tugas sebagai ' + jab + ' di ' + m + ' terhitung mulai tanggal ' + T(tmt) +
@@ -941,7 +997,7 @@
   }
   function gambarTtdHtml(S) {
     var gaya = 'max-height:22mm;max-width:45mm;display:block;margin:2mm auto;';
-    if (!S.yys) return MADRASAH.ttdKepalaBase64 ? '<img src="' + MADRASAH.ttdKepalaBase64 + '" alt="Tanda tangan" style="' + gaya + '">' : '';
+    if (!S.yys) return (MADRASAH.ttdKepalaBase64 && !S.kepalaLain) ? '<img src="' + MADRASAH.ttdKepalaBase64 + '" alt="Tanda tangan" style="' + gaya + '">' : '';
     var g = (window.TTD && TTD.img) ? TTD.img('yayasan', gaya) : '';
     if (!g && !yysTtdMuat) siapTtdYys().then(function () { if (window.TTD && TTD.img && TTD.img('yayasan')) preview(true); });   // muat sekali, lalu gambar preview
     return g;
@@ -1021,7 +1077,7 @@
       $('suratPreview').innerHTML = htmlSurat(S);
       db.ref('surat').push().set({
       siswaKey: 'guru:' + (g.key || g.name), siswaName: g.name + (daftarGuruLain(d).length ? ' +' + daftarGuruLain(d).length + ' guru' : ''), kelas: 'GURU', jenis: 'guru-' + jenis, jenisLabel: label,
-      tanggal: new Date().toISOString(), tahunAjaran: currentTahunAjaran, dibuatOleh: currentUser.name, guruKey: currentUser.key || null,
+      tanggal: new Date().toISOString(), tahunAjaran: d.ta || currentTahunAjaran, dibuatOleh: currentUser.name, guruKey: currentUser.key || null,
       htmlContent: hematHtmlSurat($('suratPreview').innerHTML, S.yys ? 'yayasan' : 'kepala'), createdAt: new Date().toISOString()
     }, function (err) {
       clearBusy('simpanSuratGuru', btn);
@@ -1121,7 +1177,7 @@
     y += (tl.length - 1) * LH;
     {                                                           // gambar TTD saja (tanpa QR): Kepala Madrasah, atau Ketua Yayasan untuk SK Yayasan
       try {
-        var ttdG = (window.TTD && TTD.muat) ? await TTD.muat(S.yys ? 'yayasan' : 'kepala') : (S.yys ? null : await v4LoadTtdKepalaForPdf());
+        var ttdG = (S.kepalaLain && !S.yys) ? null : ((window.TTD && TTD.muat) ? await TTD.muat(S.yys ? 'yayasan' : 'kepala') : (S.yys ? null : await v4LoadTtdKepalaForPdf()));
         if (ttdG) {
           var pT = doc.getImageProperties(ttdG), wT = 40, hT = wT * (pT.height / pT.width);
           if (hT > 20) { hT = 20; wT = hT * (pT.width / pT.height); }
