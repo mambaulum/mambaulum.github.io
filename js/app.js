@@ -4936,10 +4936,18 @@
       if (isAdmin() || isKepsek()) return true;
       return sudahAbsenDatangHariIni();
     }
+    let _lateCekTs = 0;
     function renderAttendanceLateBlock() {
       const block = document.getElementById('attendanceLateBlock');
       if (!block || !currentUser) return;
-      block.style.display = bolehIsiAbsensiSiswa() ? 'none' : 'block';
+      const boleh = bolehIsiAbsensiSiswa();
+      block.style.display = boleh ? 'none' : 'block';
+      // Data absen guru di memori bisa basi (dimuat dari cache perangkat, atau Datang dicatat dari perangkat lain / Admin). Sebelum menahan guru,
+      // cek langsung ke server (maks 1x per 30 dtk) lalu buka kuncinya bila catatan Datang hari ini ternyata sudah ada.
+      if (!boleh && Date.now() - _lateCekTs > 30000 && typeof v4SegarkanAbsenHariIni === 'function') {
+        _lateCekTs = Date.now();
+        v4SegarkanAbsenHariIni().then(() => { if (bolehIsiAbsensiSiswa()) block.style.display = 'none'; }).catch(() => {});
+      }
     }
 
     // ============================================================
@@ -5078,7 +5086,20 @@
     function saveAttendance() {
       if (!canEdit() || isKepsek()) return toast('Tidak bisa menyimpan!', true);
       if (isBusy('saveAttendance')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 2000);
-      if (!bolehIsiAbsensiSiswa()) { renderAttendanceLateBlock(); return toast('🔒 Absen datang dulu di menu Absen Guru. Kalau tidak bisa absen, minta Admin mencatatnya di Kelola Absen Guru.', true); }
+      if (!bolehIsiAbsensiSiswa()) {
+        // Jangan langsung menolak: data di memori bisa basi. Periksa catatan Datang hari ini langsung di server dulu, lalu ulangi simpan bila ada.
+        if (!saveAttendance._cekDatang) {
+          saveAttendance._cekDatang = true;
+          toast('⏳ Memeriksa absen datang Anda...', false, 1500);
+          return v4SegarkanAbsenHariIni().catch(() => {}).then(() => {
+            saveAttendance._cekDatang = false;
+            if (bolehIsiAbsensiSiswa()) { renderAttendanceLateBlock(); return saveAttendance(); }
+            renderAttendanceLateBlock();
+            toast('🔒 Absen datang dulu di menu Absen Guru. Kalau tidak bisa absen, minta Admin mencatatnya di Kelola Absen Guru.', true);
+          });
+        }
+        return;
+      }
       const date = document.getElementById('attendanceDate').value || tglLokal();
       const filterKelas = document.getElementById('attendanceClassFilter').value;
       if (!filterKelas) return toast('Pilih kelas terlebih dahulu!', true);
