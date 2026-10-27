@@ -48,7 +48,7 @@
    js/kredensial.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.212';
+const APP_VERSION = 'v8.215';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -109,9 +109,9 @@ const PRECACHE_URLS = [
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=7',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-pkg-mi.js?v=1',              // instrumen & rumus PKG Guru MI (dimuat SEBELUM pkg.js)
-  './js/pkg-sumber.js?v=12',               // pembaca absensi guru/jurnal/nilai/perangkat pembelajaran untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
+  './js/pkg-sumber.js?v=65',               // pembaca absensi guru/jurnal/nilai/perangkat pembelajaran untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
   './js/data-pkg-angket.js?v=5',          // butir & rumus angket PKG (dimuat SEBELUM pkg.js; juga dipakai angket.html)
-  './js/pkg.js?v=93',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
+  './js/pkg.js?v=94',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/pkg-surat.js?v=4',                // surat PKG berQR Kepala (dimuat SESUDAH pkg.js)
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
   './js/data-tp-mi.js?v=3',
