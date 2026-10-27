@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.190",
-  "disimpan": "2026-10-27T04:05:32.410Z",
+  "appVersion": "v8.196",
+  "disimpan": "2026-10-27T06:43:24.903Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -91,12 +91,12 @@
       "hash": "03c2c7e6153a1d0f7a158e6ced225112b4f03d3f"
     },
     "js/honor-guru.js": {
-      "v": "v=23",
-      "hash": "1bd4889f2085e62770f482a1deeefecce6a26e47"
+      "v": "v=25",
+      "hash": "93ffe60b35b38d6ecce3a9268c8288a81cb78de5"
     },
     "js/honor-kebersihan.js": {
-      "v": "v=2",
-      "hash": "c111af1de5297bc867da9b69fa1d5f658f91ebff"
+      "v": "v=3",
+      "hash": "830f74012e65391fb5dfe4ed4377815b35ba30f2"
     },
     "js/event-ujian.js": {
       "v": "v=1",
@@ -153,6 +153,10 @@
     "js/menu-polish.js": {
       "v": "v=31",
       "hash": "85dbd77ca009f4985305c5ac231d2f2d655c58b7"
+    },
+    "js/versi-app.js": {
+      "v": "v=2",
+      "hash": "5e5aa986cce4c7674c8f9140f544e47b64a94853"
     },
     "js/rekap-jurnal.js": {
       "v": "v=1",
@@ -267,12 +271,12 @@
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
     },
     "js/absen-manual-gps.js": {
-      "v": "v=1",
-      "hash": "92f0e822c5212ac4d72e6ddfeb352c45a811c136"
+      "v": "v=2",
+      "hash": "91addd931794a56f22567d4d8d4b592a2174b4bf"
     },
     "js/surat-guru.js": {
-      "v": "v=41",
-      "hash": "001258022c0a72506a4feb986bc9bbdd72ad9e3b"
+      "v": "v=42",
+      "hash": "8a4c4b04178f234f444c8fcc69423e3cd8108511"
     },
     "js/agenda-surat.js": {
       "v": "v=5",
