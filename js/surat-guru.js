@@ -1007,7 +1007,7 @@
     h += '<div class="judul-surat"' + (S.garis ? ' style="text-decoration:underline;"' : (S.padat ? ' style="line-height:1.2;"' : '')) + '>' + S.judul.map(esc).join('<br>') + '</div>';
     h += '<div class="nomor-surat"' + (S.padat ? ' style="margin:0;"' : '') + '>NOMOR: ' + esc(S.nomor) + '</div>';
     if (S.tentang && S.tentang.length) h += '<div class="judul-surat" style="margin-top:' + (S.padat ? '0' : '2px') + ';line-height:' + (S.padat ? '1.2' : '1.3') + ';">TENTANG<br>' + S.tentang.map(esc).join('<br>') + '</div>';
-    h += '<div class="body"' + (S.padat ? ' style="line-height:1.4;"' : '') + '>';
+    h += '<div class="body"' + (S.padat ? ' style="line-height:1.3;"' : '') + '>';
     S.blok.forEach(function (b) {
       if (b.t === 'p') h += '<p style="' + (b.c ? 'text-align:center;' : 'text-align:justify;') + (b.b ? 'font-weight:700;' : '') + '">' + esc(b.s) + '</p>';
       else if (b.t === 'ol') h += '<p style="margin:0 0 4px 24px;text-indent:-20px;text-align:justify;"><span style="display:inline-block;width:20px;">' + esc(b.k) + '</span>' + esc(b.s) + '</p>';
@@ -1101,7 +1101,7 @@
     d = ambil();
     var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });   // semua surat: A4; compress = ukuran berkas kecil
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-    var mk = 30, mr = 20, lebar = pw - mk - mr, LH = S.yys ? 6 : (S.padat ? 5.8 : 6.3), y = 0;                                                    // margin PMA 12/2026 (Lampiran, Tata Letak No. 12): kiri 3 cm, kanan 2 cm, bawah 2,5 cm, atas 2 cm
+    var mk = 30, mr = 20, lebar = pw - mk - mr, LH = S.yys ? 6 : (S.padat ? 5.5 : 6.3), y = 0;                                                    // margin PMA 12/2026 (Lampiran, Tata Letak No. 12): kiri 3 cm, kanan 2 cm, bawah 2,5 cm, atas 2 cm
     var data = await Promise.all([S.yys ? null : Promise.resolve().then(function () { return v4LoadLogoForPdf(); }).then(muatLogoMadrasah, function () { return muatLogoMadrasah(null); }), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
 
     // Kop
@@ -1157,10 +1157,22 @@
         });
         y += 3;
       } else if (b.t === 'tabel') {
-        perlu(30);
+        if (S.padat) {
+          // Tabel SK semua guru: mulai di halaman ini bila judul kolom + baris pertama muat (tingginya diukur dari isi). Dulu patokan tetap 30 mm:
+          // sisa < 30 mm membuat seluruh tabel lompat ke halaman berikutnya dan ruang di bawah halaman sebelumnya terbuang.
+          var fzT = 9, padT = 1.2, lhT = fzT * 0.3527778 * 1.15, cwT = [8, 32, lebar - 87, 17, 30];
+          var tinggiBarisT = function (row, tebal) {
+            doc.setFont(undefined, tebal ? 'bold' : 'normal'); doc.setFontSize(fzT);
+            var n = 1; row.forEach(function (c, ci) { n = Math.max(n, doc.splitTextToSize(String(c == null ? '' : c), Math.max(4, cwT[ci] - 2 * padT)).length); });
+            return n * lhT + 2 * padT;
+          };
+          var butuhT = tinggiBarisT(b.head, true) + (b.rows && b.rows[0] ? tinggiBarisT(b.rows[0], false) : 0) + 1.5;
+          doc.setFont(undefined, 'normal'); doc.setFontSize(12);
+          perlu(butuhT);
+        } else perlu(30);
         doc.autoTable({ startY: y, head: [b.head], body: b.rows, margin: { left: mk, right: mr, bottom: 25, top: 20 }, theme: 'grid',
           styles: { font: doc.getFont().fontName, fontSize: S.padat ? 9 : 10, cellPadding: S.padat ? 1.2 : 1.8, textColor: 0, lineColor: 0, lineWidth: 0.2 },
-          columnStyles: S.padat ? { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 34 }, 3: { cellWidth: 14, halign: 'center' }, 4: { cellWidth: 30 } } : {},
+          columnStyles: S.padat ? { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 32 }, 3: { cellWidth: 17, halign: 'center' }, 4: { cellWidth: 30 } } : {},
           headStyles: { fillColor: [235, 235, 235], textColor: 0, fontStyle: 'bold' } });
         y = doc.lastAutoTable.finalY + (S.padat ? 4 : 6);
       }
@@ -1168,7 +1180,10 @@
 
     // Kaki: kanan bawah (tempat/tanggal, jabatan + koma, tanda tangan, nama tanpa gelar)
     var cx = pw - 30 - 40;
-    perlu(75); y += 6;
+    // Tinggi blok tanda tangan DIHITUNG dari isinya (dulu dipatok 75 mm: sisa halaman < 75 mm membuat seluruh blok pindah ke halaman berikutnya
+    // dan meninggalkan ruang kosong besar di bawah halaman sebelumnya). Termasuk: jarak, tempat/tanggal, jabatan, ruang TTD, nama.
+    var tlHitung = doc.splitTextToSize(S.ttd + ',', 80);
+    perlu(6 + (S.sk ? LH : 0) + LH + 2 + (tlHitung.length - 1) * LH + (S.yys ? 26 : 24) + 3); y += 6;
     if (S.sk) { doc.text('Ditetapkan di : ' + S.tempat, cx - 38, y); y += LH; doc.text('pada tanggal : ' + S.tanggal, cx - 38, y); }
     else doc.text(S.tempat + ', ' + S.tanggal, cx, y, { align: 'center' });
     y += LH + 2;
@@ -1191,7 +1206,7 @@
     // Tembusan: kiri bawah
     var tb = tembusanBlok(S.tembusan);
     if (tb) {
-      y += 14; perlu(10 + tb.baris.length * 5.5);
+      y += S.padat ? 8 : 12; perlu(5 + tb.baris.length * 5 + 4);   // jarak dari tanda tangan & syarat muat dihitung dari isi (dulu 14 mm + 10 + n x 5,5: tembusan sering sendirian di halaman baru)
       doc.setFontSize(10); doc.text(tb.judul, mk, y); y += 5;
       tb.baris.forEach(function (x, i) {
         doc.splitTextToSize(x, lebar - 10).forEach(function (r, k) { perlu(6); if (tb.nomor) { if (k === 0) doc.text((i + 1) + '.', mk + 2, y); doc.text(r, mk + 9, y); } else doc.text(r, mk, y); y += 5; });
