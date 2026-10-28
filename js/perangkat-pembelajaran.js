@@ -55,7 +55,7 @@
   function semDefault() { const m = new Date().getMonth() + 1; return (m >= 7 && m <= 12) ? 'ganjil' : 'genap'; }
 
   const S = { sem: semDefault(), rows: {}, kaldik: null, jadwal: null, siap: false, err: null, epoch: 0, view: 'saya',
-              edit: null, tambah: false, filterGuru: '', busy: false, kaldikEdit: false };
+              edit: null, tambah: false, filterGuru: '', filterStatus: '', filterKelas: '', sortBy: '', waBuka: false, waSudah: {}, tenggatEdit: false, setujuBuka: false, busy: false, kaldikEdit: false };
 
   // ---------- Pembantu murni ----------
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -226,18 +226,37 @@
       <input id="ppKJudul" class="field" maxlength="100" placeholder="Judul (mis. Kaldik 2025/2026 Ganjil)" value="${esc((k && k.judul) || '')}">
       <input id="ppKUrl" class="field" maxlength="500" placeholder="https://drive.google.com/..." value="${esc((k && k.url) || '')}">
       <div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="kaldik-simpan">💾 Simpan</button>${k && k.url ? '<button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="kaldik-hapus">🗑 Hapus</button>' : ''}<button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="kaldik-batal">Batal</button></div></div>`;
-    return h + '</div>';
+    return h + tenggatHtml(adm) + '</div>';
   }
 
   function sayaHtml() {
     const me = myId();
     const ids = Object.keys(S.rows).filter(id => S.rows[id] && S.rows[id].guruKey === me)
       .sort((a, b) => (S.rows[a].mapel + S.rows[a].kelas).localeCompare(S.rows[b].mapel + S.rows[b].kelas, 'id'));
-    let h = '';
+    let h = ringkasanSaya(ids);
     if (!ids.length) h += `<div style="padding:12px;background:#f9fafb;border-radius:8px;${muted}">Belum ada mapel. Tambahkan mapel dan kelas yang Anda ajar di bawah, lalu isi tautan dokumennya.</div>`;
     ids.forEach(id => { h += rowCard(id, S.rows[id]); });
     h += S.tambah ? tambahForm() : `<button class="btn btn-success" style="margin-top:10px;" data-act="tambah">➕ Tambah Mapel / Kelas</button>`;
     return h;
+  }
+
+  // Ringkasan di atas halaman "Perangkat Saya": berapa dokumen sudah final dan apa yang masih perlu dikerjakan.
+  function ringkasanSaya(ids) {
+    if (!ids.length) return '';
+    let fin = 0, tot = 0, rev = 0;
+    const sisa = [];
+    ids.forEach(id => {
+      const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
+      fin += c.final; tot += c.total; rev += c.revisi;
+      const kurang = JENIS.filter(j => { const x = d[j.k]; return !(x && x.url && isFinal(x)); }).map(j => j.n);
+      if (kurang.length) sisa.push('<b>' + esc(r.mapel) + ' ' + esc(r.kelas) + '</b>: ' + kurang.map(esc).join(', '));
+    });
+    const pr = tot ? Math.round(fin * 100 / tot) : 0;
+    return `<div class="border-muted" style="margin:10px 0;padding:12px;border-radius:10px;background:#f0fdf4;">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:15px;"><b>${fin} dari ${tot} dokumen sudah final (${pr}%)</b>${rev ? `<span style="font-size:13px;color:#9a3412;">⚠️ ${rev} dokumen ada catatan revisi</span>` : ''}</div>
+      <div style="height:8px;border-radius:99px;background:#e5e7eb;margin:8px 0;overflow:hidden;"><span style="display:block;height:100%;width:${pr}%;background:#16a34a;"></span></div>
+      ${tenggatBaris()}
+      ${sisa.length ? `<div style="font-size:13px;line-height:1.6;"><div style="${muted}margin-bottom:2px;font-size:13px;">Yang masih perlu dikerjakan:</div>${sisa.join('<br>')}</div>` : '<div style="font-size:13px;color:#166534;">✅ Semua perangkat sudah final. Terima kasih!</div>'}</div>`;
   }
 
   // Cek kesiapan data dasar untuk pembuatan otomatis (hanya membaca; tidak mengubah data).
@@ -325,8 +344,34 @@
 
   // ---------- Rekap (Admin/Kepsek) ----------
   function lihatIds() {
-    return Object.keys(S.rows).filter(id => S.rows[id] && (!S.filterGuru || S.rows[id].guruKey === S.filterGuru))
-      .sort((a, b) => { const x = S.rows[a], y = S.rows[b]; return (x.guruName + x.mapel + x.kelas).localeCompare(y.guruName + y.mapel + y.kelas, 'id'); });
+    return Object.keys(S.rows).filter(id => {
+      const r = S.rows[id]; if (!r) return false;
+      if (S.filterGuru && r.guruKey !== S.filterGuru) return false;
+      if (S.filterKelas && String(r.kelas) !== S.filterKelas) return false;
+      if (S.filterStatus) {
+        const c = hitung(r, id);
+        if (S.filterStatus === 'belum' && c.final + c.draf >= c.total) return false; // masih ada dokumen yang belum diisi
+        if (S.filterStatus === 'draf' && !c.draf) return false;                      // ada dokumen draf
+        if (S.filterStatus === 'final' && c.final < c.total) return false;           // semua dokumen final
+        if (S.filterStatus === 'revisi' && !c.revisi) return false;                  // ada catatan revisi
+      }
+      return true;
+    })
+      .sort((a, b) => {
+        const x = S.rows[a], y = S.rows[b];
+        if (S.sortBy) {
+          // Kelompok per guru tetap utuh: urutkan guru menurut jumlah dokumen final seluruh mapelnya.
+          const fa = finalGuru(x.guruKey), fb = finalGuru(y.guruKey);
+          if (fa !== fb) return S.sortBy === 'asc' ? fa - fb : fb - fa;
+        }
+        return (x.guruName + '|' + x.guruKey + '|' + x.mapel + x.kelas).localeCompare(y.guruName + '|' + y.guruKey + '|' + y.mapel + y.kelas, 'id');
+      });
+  }
+  // Persentase dokumen final seluruh mapel milik satu guru (dipakai untuk pengurutan rekap).
+  function finalGuru(gk) {
+    let fin = 0, tot = 0;
+    Object.keys(S.rows).forEach(id => { const r = S.rows[id]; if (r && r.guruKey === gk) { const c = hitung(r, id); fin += c.final; tot += c.total; } });
+    return tot ? fin / tot : 0;
   }
   function guruList() {
     const m = {};
@@ -345,25 +390,264 @@
     ids.forEach(id => { const c = hitung(S.rows[id], id); tot += c.total; fin += c.final; });
     const pct = tot ? Math.round(fin * 100 / tot) : 0;
     const opt = `<option value="">Semua guru</option>` + Object.keys(gl).sort((a, b) => gl[a].localeCompare(gl[b], 'id')).map(k => `<option value="${esc(k)}" ${S.filterGuru === k ? 'selected' : ''}>${esc(gl[k])}</option>`).join('');
-    const th = JENIS.map(j => `<th style="padding:6px 4px;font-size:11px;text-align:center;">${esc(j.n)}</th>`).join('');
+    const kelasSet = Array.from(new Set(Object.keys(S.rows).map(id => S.rows[id] && S.rows[id].kelas).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+    const optKelas = `<option value="">Semua kelas</option>` + kelasSet.map(k => `<option value="${esc(k)}" ${S.filterKelas === k ? 'selected' : ''}>Kelas ${esc(k)}</option>`).join('');
+    const stOpt = [['', 'Semua status'], ['belum', 'Ada yang belum diisi'], ['draf', 'Ada draf'], ['final', 'Semua final'], ['revisi', 'Ada catatan revisi']];
+    const optStatus = stOpt.map(o => `<option value="${o[0]}" ${S.filterStatus === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
+    const optUrut = [['', 'Urut: nama guru'], ['asc', 'Urut: paling belum lengkap'], ['desc', 'Urut: paling lengkap']].map(o => `<option value="${o[0]}" ${S.sortBy === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
+    const adaFilter = !!(S.filterGuru || S.filterKelas || S.filterStatus);
+    const th = JENIS.map(j => `<th class="pp-c">${esc(j.n)}</th>`).join('');
+    const tiRekap = tenggatInfo(), telat = !!tiRekap && tiRekap.sisa < 0;
+    let prevGuru = null;
     let body = ids.map(id => {
       const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
+      const awal = r.guruKey !== prevGuru; prevGuru = r.guruKey;
       const tds = JENIS.map(j => {
-        const x = d[j.k], gen = !(x && x.url) && genAda(j.k, id), g = x && x.url ? (isFinal(x) ? '✅' : '✏️') : gen ? '🛠' : '—';
-        return `<td style="text-align:center;padding:4px;"><button type="button" data-act="edit" data-id="${esc(id)}" data-j="${j.k}" style="border:0;background:${S.edit && S.edit.id === id && S.edit.j === j.k ? '#dbeafe' : 'transparent'};cursor:pointer;font-size:15px;min-height:32px;min-width:32px;">${x && x.revisi ? '⚠️' : g}</button></td>`;
+        const x = d[j.k], ada = !!(x && x.url), gen = !ada && genAda(j.k, id);
+        let kls, ico, ttl;
+        if (x && x.revisi) { kls = 'pp-rev'; ico = '⚠️'; ttl = 'Ada catatan revisi'; }
+        else if (ada && isFinal(x)) { kls = 'pp-fin'; ico = '✓'; ttl = 'Final'; }
+        else if (ada) { kls = 'pp-draf'; ico = '✎'; ttl = 'Draf'; }
+        else if (gen) { kls = 'pp-gen'; ico = '🛠'; ttl = 'Dibuat di aplikasi'; }
+        else { kls = 'pp-kosong'; ico = '·'; ttl = 'Belum diisi'; }
+        const on = S.edit && S.edit.id === id && S.edit.j === j.k ? ' pp-on' : '';
+        return `<td class="pp-c"><button type="button" class="pp-b ${kls}${on}" title="${esc(j.n)}: ${ttl}" aria-label="${esc(j.n)}: ${ttl}" data-act="edit" data-id="${esc(id)}" data-j="${j.k}">${ico}</button></td>`;
       }).join('');
       const panel = (S.edit && S.edit.id === id) ? `<tr><td colspan="${JENIS.length + 4}">${editorHtml(id, r, S.edit.j)}</td></tr>` : '';
-      return `<tr><td style="padding:4px 6px;white-space:nowrap;font-weight:600;">${esc(r.guruName)}</td><td style="padding:4px 6px;white-space:nowrap;">${esc(r.mapel)}</td><td style="padding:4px 6px;">${esc(r.kelas)}</td>${tds}<td style="padding:4px 6px;text-align:center;font-size:12px;">${c.final}/${c.total}</td></tr>${panel}`;
+      const pr = Math.round(c.final * 100 / c.total);
+      return `<tr class="${awal ? 'pp-awal' : ''}"><td class="pp-guru">${awal ? esc(r.guruName) : ''}</td><td class="pp-mapel">${esc(r.mapel)}</td><td class="pp-kls">${esc(r.kelas)}</td>${tds}<td class="pp-fcell"><div class="pp-bar"><span style="width:${pr}%"></span></div><b>${c.final}/${c.total}</b>${telat && c.final < c.total ? '<div style="font-size:11px;color:#b91c1c;font-weight:700;">Terlambat</div>' : ''}</td></tr>${panel}`;
     }).join('');
-    if (!ids.length) body = `<tr><td colspan="${JENIS.length + 4}" style="text-align:center;padding:12px;${muted}">Belum ada data perangkat pembelajaran untuk semester ini.</td></tr>`;
+    if (!ids.length) body = `<tr><td colspan="${JENIS.length + 4}" style="text-align:center;padding:16px;${muted}">${adaFilter ? 'Tidak ada data yang cocok dengan filter.' : 'Belum ada data perangkat pembelajaran untuk semester ini.'}</td></tr>`;
     const bl = belumIsi();
-    return `<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <select class="field" style="max-width:200px;" data-act="filter-guru">${opt}</select>
-      <span style="font-size:13px;">Kelengkapan final: <b>${pct}%</b> (${fin}/${tot})</span>
-      <button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="csv">⬇️ Unduh CSV</button></div>
-      <div style="${muted}margin:6px 0;">✅ final · ✏️ draf · 🛠 dibuat di aplikasi (data sudah tersimpan) · — belum · ⚠️ ada catatan revisi. Ketuk sel untuk membuka tautan/memberi catatan.</div>
-      <div style="overflow-x:auto;"><table><thead><tr><th style="text-align:left;padding:6px;">Guru</th><th style="text-align:left;padding:6px;">Mapel</th><th style="text-align:left;padding:6px;">Kelas</th>${th}<th style="padding:6px 4px;font-size:11px;">Final</th></tr></thead><tbody>${body}</tbody></table></div>
+    const css = `<style>
+.pp-rekap{font-size:14px}
+.pp-wrap{overflow:auto;max-height:70vh;border:1px solid #d9e2de;border-radius:10px;background:#fff}
+.pp-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;color:#1f2937}
+.pp-tbl thead th{position:sticky;top:0;z-index:3;background:#e8f1ed;color:#14532d;font-size:13px;font-weight:700;padding:12px 8px;text-align:left;border-bottom:2px solid #b7cfc4;white-space:nowrap}
+.pp-tbl th.pp-c,.pp-tbl td.pp-c{text-align:center;padding:6px 4px}
+.pp-tbl td{padding:8px 10px;border-bottom:1px solid #edf2f0;vertical-align:middle}
+.pp-tbl tbody tr:not(.pp-awal-x):hover td{background:#f1f8f4}
+.pp-tbl tr.pp-awal td{border-top:2px solid #cfe0d8}
+.pp-guru{font-weight:700;white-space:nowrap;color:#111827;min-width:160px;max-width:160px;overflow:hidden;text-overflow:ellipsis;position:sticky;left:0;z-index:2;background:#fff}
+.pp-mapel{min-width:180px;max-width:180px;position:sticky;left:160px;z-index:2;background:#fff;box-shadow:2px 0 0 #d9e2de}
+.pp-tbl thead th:nth-child(1){position:sticky;left:0;z-index:5}
+.pp-tbl thead th:nth-child(2){position:sticky;left:160px;z-index:5}
+@media (max-width:700px){.pp-guru,.pp-mapel,.pp-tbl thead th:nth-child(1),.pp-tbl thead th:nth-child(2){position:static;box-shadow:none}.pp-tbl thead th{position:sticky}}
+.pp-kls{white-space:nowrap;color:#374151}
+.pp-b{border:0;cursor:pointer;width:36px;height:36px;border-radius:10px;font-size:16px;font-weight:700;line-height:1}
+.pp-fin{background:#dcfce7;color:#166534}
+.pp-draf{background:#fef3c7;color:#92400e}
+.pp-gen{background:#dbeafe;color:#1e40af}
+.pp-rev{background:#fed7aa;color:#9a3412}
+.pp-kosong{background:transparent;color:#c3ccc8;font-size:22px}
+.pp-kosong:hover{background:#f3f4f6}
+.pp-on{outline:2px solid #2563eb}
+.pp-fcell{min-width:90px;white-space:nowrap;font-size:13px}
+.pp-bar{height:6px;border-radius:99px;background:#e5e7eb;margin-bottom:4px;overflow:hidden}
+.pp-bar span{display:block;height:100%;background:#16a34a}
+.pp-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#374151;margin:10px 0}
+.pp-leg i{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;font-style:normal;font-weight:700;margin-right:5px;vertical-align:middle}
+@media (prefers-color-scheme:dark){.pp-wrap{background:#111827;border-color:#374151}.pp-tbl{color:#e5e7eb}.pp-tbl thead th{background:#1f3a2e;color:#d1fae5;border-color:#2f5846}.pp-tbl td{border-color:#1f2937}.pp-guru{color:#f9fafb;background:#111827}.pp-mapel{background:#111827;box-shadow:2px 0 0 #374151}.pp-leg{color:#d1d5db}.pp-tbl tr.pp-awal td{border-top-color:#374151}}
+</style>`;
+    return `${css}<div class="pp-rekap"><div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <select class="field" style="max-width:220px;font-size:14px;" data-act="filter-guru">${opt}</select>
+      <select class="field" style="max-width:150px;font-size:14px;" data-act="filter-kelas">${optKelas}</select>
+      <select class="field" style="max-width:200px;font-size:14px;" data-act="filter-status">${optStatus}</select>
+      <select class="field" style="max-width:210px;font-size:14px;" data-act="urut">${optUrut}</select>
+      ${adaFilter ? '<button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="filter-reset">✖ Reset filter</button>' : ''}
+      <span style="font-size:14px;">Kelengkapan final: <b>${pct}%</b> (${fin}/${tot})</span>
+      <button class="btn ${S.setujuBuka ? 'btn-success' : 'btn-soft'}" style="padding:8px 14px;font-size:13px;" data-act="setuju-buka">✅ Setujui massal</button>
+      <button class="btn ${S.waBuka ? 'btn-success' : 'btn-soft'}" style="padding:8px 14px;font-size:13px;" data-act="wa-buka">💬 Pengingat WA</button>
+      <button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="pengingat" title="Kirim notifikasi ke akun guru di dalam aplikasi">🔔 Notifikasi aplikasi</button>
+      <button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="xlsx">📊 Unduh Excel</button>
+      <button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="csv">⬇️ Unduh CSV</button></div>
+      ${setujuPanel()}${waPanel()}
+      <div class="pp-leg"><span><i class="pp-fin">✓</i>Final</span><span><i class="pp-draf">✎</i>Draf</span><span><i class="pp-gen">🛠</i>Dibuat di aplikasi</span><span><i class="pp-rev">⚠️</i>Ada catatan revisi</span><span><i class="pp-kosong" style="font-size:18px">·</i>Belum diisi</span></div>
+      <div style="${muted}margin:0 0 8px;font-size:13px;">Klik kotak status untuk membuka tautan atau memberi catatan.</div>
+      <div class="pp-wrap"><table class="pp-tbl"><thead><tr><th>Guru</th><th>Mapel</th><th>Kelas</th>${th}<th>Final</th></tr></thead><tbody>${body}</tbody></table></div></div>
       ${bl.length ? `<div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">Belum ada data dari: ${bl.map(esc).join(', ')}</div>` : ''}`;
+  }
+
+  // ---------- Pengingat ke guru (lewat notifikasi aplikasi: v4Notify di app.js) ----------
+  // Sasaran = guru pada daftar rekap yang sedang tampil (ikut filter) yang masih punya dokumen belum final,
+  // ditambah guru yang belum menambahkan mapel sama sekali (hanya bila tidak ada filter aktif).
+  function pengingatSasaran() {
+    const m = {};
+    lihatIds().forEach(id => {
+      const r = S.rows[id], d = r.docs || {};
+      const kurang = JENIS.filter(j => { const x = d[j.k]; return !(x && x.url && isFinal(x)); }).map(j => j.n);
+      if (!kurang.length) return;
+      if (!m[r.guruKey]) m[r.guruKey] = { nama: r.guruName || r.guruKey, baris: [] };
+      m[r.guruKey].baris.push(r.mapel + ' ' + r.kelas + ' (' + kurang.join(', ') + ')');
+    });
+    const kosong = [];
+    if (!S.filterGuru && !S.filterKelas && !S.filterStatus) {
+      let arr = [];
+      try { arr = (typeof allGuru !== 'undefined' && allGuru) ? (Array.isArray(allGuru) ? allGuru : Object.values(allGuru)) : []; } catch (e) { arr = []; }
+      const ada = guruList();
+      arr.forEach(g => { if (g && g.key && g.name && !ada[g.key] && !Object.values(ada).includes(g.name)) kosong.push({ key: g.key, nama: g.name }); });
+    }
+    return { isi: m, kosong: kosong };
+  }
+  // ---------- Persetujuan massal (Kepala/Admin) ----------
+  // Hanya dokumen yang: jenisnya memang perlu persetujuan, tautannya sudah diisi guru, ditandai FINAL oleh guru, belum disetujui,
+  // dan bukan milik penyetuju sendiri. Dokumen draf / tanpa tautan tidak pernah ikut disetujui.
+  function setujuKandidat(gk) {
+    const items = [];
+    lihatIds().forEach(id => {
+      const r = S.rows[id]; if (!r || r.guruKey !== gk || r.guruKey === myId()) return;
+      JENIS.forEach(j => { const x = (r.docs || {})[j.k]; if (j.setuju && x && x.url && x.status === 'final' && !x.setuju) items.push({ id: id, jk: j.k, n: j.n, r: r }); });
+    });
+    return items;
+  }
+  function setujuPanel() {
+    if (!S.setujuBuka || !isAdm()) return '';
+    const g = {};
+    lihatIds().forEach(id => { const r = S.rows[id]; if (r && r.guruKey && !g[r.guruKey]) g[r.guruKey] = r.guruName || r.guruKey; });
+    const l = Object.keys(g).map(k => ({ key: k, nama: g[k], it: setujuKandidat(k) })).filter(o => o.it.length)
+      .sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id'));
+    const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;';
+    if (!l.length) return `<div style="${box}font-size:14px;">Tidak ada dokumen yang menunggu persetujuan pada daftar ini. Yang bisa disetujui massal hanya dokumen berstatus <b>Final</b> dari guru yang tautannya sudah diisi.</div>`;
+    const rows = l.map(o => {
+      const per = {}; o.it.forEach(x => { per[x.n] = (per[x.n] || 0) + 1; });
+      const ket = Object.keys(per).map(n => n + (per[n] > 1 ? ' ×' + per[n] : '')).join(', ');
+      return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid #dbeafe;"><div style="font-size:14px;"><b>${esc(o.nama)}</b><div style="${muted}font-size:13px;">${esc(ket)}</div></div><button class="btn btn-success" style="padding:8px 14px;font-size:13px;" data-act="setuju-guru" data-id="${esc(o.key)}">✅ Setujui ${o.it.length} dokumen</button></div>`;
+    }).join('');
+    return `<div style="${box}"><div style="font-size:14px;margin-bottom:4px;"><b>Persetujuan massal (${l.length} guru)</b></div><div style="${muted}font-size:13px;margin-bottom:6px;">Hanya dokumen berstatus Final dengan tautan terisi. Tiap tombol meminta konfirmasi dulu. Persetujuan membuat cetakan guru memuat QR tanda tangan Kepala.</div>${rows}</div>`;
+  }
+  function setujuMassal(gk) {
+    if (!isAdm()) return;
+    if (gk === myId()) return say('Persetujuan tidak boleh diberikan pada dokumen sendiri.', true);
+    const items = setujuKandidat(gk);
+    if (!items.length) return say('Tidak ada dokumen yang bisa disetujui.', true);
+    const nama = items[0].r.guruName || gk;
+    const ket = items.length + ' dokumen milik ' + nama + ':\n' + items.map(x => '- ' + x.n + ' ' + x.r.mapel + ' ' + x.r.kelas).join('\n');
+    const kpNama = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || '';
+    const kepsek = typeof v4IsHead === 'function' && v4IsHead();
+    let atasNama = kpNama || myName();
+    if (kepsek) { if (!confirm('Setujui ' + ket + '?')) return; }
+    else {
+      const jawab = prompt('Setujui ' + ket + '\n\nDisetujui atas nama siapa? (Admin tetap tercatat sebagai yang menginput.)', kpNama);
+      if (jawab === null) return;
+      atasNama = String(jawab).trim() || kpNama || myName();
+    }
+    const now = new Date().toISOString(), upd = {};
+    items.forEach(x => { upd[x.id + '/docs/' + x.jk + '/setuju'] = { oleh: String(atasNama).slice(0, 100), peran: kepsek ? 'Kepala' : 'Admin', at: now }; });
+    tulis('perangkat_v4', upd, () => {
+      items.forEach(x => { const d = (S.rows[x.id].docs = S.rows[x.id].docs || {}); d[x.jk] = d[x.jk] || {}; d[x.jk].setuju = upd[x.id + '/docs/' + x.jk + '/setuju']; });
+      say('✅ ' + items.length + ' dokumen disetujui');
+    }, 'APPROVE_PERANGKAT_BULK', taSlug() + '_' + S.sem + '_' + gk);
+  }
+
+  // ---------- Pengingat lewat WhatsApp (wa.me, sama seperti Infaq: Admin tinggal menekan kirim di WhatsApp-nya) ----------
+  function noWaGuru(key, nama) {
+    let arr = [];
+    try { arr = (typeof allGuru !== 'undefined' && allGuru) ? (Array.isArray(allGuru) ? allGuru : Object.values(allGuru)) : []; } catch (e) { arr = []; }
+    const g = arr.find(x => x && x.key === key) || arr.find(x => x && x.name === nama);
+    return g && g.noWa ? String(g.noWa) : '';
+  }
+  function waDaftar() {
+    const s = pengingatSasaran(), out = [];
+    Object.keys(s.isi).forEach(k => out.push({ key: k, nama: s.isi[k].nama, baris: s.isi[k].baris, kosong: false }));
+    s.kosong.forEach(g => out.push({ key: g.key, nama: g.nama, baris: [], kosong: true }));
+    out.forEach(o => { o.noWa = noWaGuru(o.key, o.nama); });
+    return out.sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id'));
+  }
+  function pesanWa(o) {
+    const sem = (SEM_LABEL[S.sem] || S.sem) + ' ' + taText();
+    const isi = o.kosong
+      ? 'Anda belum menambahkan mapel/kelas di menu Perangkat Pembelajaran semester ' + sem + '.'
+      : 'Perangkat pembelajaran semester ' + sem + ' yang belum final:\n' + o.baris.map(b => '- ' + b).join('\n');
+    const tt = tenggatTeks();
+    return 'Assalamu\'alaikum Bapak/Ibu ' + o.nama + ',\n\nPengingat dari Admin SI MAMBA.\n' + isi + (tt ? '\n\n' + tt : '') + '\n\nMohon dilengkapi lewat menu Perangkat Pembelajaran. Jazakumullah khairan.';
+  }
+  function waPanel() {
+    if (!S.waBuka) return '';
+    const l = waDaftar();
+    const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#f0fdf4;border:1px solid #bbf7d0;';
+    if (!l.length) return `<div style="${box}font-size:14px;">Tidak ada guru yang perlu diingatkan pada daftar ini.</div>`;
+    const rows = l.map(o => {
+      const ti = tenggatInfo();
+      const ket = (o.kosong ? 'Belum menambahkan mapel' : o.baris.length + ' mapel belum lengkap') + (ti && ti.sisa < 0 ? ' · terlambat ' + (-ti.sisa) + ' hari' : '');
+      const aksi = !o.noWa ? `<span style="font-size:13px;color:#b45309;">No. WA belum diisi (lengkapi di Data Guru)</span>`
+        : `<button class="btn ${S.waSudah[o.key] ? 'btn-soft' : 'btn-success'}" style="padding:8px 14px;font-size:13px;" data-act="wa-guru" data-id="${esc(o.key)}">${S.waSudah[o.key] ? '✓ Sudah dibuka · kirim lagi' : '💬 Kirim WA'}</button>`;
+      return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid #d1fae5;"><div style="font-size:14px;"><b>${esc(o.nama)}</b><div style="${muted}font-size:13px;">${esc(ket)}</div></div>${aksi}</div>`;
+    }).join('');
+    return `<div style="${box}"><div style="font-size:14px;margin-bottom:4px;"><b>Pengingat lewat WhatsApp (${l.length} guru)</b></div><div style="${muted}font-size:13px;margin-bottom:6px;">Tekan tombol di tiap guru: WhatsApp terbuka dengan pesan sudah terisi, Anda tinggal menekan kirim.</div>${rows}</div>`;
+  }
+  function kirimWaGuru(key) {
+    const o = waDaftar().find(x => x.key === key);
+    if (!o) return say('Guru tidak ada lagi pada daftar.', true);
+    if (typeof kirimWA !== 'function') return say('Fungsi WhatsApp belum tersedia.', true);
+    kirimWA(o.noWa, pesanWa(o));
+    S.waSudah[key] = true; render();
+  }
+  function kirimPengingat() {
+    if (!isAdm()) return;
+    if (typeof v4Notify !== 'function') return say('Fitur notifikasi belum tersedia.', true);
+    if (!navigator.onLine) return say('Perlu koneksi internet untuk mengirim.', true);
+    if (S.busy) return;
+    const s = pengingatSasaran(), kunci = Object.keys(s.isi), n = kunci.length + s.kosong.length;
+    if (!n) return say('Tidak ada guru yang perlu diingatkan pada daftar ini.');
+    if (!confirm('Kirim pengingat perangkat pembelajaran (' + (SEM_LABEL[S.sem] || S.sem) + ') ke ' + n + ' guru?\n\nSetiap guru menerima notifikasi berisi dokumen yang belum final.')) return;
+    S.busy = true;
+    const judul = 'Pengingat Perangkat Pembelajaran', ref = taSlug() + '_' + S.sem, tugas = [];
+    kunci.forEach(k => {
+      let msg = 'Perangkat semester ' + (SEM_LABEL[S.sem] || S.sem) + ' yang belum final: ' + s.isi[k].baris.join('; ') + '. Mohon dilengkapi.' + (tenggatTeks() ? ' ' + tenggatTeks() : '');
+      if (msg.length > 400) msg = msg.slice(0, 397) + '...';
+      tugas.push(v4Notify(judul, msg, 'INFO', k, 'PERANGKAT', ref));
+    });
+    s.kosong.forEach(g => tugas.push(v4Notify(judul, 'Anda belum menambahkan mapel/kelas di menu Perangkat Pembelajaran semester ' + (SEM_LABEL[S.sem] || S.sem) + '. Mohon dilengkapi.', 'INFO', g.key, 'PERANGKAT', ref)));
+    Promise.all(tugas).then(() => {
+      S.busy = false; audit('SEND_PERANGKAT_REMINDER', ref, { jumlahGuru: n }); say('✅ Pengingat terkirim ke ' + n + ' guru');
+    }).catch(e => { S.busy = false; console.error('[SI MAMBA] perangkat:', e); say('❌ Sebagian/semua pengingat gagal terkirim: ' + ((e && e.message) || e), true); });
+  }
+
+  // Excel (.xlsx) memakai SheetJS yang sudah dimuat aplikasi lewat ensureLib('xlsx'). Edisi ini tidak bisa mewarnai sel,
+  // jadi status ditulis sebagai teks (Final / Draf / Dibuat di aplikasi / Belum) dan tabel diberi filter otomatis.
+  function unduhXlsx() {
+    if (typeof ensureLib !== 'function') return say('Fitur Excel belum tersedia di aplikasi ini.', true);
+    const ids = lihatIds();
+    if (!ids.length) return say('Tidak ada data untuk diunduh.', true);
+    say('⏳ Menyiapkan Excel...', false, 1500);
+    ensureLib('xlsx').then(() => {
+      const sem = SEM_LABEL[S.sem] || S.sem;
+      const head = ['Tahun Ajaran', 'Semester', 'Guru', 'Mapel', 'Kelas'].concat(JENIS.map(j => j.n), ['Jumlah Final', 'Total', 'Persen Final']);
+      const data = [head];
+      const perJenis = {}; JENIS.forEach(j => { perJenis[j.k] = { final: 0, draf: 0, belum: 0 }; });
+      const perGuru = {};
+      ids.forEach(id => {
+        const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
+        const sel = JENIS.map(j => {
+          const x = d[j.k]; let t;
+          if (x && x.url) { t = isFinal(x) ? 'Final' : 'Draf'; if (x.revisi) t += ' (revisi)'; perJenis[j.k][isFinal(x) ? 'final' : 'draf']++; }
+          else if (genAda(j.k, id)) { t = 'Dibuat di aplikasi'; perJenis[j.k].draf++; }
+          else { t = 'Belum'; perJenis[j.k].belum++; }
+          return t;
+        });
+        data.push([r.tahunAjaran || taText(), sem, r.guruName || '', r.mapel || '', r.kelas || ''].concat(sel, [c.final, c.total, c.total ? Math.round(c.final * 100 / c.total) / 100 : 0]));
+        const g = perGuru[r.guruKey] = perGuru[r.guruKey] || { nama: r.guruName || r.guruKey, mapel: 0, fin: 0, tot: 0 };
+        g.mapel++; g.fin += c.final; g.tot += c.total;
+      });
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 30 }, { wch: 8 }].concat(JENIS.map(() => ({ wch: 16 })), [{ wch: 13 }, { wch: 8 }, { wch: 13 }]);
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: data.length - 1, c: head.length - 1 } }) };
+      for (let r = 1; r < data.length; r++) { const cell = ws[XLSX.utils.encode_cell({ r: r, c: head.length - 1 })]; if (cell) cell.z = '0%'; }
+      const ti = tenggatInfo();
+      const ring = [['Rekap Perangkat Pembelajaran'], ['Tahun ajaran', taText()], ['Semester', sem], ['Batas pengumpulan', ti ? ti.label + ' (' + ketTenggat(ti) + ')' : '-'], ['Dibuat pada', new Date().toLocaleString('id-ID')], [],
+        ['Per jenis dokumen', 'Final', 'Draf / dibuat di aplikasi', 'Belum']]
+        .concat(JENIS.map(j => [j.full, perJenis[j.k].final, perJenis[j.k].draf, perJenis[j.k].belum]), [[],
+          ['Per guru', 'Jumlah mapel', 'Dokumen final', 'Total dokumen', 'Persen final']],
+          Object.keys(perGuru).map(k => perGuru[k]).sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id')).map(g => [g.nama, g.mapel, g.fin, g.tot, g.tot ? Math.round(g.fin * 100 / g.tot) / 100 : 0]));
+      const ws2 = XLSX.utils.aoa_to_sheet(ring);
+      ws2['!cols'] = [{ wch: 40 }, { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 14 }];
+      Object.keys(ws2).forEach(a => { if (a[0] !== '!' && ws2[a].t === 'n' && /^E\d+$/.test(a)) ws2[a].z = '0%'; });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Ringkasan');
+      XLSX.writeFile(wb, 'Rekap_Perangkat_' + taSlug() + '_' + S.sem + '.xlsx');
+      say('✅ Excel diunduh');
+    }).catch(e => { console.error('[SI MAMBA] perangkat:', e); say('❌ Gagal menyiapkan Excel: ' + ((e && e.message) || e), true); });
   }
 
   function unduhCsv() {
@@ -488,12 +772,51 @@
     const url = (document.getElementById('ppKUrl') || {}).value || '', judul = ((document.getElementById('ppKJudul') || {}).value || '').trim().slice(0, 100);
     if (!urlOk(url)) return say('Isi tautan yang valid, diawali https://', true);
     const rec = { judul: judul || 'Kaldik', url: url.trim(), at: new Date().toISOString(), by: myName() };
-    tulis('perangkat_kaldik_v4', (function () { const o = {}; o[taSlug() + '_' + S.sem] = rec; return o; })(), () => { S.kaldik = rec; S.kaldikEdit = false; say('✅ Kaldik tersimpan'); }, 'SAVE_PERANGKAT_KALDIK', taSlug() + '_' + S.sem);
+    // Ditulis per-field (bukan menimpa seluruh catatan) supaya tanggal tenggat yang tersimpan di catatan yang sama tidak ikut terhapus.
+    tulis('perangkat_kaldik_v4/' + taSlug() + '_' + S.sem, rec, () => { S.kaldik = Object.assign({}, S.kaldik || {}, rec); S.kaldikEdit = false; say('✅ Kaldik tersimpan'); }, 'SAVE_PERANGKAT_KALDIK', taSlug() + '_' + S.sem);
   }
   function hapusKaldik() {
     if (!isAdm() || !confirm('Hapus tautan Kaldik semester ini?')) return;
-    const o = {}; o[taSlug() + '_' + S.sem] = null;
-    tulis('perangkat_kaldik_v4', o, () => { S.kaldik = null; S.kaldikEdit = false; say('Tautan Kaldik dihapus'); }, 'DELETE_PERANGKAT_KALDIK', taSlug() + '_' + S.sem);
+    tulis('perangkat_kaldik_v4/' + taSlug() + '_' + S.sem, { judul: null, url: null, at: null, by: null }, () => { const t = S.kaldik && S.kaldik.tenggat; S.kaldik = t ? { tenggat: t } : null; S.kaldikEdit = false; say('Tautan Kaldik dihapus'); }, 'DELETE_PERANGKAT_KALDIK', taSlug() + '_' + S.sem);
+  }
+
+  // ---------- Batas waktu pengumpulan (satu tanggal per semester, tersimpan di catatan Kaldik: perangkat_kaldik_v4/<ta>_<sem>/tenggat) ----------
+  function hariIni() {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+    catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function tenggatInfo() {
+    const t = S.kaldik && S.kaldik.tenggat;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(t || '') || isNaN(Date.parse(t + 'T00:00:00Z'))) return null;
+    const sisa = Math.round((Date.parse(t + 'T00:00:00Z') - Date.parse(hariIni() + 'T00:00:00Z')) / 864e5);
+    return { tgl: t, sisa: sisa, label: tglPendek(t + 'T00:00:00') };
+  }
+  function ketTenggat(i) { return i.sisa > 0 ? i.sisa + ' hari lagi' : i.sisa === 0 ? 'hari ini' : 'terlambat ' + (-i.sisa) + ' hari'; }
+  function tenggatTeks() { const i = tenggatInfo(); return i ? 'Batas pengumpulan: ' + i.label + ' (' + ketTenggat(i) + ').' : ''; }
+  function tenggatBaris() {
+    const i = tenggatInfo(); if (!i) return '';
+    const w = i.sisa < 0 ? '#b91c1c' : i.sisa <= 7 ? '#b45309' : '#166534';
+    return `<div style="font-size:13px;margin:4px 0 8px;">⏰ Batas pengumpulan: <b>${esc(i.label)}</b> <span style="color:${w};font-weight:700;">(${ketTenggat(i)})</span></div>`;
+  }
+  function tenggatHtml(adm) {
+    const i = tenggatInfo();
+    let h = `<div style="margin-top:8px;font-size:14px;">⏰ Batas pengumpulan perangkat: ` + (i
+      ? `<b>${esc(i.label)}</b> <span style="color:${i.sisa < 0 ? '#b91c1c' : i.sisa <= 7 ? '#b45309' : '#166534'};font-weight:700;">(${ketTenggat(i)})</span>`
+      : `<span style="${muted}font-size:13px;">belum ditetapkan</span>`);
+    if (adm && !S.tenggatEdit) h += ` <button class="btn btn-soft" style="padding:4px 10px;font-size:12px;margin-left:6px;" data-act="tenggat-edit">✏️ ${i ? 'Ubah' : 'Atur'} tanggal</button>`;
+    h += '</div>';
+    if (adm && S.tenggatEdit) h += `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;"><input id="ppTenggat" type="date" class="field" style="max-width:170px;" value="${esc(i ? i.tgl : '')}"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="tenggat-simpan">💾 Simpan</button>${i ? '<button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tenggat-hapus">🗑 Hapus</button>' : ''}<button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tenggat-batal">Batal</button></div>`;
+    return h;
+  }
+  function simpanTenggat(hapus) {
+    if (!isAdm()) return;
+    const v = hapus ? null : ((document.getElementById('ppTenggat') || {}).value || '').trim();
+    if (!hapus && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(Date.parse(v + 'T00:00:00Z')))) return say('Pilih tanggal yang valid.', true);
+    const key = taSlug() + '_' + S.sem;
+    tulis('perangkat_kaldik_v4/' + key, { tenggat: v }, () => {
+      S.kaldik = Object.assign({}, S.kaldik || {}); if (v) S.kaldik.tenggat = v; else delete S.kaldik.tenggat;
+      S.tenggatEdit = false; say(v ? '✅ Tenggat tersimpan' : 'Tenggat dihapus');
+    }, 'SAVE_PERANGKAT_TENGGAT', key);
   }
 
   // ---------- Event (delegasi, tanpa onclick inline) ----------
@@ -533,14 +856,28 @@
                   return window.soalBuka(id, S.rows[id], S.sem, taText());
       case 'rpe-kaldik': if (typeof window.rpeKaldikBuka !== 'function') return say('Modul RPE belum dimuat (js/perangkat-rpe.js).', true);
                   return window.rpeKaldikBuka(S.sem, taText());
+      case 'filter-reset': S.filterGuru = ''; S.filterKelas = ''; S.filterStatus = ''; S.edit = null; return render();
+      case 'tenggat-edit': S.tenggatEdit = true; return render();
+      case 'tenggat-batal': S.tenggatEdit = false; return render();
+      case 'tenggat-simpan': return simpanTenggat(false);
+      case 'tenggat-hapus': return simpanTenggat(true);
+      case 'setuju-buka': S.setujuBuka = !S.setujuBuka; S.edit = null; return render();
+      case 'setuju-guru': return setujuMassal(id);
+      case 'xlsx': return unduhXlsx();
+      case 'wa-buka': S.waBuka = !S.waBuka; S.edit = null; return render();
+      case 'wa-guru': return kirimWaGuru(id);
+      case 'pengingat': return kirimPengingat();
       case 'csv': return unduhCsv();
     }
   }
   function ubah(e) {
     const t = e.target; if (!t || !t.getAttribute) return;
     const a = t.getAttribute('data-act');
-    if (a === 'sem') { S.sem = t.value === 'genap' ? 'genap' : 'ganjil'; S.filterGuru = ''; muat(); }
+    if (a === 'sem') { S.sem = t.value === 'genap' ? 'genap' : 'ganjil'; S.filterGuru = ''; S.waSudah = {}; muat(); }
     else if (a === 'filter-guru') { S.filterGuru = t.value; S.edit = null; render(); }
+    else if (a === 'filter-kelas') { S.filterKelas = t.value; S.edit = null; render(); }
+    else if (a === 'filter-status') { S.filterStatus = t.value; S.edit = null; render(); }
+    else if (a === 'urut') { S.sortBy = t.value === 'asc' || t.value === 'desc' ? t.value : ''; S.edit = null; render(); }
   }
   let terpasang = false;
   function pasang() {
@@ -556,7 +893,7 @@
   };
   window.perangkatResetState = function () {
     S.epoch++; S.rows = {}; S.kaldik = null; S.siap = false; S.err = null; S.view = 'saya'; S.edit = null; S.tambah = false;
-    S.filterGuru = ''; S.busy = false; S.kaldikEdit = false; S.sem = semDefault();
+    S.filterGuru = ''; S.filterKelas = ''; S.filterStatus = ''; S.sortBy = ''; S.waBuka = false; S.waSudah = {}; S.tenggatEdit = false; S.setujuBuka = false; S.busy = false; S.kaldikEdit = false; S.sem = semDefault();
     const el = (typeof document !== 'undefined') ? document.getElementById('page-perangkat-v4') : null; if (el) el.innerHTML = '';
   };
   window.perangkatUtil = { slug: slug, urlOk: urlOk, hitung: hitung, csvCell: csvCell, JENIS: JENIS };
