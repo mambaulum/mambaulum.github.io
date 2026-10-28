@@ -114,6 +114,9 @@
     // (lihat isFinal). Tanpa ini, kotak tabel tetap biru dan hitungan final tidak naik walau persetujuan sudah tersimpan.
     return !!(x && !x.url && x.app === true && x.status === 'final' && genAda(jk, id)) || viaFolder(x, id) || !!(x && !x.url && x.setuju && genAda(jk, id));
   }
+  // Dokumen aplikasi yang DIAJUKAN guru dan belum disetujui Kepala/Admin (hanya jenis yang memang perlu persetujuan; lihat JENIS.setuju).
+  function menunggu(x, jk, id) { return !!(x && !x.url && x.app === true && x.diajukan && !x.setuju && x.status !== 'final' && genAda(jk, id)); }
+  const perluSetuju = jk => !!(JENIS.find(z => z.k === jk) || {}).setuju;
   const folderLink = (f, t) => `<a href="${esc(f)}" target="_blank" rel="noopener noreferrer"><b>${t || 'Buka folder'}</b></a>`;
   function folderHint(id) { const f = folderRow(id); return f ? `<div style="font-size:12px;margin-bottom:6px;">📁 Folder Drive guru: ${folderLink(f, 'Buka')}</div>` : ''; }
   function folderHtml(id, rec) {
@@ -124,7 +127,7 @@
   function selesai(x, jk, id) { return !!(x && x.url && isFinal(x)) || appFinal(x, jk, id); }
   const APP_ACT = { rpe: 'rpe', atp: 'atp', tp: 'atp', kisi: 'kisi', kartu: 'soal', kunci: 'soal', prota: 'prota', promes: 'prota' };
   // ---------- Urutan pengisian ----------
-  // Tahap berikutnya TERTUTUP (tombol bergembok) sampai semua dokumen tahap sebelumnya selesai (final/disetujui; RPE otomatis).
+  // Tahap berikutnya TERTUTUP (tombol bergembok) sampai semua dokumen tahap sebelumnya selesai (final/disetujui, atau sudah DIAJUKAN ke Kepala; RPE otomatis).
   // Berlaku hanya untuk pemilik perangkat. Tahap yang SUDAH ada isinya tetap terbuka supaya pekerjaan lama tidak terkunci.
   const TAHAP = [
     { a: 'rpe',   n: 'RPE',          jk: ['rpe'] },
@@ -139,12 +142,12 @@
     const d = rec.docs || {};
     if (TAHAP[i].jk.some(k => d[k] || genAda(k, id))) return '';
     for (let n = 0; n < i; n++) {
-      const kurang = TAHAP[n].jk.filter(k => !selesai(d[k], k, id));
+      const kurang = TAHAP[n].jk.filter(k => !(selesai(d[k], k, id) || menunggu(d[k], k, id)));
       if (!kurang.length) continue;
       const nama = kurang.map(k => (JENIS.find(z => z.k === k) || {}).n || k).join(', ');
       return '🔒 Selesaikan dulu tahap ' + (n + 1) + ' (' + TAHAP[n].n + '). ' + (n === 0
         ? 'RPE selesai otomatis bila Admin sudah mengisi kalender efektif dan JP per pekan diketahui.'
-        : 'Belum final: ' + nama + '. Tandai final di kartu, atau tunggu disetujui Kepala.');
+        : 'Belum diajukan/final: ' + nama + '. Buka dokumennya di kartu, lalu tekan tombol ajukan atau tandai final.');
     }
     return '';
   }
@@ -390,9 +393,9 @@
     const c = hitung(rec, id), d = rec.docs || {};
     const chips = JENIS.map(j => {
       const x = d[j.k], on = S.edit && S.edit.id === id && S.edit.j === j.k;
-      const af = appFinal(x, j.k, id), gn = !(x && x.url) && !af && genAda(j.k, id);
-      const st = x && x.url ? (isFinal(x) ? ['#dcfce7', '#86efac', '#166534', '✅'] : ['#fef9c3', '#fde047', '#854d0e', '✏️']) : af ? ['#dcfce7', '#86efac', '#166534', '✅'] : gn ? ['#dbeafe', '#93c5fd', '#1e40af', '🛠'] : ['#f3f4f6', '#d1d5db', '#374151', '➕'];
-      const lbl = x && x.url ? (isFinal(x) ? 'Final' : 'Draf') : af ? (viaFolder(x, id) ? 'Final · folder Drive' : 'Final · dari aplikasi') : gn ? 'Dibuat di aplikasi' : 'Belum diisi';
+      const af = appFinal(x, j.k, id), mn = menunggu(x, j.k, id), gn = !(x && x.url) && !af && !mn && genAda(j.k, id);
+      const st = x && x.url ? (isFinal(x) ? ['#dcfce7', '#86efac', '#166534', '✅'] : ['#fef9c3', '#fde047', '#854d0e', '✏️']) : af ? ['#dcfce7', '#86efac', '#166534', '✅'] : mn ? ['#fef9c3', '#fde047', '#854d0e', '⏳'] : gn ? ['#dbeafe', '#93c5fd', '#1e40af', '🛠'] : ['#f3f4f6', '#d1d5db', '#374151', '➕'];
+      const lbl = x && x.url ? (isFinal(x) ? 'Final' : 'Draf') : af ? (viaFolder(x, id) ? 'Final · folder Drive' : 'Final · dari aplikasi') : mn ? 'Menunggu persetujuan' : gn ? 'Dibuat di aplikasi' : 'Belum diisi';
       return `<button type="button" data-act="edit" data-id="${esc(id)}" data-j="${j.k}" style="text-align:left;min-height:46px;padding:6px 10px;border-radius:10px;border:${on ? 2 : 1.5}px solid ${on ? '#2563eb' : st[1]};background:${st[0]};color:${st[2]};cursor:pointer;font-size:13px;line-height:1.25;"><strong>${st[3]} ${esc(j.n)}</strong><br><span style="font-size:11px;">${lbl}${x && x.revisi ? ' · ⚠️ revisi' : ''}</span></button>`;
     }).join('');
     const panel = (S.edit && S.edit.id === id) ? editorHtml(id, rec, S.edit.j) : '';
@@ -415,11 +418,14 @@
       return kotak('#fffbeb', '#fcd34d', '#92400e', 'RPE belum otomatis final: ' + k.map(esc).join('; ') + '.');
     }
     if (rec.guruKey !== myId() || !genAda(jk, id)) return '';
-    const aktif = appFinal(x, jk, id);
+    const aktif = appFinal(x, jk, id), tunggu = menunggu(x, jk, id), ajuan = perluSetuju(jk);
+    const batalBtn = t => ' <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-act="app-batal" data-id="' + esc(id) + '" data-j="' + jk + '">' + t + '</button>';
     return `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;font-size:12px;color:#1e3a8a;">🛠 Dokumen ini sudah dibuat di aplikasi — ${x.url ? 'tautan di bawah tetap berlaku sebagai lampiran' : 'tidak wajib diunggah ke Google Drive'}.
       <div style="margin-top:6px;">${aktif
-        ? '<b>✅ ' + (x.setuju && !(x.app === true && x.status === 'final') ? 'Sudah disetujui Kepala (dokumen aplikasi dianggap final).' : 'Ditandai final (memakai dokumen aplikasi).') + '</b> <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-act="app-batal" data-id="' + esc(id) + '" data-j="' + jk + '">Batalkan</button>'
-        : '<button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="app-final" data-id="' + esc(id) + '" data-j="' + jk + '">✅ Ajukan pakai dokumen dari aplikasi</button>'}</div></div>`;
+        ? '<b>✅ ' + (x.setuju && !(x.app === true && x.status === 'final') ? 'Sudah disetujui Kepala (dokumen aplikasi dianggap final).' : 'Ditandai final (memakai dokumen aplikasi).') + '</b>' + batalBtn('Batalkan')
+        : tunggu
+        ? '<b>⏳ Diajukan' + (x.diajukan ? ' ' + esc(tglPendek(x.diajukan)) : '') + ', menunggu persetujuan Kepala.</b>' + batalBtn('Batalkan pengajuan')
+        : '<button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="app-final" data-id="' + esc(id) + '" data-j="' + jk + '">' + (ajuan ? '✅ Ajukan pakai dokumen dari aplikasi' : '✅ Tandai final, pakai dokumen dari aplikasi') + '</button>' + (ajuan ? '<div style="' + muted + 'margin-top:4px;">Dokumen berstatus final setelah disetujui Kepala.</div>' : '')}</div></div>`;
   }
   function editorHtml(id, rec, jk) {
     const j = JENIS.find(x => x.k === jk); if (!j) return '';
@@ -428,10 +434,10 @@
     if (adm) return `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;">
       <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)} · ${esc(rec.guruName || '')}</div>${folderHint(id)}
       ${dilihatHtml(id, rec, jk, x)}${setujuHtml(id, rec, jk, j, x, true)}
-      ${(x.url || appFinal(x, jk, id)) ? `<div style="font-size:13px;margin-bottom:8px;">${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a>` : viaFolder(x, id) ? `📁 Ada di folder Drive guru (tanpa tautan sendiri) · ${folderLink(folderRow(id))}` : `🛠 ${jk === 'rpe' ? 'RPE dihitung otomatis (tanpa tautan)' : 'Dokumen dibuat di aplikasi (tanpa tautan)'}${appBukaBtn(id, jk)}`} · ${(isFinal(x) || appFinal(x, jk, id)) ? 'Final' : 'Draf'}</div>
+      ${(x.url || appFinal(x, jk, id) || menunggu(x, jk, id)) ? `<div style="font-size:13px;margin-bottom:8px;">${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a>` : viaFolder(x, id) ? `📁 Ada di folder Drive guru (tanpa tautan sendiri) · ${folderLink(folderRow(id))}` : `🛠 ${jk === 'rpe' ? 'RPE dihitung otomatis (tanpa tautan)' : 'Dokumen dibuat di aplikasi (tanpa tautan)'}${appBukaBtn(id, jk)}`} · ${(isFinal(x) || appFinal(x, jk, id)) ? 'Final' : menunggu(x, jk, id) ? 'Menunggu persetujuan' : 'Draf'}</div>
       <input id="ppRevisi" class="field" maxlength="200" placeholder="Catatan revisi untuk guru (kosongkan bila sudah sesuai)" value="${esc(x.revisi || '')}">
       <div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="simpan-revisi" data-id="${esc(id)}" data-j="${jk}">💾 Simpan catatan</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tutup">Tutup</button></div>`
-      : `<div style="${muted}">${genAda(jk, id) ? '🛠 Dibuat di aplikasi, belum ditandai final oleh guru.' + appBukaBtn(id, jk) : (jk === 'rpe' ? 'RPE belum siap: kalender efektif belum diisi atau JP per pekan belum diketahui.' : 'Guru belum mengisi tautan dokumen ini.')}</div><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;margin-top:8px;" data-act="tutup">Tutup</button>`}</div>`;
+      : `<div style="${muted}">${genAda(jk, id) ? '🛠 Dibuat di aplikasi, belum diajukan atau ditandai final oleh guru.' + appBukaBtn(id, jk) : (jk === 'rpe' ? 'RPE belum siap: kalender efektif belum diisi atau JP per pekan belum diketahui.' : 'Guru belum mengisi tautan dokumen ini.')}</div><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;margin-top:8px;" data-act="tutup">Tutup</button>`}</div>`;
     return `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;">
       <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)}</div>${rev}${setujuHtml(id, rec, jk, j, x, false)}${appBlok(id, rec, jk, x)}
       <input id="ppUrl" class="field" maxlength="500" placeholder="https://drive.google.com/..." value="${esc(x.url || '')}">
@@ -539,6 +545,7 @@
         if (x && x.revisi) { kls = 'pp-rev'; ico = '⚠️'; ttl = 'Ada catatan revisi'; }
         else if (ada && isFinal(x)) { kls = 'pp-fin'; ico = '✓'; ttl = 'Final'; }
         else if (appFinal(x, j.k, id)) { kls = 'pp-fin'; ico = '✓'; ttl = viaFolder(x, id) ? 'Final (di folder Drive guru, tanpa tautan sendiri)' : 'Final (dibuat di aplikasi, tanpa tautan)'; }
+        else if (menunggu(x, j.k, id)) { kls = 'pp-draf'; ico = '⏳'; ttl = 'Menunggu persetujuan Kepala'; }
         else if (ada) { kls = 'pp-draf'; ico = '✎'; ttl = 'Draf'; }
         else if (gen) { kls = 'pp-gen'; ico = '🛠'; ttl = 'Dibuat di aplikasi'; }
         else { kls = 'pp-kosong'; ico = '·'; ttl = 'Belum diisi'; }
@@ -640,7 +647,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
         <button class="btn btn-soft" data-act="csv">⬇️ Unduh CSV</button>
       </div></div>
       ${setujuPanel()}${waPanel()}
-      <div class="pp-leg"><span><i class="pp-fin">✓</i>Final</span><span><i class="pp-draf">✎</i>Draf</span><span><i class="pp-gen">🛠</i>Dibuat di aplikasi</span><span><i class="pp-rev">⚠️</i>Ada catatan revisi</span><span><i class="pp-kosong" style="font-size:18px">·</i>Belum diisi</span></div>
+      <div class="pp-leg"><span><i class="pp-fin">✓</i>Final</span><span><i class="pp-draf">✎</i>Draf</span><span><i class="pp-draf">⏳</i>Menunggu persetujuan</span><span><i class="pp-gen">🛠</i>Dibuat di aplikasi</span><span><i class="pp-rev">⚠️</i>Ada catatan revisi</span><span><i class="pp-kosong" style="font-size:18px">·</i>Belum diisi</span></div>
       <div style="${muted}margin:0 0 8px;font-size:13px;">Klik kotak status untuk membuka tautan atau memberi catatan.</div>
       <div class="pp-wrap"><table class="pp-tbl">${cols}<thead><tr><th>Guru</th><th>Mapel</th><th>Kelas</th>${th}<th>Final</th></tr></thead><tbody>${body}</tbody></table></div></div>
       ${bl.length ? `<div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">Belum ada data dari: ${bl.map(esc).join(', ')}</div>` : ''}`;
@@ -679,7 +686,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
         if (!j.setuju || x.setuju) return;
         // Dokumen bertautan berstatus Final, atau dokumen buatan aplikasi yang DITANDAI FINAL oleh guru (tanpa tautan).
         // Dokumen buatan aplikasi yang belum ditandai final oleh guru tidak ikut.
-        if ((x.url && x.status === 'final') || appFinal(x, j.k, id)) items.push({ id: id, jk: j.k, n: j.n, r: r, dil: dilihatAda(x) });
+        if ((x.url && x.status === 'final') || appFinal(x, j.k, id) || menunggu(x, j.k, id)) items.push({ id: id, jk: j.k, n: j.n, r: r, dil: dilihatAda(x) });
       });
     });
     return items;
@@ -691,7 +698,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     const l = Object.keys(g).map(k => ({ key: k, nama: g[k], it: setujuKandidat(k) })).filter(o => o.it.length)
       .sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id'));
     const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1f2937;';
-    if (!l.length) return `<div style="${box}font-size:14px;">Tidak ada dokumen yang menunggu persetujuan pada daftar ini. Yang bisa disetujui massal hanya dokumen berstatus <b>Final</b> dari guru: yang bertautan, atau dokumen aplikasi yang sudah ditandai final oleh guru.</div>`;
+    if (!l.length) return `<div style="${box}font-size:14px;">Tidak ada dokumen yang menunggu persetujuan pada daftar ini. Yang bisa disetujui massal hanya dokumen berstatus <b>Final</b> dari guru: yang bertautan, atau dokumen aplikasi yang sudah ditandai final atau diajukan oleh guru.</div>`;
     let total = 0, dilihat = 0;
     l.forEach(o => { total += o.it.length; dilihat += o.it.filter(x => x.dil).length; });
     const rows = l.map(o => {
@@ -832,6 +839,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
           const x = d[j.k]; let t;
           if (x && x.url) { t = isFinal(x) ? 'Final' : 'Draf'; if (x.revisi) t += ' (revisi)'; perJenis[j.k][isFinal(x) ? 'final' : 'draf']++; }
           else if (appFinal(x, j.k, id)) { t = viaFolder(x, id) ? 'Final (folder Drive)' : 'Final (aplikasi)'; perJenis[j.k].final++; }
+          else if (menunggu(x, j.k, id)) { t = 'Menunggu persetujuan'; perJenis[j.k].draf++; }
           else if (genAda(j.k, id)) { t = 'Dibuat di aplikasi'; perJenis[j.k].draf++; }
           else { t = 'Belum'; perJenis[j.k].belum++; }
           return t;
@@ -868,7 +876,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     ids.forEach(id => {
       const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
       const cells = [r.tahunAjaran, SEM_LABEL[r.semester] || r.semester, r.guruName, r.mapel, r.kelas]
-        .concat(JENIS.map(j => { const x = d[j.k]; return x && x.url ? (isFinal(x) ? 'Final' : 'Draf') + (x.revisi ? ' (revisi)' : '') : (appFinal(x, j.k, id) ? (viaFolder(x, id) ? 'Final (folder Drive)' : 'Final (aplikasi)') : (genAda(j.k, id) ? 'Dibuat di aplikasi' : 'Belum')); }), [c.final, c.draf]);
+        .concat(JENIS.map(j => { const x = d[j.k]; return x && x.url ? (isFinal(x) ? 'Final' : 'Draf') + (x.revisi ? ' (revisi)' : '') : (appFinal(x, j.k, id) ? (viaFolder(x, id) ? 'Final (folder Drive)' : 'Final (aplikasi)') : (menunggu(x, j.k, id) ? 'Menunggu persetujuan' : genAda(j.k, id) ? 'Dibuat di aplikasi' : 'Belum')); }), [c.final, c.draf]);
       lines.push(cells.map(csvCell).join(','));
     });
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -902,7 +910,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     } else if (!urlOk(url)) return say('Isi tautan yang valid, diawali https://', true);
     const now = new Date().toISOString(), u = kosong ? null : url.trim(), b = 'docs/' + jk + '/';
     const upd = {}; upd[b + 'url'] = u; upd[b + 'status'] = st; upd[b + 'at'] = now; upd[b + 'by'] = myName();
-    upd[b + 'app'] = null; upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd[b + 'dilihat'] = null; upd.updatedAt = now; // guru menyimpan ulang = catatan revisi dianggap ditindaklanjuti
+    upd[b + 'app'] = null; upd[b + 'diajukan'] = null; upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd[b + 'dilihat'] = null; upd.updatedAt = now; // guru menyimpan ulang = catatan revisi dianggap ditindaklanjuti
     tulis('perangkat_v4/' + id, upd, () => {
       rec.docs = rec.docs || {}; rec.docs[jk] = u ? { url: u, status: st, at: now, by: myName() } : { status: st, at: now, by: myName() }; rec.updatedAt = now; S.edit = null; say('✅ Tersimpan');
     }, 'SAVE_PERANGKAT_DOC', id);
@@ -913,15 +921,15 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     if (!batal && !genAda(jk, id)) return say('Dokumen belum dibuat di aplikasi.', true);
     const x = (rec.docs || {})[jk] || {};
     if (!batal && x.url && !confirm('Tautan yang tersimpan akan dihapus dan dokumen buatan aplikasi dipakai sebagai final. Lanjutkan?')) return;
-    if (batal && !confirm('Batalkan status final dokumen aplikasi ini?' + (x.setuju ? '\n\nPersetujuan Kepala untuk dokumen ini juga akan terhapus.' : ''))) return;
+    if (batal && !confirm((menunggu(x, jk, id) ? 'Batalkan pengajuan dokumen ini?' : 'Batalkan status final dokumen aplikasi ini?') + (x.setuju ? '\n\nPersetujuan Kepala untuk dokumen ini juga akan terhapus.' : ''))) return;
     const now = new Date().toISOString(), b = 'docs/' + jk + '/', upd = {};
     if (batal) upd['docs/' + jk] = null;
-    else { upd[b + 'url'] = null; upd[b + 'app'] = true; upd[b + 'status'] = 'final'; upd[b + 'at'] = now; upd[b + 'by'] = myName(); upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd[b + 'dilihat'] = null; }
+    else { const ajuan = perluSetuju(jk); upd[b + 'url'] = null; upd[b + 'app'] = true; upd[b + 'status'] = ajuan ? 'draf' : 'final'; upd[b + 'diajukan'] = ajuan ? now : null; upd[b + 'at'] = now; upd[b + 'by'] = myName(); upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd[b + 'dilihat'] = null; }
     upd.updatedAt = now;
     tulis('perangkat_v4/' + id, upd, () => {
       rec.docs = rec.docs || {};
-      if (batal) delete rec.docs[jk]; else rec.docs[jk] = { app: true, status: 'final', at: now, by: myName() };
-      rec.updatedAt = now; S.edit = null; say(batal ? 'Status final dibatalkan' : '✅ Ditandai final (dokumen aplikasi)');
+      if (batal) delete rec.docs[jk]; else rec.docs[jk] = perluSetuju(jk) ? { app: true, status: 'draf', diajukan: now, at: now, by: myName() } : { app: true, status: 'final', at: now, by: myName() };
+      rec.updatedAt = now; S.edit = null; say(batal ? (menunggu(x, jk, id) ? 'Pengajuan dibatalkan' : 'Status final dibatalkan') : (perluSetuju(jk) ? '✅ Diajukan, menunggu persetujuan Kepala' : '✅ Ditandai final (dokumen aplikasi)'));
     }, batal ? 'UNFINAL_PERANGKAT_APP' : 'FINAL_PERANGKAT_APP', id);
   }
   function ubahFolder(id) {
@@ -952,7 +960,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
   }
   function simpanRevisi(id, jk) {
     const rec = S.rows[id]; if (!rec || !isAdm()) return;
-    let x = (rec.docs || {})[jk]; if (!((x && x.url) || appFinal(x, jk, id))) return say('Dokumen belum diisi guru.', true);
+    let x = (rec.docs || {})[jk]; if (!((x && x.url) || appFinal(x, jk, id) || menunggu(x, jk, id))) return say('Dokumen belum diisi guru.', true);
     if (!x) { rec.docs = rec.docs || {}; x = rec.docs[jk] = {}; } // RPE otomatis: belum ada simpul data
     const t = ((document.getElementById('ppRevisi') || {}).value || '').trim().slice(0, 200), b = 'docs/' + jk + '/';
     const upd = {}; upd[b + 'revisi'] = t || null; upd[b + 'revisiBy'] = t ? myName() : null;
