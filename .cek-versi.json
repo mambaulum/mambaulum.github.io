@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.221",
-  "disimpan": "2026-10-28T03:37:10.125Z",
+  "appVersion": "v8.224",
+  "disimpan": "2026-10-28T04:01:01.650Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -215,16 +215,16 @@
       "hash": "ff039eaaa75eccc3945baece80a56593b6149e46"
     },
     "js/perangkat-rpe.js": {
-      "v": "v=10",
-      "hash": "8e982964003b8821fdaef694d0e3d9b3bb460a33"
+      "v": "v=12",
+      "hash": "019f08d76fcf40e27d0998cdde85e2120579d73f"
     },
     "js/perangkat-prota-promes.js": {
       "v": "v=7",
       "hash": "c66de437154dedac1b70169640da55fdfecad0a8"
     },
     "js/perangkat-atp-tp.js": {
-      "v": "v=8",
-      "hash": "bf8bcf11c9ed721c7117a2e0961f8360199c50da"
+      "v": "v=9",
+      "hash": "a96102ba1cf1ab864ebf9f81022b765502bed10f"
     },
     "js/data-kisi-resmi-mi.js": {
       "v": "v=3",
@@ -239,8 +239,8 @@
       "hash": "fdbd2364d0b72b8ed3eb3cda9ffc1b1e23359404"
     },
     "js/perangkat-pembelajaran.js": {
-      "v": "v=13",
-      "hash": "9469e5ed7b7f18fbbaefa501c53e501f9db2b039"
+      "v": "v=16",
+      "hash": "89aa3779371509eb6d2255a388b5d86d1e87c169"
     },
     "js/modul-ajar.js": {
       "v": "v=16",
