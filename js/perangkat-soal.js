@@ -155,7 +155,10 @@ table{border-collapse:collapse;width:100%}
 .nk{margin:0 0 6px;font-size:11pt}.nk p{margin:0 0 8px;page-break-inside:avoid}
 h4{margin:12px 0 6px;font-size:11.5pt}
 .ttd{display:flex;justify-content:space-between;gap:20px;margin-top:16px;font-size:11pt;page-break-inside:avoid}
-.ttd>div{width:45%}.ttd .sp{min-height:52px}`;
+.ttd>div{width:45%}.ttd .sp{min-height:52px}
+.opg{display:grid;grid-template-columns:1fr 1fr;column-gap:6px}
+.dua{column-count:2;column-gap:9mm;column-rule:1px solid #777;font-size:10.5pt;line-height:1.25}
+.dua p{margin:0 0 6px;break-inside:avoid}.dua h4{margin:8px 0 4px;font-size:10.5pt;break-after:avoid}.dua .op{margin:1px 0 0 12px}`;
   function kopHtml(s, judul) { return `<div class="kop"><div class="m">${esc(kopCfg().madrasah || 'MADRASAH')}</div><div class="j">${judul}</div><div class="s">${esc(labelAs(s))} · Tahun Pelajaran ${esc(S.ta)}</div></div>`; }
   function ttdHtml(jenis, s, jk) {
     const c = kopCfg(), t = '........................................', nip = String(S.nip || '').trim();
@@ -165,7 +168,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
   const html = (judul, isi) => `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${judul} ${esc(S.rec.mapel)} Kelas ${esc(S.rec.kelas)}</title><style>${CSS_DOK}</style></head><body>${isi}</body></html>`;
   const bentukNama = b => BENTUK.find(x => x[0] === b)[1];
   const bentukX = x => (x.b === 'pg' && x.st) ? SUB.find(z => z[0] === x.st)[1] : bentukNama(x.b);
-  function soalHtml(x) {
+  function soalHtml(x, rapat) {
     const q = esc(x.q || '(belum diisi)').replace(/\n/g, '<br>');
     if (x.b !== 'pg') return q;
     if (x.st === 'jd') {
@@ -173,7 +176,10 @@ h4{margin:12px 0 6px;font-size:11.5pt}
       const baris = [0, 1, 2, 3].map(n => `<tr><td style="padding:2px 6px;width:50%;">${n + 1}. ${esc(pasang(x, n)[0])}</td><td style="padding:2px 6px;">${HURUF[n]}. ${esc(pasang(x, u[n])[1])}</td></tr>`).join('');
       return q + '<div style="font-size:10pt;"><i>Jodohkan pernyataan di kolom kiri dengan pasangan yang tepat di kolom kanan.</i></div><table style="width:100%;border-collapse:collapse;">' + baris + '</table>';
     }
-    return q + (x.st === 'pk' ? '<div style="font-size:10pt;"><i>(Pilih semua jawaban yang benar.)</i></div>' : '') + x.o.map((o, i) => `<div class="op">${HURUF[i]}. ${esc(o)}</div>`).join('');
+    const ops = x.o.map((o, i) => `<div class="op">${HURUF[i]}. ${esc(o)}</div>`).join('');
+    // rapat = batas panjang pilihan (karakter): bila semua pilihan sependek itu, tampil 2 per baris (A B / C D) untuk menghemat kertas.
+    const pendek = rapat && x.o.length > 2 && x.o.every(o => String(o || '').length <= rapat && String(o || '').indexOf('\n') < 0);
+    return q + (x.st === 'pk' ? '<div style="font-size:10pt;"><i>(Pilih semua jawaban yang benar.)</i></div>' : '') + (pendek ? '<div class="opg">' + ops + '</div>' : ops);
   }
   function kunciTeks(x) {
     if (x.b !== 'pg') return esc(x.kt || '(belum diisi)').replace(/\n/g, '<br>');
@@ -194,12 +200,14 @@ h4{margin:12px 0 6px;font-size:11.5pt}
 <tr><td class="l">Kunci / Pedoman</td><td colspan="2">${kunciTeks(x)}</td><td><b>Skor:</b> ${skorB(x.b)}</td></tr></table>`;
     return html('Kartu Soal', kopHtml(s, 'KARTU SOAL') + S.slots[s].map(info).join('') + ttdHtml('Kartu Soal', s, 'kartu'));
   }
-  function dokNaskah(s) {
+  function dokNaskah(s, dua) {
     let h = kopHtml(s, 'NASKAH SOAL') + `<table class="nk"><tr><td style="width:50%">Mata Pelajaran: ${esc(S.rec.mapel)}</td><td>Hari/Tanggal: ....................</td></tr><tr><td>Kelas: ${esc(S.rec.kelas)}</td><td>Nama: ....................</td></tr></table>`;
+    if (dua) h += '<div class="dua">';
     BENTUK.forEach((b, bi) => {
       const l = S.slots[s].filter(x => x.b === b[0]); if (!l.length) return;
-      h += `<h4>${String.fromCharCode(65 + bi)}. ${b[1]}</h4>` + l.map(x => `<p>${x.no}. ${soalHtml(x)}</p>`).join('');
+      h += `<h4>${String.fromCharCode(65 + bi)}. ${b[1]}</h4>` + l.map(x => `<p>${x.no}. ${soalHtml(x, dua ? 24 : 48)}</p>`).join('');
     });
+    if (dua) h += '</div>';
     return html('Naskah Soal', h);
   }
   function dokKunci(s) {
@@ -238,10 +246,10 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     const msg = (kosong ? kosong + ' soal masih kosong atau belum lengkap (PG butuh 4 opsi berbeda). ' : '') + (draf ? draf + ' soal dari bank belum ditandai "Sudah saya periksa". ' : '');
     return !msg || confirm(msg + '\nTetap cetak?');
   }
-  function cetak(jenis, mode) {
+  function cetak(jenis, mode, dua) {
     sinkron(); const s = S.sem; if (!(jenis === 'telaah' && S.slots[s].length ? true : cekCetak(s))) return;
     R().nipSimpan(S.nip);
-    R().keluarkan(jenis === 'kartu' ? dokKartu(s) : jenis === 'naskah' ? dokNaskah(s) : jenis === 'telaah' ? dokTelaah(s) : dokKunci(s), (jenis === 'kartu' ? 'KartuSoal' : jenis === 'naskah' ? 'NaskahSoal' : jenis === 'telaah' ? 'TelaahSoal' : 'Kunci') + '_' + S.rec.mapel + '_' + S.rec.kelas + '_' + s, mode);
+    R().keluarkan(jenis === 'kartu' ? dokKartu(s) : jenis === 'naskah' ? dokNaskah(s, dua) : jenis === 'telaah' ? dokTelaah(s) : dokKunci(s), (jenis === 'kartu' ? 'KartuSoal' : jenis === 'naskah' ? (dua ? 'NaskahSoal2Kolom' : 'NaskahSoal') : jenis === 'telaah' ? 'TelaahSoal' : 'Kunci') + '_' + S.rec.mapel + '_' + S.rec.kelas + '_' + s, mode);
   }
 
   // ---------- Tampilan ----------
@@ -303,7 +311,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     h += sl.map((x, i) => kartuHtml(x, i)).join('');
     return h + `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
       <label style="font-size:12px;">PEG ID guru (tanda tangan)<br><input class="field" maxlength="30" style="width:200px;" data-f="nip" value="${esc(S.nip)}" placeholder="boleh dikosongkan"></label>
-      ${btn('simpan', '💾 Simpan', 'btn-success')}${btn('cetak-kartu', '🖨 Kartu Soal')}${btn('cetak-naskah', '🖨 Naskah Soal')}${btn('cetak-kunci', '🖨 Kunci &amp; Penskoran')}${btn('word-kartu', '📄 Kartu Word')}${btn('word-naskah', '📄 Naskah Word')}${btn('word-kunci', '📄 Kunci Word')}${btn('cetak-telaah', '🖨 Lembar Telaah')}${btn('word-telaah', '📄 Telaah Word')}</div>`;
+      ${btn('simpan', '💾 Simpan', 'btn-success')}${btn('cetak-kartu', '🖨 Kartu Soal')}${btn('cetak-naskah2', ' Naskah 2 Kolom')}${btn('cetak-naskah', '🖨 Naskah Soal')}${btn('cetak-kunci', '🖨 Kunci &amp; Penskoran')}${btn('word-kartu', '📄 Kartu Word')}${btn('word-naskah', '📄 Naskah Word')}${btn('word-kunci', '📄 Kunci Word')}${btn('cetak-telaah', '🖨 Lembar Telaah')}${btn('word-telaah', '📄 Telaah Word')}</div>`;
   }
   function gambar() {
     const el = ov(); let isi;
@@ -392,6 +400,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
       case 'ganti': ganti(+t.getAttribute('data-i')); return gambar();
       case 'simpan': return simpan();
       case 'cetak-kartu': return cetak('kartu');
+      case 'cetak-naskah2': return cetak('naskah', undefined, true);
       case 'cetak-naskah': return cetak('naskah');
       case 'cetak-kunci': return cetak('kunci');
       case 'word-kartu': return cetak('kartu', 'word');
