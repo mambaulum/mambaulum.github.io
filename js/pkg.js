@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg.js  (v93: kartu "Angket sejawat untuk Anda isi" membaca status sudah-isi dari server (anak 'at' pada jawaban), tidak hanya dari catatan perangkat, sehingga tidak muncul lagi bila diisi dari perangkat lain; v92: anjuran status WA merujuk tombol "Simpan bukti sebagai gambar" di angket.html; v91: teks pesan WA angket dan pengingat dipersingkat; tombol per penerima belum mengisi menjadi "Kirim ulang tautan" (tautan sekali pakai yang sama dikirim lagi ke WA); v90: antrean WA angket melewati penerima yang sudah tercatat di database (tidak ada pesan ganda untuk satu guru, lintas sesi dan lintas kelas); v89: pesan WA angket dan pengingat ke wali memuat anjuran mengunggah bukti selesai mengisi (tangkapan layar halaman konfirmasi, tanpa tautan) sebagai status WhatsApp; v88: tombol Ingatkan guru untuk dokumen luar aplikasi yang belum lengkap (notifikasi dalam aplikasi, jeda 6 jam per guru); v87: kirim angket/ingatkan ke wali memakai satu tab WhatsApp bernama tetap (kirimWaTab), fallback kirimWA; v86: pilihan Jenis dokumen (SK kegiatan, piagam, surat tugas, dst.) pada tambah bukti dokumen, disimpan sebagai awalan judul "[Jenis] judul" (tanpa field baru, tanpa perubahan Rules), tampil sebagai label di daftar bukti dan rekap jenis di kartu Bukti dokumen luar aplikasi; v84: kartu Bukti dokumen dari luar aplikasi (indikator 8.1, 10.2, 10.4, 10.7, 10.8, 14.1, 14.3; v85: nama dokumen disamakan dengan instrumen) di halaman Bukti, terisi otomatis dari bukti dokumen bertautan; tanpa perubahan Rules; v83: kartu Surat PKG di tab Pengaturan lewat js/pkg-surat.js (surat tugas penilai, pemberitahuan jadwal pengamatan, berita acara pertemuan; QR Kepala; tanpa perubahan Rules); v82: Lembar Observasi: badge komponen kini menghitung hanya catatan jenis Observasi (sama dengan bar atas) dan indikator yang belum punya catatan observasi diberi tanda; v81: Ajukan menampilkan konfirmasi bila ada indikator berskor 1-2 yang belum punya bukti (tidak memblokir); v80: hitung angket per jenis dibungkus try/catch (tarikAngket dibatalkan utuh dengan pesan jelas bila ada jenis rusak; peta angket di wawancara melewati jenis rusak), Bagi otomatis: jadwal dilewati bila periode sudah berakhir dan jadwal bentrok diberi tahu; v79: Lembar Observasi: skor usulan juga diambil dari butir Supervisi (Tahap 2) bila indikator tak punya lembar penanda, indikator yang tidak teramati diberi keterangan "dinilai dari dokumen atau wawancara", catatan pengamatan ganda tidak lagi tercetak (hanya yang terbaru) dan simpan pengamatan yang sama dua kali ditolak; v78: kolom Skor Lembar Observasi memakai skor akhir penilai (usulan penanda bertanda * bila belum dinilai), semua 37 indikator pengamatan terisi; logo/logo-lembaga.png diganti versi kecil (20 KB, sebelumnya 831 KB) sehingga kop cetak ringan; v77: tombol Cetak skor sementara (menu Lainnya di daftar guru & bar bawah form penilaian; draft/belum lengkap, tanda air, tanpa QR); v75: cetak Lembar Observasi memuat bukti dulu & mengisi kolom Skor/Catatan dari hasil pengamatan; Kesimpulan observasi kini di Firebase pkg_v4_obskes/{periodeId}/{guruKey} {baik, perbaikan, tindak, diperbarui, diperbaruiOleh} (lihat rules-obskes-pkg.txt); v73/v72: Observasi, kartu Kesimpulan observasi dengan usulan otomatis dari lembar penanda dan tercetak di Lembar Observasi; catatan kejadian di lembar penanda pengamatan kelas terisi otomatis dari penanda yang dicentang (tidak menimpa ketikan sendiri); tombol Isi otomatis pada form Tambah catatan observasi (judul + kerangka catatan dari jadwal, data SI MAMBA, indikator); v71: kolom progres khusus di tab Supervisi, Wawancara, Observasi, Angket, dan tab baru Penilaian Diri (dibaca per bagian, bukan seluruh Kelengkapan); tanda umur data ("data dimuat 25 menit lalu") di Kelengkapan dan tab; tab terakhir diingat per pengguna di perangkat; cadangan JSON per periode di tab Pengaturan; v70: kolom Teman sejawat di Kelengkapan (Ringkasan) diperbarui otomatis: saat tab Ringkasan dibuka, saat sejawat ditunjuk atau dibatalkan, dan saat form Wawancara guru itu dibuka; v69: tab Bukti (Isian Bukti langsung dari menu PKG, daftar guru + kotak cari nama); v68: tab Observasi dan tab Angket langsung dari menu PKG (daftar guru + tombol Buka, pola sama dengan Supervisi/Wawancara; halaman Observasi berisi indikator pengamatan + lembar penanda + catatan fakta, halaman Angket berisi pengelolaan angket online); tanpa perubahan Rules; v66: Kelengkapan PKG: tombol Unduh Excel, tampil kartu per guru di HP, tombol Ingatkan hanya bila ada tujuan nyata + jeda 6 jam, kolom tidak terbaca (Rules) tidak dihitung lengkap; v58-v65: pembaruan lain yang tidak dicatat di header ini; v57: tabel Kelengkapan PKG per guru di tab Ringkasan (Admin/Kepala); tab Supervisi dan Wawancara langsung dari menu PKG; bilah tombol Simpan/Cetak supervisi dan wawancara menempel di bawah layar (sticky); Tahap 1 supervisi punya pilihan cepat + isian otomatis Perangkat dan Waktu/cara pengamatan, nama sejawat tersimpan otomatis setelah Tunjuk; memilih guru di dropdown Tunjuk sejawat tidak lagi dianggap perubahan belum disimpan + nama otomatis mengisi kolom nama narasumber sejawat; v56: wawancara teman sejawat diisi sendiri oleh guru yang ditunjuk, Kepala/wakil tetap diwawancarai; v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
+   SI MAMBA - js/pkg.js  (v96: tombol "Pakai usulan skor" di tab Rekap Bukti: mengisi indikator kosong pada draf penilaian semua guru yang boleh dinilai (Kepala/penilai) dari usulan skor tarikan, tanpa menimpa skor/catatan yang ada, status draf; v95: tab baru "Rekap Bukti" (Admin/Kepala): tarik bukti otomatis untuk SEMUA guru sekaligus (2 guru paralel, bisa dihentikan, guru berpenilaian final dilewati), tabel rekap guru x sumber dengan usulan skor, filter "perlu perhatian", tarik ulang per guru, unduh Excel dan cetak/PDF; inti tarikan dipisah menjadi tarikInti/terapkanTarik dan dipakai bersama tombol per guru; memakai field bukti yang sudah ada, tanpa perubahan Firebase Rules; v93: kartu "Angket sejawat untuk Anda isi" membaca status sudah-isi dari server (anak 'at' pada jawaban), tidak hanya dari catatan perangkat, sehingga tidak muncul lagi bila diisi dari perangkat lain; v92: anjuran status WA merujuk tombol "Simpan bukti sebagai gambar" di angket.html; v91: teks pesan WA angket dan pengingat dipersingkat; tombol per penerima belum mengisi menjadi "Kirim ulang tautan" (tautan sekali pakai yang sama dikirim lagi ke WA); v90: antrean WA angket melewati penerima yang sudah tercatat di database (tidak ada pesan ganda untuk satu guru, lintas sesi dan lintas kelas); v89: pesan WA angket dan pengingat ke wali memuat anjuran mengunggah bukti selesai mengisi (tangkapan layar halaman konfirmasi, tanpa tautan) sebagai status WhatsApp; v88: tombol Ingatkan guru untuk dokumen luar aplikasi yang belum lengkap (notifikasi dalam aplikasi, jeda 6 jam per guru); v87: kirim angket/ingatkan ke wali memakai satu tab WhatsApp bernama tetap (kirimWaTab), fallback kirimWA; v86: pilihan Jenis dokumen (SK kegiatan, piagam, surat tugas, dst.) pada tambah bukti dokumen, disimpan sebagai awalan judul "[Jenis] judul" (tanpa field baru, tanpa perubahan Rules), tampil sebagai label di daftar bukti dan rekap jenis di kartu Bukti dokumen luar aplikasi; v84: kartu Bukti dokumen dari luar aplikasi (indikator 8.1, 10.2, 10.4, 10.7, 10.8, 14.1, 14.3; v85: nama dokumen disamakan dengan instrumen) di halaman Bukti, terisi otomatis dari bukti dokumen bertautan; tanpa perubahan Rules; v83: kartu Surat PKG di tab Pengaturan lewat js/pkg-surat.js (surat tugas penilai, pemberitahuan jadwal pengamatan, berita acara pertemuan; QR Kepala; tanpa perubahan Rules); v82: Lembar Observasi: badge komponen kini menghitung hanya catatan jenis Observasi (sama dengan bar atas) dan indikator yang belum punya catatan observasi diberi tanda; v81: Ajukan menampilkan konfirmasi bila ada indikator berskor 1-2 yang belum punya bukti (tidak memblokir); v80: hitung angket per jenis dibungkus try/catch (tarikAngket dibatalkan utuh dengan pesan jelas bila ada jenis rusak; peta angket di wawancara melewati jenis rusak), Bagi otomatis: jadwal dilewati bila periode sudah berakhir dan jadwal bentrok diberi tahu; v79: Lembar Observasi: skor usulan juga diambil dari butir Supervisi (Tahap 2) bila indikator tak punya lembar penanda, indikator yang tidak teramati diberi keterangan "dinilai dari dokumen atau wawancara", catatan pengamatan ganda tidak lagi tercetak (hanya yang terbaru) dan simpan pengamatan yang sama dua kali ditolak; v78: kolom Skor Lembar Observasi memakai skor akhir penilai (usulan penanda bertanda * bila belum dinilai), semua 37 indikator pengamatan terisi; logo/logo-lembaga.png diganti versi kecil (20 KB, sebelumnya 831 KB) sehingga kop cetak ringan; v77: tombol Cetak skor sementara (menu Lainnya di daftar guru & bar bawah form penilaian; draft/belum lengkap, tanda air, tanpa QR); v75: cetak Lembar Observasi memuat bukti dulu & mengisi kolom Skor/Catatan dari hasil pengamatan; Kesimpulan observasi kini di Firebase pkg_v4_obskes/{periodeId}/{guruKey} {baik, perbaikan, tindak, diperbarui, diperbaruiOleh} (lihat rules-obskes-pkg.txt); v73/v72: Observasi, kartu Kesimpulan observasi dengan usulan otomatis dari lembar penanda dan tercetak di Lembar Observasi; catatan kejadian di lembar penanda pengamatan kelas terisi otomatis dari penanda yang dicentang (tidak menimpa ketikan sendiri); tombol Isi otomatis pada form Tambah catatan observasi (judul + kerangka catatan dari jadwal, data SI MAMBA, indikator); v71: kolom progres khusus di tab Supervisi, Wawancara, Observasi, Angket, dan tab baru Penilaian Diri (dibaca per bagian, bukan seluruh Kelengkapan); tanda umur data ("data dimuat 25 menit lalu") di Kelengkapan dan tab; tab terakhir diingat per pengguna di perangkat; cadangan JSON per periode di tab Pengaturan; v70: kolom Teman sejawat di Kelengkapan (Ringkasan) diperbarui otomatis: saat tab Ringkasan dibuka, saat sejawat ditunjuk atau dibatalkan, dan saat form Wawancara guru itu dibuka; v69: tab Bukti (Isian Bukti langsung dari menu PKG, daftar guru + kotak cari nama); v68: tab Observasi dan tab Angket langsung dari menu PKG (daftar guru + tombol Buka, pola sama dengan Supervisi/Wawancara; halaman Observasi berisi indikator pengamatan + lembar penanda + catatan fakta, halaman Angket berisi pengelolaan angket online); tanpa perubahan Rules; v66: Kelengkapan PKG: tombol Unduh Excel, tampil kartu per guru di HP, tombol Ingatkan hanya bila ada tujuan nyata + jeda 6 jam, kolom tidak terbaca (Rules) tidak dihitung lengkap; v58-v65: pembaruan lain yang tidak dicatat di header ini; v57: tabel Kelengkapan PKG per guru di tab Ringkasan (Admin/Kepala); tab Supervisi dan Wawancara langsung dari menu PKG; bilah tombol Simpan/Cetak supervisi dan wawancara menempel di bawah layar (sticky); Tahap 1 supervisi punya pilihan cepat + isian otomatis Perangkat dan Waktu/cara pengamatan, nama sejawat tersimpan otomatis setelah Tunjuk; memilih guru di dropdown Tunjuk sejawat tidak lagi dianggap perubahan belum disimpan + nama otomatis mengisi kolom nama narasumber sejawat; v56: wawancara teman sejawat diisi sendiri oleh guru yang ditunjuk, Kepala/wakil tetap diwawancarai; v54: Pengendalian D + catatan sampel terisi dari hasil verifikasi, SK Penetapan: Ditetapkan di dari profil + dasar hukum awal; v53: usulan kalimat Tahap 3 supervisi dari nilai Tahap 2; v52: tombol Ganti Kunci Kepala + tawaran otomatis saat ditolak; v51: simpan draf ditolak -> tulis per bagian + diagnosa bagian yang ditolak; v50: cek panjang catatan sebelum simpan; v49: tombol Ingatkan, salin penilai dari periode lain; v48: penetapan massal Kepala, kotak Langkah berikutnya untuk Admin/Kepala, tombol Unduh Excel; v47: catatan indikator maks. 1000 karakter sesuai Rules; v46: formulir keberatan di halaman + Tarik Kembali pengajuan; v45: menu disederhanakan - guru/penilai tanpa tab, satu tombol utama per baris, kotak Langkah berikutnya; tanpa perubahan Rules)
    Menu "PKG Guru" (Penilaian Kinerja Guru MI) -- mengikuti Juknis PKG Madrasah
    (Kepdirjen Pendis 1843/2021), instrumen Guru Kelas/Mata Pelajaran (Lampiran I).
 
@@ -325,6 +325,7 @@
     else if (tb === 'analisis') h += analisisHtml();
     else if (tb === 'kendali') h += kendaliHtml();
     else if (tb === 'ringkasan') h += ringkasanHtml();
+    else if (tb === 'rekapoto' && bolehKelola()) h += rekapOtoHtml();
     else h += jatahKartu() + tunjukKartu() + pengingatJadwalHtml() + langkahHtml() + daftarHtml();
     r.innerHTML = h;
   }
@@ -462,7 +463,7 @@
     if (!kel && !ak) return '';
     var t = [['daftar', '👨‍🏫 Guru']];   // v57: Supervisi dan Wawancara jadi tab sendiri (tanpa masuk Perangkat cetak dulu)
     if (ak) t.push(['bukti', '📂 Bukti'], ['diri', '📝 Penilaian Diri'], ['observasi', '👁️ Observasi'], ['supervisi', '🔎 Supervisi'], ['wawancara', '🎤 Wawancara'], ['angket', '📝 Angket']);
-    if (kel) t.push(['ringkasan', '📊 Ringkasan'], ['pengaturan', '⚙️ Pengaturan'], ['analisis', '🧰 Lainnya']);
+    if (kel) t.push(['ringkasan', '📊 Ringkasan'], ['rekapoto', '🤖 Rekap Bukti'], ['pengaturan', '⚙️ Pengaturan'], ['analisis', '🧰 Lainnya']);
     var tmb = function (x, on) { return '<button type="button" class="pkg-tab' + (on ? ' on' : '') + '" data-act="tab" data-tab="' + x[0] + '">' + x[1] + '</button>'; };
     var h = '<div class="pkg-tabs">' + t.map(function (x) { return tmb(x, S.tab === x[0] || (x[0] === 'analisis' && S.tab === 'kendali')); }).join('') + '</div>';
     if (kel && (S.tab === 'analisis' || S.tab === 'kendali')) h += '<div class="pkg-tabs">' + [['analisis', '📊 Analisis'], ['kendali', '🧪 Pengendalian']].map(function (x) { return tmb(x, S.tab === x[0]); }).join('') + '</div>';
@@ -760,7 +761,7 @@
     } catch (x) { }
   }, 60000);
 
-  var TAB_ISI = ['bukti', 'diri', 'observasi', 'supervisi', 'wawancara', 'angket'], TAB_KELOLA = ['ringkasan', 'pengaturan', 'analisis', 'kendali'];
+  var TAB_ISI = ['bukti', 'diri', 'observasi', 'supervisi', 'wawancara', 'angket'], TAB_KELOLA = ['ringkasan', 'rekapoto', 'pengaturan', 'analisis', 'kendali'];
   function tabBoleh(t) {
     if (t === 'daftar') return true;
     if (TAB_ISI.indexOf(t) >= 0) return bolehKelola() || adaAksesSvWw();
@@ -958,6 +959,272 @@
       '<p style="font-size:10px">Angket: S = siswa, O = orang tua, Sj = sejawat; cukup bila siswa dan orang tua mencapai batas minimal responden.</p>';
     if (typeof addLog === 'function') addLog('PKG cetak kelengkapan PDF', (per.nama || '') + ' (' + rows.length + ' guru)');
     bukaCetak('Kelengkapan PKG', o2);
+  }
+  // ----- v95: Rekap Bukti Otomatis semua guru (tab "Rekap Bukti", Admin/Kepala) -----
+  // Menarik bukti otomatis (absensi, jurnal, nilai, perangkat, buku penghubung, kegiatan, rapat, TIK, tugas administratif, penilaian diri) untuk
+  // SEMUA guru sekaligus, lalu merangkumnya dalam satu tabel guru x sumber + usulan skor. Memakai inti yang sama dengan tombol per guru (tarikInti)
+  // dan menyimpan ke field yang sudah ada di pkg_v4_bukti/{periode}/{guru} (otomatis, sumberOto, otoAt, ...), jadi TANPA perubahan Firebase Rules.
+  // Hasilnya hanya usulan; penilai tetap yang memutuskan skor. Guru yang penilaiannya sudah final dilewati (bukti terkunci).
+  function rkAda() { return !!(S.rk && S.rk.pid === S.periodeId); }
+  function rkIds() { var def = sumberDef(); return def ? urutSumber(def) : []; }
+  function rkRentang() {
+    var rg = rentangOto();
+    return S.rkPid === S.periodeId && S.rkDari && S.rkSampai ? { dari: S.rkDari, sampai: S.rkSampai } : rg;
+  }
+  function rkBaris(gk) {
+    var d = dataBukti(gk) || {}, so = d.sumberOto || {}, r = { d: d, so: so, ok: 0, gagal: 0, oto: Object.keys(d.otomatis || {}).length, belum: !d.otoAt };
+    rkIds().forEach(function (id) { var s = so[id]; if (!s) return; if (s.ok) r.ok++; else r.gagal++; });
+    return r;
+  }
+  function rkMuat() {
+    if (!bolehKelola() || !S.periodeId || typeof db === 'undefined') return;
+    if (S.rkMuat || S.rkJalan) return pesan('Masih bekerja, tunggu sebentar.', true);
+    var pid = S.periodeId, rows = barisGuru(), gagal = 0;
+    S.rkMuat = { n: 0, t: rows.length }; render();
+    var satu = function (x) {
+      var gk = x.g.key, kunci = kb(gk);
+      return klBaca(nodeBukti(gk)).then(function (r) {
+        if (pid !== S.periodeId) return;
+        if (r.ok) S.bukti[kunci] = r.v || {}; else gagal++;   // gagal baca: cache lama dibiarkan
+        if (S.rkMuat) S.rkMuat.n++;
+      });
+    };
+    siapSesi().then(function () {
+      var antre = rows.slice(), kerja = function () { var x = antre.shift(); return x ? satu(x).then(kerja) : Promise.resolve(); };
+      return Promise.all([kerja(), kerja(), kerja(), kerja()]);
+    }).then(function () { if (pid === S.periodeId) { S.rk = { pid: pid, at: new Date(), gagal: gagal }; if (gagal) pesan(gagal + ' guru tidak terbaca (periksa Firebase Rules pkg_v4_bukti).', true); } })
+      .catch(function (e) { pesan('Gagal memuat rekap bukti: ' + ((e && e.message) || e), true); })
+      .then(function () { S.rkMuat = null; if (S.view === 'list' && S.tab === 'rekapoto') render(); });
+  }
+  function rkSiap() {
+    var SM = window.PKG_SUMBER;
+    if (!bolehKelola()) { pesan('Hanya Admin atau Kepala Madrasah yang dapat menarik bukti untuk semua guru.', true); return false; }
+    if (!SM || typeof SM.jalankan !== 'function') { pesan('Modul js/pkg-sumber.js belum dimuat.', true); return false; }
+    if (S.rkJalan || S.rkMuat || S.rkSaran) { pesan('Masih bekerja, tunggu sebentar.', true); return false; }
+    return true;
+  }
+  function rkAmbilRentang() {
+    var eD = $('pkgRkDari'), eS = $('pkgRkSampai'), rg = rkRentang(), dari = (eD && eD.value) || rg.dari, sampai = (eS && eS.value) || rg.sampai;
+    if (dari > sampai) { pesan('Tanggal "Dari" tidak boleh sesudah "Sampai".', true); return null; }
+    S.rkPid = S.periodeId; S.rkDari = dari; S.rkSampai = sampai;
+    return { dari: dari, sampai: sampai };
+  }
+  function rkTarikSemua() {
+    if (!rkSiap()) return;
+    var rg = rkAmbilRentang(); if (!rg) return;
+    var semua = barisGuru(), boleh = semua.filter(function (x) { return bolehUbahBukti(x.g.key); }), lewat = semua.length - boleh.length;
+    if (!boleh.length) return pesan('Tidak ada guru yang buktinya masih boleh diubah (semua penilaian sudah final).', true);
+    if (!confirm('Tarik bukti otomatis untuk ' + boleh.length + ' guru (' + rg.dari + ' s.d. ' + rg.sampai + ')?' + (lewat ? '\n' + lewat + ' guru dilewati karena penilaiannya sudah final.' : '') +
+      '\n\nHasil tarikan sebelumnya akan diperbarui. Bukti manual dan skor penilai tidak berubah. Proses bisa memakan beberapa menit; jangan tutup halaman ini.')) return;
+    rkJalankan(boleh.map(function (x) { return x.g.key; }), rg.dari, rg.sampai);
+  }
+  function rkTarikSatu(gk) {
+    if (!rkSiap()) return;
+    if (!bolehUbahBukti(gk)) return pesan('Penilaian guru ini sudah final; bukti tidak dapat diubah lagi.', true);
+    var rg = rkAmbilRentang(); if (!rg) return;
+    rkJalankan([gk], rg.dari, rg.sampai);
+  }
+  function rkJalankan(gks, dari, sampai) {
+    var pid = S.periodeId, u = me(), st = S.rkJalan = { n: 0, t: gks.length, ok: 0, gagal: [], batal: false }, antre = gks.slice();
+    var satu = function (gk) {
+      if (pid !== S.periodeId || st.batal) return Promise.resolve();
+      var node = nodeBukti(gk), kunci = kb(gk);   // path dan kunci cache ditangkap SEKARANG: aman bila periode diganti di tengah jalan
+      return denganBatas(siapSesi().then(function () { return db.ref(node).once('value'); }).then(function (s) {
+        if (pid !== S.periodeId) throw new Error('Periode diganti saat berjalan.');
+        S.bukti[kunci] = s.val() || {};   // tarikInti membaca isian penilaian diri dari cache ini
+        return tarikInti(gk, dari, sampai, u, node);
+      }), 90000).then(function (r) {
+        terapkanTarik(kunci, r);
+        if (r.adaOk) st.ok++; else st.gagal.push(namaGuru(gk) + ': tidak ada sumber yang terbaca');
+      }, function (e) { st.gagal.push(namaGuru(gk) + ': ' + String((e && e.message) || e)); })
+        .then(function () { st.n++; if (pid === S.periodeId && S.view === 'list' && S.tab === 'rekapoto') render(); });
+    };
+    var kerja = function () { var gk = antre.shift(); return gk ? satu(gk).then(kerja) : Promise.resolve(); };
+    render();
+    siapSesi().then(function () { return Promise.all([kerja(), kerja()]); })
+      .catch(function (e) { st.gagal.push(String((e && e.message) || e)); })
+      .then(function () {
+        S.rkJalan = null;
+        if (pid !== S.periodeId) return;
+        S.rk = { pid: pid, at: new Date(), gagal: 0 };
+        S.rkLaporan = { pid: pid, ok: st.ok, t: st.t, batal: st.batal, gagal: st.gagal };
+        if (typeof addLog === 'function') addLog('PKG rekap bukti otomatis', ((S.periodeList[pid] && S.periodeList[pid].nama) || '') + ' (' + st.ok + '/' + st.t + ' guru)');
+        var tolak = st.gagal.some(function (x) { return /permission_denied|permission denied/i.test(x); });
+        pesan((st.batal ? 'Dihentikan. ' : '') + st.ok + ' dari ' + st.t + ' guru berhasil ditarik' + (st.gagal.length ? '; ' + st.gagal.length + ' gagal (rincian di halaman).' : '.') + (tolak ? ' Ditolak Firebase: periksa hak akses dan Rules.' : ''), !!st.gagal.length);
+        if (S.view === 'list' && S.tab === 'rekapoto') render();
+      });
+  }
+  // v96: terapkan USULAN SKOR hasil tarikan ke draf penilaian semua guru sekaligus. Hanya indikator yang masih kosong, hanya guru yang
+  // boleh Anda nilai (Kepala Madrasah atau penilai guru itu; Admin bukan penilai) dan belum diajukan/final. Status menjadi draf; skor
+  // dan catatan yang sudah ada tidak ditimpa. Penilai tetap memeriksa dan mengubahnya di form sebelum mengajukan.
+  function rkSaranRencana() {
+    var rencana = [];
+    barisGuru().forEach(function (x) {
+      var gk = x.g.key, st = statusDari(S.nilai[gk]);
+      if (!bolehMenilai(gk) || selesai(st) || st === 'diajukan') return;
+      var d = dataBukti(gk); if (!d) return;
+      var skor = (S.nilai[gk] && S.nilai[gk].skor) || {}, kunci = {}, isi = {};
+      Object.keys(d.otomatis || {}).concat(Object.keys(d.angket || {})).forEach(function (k) { kunci[k] = 1; });
+      Object.keys(kunci).forEach(function (k) { if (skor[k] != null) return; var ss = sumberSaran(d, k, '') || sumberSaran(d, k, 'angket'); if (ss) isi[k] = ss; });
+      var n = Object.keys(isi).length; if (n) rencana.push({ gk: gk, n: n, isi: isi });
+    });
+    return rencana;
+  }
+  function rkPakaiSaran() {
+    if (!bolehKelola() || !rkAda()) return;
+    if (S.rkJalan || S.rkMuat || S.rkSaran) return pesan('Masih bekerja, tunggu sebentar.', true);
+    var rc = rkSaranRencana(), total = rc.reduce(function (a, z) { return a + z.n; }, 0);
+    if (!rc.length) return pesan('Tidak ada indikator kosong yang punya usulan untuk guru yang boleh Anda nilai.', true);
+    if (!confirm('Isi ' + total + ' indikator kosong pada draf penilaian ' + rc.length + ' guru dari usulan skor?\n\nSkor dan catatan yang sudah terisi tidak diubah. Hasilnya berstatus draf; penilai tetap perlu memeriksa dan mengubahnya sebelum mengajukan.')) return;
+    var pid = S.periodeId, u = me(), st = S.rkSaran = { n: 0, t: rc.length, ok: 0, ind: 0, gagal: [] }, antre = rc.slice();
+    var satu = function (z) {
+      var gk = z.gk, t = tugasDari(gk) || {}, ref = db.ref(N.nilai + '/' + pid + '/' + gk);
+      return denganBatas(siapSesi().then(function () { return ref.once('value'); }).then(function (sn) {
+        var cur = sn.val() || {}, s0 = statusDari(cur);
+        if (selesai(s0) || s0 === 'diajukan') throw new Error('status sudah berubah (' + (STATUS_LABEL[s0] || s0) + ')');
+        var skor = Object.assign({}, cur.skor || {}), cat = Object.assign({}, cur.catatan || {}), n = 0;
+        Object.keys(z.isi).forEach(function (k) {
+          if (skor[k] != null) return;
+          skor[k] = z.isi[k].saran; n++;
+          if (!String(cat[k] || '').trim() && z.isi[k].teks) cat[k] = potong(z.isi[k].teks, 450);
+        });
+        if (!n) return 0;
+        var data = aman({ skor: skor, catatan: cat, status: 'draft', hasil: rekamHasil(skor), penilaiKey: t.penilaiKey || u.key, penilaiNama: tampil(t.penilaiNama) || namaGuru(t.penilaiKey || u.key), diperbarui: nowIso(), diperbaruiOleh: pengisi(u) });
+        return ref.update(data).then(function () { if (pid === S.periodeId) S.nilai[gk] = Object.assign({}, cur, data); return n; });
+      }), 45000).then(function (n) { if (n) { st.ok++; st.ind += n; } },
+        function (e) { st.gagal.push(namaGuru(gk) + ': ' + String((e && e.message) || e)); })
+        .then(function () { st.n++; if (pid === S.periodeId && S.view === 'list' && S.tab === 'rekapoto') render(); });
+    };
+    var kerja = function () { var z = antre.shift(); return z ? satu(z).then(kerja) : Promise.resolve(); };
+    render();
+    siapSesi().then(kerja).catch(function (e) { st.gagal.push(String((e && e.message) || e)); }).then(function () {
+      S.rkSaran = null;
+      if (typeof addLog === 'function') addLog('PKG pakai usulan skor massal', st.ok + ' guru, ' + st.ind + ' indikator');
+      var tolak = st.gagal.some(function (x) { return /permission_denied|permission denied/i.test(x); });
+      pesan(st.ind + ' indikator diisi pada ' + st.ok + ' guru (status draf)' + (st.gagal.length ? '; ' + st.gagal.length + ' gagal: ' + st.gagal.slice(0, 3).join(' | ') : '.') + (tolak ? ' Ditolak Firebase: periksa hak akses penilai dan Rules.' : ''), !!st.gagal.length);
+      if (pid === S.periodeId && S.view === 'list' && S.tab === 'rekapoto') render();
+    });
+  }
+  function rkSel(s) {
+    if (!s) return '<td style="text-align:center;color:#9ca3af" title="Belum ditarik">–</td>';
+    if (!s.ok) return '<td style="text-align:center;color:#b45309" title="' + esc(s.alasan || 'Tidak terbaca') + '">⚠</td>';
+    return '<td style="text-align:center;color:#15803d" title="' + esc(s.ringkas || '') + '">✔' + (s.saran != null ? '<div class="pkg-meta">usulan ' + s.saran + '</div>' : '') + '</td>';
+  }
+  function rkRincian(r) {
+    var def = sumberDef() || {}, h = '';
+    rkIds().forEach(function (id) {
+      var s = r.so[id]; if (!s || !def[id]) return;
+      h += '<div style="margin:3px 0;font-size:12px">' + esc(def[id].ikon) + ' <b>' + esc(def[id].label) + '</b> ' + (s.ok
+        ? '✔ ' + esc(s.ringkas) + (s.saran != null ? ' <span class="pkg-chip" style="background:#15803d">usulan ' + s.saran + '</span>' : '')
+        : '<span style="color:#b45309">⚠ ' + esc(s.alasan || 'tidak terbaca') + '</span>') + '</div>';
+    });
+    return h || '<div class="pkg-meta">Belum ada data yang ditarik.</div>';
+  }
+  function rekapOtoHtml() {
+    var def = sumberDef();
+    var o = '<div class="card"><h4 style="margin:0 0 4px">🤖 Rekap Bukti Otomatis (semua guru)</h4>' +
+      '<p class="text-muted" style="font-size:12px;margin:0 0 8px">Menarik bukti dari data SI MAMBA (absensi guru, jurnal mengajar, nilai siswa, perangkat pembelajaran, buku penghubung, kegiatan madrasah, rapat, materi/tugas daring, tugas administratif, penilaian diri) untuk semua guru sekaligus, lalu merangkumnya per guru. Hasilnya sama dengan tombol <b>Tarik bukti otomatis</b> di halaman Bukti dan hanya berupa <b>usulan</b>; penilai tetap yang memutuskan skor. Guru yang penilaiannya sudah final dilewati.</p>';
+    if (!def) return o + '<p class="text-muted" style="font-size:12px;margin:0">Modul <code>js/pkg-sumber.js</code> belum dimuat, sehingga bukti otomatis tidak tersedia.</p></div>';
+    var rg = rkRentang(), ids = rkIds(), sibuk = !!(S.rkMuat || S.rkJalan || S.rkSaran), dis = sibuk ? ' disabled' : '';
+    o += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><div><label class="label">Dari</label><input id="pkgRkDari" type="date" class="field" value="' + esc(rg.dari) + '"></div>' +
+      '<div><label class="label">Sampai</label><input id="pkgRkSampai" type="date" class="field" value="' + esc(rg.sampai) + '"></div>' +
+      '<button class="btn btn-success" data-act="rk-semua"' + dis + '>🔄 Tarik bukti semua guru</button>' +
+      '<button class="btn btn-soft" data-act="rk-muat"' + dis + '>📂 Muat ulang rekap</button></div>';
+    if (S.rkMuat) o += '<div class="pkg-meta" style="margin-top:8px">Memuat rekap… ' + S.rkMuat.n + ' / ' + S.rkMuat.t + ' guru</div>';
+    if (S.rkJalan) {
+      var j = S.rkJalan;
+      o += '<div style="margin-top:8px;font-size:13px">Menarik bukti… <b>' + j.n + ' / ' + j.t + '</b> guru' + (j.batal ? ' (menghentikan…)' : '') + '</div><div class="pkg-bar" style="margin-top:6px"><i style="width:' + (j.t ? j.n / j.t * 100 : 0) + '%"></i></div>' +
+        (j.batal ? '' : '<button class="btn btn-soft" style="margin-top:6px;padding:3px 10px;font-size:12px" data-act="rk-stop">⏹ Hentikan</button>');
+    }
+    if (S.rkSaran) o += '<div style="margin-top:8px;font-size:13px">Mengisi usulan skor… <b>' + S.rkSaran.n + ' / ' + S.rkSaran.t + '</b> guru</div><div class="pkg-bar" style="margin-top:6px"><i style="width:' + (S.rkSaran.t ? S.rkSaran.n / S.rkSaran.t * 100 : 0) + '%"></i></div>';
+    o += '</div>';
+    var lp = S.rkLaporan;
+    if (lp && lp.pid === S.periodeId && !S.rkJalan) {
+      o += '<div class="card" style="background:' + (lp.gagal.length ? '#fffbeb' : '#ecfdf5') + '"><div style="font-size:13px"><b>Hasil tarikan terakhir:</b> ' + lp.ok + ' dari ' + lp.t + ' guru berhasil' + (lp.batal ? ' (dihentikan)' : '') + (lp.gagal.length ? ', ' + lp.gagal.length + ' gagal:' : '.') + '</div>' +
+        (lp.gagal.length ? '<ul style="margin:6px 0 0 18px;font-size:12.5px">' + lp.gagal.slice(0, 20).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + (lp.gagal.length > 20 ? '<li>…dan ' + (lp.gagal.length - 20) + ' lainnya</li>' : '') + '</ul>' : '') + '</div>';
+    }
+    if (!rkAda()) return o + (S.rkMuat ? '' : '<div class="card"><p class="text-muted" style="font-size:12px;margin:0">Tekan <b>Muat ulang rekap</b> untuk membaca bukti yang sudah tersimpan.</p></div>');
+    var data = barisGuru().map(function (x) { return { x: x, r: rkBaris(x.g.key) }; }), sudah = 0, perhatian = 0, tot = {};
+    data.forEach(function (z) {
+      if (!z.r.belum) sudah++;
+      if (z.r.belum || z.r.gagal) perhatian++;
+      ids.forEach(function (id) { if (z.r.so[id] && z.r.so[id].ok) tot[id] = (tot[id] || 0) + 1; });
+    });
+    var tampilkan = S.rkKurang ? data.filter(function (z) { return z.r.belum || z.r.gagal; }) : data;
+    o += '<div class="card" style="overflow-x:auto"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><div style="font-size:13px"><b>' + sudah + '</b> dari ' + data.length + ' guru sudah ditarik' + (perhatian ? ' &bull; <b>' + perhatian + '</b> perlu perhatian (belum ditarik atau ada sumber tidak terbaca)' : '') + ' ' + umurHtml(S.rk.at) + '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">' + (function () { var rc = rkSaranRencana(); return rc.length ? '<button type="button" class="btn btn-success" style="padding:4px 10px;font-size:12px" data-act="rk-saran"' + (sibuk ? ' disabled' : '') + ' title="Mengisi indikator yang masih kosong; skor dan catatan yang sudah ada tidak diubah">⚡ Pakai usulan skor (' + rc.reduce(function (a, z) { return a + z.n; }, 0) + ' indikator, ' + rc.length + ' guru)</button>' : ''; })() + '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="rk-filter">' + (S.rkKurang ? 'Tampilkan semua' : 'Hanya yang perlu perhatian') + '</button>' +
+      '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="rk-xls">📥 Unduh Excel</button>' +
+      '<button type="button" class="btn btn-soft" style="padding:4px 10px;font-size:12px" data-act="rk-pdf">🖨️ Cetak / PDF</button></div></div>';
+    o += '<table><thead><tr><th>No</th><th>Guru</th>' + ids.map(function (id) { return '<th style="text-align:center" title="' + esc(def[id].label) + '">' + esc(def[id].ikon) + '</th>'; }).join('') + '<th>Indikator</th><th>Ditarik</th><th></th></tr></thead><tbody>';
+    if (!tampilkan.length) o += '<tr><td colspan="' + (ids.length + 5) + '" class="text-muted" style="text-align:center">Semua guru sudah ditarik dan tidak ada sumber yang bermasalah.</td></tr>';
+    tampilkan.forEach(function (z, i) {
+      var gk = z.x.g.key, r = z.r, d = r.d;
+      o += '<tr><td>' + (i + 1) + '</td><td><b>' + esc(z.x.g.name) + '</b><details style="margin-top:2px"><summary class="pkg-meta" style="cursor:pointer">Rincian</summary>' + rkRincian(r) + '</details></td>' +
+        ids.map(function (id) { return rkSel(r.so[id]); }).join('') +
+        '<td style="text-align:center">' + r.oto + '</td>' +
+        '<td style="font-size:12px;white-space:nowrap">' + (d.otoAt ? fmtTgl(String(d.otoAt).slice(0, 10)) : '<span class="text-muted">belum</span>') + '</td>' +
+        '<td style="white-space:nowrap"><button type="button" class="btn btn-soft" style="padding:3px 10px;font-size:12px" data-act="rk-satu" data-gk="' + esc(gk) + '"' + (sibuk || !bolehUbahBukti(gk) ? ' disabled' : '') + '>🔄 Tarik</button></td></tr>';
+    });
+    o += '</tbody><tfoot><tr style="font-weight:700"><td colspan="2">Berhasil dibaca</td>' + ids.map(function (id) { return '<td style="text-align:center">' + (tot[id] || 0) + '/' + data.length + '</td>'; }).join('') + '<td colspan="3"></td></tr></tfoot></table>';
+    o += '<div class="pkg-meta" style="margin-top:8px">' + ids.map(function (id) { return esc(def[id].ikon) + ' ' + esc(def[id].label); }).join(' &bull; ') + '<br>✔ terbaca &bull; ⚠ tidak terbaca (arahkan kursor atau buka Rincian untuk alasannya) &bull; – belum ditarik &bull; kolom Indikator = jumlah indikator yang mendapat bukti otomatis</div></div>';
+    return o;
+  }
+  function rkSlug() { var per = S.periodeList[S.periodeId] || {}; return String(per.nama || S.periodeId || 'periode').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'periode'; }
+  // Unduh Excel: berkas HTML-tabel .xls (terbuka di Excel, LibreOffice, Google Sheets), satu baris per guru, tiga kolom per sumber.
+  function rkExcel() {
+    if (!bolehKelola()) return;
+    if (!rkAda()) return pesan('Tekan Muat ulang rekap dahulu.', true);
+    var per = S.periodeList[S.periodeId] || {}, ids = rkIds(), def = sumberDef() || {};
+    var T = function (v) { return '<td style="mso-number-format:\'\\@\'">' + esc(v == null ? '' : v) + '</td>'; };
+    var Nm = function (v) { return '<td>' + (typeof v === 'number' ? v : '') + '</td>'; };
+    var head = ['No', 'Guru', 'Penilai', 'Terakhir ditarik', 'Rentang data', 'Sumber terbaca', 'Sumber tidak terbaca', 'Indikator berbukti otomatis'];
+    ids.forEach(function (id) { var l = def[id].label; head.push(l + ' - status', l + ' - usulan skor', l + ' - ringkasan / alasan'); });
+    var rows = barisGuru(), out = '';
+    rows.forEach(function (x, i) {
+      var gk = x.g.key, r = rkBaris(gk), d = r.d, t = tugasDari(gk) || {}, pen = t.penilaiKey ? (tampil(t.penilaiNama) || namaGuru(t.penilaiKey)) : '';
+      out += '<tr>' + Nm(i + 1) + T(x.g.name) + T(pen) + T(d.otoAt ? String(d.otoAt).slice(0, 10) : '') + T(d.otoDari ? d.otoDari + ' s.d. ' + d.otoSampai : '') + Nm(r.ok) + Nm(r.gagal) + Nm(r.oto);
+      ids.forEach(function (id) {
+        var s = r.so[id];
+        out += T(!s ? 'Belum ditarik' : (s.ok ? 'Terbaca' : 'Tidak terbaca')) + Nm(s && s.ok && s.saran != null ? s.saran : null) + T(s ? (s.ok ? s.ringkas : s.alasan) : '');
+      });
+      out += '</tr>';
+    });
+    var jam = S.rk.at ? S.rk.at.toLocaleString('id-ID') : '';
+    var html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Rekap Bukti Otomatis</x:Name></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>' +
+      '<table border="1"><tr><td colspan="' + head.length + '" style="font-weight:bold;font-size:14pt">Rekap Bukti Otomatis PKG - ' + esc(per.nama || '') + '</td></tr>' +
+      '<tr><td colspan="' + head.length + '">' + esc((typeof MADRASAH !== 'undefined' && MADRASAH.nama) || '') + (jam ? ' | data dimuat ' + esc(jam) : '') + ' | usulan skor hanya usulan, penilai yang memutuskan</td></tr>' +
+      '<tr style="font-weight:bold;background:#e5e7eb">' + head.map(function (h) { return '<td>' + esc(h) + '</td>'; }).join('') + '</tr>' + out + '</table></body></html>';
+    try {
+      unduhBerkas('rekap-bukti-otomatis-' + rkSlug() + '-' + nowIso().slice(0, 10) + '.xls', '\ufeff' + html, 'application/vnd.ms-excel;charset=utf-8');
+      if (typeof addLog === 'function') addLog('PKG unduh rekap bukti otomatis', (per.nama || '') + ' (' + rows.length + ' guru)');
+      pesan('Excel rekap bukti diunduh (' + rows.length + ' guru).');
+    } catch (e) { pesan('Gagal membuat berkas Excel: ' + ((e && e.message) || e), true); }
+  }
+  // Cetak / PDF (pilih "Simpan sebagai PDF" di jendela cetak): tabel ringkas guru x sumber, lalu rincian per guru.
+  function rkPdf() {
+    if (!bolehKelola()) return;
+    if (!rkAda()) return pesan('Tekan Muat ulang rekap dahulu.', true);
+    var per = S.periodeList[S.periodeId] || {}, ids = rkIds(), def = sumberDef() || {}, rows = barisGuru(), tr = '', rin = '', sudah = 0;
+    rows.forEach(function (x, i) {
+      var gk = x.g.key, r = rkBaris(gk), d = r.d; if (!r.belum) sudah++;
+      tr += '<tr><td>' + (i + 1) + '</td><td>' + esc(x.g.name) + '</td>' + ids.map(function (id) {
+        var s = r.so[id]; return '<td style="text-align:center">' + (!s ? '–' : (s.ok ? '✔' + (s.saran != null ? '<br><span style="font-size:9px">usulan ' + s.saran + '</span>' : '') : '⚠')) + '</td>';
+      }).join('') + '<td style="text-align:center">' + r.oto + '</td><td style="white-space:nowrap">' + (d.otoAt ? fmtTgl(String(d.otoAt).slice(0, 10)) : 'belum') + '</td></tr>';
+      var baris = ids.map(function (id) {
+        var s = r.so[id]; if (!s) return '';
+        return '<li>' + esc(def[id].label) + ': ' + (s.ok ? esc(s.ringkas) + (s.saran != null ? ' (usulan skor ' + s.saran + ')' : '') : '<i>tidak terbaca</i> - ' + esc(s.alasan || '')) + '</li>';
+      }).join('');
+      rin += '<div style="page-break-inside:avoid;margin:0 0 8px"><b>' + (i + 1) + '. ' + esc(x.g.name) + '</b>' + (d.otoAt ? ' <span style="font-size:10px">(ditarik ' + fmtTgl(String(d.otoAt).slice(0, 10)) + ', data ' + fmtTgl(d.otoDari) + ' s.d. ' + fmtTgl(d.otoSampai) + ')</span>' : '') +
+        (baris ? '<ul style="margin:2px 0 0 18px;padding:0;font-size:10pt">' + baris + '</ul>' : '<div style="font-size:10pt">Belum ada data yang ditarik.</div>') + '</div>';
+    });
+    var jam = S.rk.at ? S.rk.at.toLocaleString('id-ID') : '';
+    var o2 = '<style>@page{size:A4 landscape;margin:12mm}</style><h3>REKAP BUKTI OTOMATIS PKG<br>' + esc(per.nama || '') + '</h3>' +
+      '<p style="font-size:11px">' + sudah + ' dari ' + rows.length + ' guru sudah ditarik' + (jam ? ' &bull; data dimuat ' + esc(jam) : '') + '. Usulan skor hanya usulan; penilai yang memutuskan.</p>' +
+      '<table><thead><tr><th>No</th><th>Guru</th>' + ids.map(function (id) { return '<th style="font-size:9px">' + esc(def[id].label) + '</th>'; }).join('') + '<th>Indikator</th><th>Ditarik</th></tr></thead><tbody>' + tr + '</tbody></table>' +
+      '<p style="font-size:10px">✔ terbaca &bull; ⚠ tidak terbaca &bull; – belum ditarik. Kolom Indikator = jumlah indikator yang mendapat bukti otomatis.</p>' +
+      '<h3 style="page-break-before:always">RINCIAN PER GURU</h3>' + rin;
+    if (typeof addLog === 'function') addLog('PKG cetak rekap bukti otomatis', (per.nama || '') + ' (' + rows.length + ' guru)');
+    bukaCetak('Rekap Bukti Otomatis PKG', o2);
   }
   function ringkasanHtml() { return pengingatJadwalHtml() + klHtml() + ringkasanIsiHtml(); }
   function ringkasanIsiHtml() {
@@ -1871,6 +2138,35 @@
       render();
     }, 'Gagal menyimpan centang: ');
   }
+  // v95: inti tarikan bukti otomatis satu guru, dipakai tombol per guru (tarikOtomatis) dan Rekap Bukti semua guru (rkJalankan).
+  // Hanya membaca sumber lalu menulis ke `node` (path bukti yang DITANGKAP saat tarikan dimulai, aman bila periode diganti di tengah jalan).
+  // Mengembalikan Promise<{upd, adaOk}>; cache S.bukti diperbarui terpisah lewat terapkanTarik.
+  function tarikInti(gk, dari, sampai, u, node) {
+    var SM = window.PKG_SUMBER;
+    var ctx = { db: db, guruKey: gk, guruNama: namaGuru(gk), dari: dari, sampai: sampai };
+    var AD = DR(), bd = dataBukti(gk) || {}, dj = (bd.diri && bd.diri.j) || {};
+    if (AD) ctx.diri = { r: (bd.diri && bd.diri.r) || {}, kunciRefleksi: AD.diri.refleksi.map(function (x) { return x[0]; }), butir: AD.diri.butir.length, terjawab: AD.diri.butir.filter(function (x) { return dj[x.k]; }).length };
+    return SM.jalankan(ctx).then(function (hasil) {
+      var peta = petaOto(), sumber = {}, oto = {}, waktu = nowIso(), adaOk = false;
+      Object.keys(hasil).forEach(function (id) {
+        var h = hasil[id] || {};
+        if (h.ok) { adaOk = true; sumber[id] = { ok: true, ringkas: potong(h.ringkas, 300), saran: (h.saran === 0 || h.saran === 1 || h.saran === 2) ? h.saran : null, dasar: potong(h.dasar || '', 200), rincian: (h.rincian || []).slice(0, 8).map(function (x) { return potong(x, 200); }), angka: h.angka || null, at: waktu }; }
+        else sumber[id] = { ok: false, alasan: potong(h.alasan || 'Tidak terbaca.', 400), at: waktu };
+      });
+      Object.keys(peta).forEach(function (key) {
+        var ids = peta[key].filter(function (id) { return sumber[id] && sumber[id].ok; });
+        if (!ids.length) return;
+        var sr = ids.map(function (id) { var hh = hasil[id], pi = hh && hh.perInd; return (pi && (pi[key] === 0 || pi[key] === 1 || pi[key] === 2)) ? pi[key] : sumber[id].saran; }).filter(function (x) { return x != null; });   // sumber yang menghitung per indikator (perInd) menimpa saran tunggal
+        oto[key] = { s: ids.join(','), saran: sr.length ? Math.max.apply(null, sr) : null };   // bukti boleh alternatif -> ambil yang terkuat
+      });
+      var upd = aman({ otomatis: Object.keys(oto).length ? oto : null, sumberOto: sumber, otoAt: waktu, otoOleh: pengisi(u), otoDari: dari, otoSampai: sampai });
+      return db.ref(node).update(upd).then(function () { return { upd: upd, adaOk: adaOk }; });
+    });
+  }
+  function terapkanTarik(kunciCache, r) {
+    var d = S.bukti[kunciCache] || (S.bukti[kunciCache] = {});
+    d.otomatis = r.upd.otomatis || null; d.sumberOto = r.upd.sumberOto; d.otoAt = r.upd.otoAt; d.otoOleh = r.upd.otoOleh; d.otoDari = r.upd.otoDari; d.otoSampai = r.upd.otoSampai;
+  }
   function tarikOtomatis() {
     var gk = S.gk, u = me(), SM = window.PKG_SUMBER;
     if (!SM || typeof SM.jalankan !== 'function') return pesan('Modul js/pkg-sumber.js belum dimuat.', true);
@@ -1879,30 +2175,9 @@
     var dari = (eD && eD.value) || rg.dari, sampai = (eS && eS.value) || rg.sampai;
     if (dari > sampai) return pesan('Tanggal "Dari" tidak boleh sesudah "Sampai".', true);
     S.otoDari = dari; S.otoSampai = sampai;
-    var ctx = { db: db, guruKey: gk, guruNama: namaGuru(gk), dari: dari, sampai: sampai };
-    var AD = DR(), bd = dataBukti(gk) || {}, dj = (bd.diri && bd.diri.j) || {};
-    if (AD) ctx.diri = { r: (bd.diri && bd.diri.r) || {}, kunciRefleksi: AD.diri.refleksi.map(function (x) { return x[0]; }), butir: AD.diri.butir.length, terjawab: AD.diri.butir.filter(function (x) { return dj[x.k]; }).length };
     pesan('Menarik data absensi, jurnal, nilai, perangkat pembelajaran, buku penghubung, kegiatan madrasah, materi/tugas daring, kehadiran rapat, tugas administratif (10.5), dan penilaian diri…');
-    kerjakan(function () {
-      return SM.jalankan(ctx).then(function (hasil) {
-        var peta = petaOto(), sumber = {}, oto = {}, waktu = nowIso(), adaOk = false;
-        Object.keys(hasil).forEach(function (id) {
-          var h = hasil[id] || {};
-          if (h.ok) { adaOk = true; sumber[id] = { ok: true, ringkas: potong(h.ringkas, 300), saran: (h.saran === 0 || h.saran === 1 || h.saran === 2) ? h.saran : null, dasar: potong(h.dasar || '', 200), rincian: (h.rincian || []).slice(0, 8).map(function (x) { return potong(x, 200); }), angka: h.angka || null, at: waktu }; }
-          else sumber[id] = { ok: false, alasan: potong(h.alasan || 'Tidak terbaca.', 400), at: waktu };
-        });
-        Object.keys(peta).forEach(function (key) {
-          var ids = peta[key].filter(function (id) { return sumber[id] && sumber[id].ok; });
-          if (!ids.length) return;
-          var sr = ids.map(function (id) { var hh = hasil[id], pi = hh && hh.perInd; return (pi && (pi[key] === 0 || pi[key] === 1 || pi[key] === 2)) ? pi[key] : sumber[id].saran; }).filter(function (x) { return x != null; });   // sumber yang menghitung per indikator (perInd) menimpa saran tunggal
-          oto[key] = { s: ids.join(','), saran: sr.length ? Math.max.apply(null, sr) : null };   // bukti boleh alternatif -> ambil yang terkuat
-        });
-        var upd = aman({ otomatis: Object.keys(oto).length ? oto : null, sumberOto: sumber, otoAt: waktu, otoOleh: pengisi(u), otoDari: dari, otoSampai: sampai });
-        return db.ref(nodeBukti(gk)).update(upd).then(function () { return { upd: upd, adaOk: adaOk }; });
-      });
-    }, function (r) {
-      var d = S.bukti[kb(gk)] || (S.bukti[kb(gk)] = {});
-      d.otomatis = r.upd.otomatis || null; d.sumberOto = r.upd.sumberOto; d.otoAt = r.upd.otoAt; d.otoOleh = r.upd.otoOleh; d.otoDari = r.upd.otoDari; d.otoSampai = r.upd.otoSampai;
+    kerjakan(function () { return tarikInti(gk, dari, sampai, u, nodeBukti(gk)); }, function (r) {
+      terapkanTarik(kb(gk), r);
       if (typeof addLog === 'function') addLog('PKG bukti otomatis', namaGuru(gk));
       pesan(r.adaOk ? 'Bukti otomatis berhasil ditarik.' : 'Tidak ada sumber yang terbaca. Lihat alasannya pada kartu Bukti otomatis.', !r.adaOk);
       render();
@@ -2562,7 +2837,7 @@
   function aksi(act, el) {
     var gk = el.getAttribute('data-gk') || S.gk, u = me();
     if (act.indexOf('surat-') === 0) return (window.PKG_SURAT && window.PKG_SURAT.aksi) ? window.PKG_SURAT.aksi(act, el) : pesan('Modul js/pkg-surat.js belum dimuat.', true);
-    if (act === 'tab') { S.tab = el.getAttribute('data-tab'); tabSimpan(S.tab); S.view = 'list'; if (PG_DARI_TAB[S.tab]) pgPastikan(S.tab, true); render(); if (S.tab === 'ringkasan') klSegarSj(); return; }
+    if (act === 'tab') { S.tab = el.getAttribute('data-tab'); tabSimpan(S.tab); S.view = 'list'; if (PG_DARI_TAB[S.tab]) pgPastikan(S.tab, true); render(); if (S.tab === 'ringkasan') klSegarSj(); if (S.tab === 'rekapoto' && !rkAda() && !S.rkMuat && !S.rkJalan) rkMuat(); return; }
     if (act === 'kembali') { S.view = 'list'; S.kbForm = false; return render(); }
     if (act === 'kb-buka') { S.kbForm = true; return render(); }
     if (act === 'kb-batal') { S.kbForm = false; return render(); }
@@ -2757,6 +3032,14 @@
       (S.svAuto = S.svAuto || {})[np] = true; S.svKotor = true; return;
     }
     if (act === 'sv-simpan') return svSimpan(S.gk);
+    if (act === 'rk-muat') return rkMuat();
+    if (act === 'rk-semua') return rkTarikSemua();
+    if (act === 'rk-satu') return rkTarikSatu(gk);
+    if (act === 'rk-stop') { if (S.rkJalan) { S.rkJalan.batal = true; render(); } return; }
+    if (act === 'rk-saran') return rkPakaiSaran();
+    if (act === 'rk-filter') { S.rkKurang = !S.rkKurang; return render(); }
+    if (act === 'rk-xls') return rkExcel();
+    if (act === 'rk-pdf') return rkPdf();
     if (act === 'kl-muat') return klMuat();
     if (act === 'kl-xls') return klExcel();
     if (act === 'kl-pdf') return klPdf();
