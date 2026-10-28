@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.212",
-  "disimpan": "2026-10-27T12:09:10.278Z",
+  "appVersion": "v8.219",
+  "disimpan": "2026-10-28T02:36:22.277Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -79,8 +79,8 @@
       "hash": "3700ebef46ef11a5254e1e55e9c00da89b2e5995"
     },
     "js/kelola-absen-guru.js": {
-      "v": "v=5",
-      "hash": "20a3332882b5f7e25fb93953ef948e642a8428be"
+      "v": "v=6",
+      "hash": "482eeb323bf8024a485ebe78e065345be0e716e0"
     },
     "js/jadwal.js": {
       "v": "v=5",
@@ -171,16 +171,16 @@
       "hash": "bdb3241404421382d218ae3ffa508b5ee43198dc"
     },
     "js/pkg-sumber.js": {
-      "v": "v=12",
-      "hash": "5aad352cd9ee81809dcc5ac7562bff919454ecdf"
+      "v": "v=65",
+      "hash": "c885df4c661659ac437d3a206eebbb604fd8dd96"
     },
     "js/data-pkg-angket.js": {
-      "v": "v=5",
-      "hash": "03e6fa045d67ca99ad0f3882b69da509cbac7b9e"
+      "v": "v=6",
+      "hash": "7473a9ca49ee3e51d3936208f1768e01097485a7"
     },
     "js/pkg.js": {
-      "v": "v=93",
-      "hash": "7d1ffb9f4a6f62ed50b5f859f93adbf6a1188413"
+      "v": "v=96",
+      "hash": "50dec56d030e206cc03d9a7d6486b7e928bdd7ab"
     },
     "js/pkg-analisis.js": {
       "v": "v=3",
@@ -239,8 +239,8 @@
       "hash": "fdbd2364d0b72b8ed3eb3cda9ffc1b1e23359404"
     },
     "js/perangkat-pembelajaran.js": {
-      "v": "v=10",
-      "hash": "886f158cda83492af761e48b11c9c59464371e35"
+      "v": "v=11",
+      "hash": "a4fd2bbb8e084137c0ba451638b9b6853b60dd81"
     },
     "js/modul-ajar.js": {
       "v": "v=16",
@@ -269,6 +269,10 @@
     "js/impersonate.js": {
       "v": "v=7",
       "hash": "3d6d30d4832a425fed24c51d7b9c43b1df80b551"
+    },
+    "js/peran-ganda.js": {
+      "v": "v=1",
+      "hash": "7f9df1c01eacf15d20abea7ab89eab61614d0ddc"
     },
     "js/absen-manual-gps.js": {
       "v": "v=5",
