@@ -306,7 +306,7 @@ tr{page-break-inside:avoid}
       manual: !!A.manual, items: bersihItems().map(x => ({ k: x.k, e: x.e, t: x.t, m: x.m, sem: x.sem, jp: x.jp === '' ? 0 : x.jp })), jpPerPekan: jpNum() || null,
       at: new Date().toISOString(), by: myName() };
     return db.ref('perangkat_tp_v4/' + idTp()).set(obj).then(() => {
-      A.busy = false; A.dirty = false; audit('SAVE_PERANGKAT_TP', idTp()); R().cabutSetuju(A.id, ['atp', 'tp']); if (!diam) say('✅ Tersimpan'); if (A.rec) gambar();
+      A.busy = false; A.dirty = false; audit('SAVE_PERANGKAT_TP', idTp()); SEM.forEach(s => R().cabutSetuju(R().idSemester(A.id, s), ['atp', 'tp'])); // TP dipakai bersama Ganjil dan Genap if (!diam) say('✅ Tersimpan'); if (A.rec) gambar();
     }).catch(err => { A.busy = false; console.error('[SI MAMBA] atp:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function terapkan() {

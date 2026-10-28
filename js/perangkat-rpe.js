@@ -356,8 +356,20 @@ ${tabelHtml(h)}
     if (typeof db === 'undefined' || !db) return;
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     if (M.busy) return; M.busy = true;
+    const lama = M.raw, kunciIsi = o => JSON.stringify([o && o.mulai || '', o && o.selesai || '', +(o && o.hariPerPekan) === 5 ? 5 : 6, o && o.madrasah || '', o && o.kepala || '', o && o.nipKepala || '', o && o.kota || '',
+      daftar(o && o.libur).map(x => [x && x.a || '', x && x.b || '', x && x.ket || ''])]);
+    const berubah = !lama || kunciIsi(lama) !== kunciIsi(obj), pref = slug(M.ta) + '_' + M.sem + '_';
     siap().then(() => db.ref(path()).set(obj)).then(() => {
+      // Isi kalender berubah => RPE dan Promes (disebar ke pekan efektif) semua guru semester ini berubah => persetujuan Kepala lama gugur (QR tidak muncul sampai disetujui ulang).
+      if (!berubah) return;
+      return db.ref('perangkat_v4').orderByKey().startAt(pref).endAt(pref + '\uf8ff').once('value').then(sn => {
+        const upd = {}; let n = 0;
+        sn.forEach(c => { const d = (c.val() || {}).docs || {}; ['rpe', 'promes'].forEach(jk => { const x = d[jk]; if (!x) return; if (x.setuju) { upd[c.key + '/docs/' + jk + '/setuju'] = null; n++; } if (x.dilihat) upd[c.key + '/docs/' + jk + '/dilihat'] = null; }); });
+        return Object.keys(upd).length ? db.ref('perangkat_v4').update(upd).then(() => { if (n) say('ℹ️ ' + n + ' persetujuan RPE/Promes gugur karena kalender berubah; setujui ulang bila perlu.', false, 6000); }) : null;
+      }).catch(err => console.warn('[SI MAMBA] rpe cabut setuju:', err));
+    }).then(() => {
       M.busy = false; M.raw = obj; M.cfg = bacaCfg(obj); audit('SAVE_RPE_KALDIK', slug(M.ta) + '_' + M.sem); say('✅ Kalender efektif tersimpan');
+      try { if (typeof window.perangkatRender === 'function') window.perangkatRender(); } catch (e) {}
       if (M.rec) { M.mode = 'cetak'; M.edit = null; gambar(); } else tutup();
     }).catch(err => { M.busy = false; console.error('[SI MAMBA] rpe:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
@@ -369,7 +381,11 @@ ${tabelHtml(h)}
     nipSimpan(nip);
     // Simpan JP per pekan pada baris mapel (hanya pemilik). Gagal simpan tidak menghalangi cetak.
     if (jp && M.rec.guruKey === myId() && M.rec.jpPerPekan !== jp && typeof db !== 'undefined' && db && navigator.onLine) {
-      siap().then(() => db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp)).then(() => { M.rec.jpPerPekan = jp; }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
+      const jpLama = M.rec.jpPerPekan, adaSetuju = !!(M.rec.docs && M.rec.docs.rpe && M.rec.docs.rpe.setuju);
+      siap().then(() => db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp)).then(() => {
+        M.rec.jpPerPekan = jp;
+        if (jpLama && adaSetuju) { cabutSetuju(M.id, ['rpe']); delete M.rec.docs.rpe.setuju; say('ℹ️ JP per pekan berubah, persetujuan RPE sebelumnya gugur.', false, 5000); }
+      }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
     }
     const html = dokumen(M.cfg, h, { guru: M.rec.guruName || myName(), nip: nip, mapel: M.rec.mapel, kelas: M.rec.kelas, ta: M.ta, sem: SEM_LABEL[M.sem] });
     keluarkan(html, 'RPE_' + M.rec.mapel + '_' + M.rec.kelas + '_' + SEM_LABEL[M.sem], mode);
@@ -471,7 +487,7 @@ ${tabelHtml(h)}
   // Guru mengubah dokumen -> persetujuan lama gugur (QR Kepala tidak lagi muncul sampai disetujui ulang). Best effort.
   function cabutSetuju(id, daftarJk) {
     if (!id || typeof db === 'undefined' || !db || !navigator.onLine) return;
-    (daftarJk || []).forEach(jk => { try { db.ref('perangkat_v4/' + id + '/docs/' + jk + '/setuju').remove().catch(() => {}); } catch (e) {} });
+    (daftarJk || []).forEach(jk => { try { db.ref('perangkat_v4/' + id + '/docs/' + jk + '/setuju').remove().catch(() => {}); db.ref('perangkat_v4/' + id + '/docs/' + jk + '/dilihat').remove().catch(() => {}); } catch (e) {} });
   }
   // mode 'word' => unduh .doc; selain itu buka jendela cetak.
   // Jendela cetak dibuka SINKRON (agar tidak diblokir popup), isinya ditulis setelah QR selesai dibuat.
