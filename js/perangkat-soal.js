@@ -176,7 +176,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     return `<div class="kop"><table class="kopt"><tr><td class="lg">${lg}</td><td class="tx"><div class="m">${esc(kopCfg().madrasah || 'MADRASAH')}</div><div class="j">${judul}</div><div class="s">${esc(labelAs(s))} · Tahun Pelajaran ${esc(S.ta)}</div></td><td class="lg"></td></tr></table></div>`;
   }
   // Naskah soal: margin bawah lebih tipis, soal rapat dengan nomor menggantung, identitas dengan kotak mapel.
-  const CSS_NASKAH = CSS_DOK.replace('@page{size:215mm 330mm;margin:7mm 8mm}', '@page{size:215mm 330mm;margin:6mm 8mm 5mm}') + `
+  const CSS_NASKAH = CSS_DOK.replace('@page{size:215mm 330mm;margin:7mm 8mm}', '@page{size:215mm 330mm;margin:6mm 8mm 12mm}') + `
 body{font-size:11pt;line-height:1.25}
 .nk{margin:0 0 6px;font-size:11pt}.nk td{padding:2px 3px;vertical-align:bottom;border:0}
 .nk td.lb{width:27mm;white-space:nowrap}.nk td.cl{width:4mm;text-align:center}.nk td.sp{width:8mm}.nk td.dt{border-bottom:1px dotted #333}
@@ -192,8 +192,11 @@ body{font-size:11pt;line-height:1.25}
 .idn{margin:0;font-size:11pt}.idn td{padding:2px 3px;vertical-align:bottom;border:0}
 .idn td.lb{width:30mm;white-space:nowrap}.idn td.cl{width:4mm;text-align:center}.idn td.sp{width:10mm}.idn td.dt{border-bottom:1px dotted #333;width:36%}
 .gar{border-top:1px solid #111;margin:3px 0 4px}
-.pu{width:100%;font-size:10.5pt;line-height:1.25}.pu td{border:0;padding:0 0 1px;vertical-align:top}.pu td.lb{width:34mm;font-weight:700;white-space:nowrap}.pu td.cl{width:4mm}
+.pu{width:100%;font-size:10.5pt;line-height:1.25;border-collapse:collapse;border-top:1px solid #111;border-bottom:1px solid #111;margin:3px 0 4px}.pu td{border:0;padding:3px 0 3px;vertical-align:top}.pu td.lb{width:34mm;font-weight:700;white-space:nowrap}.pu td.cl{width:4mm}
+.pu td.nb{width:34mm;border-left:1.5px solid #111;border-right:1.5px solid #111;text-align:center;font-weight:700;padding-top:3px}
 .pk{font-weight:700;font-size:11pt;margin:2px 0 3px}
+.jw{height:7mm;border-bottom:1px dotted #333}.jw:first-child{margin-top:0}
+.rk{width:100%;border-collapse:collapse;margin-top:8px;font-size:10pt;break-inside:avoid;page-break-inside:avoid}.rk th,.rk td{border:1px solid #111;padding:2px 6px;vertical-align:middle}.rk th{text-align:center}.rk td.c{text-align:center}.rk td.pf{width:34mm;text-align:center;vertical-align:top;font-weight:700}
 .pi{break-after:avoid;page-break-after:avoid;margin:0 0 4px}.pi .b{font-weight:700;text-align:justify}`;
   function ttdHtml(jenis, s, jk) {
     const c = kopCfg(), t = '........................................', nip = String(S.nip || '').trim();
@@ -245,13 +248,14 @@ body{font-size:11pt;line-height:1.25}
   }
   const PETUNJUK = { pg: 'Pilihlah jawaban yang paling tepat dengan memberi tanda silang (X) pada huruf A, B, C, atau D!', is: 'Isilah titik-titik berikut dengan jawaban yang benar dan singkat!', ur: 'Jawablah pertanyaan-pertanyaan berikut dengan jelas dan benar!' };
   const ROMAWI = ['I', 'II', 'III'];
+  const BARIS_JAWAB = { is: 1, ur: 2 }; // jumlah baris titik-titik tempat siswa menulis jawaban (isian, uraian)
   function dokNaskah(s, dua) {
     const kls = String(S.rec.kelas || '').replace(/^\s*kelas\s+/i, '');
     const dot = '<td class="dt">&nbsp;</td>';
-    const baris = (l1, v1, l2) => `<tr><td class="lb">${l1}</td><td class="cl">:</td><td${v1 === null ? ' class="dt"' : ''}>${v1 === null ? '&nbsp;' : v1}</td><td class="sp"></td><td class="lb">${l2}</td><td class="cl">:</td>${dot}</tr>`;
+    const baris = (l1, v1, l2) => `<tr><td class="lb">${l1}</td><td class="cl">:</td><td${v1 === null ? ' class="dt"' : ''}>${v1 === null ? '&nbsp;' : v1}</td><td class="sp"></td>${l2 ? `<td class="lb">${l2}</td><td class="cl">:</td>${dot}` : '<td colspan="3"></td>'}</tr>`;
     let h = wmHtml() + kopNaskah(s)
-      + `<table class="idn">${baris('Mata Pelajaran', `<span class="mpbox">${esc(S.rec.mapel)}</span>`, 'Hari/Tanggal')}${baris('Kelas', esc(kls), 'Waktu')}${baris('Nama', null, 'Nilai')}</table><div class="gar"></div>`
-      + `<table class="pu"><tr><td class="lb">PETUNJUK UMUM</td><td class="cl">:</td><td>1. Berdoalah terlebih dahulu sebelum mengerjakan soal.<br>2. Tulislah nama dan kelas pada tempat yang tersedia.<br>3. Periksa kembali jawabanmu sebelum naskah dikumpulkan.</td></tr></table><div class="gar"></div>`
+      + `<table class="idn">${baris('Mata Pelajaran', esc(S.rec.mapel), 'Hari/Tanggal')}${baris('Kelas', esc(kls), 'Waktu')}${baris('Nama', null, '')}</table>`
+      + `<table class="pu"><tr><td class="lb">PETUNJUK UMUM</td><td class="cl">:</td><td class="tp">1. Berdoalah terlebih dahulu sebelum mengerjakan soal.<br>2. Tulislah nama dan kelas pada tempat yang tersedia.<br>3. Periksa kembali jawabanmu sebelum naskah dikumpulkan.</td><td class="nb">NILAI</td></tr></table>`
       + '<div class="pk">PETUNJUK KHUSUS :</div>';
     let n = 0, buka = false;
     BENTUK.forEach(b => {
@@ -260,10 +264,16 @@ body{font-size:11pt;line-height:1.25}
       if (dua && n > 1 && !buka) { h += '<div class="dua">'; buka = true; }
       h += ins;
       if (dua && !buka) { h += '<div class="dua">'; buka = true; }
-      h += l.map(x => `<div class="q"><div class="n">${x.no}.</div><div class="b">${soalHtml(x)}</div></div>`).join('');
+      h += l.map(x => `<div class="q"><div class="n">${x.no}.</div><div class="b">${soalHtml(x, dua ? 18 : 30)}${'<div class="jw"></div>'.repeat(BARIS_JAWAB[x.b] || 0)}</div></div>`).join('');
     });
     if (buka) h += '</div>';
-    return html('Naskah Soal', h, CSS_NASKAH);
+    // Rekap penilaian di akhir naskah (diisi guru): skor maksimal per bentuk soal, skor diperoleh, dan paraf korektor.
+    const rk = BENTUK.map(b => { const j = S.slots[s].filter(x => x.b === b[0]).length; return j ? `<tr><td>${esc(b[1])} (${j} soal)</td><td class="c">${j * skorB(b[0])}</td><td>&nbsp;</td></tr>` : ''; }).filter(Boolean);
+    h += `<table class="rk"><tr><th>REKAP PENILAIAN (diisi guru)</th><th style="width:26mm">Skor Maks</th><th style="width:30mm">Skor Diperoleh</th><td class="pf" rowspan="${rk.length + 2}">Paraf<br>Korektor</td></tr>${rk.join('')}<tr><td><b>Jumlah</b></td><td class="c"><b>${skorMaks(s)}</b></td><td>&nbsp;</td></tr></table>`;
+    // Footer cetak: mapel dan kelas di kiri, nama madrasah di tengah, nomor halaman di kanan (margin box @page; tampil di Cetak/PDF browser berbasis Chrome).
+    const cs = t => '"' + String(t).replace(/[\\"]/g, '\\$&').replace(/[\r\n]+/g, ' ') + '"';
+    const ft = `@page{@bottom-left{content:${cs(S.rec.mapel + ' · Kelas ' + kls)};font:9pt serif;color:#333;vertical-align:top;padding-top:1.5mm;border-top:0.5pt solid #555}@bottom-center{content:${cs(kopCfg().madrasah || '')};font:bold 9pt serif;color:#333;vertical-align:top;padding-top:1.5mm;border-top:0.5pt solid #555}@bottom-right{content:"Halaman " counter(page) " dari " counter(pages);font:9pt serif;color:#333;vertical-align:top;padding-top:1.5mm;border-top:0.5pt solid #555}}`;
+    return html('Naskah Soal', h, CSS_NASKAH + ft);
   }
   function dokKunci(s) {
     const rows = S.slots[s].map(x => `<tr><td class="c">${x.no}</td><td>${bentukX(x)}</td><td>${kunciTeks(x)}</td><td class="c">${skorB(x.b)}</td></tr>`).join('');
