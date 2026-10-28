@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.224",
-  "disimpan": "2026-10-28T04:01:01.650Z",
+  "appVersion": "v8.229",
+  "disimpan": "2026-10-28T04:38:28.116Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -215,8 +215,8 @@
       "hash": "ff039eaaa75eccc3945baece80a56593b6149e46"
     },
     "js/perangkat-rpe.js": {
-      "v": "v=12",
-      "hash": "019f08d76fcf40e27d0998cdde85e2120579d73f"
+      "v": "v=13",
+      "hash": "7bc62a45b1840c4eaf9140c585680ef19859024c"
     },
     "js/perangkat-prota-promes.js": {
       "v": "v=7",
@@ -239,8 +239,8 @@
       "hash": "fdbd2364d0b72b8ed3eb3cda9ffc1b1e23359404"
     },
     "js/perangkat-pembelajaran.js": {
-      "v": "v=16",
-      "hash": "89aa3779371509eb6d2255a388b5d86d1e87c169"
+      "v": "v=20",
+      "hash": "f67d33b8a0af88acd75c31c86b09a0d0bf1a4f7d"
     },
     "js/modul-ajar.js": {
       "v": "v=16",
