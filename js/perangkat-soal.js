@@ -141,7 +141,10 @@
   const CSS_DOK = `@page{size:215mm 330mm;margin:7mm 8mm}
 *{box-sizing:border-box}
 body{font-family:"Times New Roman",Times,serif;font-size:11.5pt;color:#111;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.kop{text-align:center;border-bottom:3px double #111;padding-bottom:6px;margin-bottom:10px}
+.kop{text-align:center;border-bottom:3px double #111;padding-bottom:5px;margin-bottom:8px}
+.kopt{width:100%}.kopt td{padding:0;vertical-align:middle;border:0}.kopt td.lg{width:20mm}.kopt td.tx{text-align:center}
+.kopt img{width:17mm;height:17mm;object-fit:contain;display:block}
+.wm{position:fixed;top:50%;left:50%;width:120mm;height:120mm;margin:-60mm 0 0 -60mm;opacity:.07;z-index:-1}.wm img{width:100%;height:100%;object-fit:contain}
 .kop .m{font-size:15pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
 .kop .j{font-size:13pt;font-weight:700;margin-top:4px}.kop .s{font-size:11pt;margin-top:2px}
 table{border-collapse:collapse;width:100%}
@@ -159,24 +162,58 @@ h4{margin:12px 0 6px;font-size:11.5pt}
 .opg{display:grid;grid-template-columns:1fr 1fr;column-gap:6px}
 .dua{column-count:2;column-gap:9mm;column-rule:1px solid #777;font-size:10.5pt;line-height:1.25}
 .dua p{margin:0 0 6px;break-inside:avoid}.dua h4{margin:8px 0 4px;font-size:10.5pt;break-after:avoid}.dua .op{margin:1px 0 0 12px}`;
-  function kopHtml(s, judul) { return `<div class="kop"><div class="m">${esc(kopCfg().madrasah || 'MADRASAH')}</div><div class="j">${judul}</div><div class="s">${esc(labelAs(s))} · Tahun Pelajaran ${esc(S.ta)}</div></div>`; }
+  // Logo madrasah: dimuat sekali di awal dan disimpan sebagai data URI supaya pasti ikut tercetak.
+  let LOGO = '';
+  (function () {
+    try {
+      const u = new URL('logo/logo-lembaga.png', document.baseURI).href; LOGO = u;
+      fetch(u).then(r => r.ok ? r.blob() : null).then(b => { if (!b) return; const fr = new FileReader(); fr.onload = () => { LOGO = String(fr.result); }; fr.readAsDataURL(b); }).catch(() => {});
+    } catch (e) { /* tanpa logo bila gagal */ }
+  })();
+  const wmHtml = () => LOGO ? `<div class="wm"><img src="${LOGO}" alt=""></div>` : '';
+  function kopHtml(s, judul) {
+    const lg = LOGO ? `<img src="${LOGO}" alt="" onerror="this.style.visibility='hidden'">` : '';
+    return `<div class="kop"><table class="kopt"><tr><td class="lg">${lg}</td><td class="tx"><div class="m">${esc(kopCfg().madrasah || 'MADRASAH')}</div><div class="j">${judul}</div><div class="s">${esc(labelAs(s))} · Tahun Pelajaran ${esc(S.ta)}</div></td><td class="lg"></td></tr></table></div>`;
+  }
+  // Naskah soal: margin bawah lebih tipis, soal rapat dengan nomor menggantung, identitas dengan kotak mapel.
+  const CSS_NASKAH = CSS_DOK.replace('@page{size:215mm 330mm;margin:7mm 8mm}', '@page{size:215mm 330mm;margin:6mm 8mm 5mm}') + `
+body{font-size:11pt;line-height:1.25}
+.nk{margin:0 0 6px;font-size:11pt}.nk td{padding:2px 3px;vertical-align:bottom;border:0}
+.nk td.lb{width:27mm;white-space:nowrap}.nk td.cl{width:4mm;text-align:center}.nk td.sp{width:8mm}.nk td.dt{border-bottom:1px dotted #333}
+.mpbox{display:inline-block;border:1.5px solid #111;padding:1px 10px;font-weight:700}
+.q{margin:0 0 5px;break-inside:avoid;page-break-inside:avoid}.q:after{content:"";display:block;clear:both}
+.q .n{float:left;width:6mm}.q .b{margin-left:6mm}
+.q .op{margin:1px 0 0 0;padding-left:4.7mm;text-indent:-4.7mm}.q .opg{column-gap:4mm}
+.dua{font-size:10.5pt;line-height:1.22;column-gap:8mm;column-rule:0 none}.dua .q{margin:0 0 4px}
+.q .b{text-align:justify}.q .op{text-align:left}
+.kopn{border-bottom:3px double #111;padding-bottom:4px;margin-bottom:4px}
+.kopn .k1,.kopn .k2,.kopn .k3,.kopn .k4{font-weight:700;text-align:center;line-height:1.25}
+.kopn .k1{font-size:11.5pt}.kopn .k2{font-size:14pt}.kopn .k3{font-size:11.5pt}.kopn .k4{font-size:11pt}
+.idn{margin:0;font-size:11pt}.idn td{padding:2px 3px;vertical-align:bottom;border:0}
+.idn td.lb{width:30mm;white-space:nowrap}.idn td.cl{width:4mm;text-align:center}.idn td.sp{width:10mm}.idn td.dt{border-bottom:1px dotted #333;width:36%}
+.gar{border-top:1px solid #111;margin:3px 0 4px}
+.pu{width:100%;font-size:10.5pt;line-height:1.25}.pu td{border:0;padding:0 0 1px;vertical-align:top}.pu td.lb{width:34mm;font-weight:700;white-space:nowrap}.pu td.cl{width:4mm}
+.pk{font-weight:700;font-size:11pt;margin:2px 0 3px}
+.pi{break-after:avoid;page-break-after:avoid;margin:0 0 4px}.pi .b{font-weight:700;text-align:justify}`;
   function ttdHtml(jenis, s, jk) {
     const c = kopCfg(), t = '........................................', nip = String(S.nip || '').trim();
     return `<div class="ttd"><div>Mengetahui,<br>Kepala ${esc(c.madrasah || 'Madrasah')}${R().ttdKepalaSp(jk, R().idSemester(S.id, s), { jenis: jenis, ket: S.rec.mapel + ' Kelas ' + S.rec.kelas + ' · Semester ' + SEM_LABEL[s] + ' · TP ' + S.ta + ' · Guru: ' + (S.rec.guruName || myName()), nama: c.kepala, jabatan: 'Kepala ' + (c.madrasah || 'Madrasah'), nip: c.nipKepala })}<b><u>${esc(c.kepala || t)}</u></b><br>PEG ID. ${esc(c.nipKepala || t)}</div>
 <div>${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Guru Mata Pelajaran${R().ttdSp({ jenis: jenis, ket: S.rec.mapel + ' Kelas ' + S.rec.kelas + ' · Semester ' + SEM_LABEL[s] + ' · TP ' + S.ta, nama: S.rec.guruName || myName(), jabatan: 'Guru Mata Pelajaran', nip: nip })}<b><u>${esc(S.rec.guruName || myName() || t)}</u></b><br>PEG ID. ${esc(nip || t)}</div></div>`;
   }
-  const html = (judul, isi) => `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${judul} ${esc(S.rec.mapel)} Kelas ${esc(S.rec.kelas)}</title><style>${CSS_DOK}</style></head><body>${isi}</body></html>`;
+  const html = (judul, isi, css) => `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${judul} ${esc(S.rec.mapel)} Kelas ${esc(S.rec.kelas)}</title><style>${css || CSS_DOK}</style></head><body>${isi}</body></html>`;
   const bentukNama = b => BENTUK.find(x => x[0] === b)[1];
   const bentukX = x => (x.b === 'pg' && x.st) ? SUB.find(z => z[0] === x.st)[1] : bentukNama(x.b);
+  // Titik-titik isian ("yang ke ...") dilekatkan ke kata sebelumnya agar tidak jatuh sendirian di baris baru.
+  const rapi = t => esc(t).replace(/\s+(\.{2,}|…)/g, '&nbsp;$1');
   function soalHtml(x, rapat) {
-    const q = esc(x.q || '(belum diisi)').replace(/\n/g, '<br>');
+    const q = rapi(x.q || '(belum diisi)').replace(/\n/g, '<br>');
     if (x.b !== 'pg') return q;
     if (x.st === 'jd') {
       const u = acak(4, x.key + '|jd');
       const baris = [0, 1, 2, 3].map(n => `<tr><td style="padding:2px 6px;width:50%;">${n + 1}. ${esc(pasang(x, n)[0])}</td><td style="padding:2px 6px;">${HURUF[n]}. ${esc(pasang(x, u[n])[1])}</td></tr>`).join('');
       return q + '<div style="font-size:10pt;"><i>Jodohkan pernyataan di kolom kiri dengan pasangan yang tepat di kolom kanan.</i></div><table style="width:100%;border-collapse:collapse;">' + baris + '</table>';
     }
-    const ops = x.o.map((o, i) => `<div class="op">${HURUF[i]}. ${esc(o)}</div>`).join('');
+    const ops = x.o.map((o, i) => `<div class="op">${HURUF[i]}. ${rapi(o)}</div>`).join('');
     // rapat = batas panjang pilihan (karakter): bila semua pilihan sependek itu, tampil 2 per baris (A B / C D) untuk menghemat kertas.
     const pendek = rapat && x.o.length > 2 && x.o.every(o => String(o || '').length <= rapat && String(o || '').indexOf('\n') < 0);
     return q + (x.st === 'pk' ? '<div style="font-size:10pt;"><i>(Pilih semua jawaban yang benar.)</i></div>' : '') + (pendek ? '<div class="opg">' + ops + '</div>' : ops);
@@ -198,22 +235,40 @@ h4{margin:12px 0 6px;font-size:11.5pt}
 <tr><td class="l">Indikator Soal</td><td colspan="3">${esc(x.i)}</td></tr>
 <tr><td colspan="4"><b>Soal:</b><br>${soalHtml(x)}</td></tr>
 <tr><td class="l">Kunci / Pedoman</td><td colspan="2">${kunciTeks(x)}</td><td><b>Skor:</b> ${skorB(x.b)}</td></tr></table>`;
-    return html('Kartu Soal', kopHtml(s, 'KARTU SOAL') + S.slots[s].map(info).join('') + ttdHtml('Kartu Soal', s, 'kartu'));
+    return html('Kartu Soal', wmHtml() + kopHtml(s, 'KARTU SOAL') + S.slots[s].map(info).join('') + ttdHtml('Kartu Soal', s, 'kartu'));
   }
+  // Kop naskah gaya lembar ujian madrasah: logo kiri, empat baris tengah, garis ganda di bawahnya.
+  function kopNaskah(s) {
+    const lg = LOGO ? `<img src="${LOGO}" alt="" onerror="this.style.visibility='hidden'">` : '';
+    const up = t => esc(String(t).toUpperCase());
+    return `<div class="kopn"><table class="kopt"><tr><td class="lg">${lg}</td><td class="tx"><div class="k1">KEMENTERIAN AGAMA REPUBLIK INDONESIA</div><div class="k2">${up(kopCfg().madrasah || 'MADRASAH')}</div><div class="k3">${up(labelAs(s))}</div><div class="k4">TAHUN PELAJARAN ${esc(S.ta)}</div></td><td class="lg"></td></tr></table></div>`;
+  }
+  const PETUNJUK = { pg: 'Pilihlah jawaban yang paling tepat dengan memberi tanda silang (X) pada huruf A, B, C, atau D!', is: 'Isilah titik-titik berikut dengan jawaban yang benar dan singkat!', ur: 'Jawablah pertanyaan-pertanyaan berikut dengan jelas dan benar!' };
+  const ROMAWI = ['I', 'II', 'III'];
   function dokNaskah(s, dua) {
-    let h = kopHtml(s, 'NASKAH SOAL') + `<table class="nk"><tr><td style="width:50%">Mata Pelajaran: ${esc(S.rec.mapel)}</td><td>Hari/Tanggal: ....................</td></tr><tr><td>Kelas: ${esc(S.rec.kelas)}</td><td>Nama: ....................</td></tr></table>`;
-    if (dua) h += '<div class="dua">';
-    BENTUK.forEach((b, bi) => {
+    const kls = String(S.rec.kelas || '').replace(/^\s*kelas\s+/i, '');
+    const dot = '<td class="dt">&nbsp;</td>';
+    const baris = (l1, v1, l2) => `<tr><td class="lb">${l1}</td><td class="cl">:</td><td${v1 === null ? ' class="dt"' : ''}>${v1 === null ? '&nbsp;' : v1}</td><td class="sp"></td><td class="lb">${l2}</td><td class="cl">:</td>${dot}</tr>`;
+    let h = wmHtml() + kopNaskah(s)
+      + `<table class="idn">${baris('Mata Pelajaran', `<span class="mpbox">${esc(S.rec.mapel)}</span>`, 'Hari/Tanggal')}${baris('Kelas', esc(kls), 'Waktu')}${baris('Nama', null, 'Nilai')}</table><div class="gar"></div>`
+      + `<table class="pu"><tr><td class="lb">PETUNJUK UMUM</td><td class="cl">:</td><td>1. Berdoalah terlebih dahulu sebelum mengerjakan soal.<br>2. Tulislah nama dan kelas pada tempat yang tersedia.<br>3. Periksa kembali jawabanmu sebelum naskah dikumpulkan.</td></tr></table><div class="gar"></div>`
+      + '<div class="pk">PETUNJUK KHUSUS :</div>';
+    let n = 0, buka = false;
+    BENTUK.forEach(b => {
       const l = S.slots[s].filter(x => x.b === b[0]); if (!l.length) return;
-      h += `<h4>${String.fromCharCode(65 + bi)}. ${b[1]}</h4>` + l.map(x => `<p>${x.no}. ${soalHtml(x, dua ? 24 : 48)}</p>`).join('');
+      const ins = `<div class="q pi"><div class="n">${ROMAWI[n++]}.</div><div class="b">${PETUNJUK[b[0]]}</div></div>`;
+      if (dua && n > 1 && !buka) { h += '<div class="dua">'; buka = true; }
+      h += ins;
+      if (dua && !buka) { h += '<div class="dua">'; buka = true; }
+      h += l.map(x => `<div class="q"><div class="n">${x.no}.</div><div class="b">${soalHtml(x)}</div></div>`).join('');
     });
-    if (dua) h += '</div>';
-    return html('Naskah Soal', h);
+    if (buka) h += '</div>';
+    return html('Naskah Soal', h, CSS_NASKAH);
   }
   function dokKunci(s) {
     const rows = S.slots[s].map(x => `<tr><td class="c">${x.no}</td><td>${bentukX(x)}</td><td>${kunciTeks(x)}</td><td class="c">${skorB(x.b)}</td></tr>`).join('');
     const per = BENTUK.map(b => { const n = S.slots[s].filter(x => x.b === b[0]).length; return n ? `${b[1]}: ${n} soal × ${skorB(b[0])} = ${n * skorB(b[0])}` : ''; }).filter(Boolean).join('; ');
-    return html('Kunci dan Penskoran', kopHtml(s, 'KUNCI JAWABAN DAN PEDOMAN PENSKORAN') + `<table class="kn"><thead><tr><th style="width:36px">No</th><th style="width:110px">Bentuk</th><th>Kunci Jawaban / Pedoman Penskoran</th><th style="width:48px">Skor</th></tr></thead><tbody>${rows}
+    return html('Kunci dan Penskoran', wmHtml() + kopHtml(s, 'KUNCI JAWABAN DAN PEDOMAN PENSKORAN') + `<table class="kn"><thead><tr><th style="width:36px">No</th><th style="width:110px">Bentuk</th><th>Kunci Jawaban / Pedoman Penskoran</th><th style="width:48px">Skor</th></tr></thead><tbody>${rows}
 <tr><td colspan="3" class="c"><b>Skor maksimal</b></td><td class="c"><b>${skorMaks(s)}</b></td></tr></tbody></table>
 <p style="font-size:10.5pt;margin-top:8px;">${esc(per)}.<br>${catatanSub(s)}Nilai akhir = (jumlah skor yang diperoleh ÷ skor maksimal ${skorMaks(s)}) × 100.</p>` + ttdHtml('Kunci Jawaban dan Penskoran', s, 'kunci'));
   }
@@ -236,7 +291,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     const info = `<table style="margin-bottom:6px;font-size:10.5pt"><tr><td style="width:34%">Mata Pelajaran: ${esc(S.rec.mapel)}</td><td style="width:22%">Kelas: ${esc(S.rec.kelas)}</td><td>Jumlah soal: ${sl.length} (soal bank belum diperiksa: ${draf})</td></tr></table>`;
     const ttd = `<div class="ttd" style="gap:10px"><div style="width:32%">Penelaah (sejawat / KKG),<div class="sp"></div><b>${t}</b></div><div style="width:32%">Guru Mata Pelajaran,<div class="sp"></div><b><u>${esc(S.rec.guruName || myName() || t)}</u></b></div><div style="width:32%">${esc(c.kota || t)}, ${R().fmtTgl(new Date())}<br>Mengetahui, Kepala ${esc(c.madrasah || 'Madrasah')}<div class="sp"></div><b>${esc(c.kepala || t)}</b></div></div>`;
     return `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Lembar Telaah Soal ${esc(S.rec.mapel)} Kelas ${esc(S.rec.kelas)}</title><style>${CSS_TEL}</style></head><body>` +
-      kopHtml(s, 'LEMBAR TELAAH SOAL') + info +
+      wmHtml() + kopHtml(s, 'LEMBAR TELAAH SOAL') + info +
       `<table class="tl"><thead><tr><th style="width:26px">No</th><th style="width:62px">Bentuk / Level</th><th>Soal</th><th style="width:26%">Kunci / Pedoman</th><th style="width:70px">Sumber</th><th style="width:78px">Hasil Telaah</th><th style="width:15%">Catatan</th></tr></thead><tbody>${rows}</tbody></table>` + ttd + `</body></html>`;
   }
   function cekCetak(s) {
