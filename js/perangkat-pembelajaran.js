@@ -50,12 +50,25 @@
       : `<div style="${muted}margin-bottom:8px;">Belum bisa disetujui: guru belum mengisi tautan atau membuat dokumen.</div>`;
     return `<div style="${muted}margin-bottom:8px;">Dokumen ini perlu persetujuan Kepala sebelum cetakannya memuat QR tanda tangan Kepala.</div>`;
   }
+  // ---------- Penanda "sudah dilihat" (Kepala & Admin) ----------
+  // Disimpan di docs/<jenis>/dilihat/<kepala|admin> = { oleh, peran, at }. Hilang otomatis bila guru menyimpan ulang tautannya.
+  const peranKey = () => (typeof v4IsHead === 'function' && v4IsHead()) ? 'kepala' : 'admin';
+  const dilihatAda = x => !!(x && x.dilihat && (x.dilihat.kepala || x.dilihat.admin));
+  function dilihatHtml(id, rec, jk, x) {
+    if (!(x.url || genAda(jk, id))) return '';
+    const dl = x.dilihat || {}, pk = peranKey();
+    const info = ['kepala', 'admin'].filter(k => dl[k]).map(k => (k === 'kepala' ? 'Kepala' : 'Admin') + ' (' + esc(dl[k].oleh || '-') + ', ' + esc(tglPendek(dl[k].at)) + ')').join(' · ');
+    const sudah = !!dl[pk];
+    return `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;font-size:12px;color:#1e3a8a;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span>👁 ${info ? 'Sudah dilihat: ' + info : 'Belum dilihat Kepala/Admin'}</span>
+      <button class="btn ${sudah ? 'btn-soft' : 'btn-success'}" style="padding:4px 10px;font-size:11px;" data-act="${sudah ? 'batal-dilihat' : 'dilihat'}" data-id="${esc(id)}" data-j="${jk}">${sudah ? 'Batalkan tanda saya' : '👁 Tandai sudah saya lihat'}</button></div>`;
+  }
   const SEM_LABEL = { ganjil: 'Ganjil', genap: 'Genap' };
 
   function semDefault() { const m = new Date().getMonth() + 1; return (m >= 7 && m <= 12) ? 'ganjil' : 'genap'; }
 
   const S = { sem: semDefault(), rows: {}, kaldik: null, jadwal: null, siap: false, err: null, epoch: 0, view: 'saya',
-              edit: null, tambah: false, filterGuru: '', filterStatus: '', filterKelas: '', sortBy: '', waBuka: false, waSudah: {}, tenggatEdit: false, setujuBuka: false, busy: false, kaldikEdit: false };
+              edit: null, tambah: false, filterGuru: '', filterStatus: '', filterKelas: '', sortBy: '', waBuka: false, waSudah: {}, tenggatEdit: false, setujuBuka: false, busy: false, kaldikEdit: false, buka: {}, bukaNow: {}, semuaBuka: false };
 
   // ---------- Pembantu murni ----------
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -200,7 +213,24 @@
     if (S.err) h += `<div style="padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:13px;">⚠️ Gagal memuat: ${esc(S.err)} <button class="btn btn-soft" style="padding:4px 10px;font-size:12px;margin-left:6px;" data-act="muat">🔄 Coba lagi</button></div>`;
     else if (!S.siap) h += `<div style="padding:12px;background:#f9fafb;border-radius:8px;${muted}">⏳ Memuat data perangkat pembelajaran...</div>`;
     else h += kaldikHtml() + (S.view === 'rekap' ? rekapHtml() : sayaHtml());
+    // Simpan posisi gulir sebelum isi diganti: tanpa ini tabel kembali ke baris teratas setiap kali tombol ditekan,
+    // sehingga yang terbuka/terubah terasa "meleset" dari kotak yang diklik.
+    const host = el.closest ? (el.closest('#mainContent') || null) : null;
+    const wrapLama = el.querySelector('.pp-wrap');
+    const pos = S.posOk ? { w: window.pageYOffset || 0, h: host ? host.scrollTop : 0, t: wrapLama ? wrapLama.scrollTop : 0, l: wrapLama ? wrapLama.scrollLeft : 0 } : null;
     el.innerHTML = h;
+    if (pos) {
+      const wrapBaru = el.querySelector('.pp-wrap');
+      if (wrapBaru) { wrapBaru.scrollTop = pos.t; wrapBaru.scrollLeft = pos.l; }
+      if (host) host.scrollTop = pos.h;
+      if (pos.w) window.scrollTo(0, pos.w);
+    }
+    if (S.fokusEditor) {
+      S.fokusEditor = false;
+      const ed = el.querySelector('.pp-edrow, #ppUrl, #ppRevisi');
+      if (ed && ed.scrollIntoView) { try { ed.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { ed.scrollIntoView(); } }
+    }
+    S.posOk = !!(S.siap && !S.err); // hanya pulihkan posisi bila render sebelumnya sudah menampilkan data penuh
   }
 
   function headHtml() {
@@ -295,7 +325,7 @@
     const rev = x.revisi ? `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">⚠️ Catatan revisi${x.revisiBy ? ' dari ' + esc(x.revisiBy) : ''}: ${esc(x.revisi)}</div>` : '';
     if (adm) return `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;">
       <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)} · ${esc(rec.guruName || '')}</div>
-      ${setujuHtml(id, rec, jk, j, x, true)}
+      ${dilihatHtml(id, rec, jk, x)}${setujuHtml(id, rec, jk, j, x, true)}
       ${x.url ? `<div style="font-size:13px;margin-bottom:8px;"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a> · ${isFinal(x) ? 'Final' : 'Draf'}</div>
       <input id="ppRevisi" class="field" maxlength="200" placeholder="Catatan revisi untuk guru (kosongkan bila sudah sesuai)" value="${esc(x.revisi || '')}">
       <div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="simpan-revisi" data-id="${esc(id)}" data-j="${jk}">💾 Simpan catatan</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tutup">Tutup</button></div>`
@@ -396,12 +426,11 @@
     const optStatus = stOpt.map(o => `<option value="${o[0]}" ${S.filterStatus === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
     const optUrut = [['', 'Urut: nama guru'], ['asc', 'Urut: paling belum lengkap'], ['desc', 'Urut: paling lengkap']].map(o => `<option value="${o[0]}" ${S.sortBy === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
     const adaFilter = !!(S.filterGuru || S.filterKelas || S.filterStatus);
-    const th = JENIS.map(j => `<th class="pp-c">${esc(j.n)}</th>`).join('');
+    const th = JENIS.map(j => `<th class="pp-c" title="${esc(j.full || j.n)}">${esc(j.k === 'kunci' ? 'Kunci' : j.n)}</th>`).join('');
+    const cols = `<colgroup><col style="width:140px"><col style="width:170px"><col style="width:64px">${JENIS.map(() => '<col style="width:72px">').join('')}<col style="width:104px"></colgroup>`;
     const tiRekap = tenggatInfo(), telat = !!tiRekap && tiRekap.sisa < 0;
-    let prevGuru = null;
-    let body = ids.map(id => {
+    const barisHtml = (id, awal) => {
       const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
-      const awal = r.guruKey !== prevGuru; prevGuru = r.guruKey;
       const tds = JENIS.map(j => {
         const x = d[j.k], ada = !!(x && x.url), gen = !ada && genAda(j.k, id);
         let kls, ico, ttl;
@@ -410,31 +439,71 @@
         else if (ada) { kls = 'pp-draf'; ico = '✎'; ttl = 'Draf'; }
         else if (gen) { kls = 'pp-gen'; ico = '🛠'; ttl = 'Dibuat di aplikasi'; }
         else { kls = 'pp-kosong'; ico = '·'; ttl = 'Belum diisi'; }
-        const on = S.edit && S.edit.id === id && S.edit.j === j.k ? ' pp-on' : '';
+        const on = (S.edit && S.edit.id === id && S.edit.j === j.k ? ' pp-on' : '') + (isAdm() && dilihatAda(x) ? ' pp-dl' : '');
+        if (isAdm() && dilihatAda(x)) ttl += ' · sudah dilihat';
         return `<td class="pp-c"><button type="button" class="pp-b ${kls}${on}" title="${esc(j.n)}: ${ttl}" aria-label="${esc(j.n)}: ${ttl}" data-act="edit" data-id="${esc(id)}" data-j="${j.k}">${ico}</button></td>`;
       }).join('');
-      const panel = (S.edit && S.edit.id === id) ? `<tr><td colspan="${JENIS.length + 4}">${editorHtml(id, r, S.edit.j)}</td></tr>` : '';
+      const panel = (S.edit && S.edit.id === id) ? `<tr class="pp-edrow"><td colspan="${JENIS.length + 4}" class="pp-edcell"><div class="pp-edin">${editorHtml(id, r, S.edit.j)}</div></td></tr>` : '';
       const pr = Math.round(c.final * 100 / c.total);
-      return `<tr class="${awal ? 'pp-awal' : ''}"><td class="pp-guru">${awal ? esc(r.guruName) : ''}</td><td class="pp-mapel">${esc(r.mapel)}</td><td class="pp-kls">${esc(r.kelas)}</td>${tds}<td class="pp-fcell"><div class="pp-bar"><span style="width:${pr}%"></span></div><b>${c.final}/${c.total}</b>${telat && c.final < c.total ? '<div style="font-size:11px;color:#b91c1c;font-weight:700;">Terlambat</div>' : ''}</td></tr>${panel}`;
+      return `<tr class="${awal ? 'pp-awal' : 'pp-anak'}"><td class="pp-guru" title="${esc(r.guruName || '')}">${awal ? esc(r.guruName) : ''}</td><td class="pp-mapel" title="${esc(r.mapel)}">${esc(r.mapel)}</td><td class="pp-kls">${esc(r.kelas)}</td>${tds}<td class="pp-fcell"><div class="pp-bar"><span style="width:${pr}%"></span></div><b>${c.final}/${c.total}</b>${telat && c.final < c.total ? '<div style="font-size:11px;color:#b91c1c;font-weight:700;">Terlambat</div>' : ''}</td></tr>${panel}`;
+    };
+    // ---- Satu baris ringkas per guru (bawaan tertutup); klik untuk membuka rincian per mapel/kelas ----
+    const grup = [], idx = {};
+    ids.forEach(id => {
+      const k = S.rows[id].guruKey;
+      if (!(k in idx)) { idx[k] = grup.length; grup.push({ k: k, nama: S.rows[id].guruName || k, ids: [], f: 0, t: 0 }); }
+      const gp = grup[idx[k]]; gp.ids.push(id);
+      const c = hitung(S.rows[id], id); gp.f += c.final; gp.t += c.total;
+    });
+    if (S.sortBy) grup.sort((a, b) => { const x = a.t ? a.f / a.t : 0, y = b.t ? b.f / b.t : 0; return S.sortBy === 'asc' ? x - y : y - x; });
+    const satuGuru = grup.length === 1;
+    S.bukaNow = {};
+    let body = grup.map(gp => {
+      const dis = S.buka[gp.k];
+      const buka = (S.edit && gp.ids.indexOf(S.edit.id) >= 0) || (dis !== undefined ? !!dis : (!!S.filterGuru || satuGuru));
+      S.bukaNow[gp.k] = buka;
+      const n = gp.ids.length;
+      const sel = JENIS.map(j => {
+        let fin = 0, ada = 0, rev = 0, gen = 0;
+        gp.ids.forEach(id => { const x = (S.rows[id].docs || {})[j.k]; if (x && x.url) { ada++; if (isFinal(x)) fin++; if (x.revisi) rev++; } else if (genAda(j.k, id)) gen++; });
+        let kls, ico;
+        if (rev) { kls = 'pp-rev'; ico = '⚠️'; } else if (fin === n) { kls = 'pp-fin'; ico = '✓'; } else if (ada) { kls = 'pp-draf'; ico = '✎'; } else if (gen) { kls = 'pp-gen'; ico = '🛠'; } else { kls = 'pp-kosong'; ico = '·'; }
+        const ttl = j.n + ': ' + fin + '/' + n + ' final' + (rev ? ', ' + rev + ' ada revisi' : '') + (gen ? ', ' + gen + ' dibuat di aplikasi' : '') + ' (klik untuk ' + (buka ? 'menutup' : 'membuka') + ' rincian)';
+        return `<td class="pp-c"><button type="button" class="pp-b pp-sm ${kls}" title="${esc(ttl)}" aria-label="${esc(ttl)}" data-act="grp" data-id="${esc(gp.k)}">${ico}${n > 1 ? `<small>${fin}/${n}</small>` : ''}</button></td>`;
+      }).join('');
+      const pr = gp.t ? Math.round(gp.f * 100 / gp.t) : 0;
+      const head = `<tr class="pp-awal pp-grp"><td class="pp-guru" title="${esc(gp.nama)}"><button type="button" class="pp-tg" data-act="grp" data-id="${esc(gp.k)}" aria-expanded="${buka}">${buka ? '▾' : '▸'} ${esc(gp.nama)}</button></td><td class="pp-mapel">${n} mapel/kelas</td><td class="pp-kls"></td>${sel}<td class="pp-fcell"><div class="pp-bar"><span style="width:${pr}%"></span></div><b>${gp.f}/${gp.t}</b></td></tr>`;
+      return head + (buka ? gp.ids.map(id => barisHtml(id, false)).join('') : '');
     }).join('');
+    S.semuaBuka = grup.length > 0 && grup.every(gp => S.bukaNow[gp.k]);
     if (!ids.length) body = `<tr><td colspan="${JENIS.length + 4}" style="text-align:center;padding:16px;${muted}">${adaFilter ? 'Tidak ada data yang cocok dengan filter.' : 'Belum ada data perangkat pembelajaran untuk semester ini.'}</td></tr>`;
     const bl = belumIsi();
     const css = `<style>
 .pp-rekap{font-size:14px}
 .pp-wrap{overflow:auto;max-height:70vh;border:1px solid #d9e2de;border-radius:10px;background:#fff}
-.pp-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;color:#1f2937}
-.pp-tbl thead th{position:sticky;top:0;z-index:3;background:#e8f1ed;color:#14532d;font-size:13px;font-weight:700;padding:12px 8px;text-align:left;border-bottom:2px solid #b7cfc4;white-space:nowrap}
+.pp-tbl{width:100%;min-width:1054px;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:14px;color:#1f2937}
+.pp-tbl thead th{position:sticky;top:0;z-index:3;background:#e8f1ed;color:#14532d;font-size:13px;font-weight:700;padding:10px 6px;text-align:left;border-bottom:2px solid #b7cfc4;line-height:1.2}
+.pp-tbl thead th.pp-c{text-align:center}
 .pp-tbl th.pp-c,.pp-tbl td.pp-c{text-align:center;padding:6px 4px}
 .pp-tbl td{padding:8px 10px;border-bottom:1px solid #edf2f0;vertical-align:middle}
 .pp-tbl tbody tr:not(.pp-awal-x):hover td{background:#f1f8f4}
 .pp-tbl tr.pp-awal td{border-top:2px solid #cfe0d8}
-.pp-guru{font-weight:700;white-space:nowrap;color:#111827;min-width:160px;max-width:160px;overflow:hidden;text-overflow:ellipsis;position:sticky;left:0;z-index:2;background:#fff}
-.pp-mapel{min-width:180px;max-width:180px;position:sticky;left:160px;z-index:2;background:#fff;box-shadow:2px 0 0 #d9e2de}
+.pp-guru{font-weight:700;white-space:nowrap;color:#111827;overflow:hidden;text-overflow:ellipsis;position:sticky;left:0;z-index:2;background:#fff}
+.pp-mapel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:sticky;left:140px;z-index:2;background:#fff;box-shadow:2px 0 0 #d9e2de}
 .pp-tbl thead th:nth-child(1){position:sticky;left:0;z-index:5}
-.pp-tbl thead th:nth-child(2){position:sticky;left:160px;z-index:5}
+.pp-tbl thead th:nth-child(2){position:sticky;left:140px;z-index:5}
 @media (max-width:700px){.pp-guru,.pp-mapel,.pp-tbl thead th:nth-child(1),.pp-tbl thead th:nth-child(2){position:static;box-shadow:none}.pp-tbl thead th{position:sticky}}
 .pp-kls{white-space:nowrap;color:#374151}
-.pp-b{border:0;cursor:pointer;width:36px;height:36px;border-radius:10px;font-size:16px;font-weight:700;line-height:1}
+.pp-b{border:0;cursor:pointer;width:38px;height:38px;border-radius:10px;font-size:16px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;vertical-align:middle;touch-action:manipulation}
+.pp-b:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
+.pp-tbl td.pp-c{height:46px}
+.pp-sm{flex-direction:column;gap:1px}.pp-b small{display:block;font-size:9px;font-weight:700;line-height:1}
+.pp-tg{border:0;background:transparent;cursor:pointer;font:inherit;font-weight:700;color:inherit;text-align:left;width:100%;padding:6px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-grp td,.pp-grp td.pp-guru,.pp-grp td.pp-mapel{background:#f4f9f6}.pp-anak td.pp-mapel{padding-left:24px}.pp-grp td.pp-mapel{color:#4b5563;font-size:13px}
+.pp-edcell{padding:0!important;background:#f9fafb}.pp-edin{position:sticky;left:0;width:min(760px,calc(100vw - 64px));padding:6px 10px 10px;box-sizing:border-box}
+.pp-tools{margin-top:10px;display:flex;flex-direction:column;gap:8px}.pp-filters,.pp-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pp-filters .field{width:auto;flex:0 1 auto;min-width:130px;max-width:220px;font-size:14px}
+.pp-actions .btn{padding:8px 14px;font-size:13px}.pp-sum{font-size:14px;margin-right:auto}
 .pp-fin{background:#dcfce7;color:#166534}
 .pp-draf{background:#fef3c7;color:#92400e}
 .pp-gen{background:#dbeafe;color:#1e40af}
@@ -442,29 +511,35 @@
 .pp-kosong{background:transparent;color:#c3ccc8;font-size:22px}
 .pp-kosong:hover{background:#f3f4f6}
 .pp-on{outline:2px solid #2563eb}
+.pp-dl{position:relative}.pp-dl::after{content:'👁';position:absolute;top:-5px;right:-3px;font-size:10px;line-height:1}
 .pp-fcell{min-width:90px;white-space:nowrap;font-size:13px}
 .pp-bar{height:6px;border-radius:99px;background:#e5e7eb;margin-bottom:4px;overflow:hidden}
 .pp-bar span{display:block;height:100%;background:#16a34a}
-.pp-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#374151;margin:10px 0}
+.pp-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#374151;margin:10px 0 4px}
 .pp-leg i{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;font-style:normal;font-weight:700;margin-right:5px;vertical-align:middle}
-body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .pp-tbl{color:#e5e7eb}body.dark-mode .pp-tbl thead th{background:#1f3a2e;color:#d1fae5;border-color:#2f5846}body.dark-mode .pp-tbl td{border-color:#1f2937}body.dark-mode .pp-guru{color:#f9fafb;background:#111827}body.dark-mode .pp-mapel{background:#111827;box-shadow:2px 0 0 #374151}body.dark-mode .pp-leg{color:#d1d5db}body.dark-mode .pp-tbl tr.pp-awal td{border-top-color:#374151}body.dark-mode .pp-tbl tbody tr:hover td{background:#1c2b3a}body.dark-mode .pp-bar{background:#374151}
+body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .pp-tbl{color:#e5e7eb}body.dark-mode .pp-tbl thead th{background:#1f3a2e;color:#d1fae5;border-color:#2f5846}body.dark-mode .pp-tbl td{border-color:#1f2937}body.dark-mode .pp-guru{color:#f9fafb;background:#111827}body.dark-mode .pp-mapel{background:#111827;box-shadow:2px 0 0 #374151}body.dark-mode .pp-leg{color:#d1d5db}body.dark-mode .pp-grp td,body.dark-mode .pp-grp td.pp-guru,body.dark-mode .pp-grp td.pp-mapel{background:#16231d}body.dark-mode .pp-grp td.pp-mapel{color:#9ca3af}body.dark-mode .pp-edcell{background:#0f172a}body.dark-mode .pp-tbl tr.pp-awal td{border-top-color:#374151}body.dark-mode .pp-tbl tbody tr:hover td{background:#1c2b3a}body.dark-mode .pp-bar{background:#374151}
 </style>`;
-    return `${css}<div class="pp-rekap"><div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-      <select class="field" style="max-width:220px;font-size:14px;" data-act="filter-guru">${opt}</select>
-      <select class="field" style="max-width:150px;font-size:14px;" data-act="filter-kelas">${optKelas}</select>
-      <select class="field" style="max-width:200px;font-size:14px;" data-act="filter-status">${optStatus}</select>
-      <select class="field" style="max-width:210px;font-size:14px;" data-act="urut">${optUrut}</select>
-      ${adaFilter ? '<button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="filter-reset">✖ Reset filter</button>' : ''}
-      <span style="font-size:14px;">Kelengkapan final: <b>${pct}%</b> (${fin}/${tot})</span>
-      <button class="btn ${S.setujuBuka ? 'btn-success' : 'btn-soft'}" style="padding:8px 14px;font-size:13px;" data-act="setuju-buka">✅ Setujui massal</button>
-      <button class="btn ${S.waBuka ? 'btn-success' : 'btn-soft'}" style="padding:8px 14px;font-size:13px;" data-act="wa-buka">💬 Pengingat WA</button>
-      <button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="pengingat" title="Kirim notifikasi ke akun guru di dalam aplikasi">🔔 Notifikasi aplikasi</button>
-      <button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="xlsx">📊 Unduh Excel</button>
-      <button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="csv">⬇️ Unduh CSV</button></div>
+    return `${css}<div class="pp-rekap"><div class="pp-tools">
+      <div class="pp-filters">
+        <select class="field" data-act="filter-guru">${opt}</select>
+        <select class="field" data-act="filter-kelas">${optKelas}</select>
+        <select class="field" data-act="filter-status">${optStatus}</select>
+        <select class="field" data-act="urut">${optUrut}</select>
+        ${adaFilter ? '<button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="filter-reset">✖ Reset filter</button>' : ''}
+        ${grup.length > 1 ? `<button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="grp-semua">${S.semuaBuka ? '▾ Tutup semua rincian' : '▸ Buka semua rincian'}</button>` : ''}
+      </div>
+      <div class="pp-actions">
+        <span class="pp-sum">Kelengkapan final: <b>${pct}%</b> (${fin}/${tot})</span>
+        <button class="btn ${S.setujuBuka ? 'btn-success' : 'btn-soft'}" data-act="setuju-buka">✅ Setujui massal</button>
+        <button class="btn ${S.waBuka ? 'btn-success' : 'btn-soft'}" data-act="wa-buka">💬 Pengingat WA</button>
+        <button class="btn btn-soft" data-act="pengingat" title="Kirim notifikasi ke akun guru di dalam aplikasi">🔔 Notifikasi aplikasi</button>
+        <button class="btn btn-soft" data-act="xlsx">📊 Unduh Excel</button>
+        <button class="btn btn-soft" data-act="csv">⬇️ Unduh CSV</button>
+      </div></div>
       ${setujuPanel()}${waPanel()}
       <div class="pp-leg"><span><i class="pp-fin">✓</i>Final</span><span><i class="pp-draf">✎</i>Draf</span><span><i class="pp-gen">🛠</i>Dibuat di aplikasi</span><span><i class="pp-rev">⚠️</i>Ada catatan revisi</span><span><i class="pp-kosong" style="font-size:18px">·</i>Belum diisi</span></div>
       <div style="${muted}margin:0 0 8px;font-size:13px;">Klik kotak status untuk membuka tautan atau memberi catatan.</div>
-      <div class="pp-wrap"><table class="pp-tbl"><thead><tr><th>Guru</th><th>Mapel</th><th>Kelas</th>${th}<th>Final</th></tr></thead><tbody>${body}</tbody></table></div></div>
+      <div class="pp-wrap"><table class="pp-tbl">${cols}<thead><tr><th>Guru</th><th>Mapel</th><th>Kelas</th>${th}<th>Final</th></tr></thead><tbody>${body}</tbody></table></div></div>
       ${bl.length ? `<div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:12px;color:#92400e;">Belum ada data dari: ${bl.map(esc).join(', ')}</div>` : ''}`;
   }
 
@@ -496,7 +571,12 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     const items = [];
     lihatIds().forEach(id => {
       const r = S.rows[id]; if (!r || r.guruKey !== gk || r.guruKey === myId()) return;
-      JENIS.forEach(j => { const x = (r.docs || {})[j.k]; if (j.setuju && x && x.url && x.status === 'final' && !x.setuju) items.push({ id: id, jk: j.k, n: j.n, r: r }); });
+      JENIS.forEach(j => {
+        const x = (r.docs || {})[j.k] || {};
+        if (!j.setuju || x.setuju) return;
+        // Hanya dokumen bertautan yang ditandai Final oleh guru. Dokumen buatan aplikasi (tanpa tautan) tidak ikut persetujuan massal.
+        if (x.url && x.status === 'final') items.push({ id: id, jk: j.k, n: j.n, r: r, dil: dilihatAda(x) });
+      });
     });
     return items;
   }
@@ -508,20 +588,31 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
       .sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id'));
     const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1f2937;';
     if (!l.length) return `<div style="${box}font-size:14px;">Tidak ada dokumen yang menunggu persetujuan pada daftar ini. Yang bisa disetujui massal hanya dokumen berstatus <b>Final</b> dari guru yang tautannya sudah diisi.</div>`;
+    let total = 0, dilihat = 0;
+    l.forEach(o => { total += o.it.length; dilihat += o.it.filter(x => x.dil).length; });
     const rows = l.map(o => {
       const per = {}; o.it.forEach(x => { per[x.n] = (per[x.n] || 0) + 1; });
       const ket = Object.keys(per).map(n => n + (per[n] > 1 ? ' ×' + per[n] : '')).join(', ');
-      return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid #dbeafe;"><div style="font-size:14px;"><b>${esc(o.nama)}</b><div style="${muted}font-size:13px;">${esc(ket)}</div></div><button class="btn btn-success" style="padding:8px 14px;font-size:13px;" data-act="setuju-guru" data-id="${esc(o.key)}">✅ Setujui ${o.it.length} dokumen</button></div>`;
+      const dl = o.it.filter(x => x.dil).length;
+      return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid #dbeafe;"><div style="font-size:14px;"><b>${esc(o.nama)}</b><div style="${muted}font-size:13px;">${esc(ket)} · 👁 ${dl}/${o.it.length} sudah dilihat</div></div><button class="btn btn-success" style="padding:8px 14px;font-size:13px;" data-act="setuju-guru" data-id="${esc(o.key)}">✅ Setujui ${o.it.length} dokumen</button></div>`;
     }).join('');
-    return `<div style="${box}"><div style="font-size:14px;margin-bottom:4px;"><b>Persetujuan massal (${l.length} guru)</b></div><div style="${muted}font-size:13px;margin-bottom:6px;">Hanya dokumen berstatus Final dengan tautan terisi. Tiap tombol meminta konfirmasi dulu. Persetujuan membuat cetakan guru memuat QR tanda tangan Kepala.</div>${rows}</div>`;
+    const semua = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px;">
+      <button class="btn btn-success" style="padding:8px 14px;font-size:13px;" data-act="setuju-dilihat" ${dilihat ? '' : 'disabled'}>👁 Setujui yang sudah dilihat (${dilihat})</button>
+      <button class="btn btn-soft" style="padding:8px 14px;font-size:13px;" data-act="setuju-semua">✅ Setujui semua (${total})</button></div>`;
+    return `<div style="${box}"><div style="font-size:14px;margin-bottom:4px;"><b>Persetujuan massal (${l.length} guru, ${total} dokumen)</b></div><div style="${muted}font-size:13px;margin-bottom:6px;">Tiap tombol meminta konfirmasi dulu. Tandai dokumen "sudah dilihat" lewat kotak status di tabel. Persetujuan membuat cetakan guru memuat QR tanda tangan Kepala.</div>${semua}${rows}</div>`;
   }
-  function setujuMassal(gk) {
+  // gk = kunci guru, atau '*' untuk semua guru pada daftar yang tampil; hanyaDilihat = hanya dokumen yang sudah ditandai dilihat
+  function setujuMassal(gk, hanyaDilihat) {
     if (!isAdm()) return;
-    if (gk === myId()) return say('Persetujuan tidak boleh diberikan pada dokumen sendiri.', true);
-    const items = setujuKandidat(gk);
+    if (gk !== '*' && gk === myId()) return say('Persetujuan tidak boleh diberikan pada dokumen sendiri.', true);
+    let items = [];
+    if (gk === '*') { const seen = {}; lihatIds().forEach(id => { const k = S.rows[id] && S.rows[id].guruKey; if (k && !seen[k]) { seen[k] = 1; items = items.concat(setujuKandidat(k)); } }); }
+    else items = setujuKandidat(gk);
+    if (hanyaDilihat) items = items.filter(x => x.dil);
     if (!items.length) return say('Tidak ada dokumen yang bisa disetujui.', true);
-    const nama = items[0].r.guruName || gk;
-    const ket = items.length + ' dokumen milik ' + nama + ':\n' + items.map(x => '- ' + x.n + ' ' + x.r.mapel + ' ' + x.r.kelas).join('\n');
+    const nGuru = new Set(items.map(x => x.r.guruKey)).size;
+    const daftar = items.slice(0, 15).map(x => '- ' + x.n + ' ' + x.r.mapel + ' ' + x.r.kelas + (gk === '*' ? ' (' + (x.r.guruName || x.r.guruKey) + ')' : '')).join('\n') + (items.length > 15 ? '\n...dan ' + (items.length - 15) + ' dokumen lain' : '');
+    const ket = items.length + ' dokumen' + (gk === '*' ? ' dari ' + nGuru + ' guru' : ' milik ' + (items[0].r.guruName || gk)) + (hanyaDilihat ? ' (hanya yang sudah dilihat)' : '') + ':\n' + daftar;
     const kpNama = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || '';
     const kepsek = typeof v4IsHead === 'function' && v4IsHead();
     let atasNama = kpNama || myName();
@@ -533,10 +624,25 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     }
     const now = new Date().toISOString(), upd = {};
     items.forEach(x => { upd[x.id + '/docs/' + x.jk + '/setuju'] = { oleh: String(atasNama).slice(0, 100), peran: kepsek ? 'Kepala' : 'Admin', at: now }; });
-    tulis('perangkat_v4', upd, () => {
+    const mulai = () => tulis('perangkat_v4', upd, () => {
       items.forEach(x => { const d = (S.rows[x.id].docs = S.rows[x.id].docs || {}); d[x.jk] = d[x.jk] || {}; d[x.jk].setuju = upd[x.id + '/docs/' + x.jk + '/setuju']; });
       say('✅ ' + items.length + ' dokumen disetujui');
-    }, 'APPROVE_PERANGKAT_BULK', taSlug() + '_' + S.sem + '_' + gk);
+    }, 'APPROVE_PERANGKAT_BULK', taSlug() + '_' + S.sem + '_' + (gk === '*' ? 'semua' : gk));
+    mulai();
+  }
+  function tandaiDilihat(id, jk, batal) {
+    const rec = S.rows[id]; if (!rec || !isAdm()) return;
+    const x = (rec.docs || {})[jk] || {};
+    if (!batal && !(x.url || genAda(jk, id))) return say('Dokumen belum ada.', true);
+    const pk = peranKey(), now = new Date().toISOString();
+    const nilai = batal ? null : { oleh: String(myName() || (pk === 'kepala' ? 'Kepala' : 'Admin')).slice(0, 100), at: now };
+    const upd = {}; upd['docs/' + jk + '/dilihat/' + pk] = nilai;
+    tulis('perangkat_v4/' + id, upd, () => {
+      rec.docs = rec.docs || {}; const d = (rec.docs[jk] = rec.docs[jk] || {}); d.dilihat = Object.assign({}, d.dilihat || {});
+      if (batal) delete d.dilihat[pk]; else d.dilihat[pk] = nilai;
+      if (!Object.keys(d.dilihat).length) delete d.dilihat;
+      say(batal ? 'Tanda dilihat dibatalkan' : '👁 Ditandai sudah dilihat');
+    }, batal ? 'UNSEEN_PERANGKAT_DOC' : 'SEEN_PERANGKAT_DOC', id);
   }
 
   // ---------- Pengingat lewat WhatsApp (wa.me, sama seperti Infaq: Admin tinggal menekan kirim di WhatsApp-nya) ----------
@@ -686,7 +792,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     if (!urlOk(url)) return say('Isi tautan yang valid, diawali https://', true);
     const now = new Date().toISOString(), u = url.trim(), b = 'docs/' + jk + '/';
     const upd = {}; upd[b + 'url'] = u; upd[b + 'status'] = st; upd[b + 'at'] = now; upd[b + 'by'] = myName();
-    upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd.updatedAt = now; // guru menyimpan ulang = catatan revisi dianggap ditindaklanjuti
+    upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd[b + 'dilihat'] = null; upd.updatedAt = now; // guru menyimpan ulang = catatan revisi dianggap ditindaklanjuti
     tulis('perangkat_v4/' + id, upd, () => {
       rec.docs = rec.docs || {}; rec.docs[jk] = { url: u, status: st, at: now, by: myName() }; rec.updatedAt = now; S.edit = null; say('✅ Tersimpan');
     }, 'SAVE_PERANGKAT_DOC', id);
@@ -827,7 +933,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     switch (a) {
       case 'muat': return muat();
       case 'view': S.view = t.getAttribute('data-v') === 'rekap' ? 'rekap' : 'saya'; S.edit = null; return render();
-      case 'edit': S.edit = (S.edit && S.edit.id === id && S.edit.j === j) ? null : { id: id, j: j }; return render();
+      case 'edit': S.edit = (S.edit && S.edit.id === id && S.edit.j === j) ? null : { id: id, j: j }; S.fokusEditor = !!S.edit; return render();
       case 'tutup': S.edit = null; return render();
       case 'tambah': S.tambah = true; return render();
       case 'tambah-batal': S.tambah = false; return render();
@@ -856,13 +962,19 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
                   return window.soalBuka(id, S.rows[id], S.sem, taText());
       case 'rpe-kaldik': if (typeof window.rpeKaldikBuka !== 'function') return say('Modul RPE belum dimuat (js/perangkat-rpe.js).', true);
                   return window.rpeKaldikBuka(S.sem, taText());
-      case 'filter-reset': S.filterGuru = ''; S.filterKelas = ''; S.filterStatus = ''; S.edit = null; return render();
+      case 'filter-reset': S.filterGuru = ''; S.filterKelas = ''; S.filterStatus = ''; S.buka = {}; S.edit = null; return render();
       case 'tenggat-edit': S.tenggatEdit = true; return render();
       case 'tenggat-batal': S.tenggatEdit = false; return render();
       case 'tenggat-simpan': return simpanTenggat(false);
       case 'tenggat-hapus': return simpanTenggat(true);
+      case 'grp': S.buka[id] = !S.bukaNow[id]; S.edit = null; return render();
+      case 'grp-semua': { const ke = !S.semuaBuka; Object.keys(S.bukaNow).forEach(k => { S.buka[k] = ke; }); S.edit = null; return render(); }
       case 'setuju-buka': S.setujuBuka = !S.setujuBuka; S.edit = null; return render();
-      case 'setuju-guru': return setujuMassal(id);
+      case 'setuju-guru': return setujuMassal(id, false);
+      case 'setuju-semua': return setujuMassal('*', false);
+      case 'setuju-dilihat': return setujuMassal('*', true);
+      case 'dilihat': return tandaiDilihat(id, j, false);
+      case 'batal-dilihat': return tandaiDilihat(id, j, true);
       case 'xlsx': return unduhXlsx();
       case 'wa-buka': S.waBuka = !S.waBuka; S.edit = null; return render();
       case 'wa-guru': return kirimWaGuru(id);
@@ -874,7 +986,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     const t = e.target; if (!t || !t.getAttribute) return;
     const a = t.getAttribute('data-act');
     if (a === 'sem') { S.sem = t.value === 'genap' ? 'genap' : 'ganjil'; S.filterGuru = ''; S.waSudah = {}; muat(); }
-    else if (a === 'filter-guru') { S.filterGuru = t.value; S.edit = null; render(); }
+    else if (a === 'filter-guru') { S.filterGuru = t.value; S.buka = {}; S.edit = null; render(); }
     else if (a === 'filter-kelas') { S.filterKelas = t.value; S.edit = null; render(); }
     else if (a === 'filter-status') { S.filterStatus = t.value; S.edit = null; render(); }
     else if (a === 'urut') { S.sortBy = t.value === 'asc' || t.value === 'desc' ? t.value : ''; S.edit = null; render(); }
@@ -892,7 +1004,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     muat();
   };
   window.perangkatResetState = function () {
-    S.epoch++; S.rows = {}; S.kaldik = null; S.siap = false; S.err = null; S.view = 'saya'; S.edit = null; S.tambah = false;
+    S.epoch++; S.posOk = false; S.buka = {}; S.bukaNow = {}; S.rows = {}; S.kaldik = null; S.siap = false; S.err = null; S.view = 'saya'; S.edit = null; S.tambah = false;
     S.filterGuru = ''; S.filterKelas = ''; S.filterStatus = ''; S.sortBy = ''; S.waBuka = false; S.waSudah = {}; S.tenggatEdit = false; S.setujuBuka = false; S.busy = false; S.kaldikEdit = false; S.sem = semDefault();
     const el = (typeof document !== 'undefined') ? document.getElementById('page-perangkat-v4') : null; if (el) el.innerHTML = '';
   };
