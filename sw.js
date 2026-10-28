@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.230';
+const APP_VERSION = 'v8.232';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -120,13 +120,14 @@ const PRECACHE_URLS = [
   './js/data-soal-aqh-tambahan.js?v=1',
   './js/data-soal-pai-tambahan.js?v=1',
   './js/data-soal-umum-tambahan.js?v=1',
-  './js/perangkat-rpe.js?v=13',
-  './js/perangkat-prota-promes.js?v=7',
-  './js/perangkat-atp-tp.js?v=9',
+  './js/data-soal-pai-fase-a-tambahan.js?v=1',
+  './js/perangkat-rpe.js?v=14',
+  './js/perangkat-prota-promes.js?v=8',
+  './js/perangkat-atp-tp.js?v=10',
   './js/data-kisi-resmi-mi.js?v=3',
-  './js/perangkat-kisi.js?v=10',
-  './js/perangkat-soal.js?v=9',
-  './js/perangkat-pembelajaran.js?v=21',
+  './js/perangkat-kisi.js?v=11',
+  './js/perangkat-soal.js?v=10',
+  './js/perangkat-pembelajaran.js?v=22',
   './js/modul-ajar.js?v=16',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
