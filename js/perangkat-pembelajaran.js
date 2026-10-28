@@ -252,7 +252,7 @@
       if (kurang.length) sisa.push('<b>' + esc(r.mapel) + ' ' + esc(r.kelas) + '</b>: ' + kurang.map(esc).join(', '));
     });
     const pr = tot ? Math.round(fin * 100 / tot) : 0;
-    return `<div class="border-muted" style="margin:10px 0;padding:12px;border-radius:10px;background:#f0fdf4;">
+    return `<div class="border-muted" style="margin:10px 0;padding:12px;border-radius:10px;background:#f0fdf4;color:#1f2937;">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:15px;"><b>${fin} dari ${tot} dokumen sudah final (${pr}%)</b>${rev ? `<span style="font-size:13px;color:#9a3412;">⚠️ ${rev} dokumen ada catatan revisi</span>` : ''}</div>
       <div style="height:8px;border-radius:99px;background:#e5e7eb;margin:8px 0;overflow:hidden;"><span style="display:block;height:100%;width:${pr}%;background:#16a34a;"></span></div>
       ${tenggatBaris()}
@@ -447,7 +447,7 @@
 .pp-bar span{display:block;height:100%;background:#16a34a}
 .pp-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#374151;margin:10px 0}
 .pp-leg i{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;font-style:normal;font-weight:700;margin-right:5px;vertical-align:middle}
-@media (prefers-color-scheme:dark){.pp-wrap{background:#111827;border-color:#374151}.pp-tbl{color:#e5e7eb}.pp-tbl thead th{background:#1f3a2e;color:#d1fae5;border-color:#2f5846}.pp-tbl td{border-color:#1f2937}.pp-guru{color:#f9fafb;background:#111827}.pp-mapel{background:#111827;box-shadow:2px 0 0 #374151}.pp-leg{color:#d1d5db}.pp-tbl tr.pp-awal td{border-top-color:#374151}}
+body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .pp-tbl{color:#e5e7eb}body.dark-mode .pp-tbl thead th{background:#1f3a2e;color:#d1fae5;border-color:#2f5846}body.dark-mode .pp-tbl td{border-color:#1f2937}body.dark-mode .pp-guru{color:#f9fafb;background:#111827}body.dark-mode .pp-mapel{background:#111827;box-shadow:2px 0 0 #374151}body.dark-mode .pp-leg{color:#d1d5db}body.dark-mode .pp-tbl tr.pp-awal td{border-top-color:#374151}body.dark-mode .pp-tbl tbody tr:hover td{background:#1c2b3a}body.dark-mode .pp-bar{background:#374151}
 </style>`;
     return `${css}<div class="pp-rekap"><div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <select class="field" style="max-width:220px;font-size:14px;" data-act="filter-guru">${opt}</select>
@@ -506,7 +506,7 @@
     lihatIds().forEach(id => { const r = S.rows[id]; if (r && r.guruKey && !g[r.guruKey]) g[r.guruKey] = r.guruName || r.guruKey; });
     const l = Object.keys(g).map(k => ({ key: k, nama: g[k], it: setujuKandidat(k) })).filter(o => o.it.length)
       .sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id'));
-    const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;';
+    const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1f2937;';
     if (!l.length) return `<div style="${box}font-size:14px;">Tidak ada dokumen yang menunggu persetujuan pada daftar ini. Yang bisa disetujui massal hanya dokumen berstatus <b>Final</b> dari guru yang tautannya sudah diisi.</div>`;
     const rows = l.map(o => {
       const per = {}; o.it.forEach(x => { per[x.n] = (per[x.n] || 0) + 1; });
@@ -564,7 +564,7 @@
   function waPanel() {
     if (!S.waBuka) return '';
     const l = waDaftar();
-    const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#f0fdf4;border:1px solid #bbf7d0;';
+    const box = 'margin:10px 0;padding:12px;border-radius:10px;background:#f0fdf4;border:1px solid #bbf7d0;color:#1f2937;';
     if (!l.length) return `<div style="${box}font-size:14px;">Tidak ada guru yang perlu diingatkan pada daftar ini.</div>`;
     const rows = l.map(o => {
       const ti = tenggatInfo();
