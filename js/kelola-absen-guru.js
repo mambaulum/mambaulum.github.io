@@ -15,9 +15,14 @@
     // baru + hapus key lama dalam SATU update atomik, dan ditolak kalau key baru sudah terisi.
     const KAG_TIPE = ['Datang', 'Pulang', 'Izin', 'Sakit', 'Alpha'];
     const KAG_HARI_PENUH = ['Izin', 'Sakit', 'Alpha'];
-    let kagRows = [], kagRange = null, kagEditKey = null, kagLoading = false, kagSaving = false;
+    let kagRows = [], kagRange = null, kagEditKey = null, kagLoading = false, kagSaving = false, kagGuruTambahan = null;
     function kagEl(id) { return document.getElementById(id); }
-    function kagGuruList() { return (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas').sort((a, b) => COLLATOR_ID.compare((a.name || ''), b.name || '')); }
+    // Catatan: role kosong (mis. guru yang juga kepala madrasah, data dibuat tanpa field role) ikut dianggap guru.
+    // Node `guru` di Rules hanya mengizinkan role guru/wali_kelas/kosong, jadi role kosong tetap pegawai pengajar.
+    function kagGuruList() { return (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas' || !g.role).sort((a, b) => COLLATOR_ID.compare((a.name || ''), b.name || '')); }
+    // Daftar guru untuk form edit: guru aktif + (bila perlu) satu guru tambahan milik catatan yang sedang diedit
+    // (peran bukan guru/wali kelas, atau guru yang sudah dihapus dari daftar). Dipakai kagBuka & kagSimpan.
+    function kagGuruListForm() { return kagGuruTambahan ? kagGuruList().concat([kagGuruTambahan]) : kagGuruList(); }
     function kagCocokGuru(a, g) { return a.guruKey ? a.guruKey === g.key : a.guru === g.name; }
     // Pesan galat yang bisa ditindaklanjuti. Firebase melaporkan data yang melanggar aturan validasi Rules (mis. `waktu` bukan angka,
     // tanggal bukan YYYY-MM-DD, jenis di luar daftar) sebagai PERMISSION_DENIED yang sama dengan penolakan izin -- jadi sebutkan keduanya.
@@ -107,16 +112,25 @@
       if (!isAdmin()) return toast('Hanya Admin!', true);
       const rec = key ? kagRows.find(r => r.key === key) : null;
       if (key && !rec) return toast('Catatan tidak ditemukan. Muat ulang daftar.', true);
-      const guruList = kagGuruList();
+      kagGuruTambahan = null;
+      let guruList = kagGuruList();
       let guruTerpilih = '';
       if (rec) {
-        const g = guruList.find(x => kagCocokGuru(rec, x));
-        if (!g) return toast('Guru pada catatan ini sudah tidak ada di daftar guru. Catatan hanya bisa dihapus.', true);
+        let g = guruList.find(x => kagCocokGuru(rec, x));
+        if (!g) {
+          // 1) Guru masih ada di data tapi perannya bukan guru/wali kelas (mis. kepala, TU, staf) -> tetap boleh diedit.
+          const lain = (allGuru || []).find(x => kagCocokGuru(rec, x));
+          if (lain) g = { key: lain.key, name: lain.name, kelas: lain.kelas || [], _tambahan: true };
+          // 2) Guru sudah dihapus dari daftar, tapi catatan masih menyimpan guruKey + nama -> pakai data dari catatan.
+          else if (rec.guruKey && rec.guru) g = { key: rec.guruKey, name: rec.guru, kelas: rec.kelas || [], _tambahan: true, _tidakTerdaftar: true };
+        }
+        if (!g) return toast('Catatan ini tidak punya ID guru (guruKey) dan namanya tidak ditemukan. Catatan hanya bisa dihapus.', true);
+        if (g._tambahan) { kagGuruTambahan = g; guruList = kagGuruListForm(); }
         guruTerpilih = g.key;
       }
       kagEditKey = key || null;
       kagEl('kagModalTitle').textContent = rec ? '✏️ Edit Catatan Absen Guru' : '➕ Tambah Catatan Absen Guru';
-      kagEl('kagGuru').innerHTML = guruList.map(g => `<option value="${escapeHtml(g.key)}">${escapeHtml(g.name)}</option>`).join('');
+      kagEl('kagGuru').innerHTML = guruList.map(g => `<option value="${escapeHtml(g.key)}">${escapeHtml(g.name)}${g._tidakTerdaftar ? ' (tidak terdaftar)' : ''}</option>`).join('');
       if (guruTerpilih) kagEl('kagGuru').value = guruTerpilih;
       kagEl('kagTanggal').value = rec ? rec.tanggal : tglLokal();
       kagEl('kagJenis').value = rec ? rec.type : 'Datang';
@@ -128,11 +142,11 @@
       kagToggleJam();
       kagEl('kagModal').classList.add('show');
     }
-    function kagTutup() { kagEl('kagModal').classList.remove('show'); kagEditKey = null; }
+    function kagTutup() { kagEl('kagModal').classList.remove('show'); kagEditKey = null; kagGuruTambahan = null; }
     function kagSimpan() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
       if (kagSaving) return;
-      const guru = kagGuruList().find(g => g.key === kagEl('kagGuru').value);
+      const guru = kagGuruListForm().find(g => g.key === kagEl('kagGuru').value);
       const tanggal = kagEl('kagTanggal').value, jenis = kagEl('kagJenis').value, jam = kagEl('kagJam').value;
       const ket = kagEl('kagKet').value.trim(), alasan = kagEl('kagAlasan').value.trim();
       if (!guru || !tanggal || !KAG_TIPE.includes(jenis)) return toast('Lengkapi guru, tanggal, dan jenis!', true);
