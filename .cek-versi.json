@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.230",
-  "disimpan": "2026-10-28T04:50:21.243Z",
+  "appVersion": "v8.232",
+  "disimpan": "2026-10-28T12:20:21.248Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -214,33 +214,37 @@
       "v": "v=1",
       "hash": "ff039eaaa75eccc3945baece80a56593b6149e46"
     },
+    "js/data-soal-pai-fase-a-tambahan.js": {
+      "v": "v=1",
+      "hash": "9efaeafed43c6e595c5379600fcbde66d52100f8"
+    },
     "js/perangkat-rpe.js": {
-      "v": "v=13",
-      "hash": "7bc62a45b1840c4eaf9140c585680ef19859024c"
+      "v": "v=14",
+      "hash": "2fd9e806a6881e42bafb6e94c9fb4c25af732881"
     },
     "js/perangkat-prota-promes.js": {
-      "v": "v=7",
-      "hash": "c66de437154dedac1b70169640da55fdfecad0a8"
+      "v": "v=8",
+      "hash": "8c415191cf99ce5a2dc384c4e8f889be85054822"
     },
     "js/perangkat-atp-tp.js": {
-      "v": "v=9",
-      "hash": "a96102ba1cf1ab864ebf9f81022b765502bed10f"
+      "v": "v=10",
+      "hash": "4f166bd68026f0afc9be1cfa01e5ccb11f396822"
     },
     "js/data-kisi-resmi-mi.js": {
       "v": "v=3",
       "hash": "5ed5a2388cdd7ff2fd90d00225916961ebfd1501"
     },
     "js/perangkat-kisi.js": {
-      "v": "v=10",
-      "hash": "7d98549b693921452cfc07c4d42c7886d8feea77"
+      "v": "v=11",
+      "hash": "26a7b2134b3d01ca410ec064594977ce9030b7f8"
     },
     "js/perangkat-soal.js": {
-      "v": "v=9",
-      "hash": "fdbd2364d0b72b8ed3eb3cda9ffc1b1e23359404"
+      "v": "v=10",
+      "hash": "da2463388cced5099a5152459620afdef95bde18"
     },
     "js/perangkat-pembelajaran.js": {
-      "v": "v=21",
-      "hash": "6e0ea72c4757ad8ddecffee30e3be6e2f2167d1d"
+      "v": "v=22",
+      "hash": "3d9799590cad3bbdc74b67087c563d1cd79d222b"
     },
     "js/modul-ajar.js": {
       "v": "v=16",
