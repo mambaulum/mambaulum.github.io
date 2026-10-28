@@ -179,6 +179,13 @@ ${tabelHtml(h)}
   const myId = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : '';
   const myName = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : '';
   const say = (m, err, ms) => { if (typeof toast === 'function') toast(m, !!err, ms); };
+  // Tanpa batas waktu, update()/set() Firebase menggantung bila sinyal buruk: kunci "sedang menyimpan" tidak pernah lepas dan tombol Simpan tampak mati.
+  // Fungsi (bukan promise) dipakai supaya galat sinkron juga tertangkap dan kunci dilepas.
+  const dgBatas = (f, ms) => new Promise((ok, gagal) => {
+    const t = setTimeout(() => gagal(new Error('Server belum menjawab (sinyal lambat). Perubahan akan tersimpan otomatis bila koneksi pulih; periksa sinyal lalu coba lagi.')), ms || 15000);
+    let p; try { p = f(); } catch (e) { clearTimeout(t); return gagal(e); }
+    Promise.resolve(p).then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); gagal(e); });
+  });
   const audit = (aksi, id) => { try { if (typeof v4Audit === 'function') v4Audit(aksi, 'PERANGKAT', id, null, null); } catch (e) {} };
 
   // ---------- Status modul ----------
@@ -353,23 +360,11 @@ ${tabelHtml(h)}
     const obj = { mulai: iso(a), selesai: iso(b), hariPerPekan: e.hari === 5 ? 5 : 6, libur: libur,
       madrasah: cut(e.madrasah, 80), kepala: cut(e.kepala, 80), nipKepala: cut(e.nipKepala, 30), kota: cut(e.kota, 40),
       at: new Date().toISOString(), by: myName() };
-    if (typeof db === 'undefined' || !db) return;
+    if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
-    if (M.busy) return; M.busy = true;
-    const lama = M.raw, kunciIsi = o => JSON.stringify([o && o.mulai || '', o && o.selesai || '', +(o && o.hariPerPekan) === 5 ? 5 : 6, o && o.madrasah || '', o && o.kepala || '', o && o.nipKepala || '', o && o.kota || '',
-      daftar(o && o.libur).map(x => [x && x.a || '', x && x.b || '', x && x.ket || ''])]);
-    const berubah = !lama || kunciIsi(lama) !== kunciIsi(obj), pref = slug(M.ta) + '_' + M.sem + '_';
-    siap().then(() => db.ref(path()).set(obj)).then(() => {
-      // Isi kalender berubah => RPE dan Promes (disebar ke pekan efektif) semua guru semester ini berubah => persetujuan Kepala lama gugur (QR tidak muncul sampai disetujui ulang).
-      if (!berubah) return;
-      return db.ref('perangkat_v4').orderByKey().startAt(pref).endAt(pref + '\uf8ff').once('value').then(sn => {
-        const upd = {}; let n = 0;
-        sn.forEach(c => { const d = (c.val() || {}).docs || {}; ['rpe', 'promes'].forEach(jk => { const x = d[jk]; if (!x) return; if (x.setuju) { upd[c.key + '/docs/' + jk + '/setuju'] = null; n++; } if (x.dilihat) upd[c.key + '/docs/' + jk + '/dilihat'] = null; }); });
-        return Object.keys(upd).length ? db.ref('perangkat_v4').update(upd).then(() => { if (n) say('ℹ️ ' + n + ' persetujuan RPE/Promes gugur karena kalender berubah; setujui ulang bila perlu.', false, 6000); }) : null;
-      }).catch(err => console.warn('[SI MAMBA] rpe cabut setuju:', err));
-    }).then(() => {
+    if (M.busy) return say('⏳ Masih menyimpan, mohon tunggu sebentar...', false, 2000); M.busy = true; say('⏳ Menyimpan...', false, 1500);
+    dgBatas(() => siap().then(() => db.ref(path()).set(obj))).then(() => {
       M.busy = false; M.raw = obj; M.cfg = bacaCfg(obj); audit('SAVE_RPE_KALDIK', slug(M.ta) + '_' + M.sem); say('✅ Kalender efektif tersimpan');
-      try { if (typeof window.perangkatRender === 'function') window.perangkatRender(); } catch (e) {}
       if (M.rec) { M.mode = 'cetak'; M.edit = null; gambar(); } else tutup();
     }).catch(err => { M.busy = false; console.error('[SI MAMBA] rpe:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
@@ -381,11 +376,7 @@ ${tabelHtml(h)}
     nipSimpan(nip);
     // Simpan JP per pekan pada baris mapel (hanya pemilik). Gagal simpan tidak menghalangi cetak.
     if (jp && M.rec.guruKey === myId() && M.rec.jpPerPekan !== jp && typeof db !== 'undefined' && db && navigator.onLine) {
-      const jpLama = M.rec.jpPerPekan, adaSetuju = !!(M.rec.docs && M.rec.docs.rpe && M.rec.docs.rpe.setuju);
-      siap().then(() => db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp)).then(() => {
-        M.rec.jpPerPekan = jp;
-        if (jpLama && adaSetuju) { cabutSetuju(M.id, ['rpe']); delete M.rec.docs.rpe.setuju; say('ℹ️ JP per pekan berubah, persetujuan RPE sebelumnya gugur.', false, 5000); }
-      }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
+      siap().then(() => db.ref('perangkat_v4/' + M.id + '/jpPerPekan').set(jp)).then(() => { M.rec.jpPerPekan = jp; }).catch(e => console.warn('[SI MAMBA] rpe jp:', e));
     }
     const html = dokumen(M.cfg, h, { guru: M.rec.guruName || myName(), nip: nip, mapel: M.rec.mapel, kelas: M.rec.kelas, ta: M.ta, sem: SEM_LABEL[M.sem] });
     keluarkan(html, 'RPE_' + M.rec.mapel + '_' + M.rec.kelas + '_' + SEM_LABEL[M.sem], mode);
@@ -487,33 +478,7 @@ ${tabelHtml(h)}
   // Guru mengubah dokumen -> persetujuan lama gugur (QR Kepala tidak lagi muncul sampai disetujui ulang). Best effort.
   function cabutSetuju(id, daftarJk) {
     if (!id || typeof db === 'undefined' || !db || !navigator.onLine) return;
-    (daftarJk || []).forEach(jk => { try { db.ref('perangkat_v4/' + id + '/docs/' + jk + '/setuju').remove().catch(() => {}); db.ref('perangkat_v4/' + id + '/docs/' + jk + '/dilihat').remove().catch(() => {}); } catch (e) {} });
-  }
-  // ---------- Logo pada kop cetakan ----------
-  // Logo diambil sekali dari logo/logo-lembaga.png (ikut cache service worker, jadi tetap ada saat offline) lalu
-  // disisipkan sebagai data-URI supaya tampil di jendela cetak MAUPUN di berkas Word. Gagal muat -> kop dicetak tanpa logo.
-  let logoCache = null;
-  function logoData() {
-    if (logoCache) return logoCache;
-    logoCache = fetch('logo/logo-lembaga.png').then(r => r.ok ? r.blob() : Promise.reject(new Error('logo ' + r.status)))
-      .then(bl => (bl.type || '').indexOf('image/') === 0 ? new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.onerror = no; fr.readAsDataURL(bl); }) : Promise.reject(new Error('bukan gambar')))
-      .catch(() => { logoCache = null; return ''; });
-    return logoCache;
-  }
-  // Kop jadi tabel 3 kolom: [logo | teks kop | kolom kosong selebar logo]. Kolom kosong menjaga teks tetap di tengah halaman,
-  // dan karena logo punya kolom sendiri, logo TIDAK menimpa teks (nama madrasah panjang cukup turun baris di kolom tengah).
-  // Tabel memakai border:0 agar tidak diberi garis oleh wordDari(). Dokumen tanpa <div class="kop"> dibiarkan apa adanya.
-  function sisipLogo(h, src) {
-    if (!src) return h;
-    const aw = '<div class="kop">', a = h.indexOf(aw); if (a < 0) return h;
-    const b = blokSeimbang(h, a); if (b < 0) return h;
-    const dalam = h.slice(a + aw.length, b - '</div>'.length);
-    const img = '<img src="' + src + '" alt="Logo" height="83" style="height:22mm;width:auto;max-width:26mm;display:block;margin:0" onerror="this.style.display=\'none\'">';
-    const td = 'border:0;padding:0;vertical-align:middle;';
-    return h.slice(0, a) + aw + '<table style="width:100%;border:0;border-collapse:collapse"><tr>'
-      + '<td style="width:26mm;' + td + 'text-align:left">' + img + '</td>'
-      + '<td style="' + td + 'padding:0 3mm;text-align:center">' + dalam + '</td>'
-      + '<td style="width:26mm;' + td + '"></td></tr></table></div>' + h.slice(b);
+    (daftarJk || []).forEach(jk => { try { db.ref('perangkat_v4/' + id + '/docs/' + jk + '/setuju').remove().catch(() => {}); } catch (e) {} });
   }
   // mode 'word' => unduh .doc; selain itu buka jendela cetak.
   // Jendela cetak dibuka SINKRON (agar tidak diblokir popup), isinya ditulis setelah QR selesai dibuat.
@@ -528,9 +493,8 @@ ${tabelHtml(h)}
     const siap = (ada && window.TTD && typeof window.TTD.isiHtml === 'function')
       ? window.TTD.isiHtml(html).catch(e => { console.error('[perangkat] QR tanda tangan gagal:', e); return html; })
       : Promise.resolve(html);
-    Promise.all([siap, logoData()]).then(hasil => {
-      let h = sisipLogo(String(hasil[0]), hasil[1]);
-      h = h.replace(/\[\[TTD:[^\]\s]*\]\]/g, '');   // penanda yang tak terproses jangan sampai tercetak
+    siap.then(h => {
+      h = String(h).replace(/\[\[TTD:[^\]\s]*\]\]/g, '');   // penanda yang tak terproses jangan sampai tercetak
       if (mode === 'word') {
         const blob = new Blob(['\ufeff' + wordDari(h)], { type: 'application/msword' }), a = document.createElement('a');
         a.href = URL.createObjectURL(blob); a.download = String(nama || 'dokumen').replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').slice(0, 80) + '.doc';
@@ -600,5 +564,5 @@ ${tabelHtml(h)}
   }
   window.rpeUtil = { siap: siap, parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
     esc: esc, slug: slug, fmtTgl: fmtTgl, fmtRentang: fmtRentang, daftar: daftar, BULAN: BULAN,
-    keluarkan: keluarkan, sisipLogo: sisipLogo, ttdSp: ttdSp, ttdKepalaSp: ttdKepalaSp, cabutSetuju: cabutSetuju, idSemester: idSemester, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
+    keluarkan: keluarkan, ttdSp: ttdSp, ttdKepalaSp: ttdKepalaSp, cabutSetuju: cabutSetuju, idSemester: idSemester, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
 })();

@@ -75,11 +75,24 @@
     return (saved || []).filter(x => x && x.key && !ada.has(x.key) && (String(x.q || '').trim() || String(x.kt || '').trim())).length;
   }
   // Isi slot kosong dari bank menurut TP dan bentuk; soal yang sudah dipakai tidak diulang. Mengembalikan jumlah terisi.
-  function isiDariBank(slots, bank) {
+  // Bank soal berkunci per FASE (A = kelas 1-2, B = 3-4, C = 5-6), jadi dua kelas dalam satu fase memakai daftar soal yang sama.
+  // Agar kelas 1 dan 2 (3 dan 4, 5 dan 6) tidak mendapat soal yang sama persis, kelas ganjil memakai urutan indeks genap lebih dulu
+  // dan kelas genap indeks ganjil lebih dulu. Bila soal di bank sedikit, sebagian soal tetap bisa sama (bank memang terbatas).
+  function nomorKelas(kelas) {
+    const t = String(kelas || '').trim().toUpperCase().replace(/^KELAS\s*/, ''); let m = /^(\d+)/.exec(t);
+    if (m) return +m[1];
+    m = /^(VI|IV|V|III|II|I)(?=[^IVX]|$)/.exec(t); return m ? { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 }[m[1]] : 0;
+  }
+  function urutKelas(daftar, kelas) {
+    const n = nomorKelas(kelas); if (!n || daftar.length < 2) return daftar;
+    const awal = n % 2 === 0 ? 1 : 0;
+    return daftar.filter((x, i) => i % 2 === awal).concat(daftar.filter((x, i) => i % 2 !== awal));
+  }
+  function isiDariBank(slots, bank, kelas) {
     const pakai = new Set(slots.filter(s => s.q).map(s => s.q)); let n = 0;
     slots.forEach(s => {
       if (s.q || s.st) return;
-      const it = ((bank || {})[s.k] || []).find(x => x[0] === s.b && !pakai.has(x[2])); if (!it) return;
+      const it = urutKelas(((bank || {})[s.k] || []).filter(x => x[0] === s.b), kelas).find(x => !pakai.has(x[2])); if (!it) return;
       pakai.add(it[2]); s.q = it[2]; s.src = 'bank'; s.ok = false;
       if (s.b === 'pg') { const urut = acak(it[3].length, s.key + '|' + it[2]); s.o = urut.map(i => it[3][i]); s.kp = urut.indexOf(0); }
       else s.kt = it[3];
@@ -92,6 +105,13 @@
   const myId = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : '';
   const myName = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : '';
   const say = (m, err, ms) => { if (typeof toast === 'function') toast(m, !!err, ms); };
+  // Tanpa batas waktu, set() Firebase menggantung bila sinyal buruk: kunci "sedang menyimpan" tidak pernah lepas dan tombol Simpan tampak mati tanpa pesan.
+  // Fungsi (bukan promise) dipakai supaya galat sinkron (mis. nilai undefined) juga tertangkap dan kunci dilepas.
+  const dgBatas = (f, ms) => new Promise((ok, gagal) => {
+    const t = setTimeout(() => gagal(new Error('Server belum menjawab (sinyal lambat). Perubahan akan tersimpan otomatis bila koneksi pulih; periksa sinyal lalu tekan Simpan lagi.')), ms || 15000);
+    let p; try { p = f(); } catch (e) { clearTimeout(t); return gagal(e); }
+    Promise.resolve(p).then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); gagal(e); });
+  });
   const audit = (aksi, id) => { try { if (typeof v4Audit === 'function') v4Audit(aksi, 'PERANGKAT', id, null, null); } catch (e) {} };
 
   // ---------- Status ----------
@@ -346,18 +366,18 @@ h4{margin:12px 0 6px;font-size:11.5pt}
   function simpan() {
     sinkron(); const rec = S.rec;
     if (rec.guruKey !== myId()) return say('Hanya pemilik perangkat yang bisa menyimpan.', true);
-    if (typeof db === 'undefined' || !db) return;
+    if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
-    if (S.busy) return;
+    if (S.busy) return say('⏳ Masih menyimpan, mohon tunggu sebentar...', false, 2000);
     const hilang = SEM.filter(s => S.slots[s].length).reduce((t, s) => t + (S.yatim[s] || 0), 0);
     if (hilang && !confirm(hilang + ' soal tersimpan tidak punya slot lagi di kisi-kisi dan akan DIHAPUS.\nLanjut menyimpan?')) return;
-    S.busy = true;
+    S.busy = true; say('⏳ Menyimpan...', false, 1500);
     const cut = (s, n) => String(s || '').slice(0, n), now = new Date().toISOString();
-    const tulis = SEM.filter(s => S.slots[s].length).map(s => db.ref('perangkat_soal_v4/' + idSem(s)).set({
+    const tulis = () => SEM.filter(s => S.slots[s].length).map(s => db.ref('perangkat_soal_v4/' + idSem(s)).set({
       guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: S.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
       skor: { pg: angka(S.skor.pg), is: angka(S.skor.is), ur: angka(S.skor.ur) },
       soal: S.slots[s].map(x => ({ key: cut(x.key, 80), q: cut(x.q, 600), o: x.b === 'pg' ? x.o.map(o => cut(o, 160)) : [], kp: x.kp, st: x.st || '', ks: cut(x.ks, 7), kt: cut(x.kt, 600), src: x.src, ok: !!x.ok })), at: now, by: myName() }));
-    Promise.all(tulis).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); SEM.forEach(x => R().cabutSetuju(R().idSemester(S.id, x), ['kartu', 'kunci'])); say('✅ Soal tersimpan'); if (S.rec) gambar(); })
+    dgBatas(() => Promise.all(tulis())).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); SEM.forEach(x => R().cabutSetuju(R().idSemester(S.id, x), ['kartu', 'kunci'])); say('✅ Soal tersimpan'); if (S.rec) gambar(); })
       .catch(err => { S.busy = false; console.error('[SI MAMBA] soal:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {
@@ -368,7 +388,7 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     switch (a) {
       case 'tutup': return tutup();
       case 'sem': S.sem = t.getAttribute('data-s') === 'genap' ? 'genap' : 'ganjil'; return gambar();
-      case 'bank': { const n = isiDariBank(S.slots[S.sem], window.BANK_SOAL_MI); if (n) S.dirty = true; say(n ? '✅ ' + n + ' soal diisi dari bank (draf, mohon diperiksa). Sisanya diketik guru.' : 'Tidak ada soal bank yang cocok untuk slot kosong. Ketik soal sendiri.', !n); return gambar(); }
+      case 'bank': { const n = isiDariBank(S.slots[S.sem], window.BANK_SOAL_MI, S.rec && S.rec.kelas); if (n) S.dirty = true; say(n ? '✅ ' + n + ' soal diisi dari bank (draf, mohon diperiksa). Sisanya diketik guru.' : 'Tidak ada soal bank yang cocok untuk slot kosong. Ketik soal sendiri.', !n); return gambar(); }
       case 'ganti': ganti(+t.getAttribute('data-i')); return gambar();
       case 'simpan': return simpan();
       case 'cetak-kartu': return cetak('kartu');
@@ -421,5 +441,5 @@ h4{margin:12px 0 6px;font-size:11.5pt}
     R().nipIsi(S, '#soalOverlay');
     muat();
   };
-  window.soalUtil = { acak: acak, buatSlot: buatSlot, isiDariBank: isiDariBank, lengkap: lengkap, dokKartu: dokKartu, dokNaskah: dokNaskah, dokKunci: dokKunci, dokTelaah: dokTelaah, state: S };
+  window.soalUtil = { acak: acak, buatSlot: buatSlot, isiDariBank: isiDariBank, urutKelas: urutKelas, lengkap: lengkap, dokKartu: dokKartu, dokNaskah: dokNaskah, dokKunci: dokKunci, dokTelaah: dokTelaah, state: S };
 })();

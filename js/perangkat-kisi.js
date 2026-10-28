@@ -66,6 +66,13 @@
   const myId = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : '';
   const myName = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : '';
   const say = (m, err, ms) => { if (typeof toast === 'function') toast(m, !!err, ms); };
+  // Tanpa batas waktu, set() Firebase menggantung bila sinyal buruk: kunci "sedang menyimpan" tidak pernah lepas dan tombol Simpan tampak mati tanpa pesan.
+  // Fungsi (bukan promise) dipakai supaya galat sinkron (mis. nilai undefined) juga tertangkap dan kunci dilepas.
+  const dgBatas = (f, ms) => new Promise((ok, gagal) => {
+    const t = setTimeout(() => gagal(new Error('Server belum menjawab (sinyal lambat). Perubahan akan tersimpan otomatis bila koneksi pulih; periksa sinyal lalu tekan Simpan lagi.')), ms || 15000);
+    let p; try { p = f(); } catch (e) { clearTimeout(t); return gagal(e); }
+    Promise.resolve(p).then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); gagal(e); });
+  });
   const audit = (aksi, id) => { try { if (typeof v4Audit === 'function') v4Audit(aksi, 'PERANGKAT', id, null, null); } catch (e) {} };
 
   // ---------- Status ----------
@@ -231,17 +238,17 @@ ${tabelKisi(s)}
   function simpan() {
     sinkron(); const rec = K.rec;
     if (rec.guruKey !== myId()) return say('Hanya pemilik perangkat yang bisa menyimpan.', true);
-    if (typeof db === 'undefined' || !db) return;
+    if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
-    if (K.busy) return; K.busy = true;
+    if (K.busy) return say('⏳ Masih menyimpan, mohon tunggu sebentar...', false, 2000); K.busy = true; say('⏳ Menyimpan...', false, 1500);
     const cut = (s, n) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, n), now = new Date().toISOString();
-    const tulis = SEM.filter(s => K.rows[s].length).map(s => db.ref('perangkat_kisi_v4/' + idKisi(s)).set({
+    const tulis = () => SEM.filter(s => K.rows[s].length).map(s => db.ref('perangkat_kisi_v4/' + idKisi(s)).set({
       guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: K.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
       judul: cut(K.set[s].judul, 80) || judulDef(s), waktu: menit(K.set[s].waktu),
       tot: { pg: angka(K.set[s].pg), is: angka(K.set[s].is), ur: angka(K.set[s].ur) },
       items: K.rows[s].map(r => ({ k: String(r.k || '').slice(0, 40), e: cut(r.e, 60), t: cut(r.t, 300), m: cut(r.m, 120), jp: Math.max(0, parseInt(r.jp, 10) || 0),
         i: cut(r.i, 300), lv: ['L1', 'L2', 'L3'].includes(r.lv) ? r.lv : 'L2', pg: angka(r.pg), is: angka(r.is), ur: angka(r.ur) })), at: now, by: myName() }));
-    Promise.all(tulis).then(() => { K.busy = false; K.dirty = false; audit('SAVE_PERANGKAT_KISI', idKisi(K.sem)); SEM.forEach(s => R().cabutSetuju(R().idSemester(K.id, s), ['kisi'])); say('✅ Kisi-kisi tersimpan'); if (K.rec) gambar(); })
+    dgBatas(() => Promise.all(tulis())).then(() => { K.busy = false; K.dirty = false; audit('SAVE_PERANGKAT_KISI', idKisi(K.sem)); SEM.forEach(s => R().cabutSetuju(R().idSemester(K.id, s), ['kisi'])); say('✅ Kisi-kisi tersimpan'); if (K.rec) gambar(); })
       .catch(err => { K.busy = false; console.error('[SI MAMBA] kisi:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {

@@ -58,6 +58,13 @@
   const myId = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : '';
   const myName = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : '';
   const say = (m, err, ms) => { if (typeof toast === 'function') toast(m, !!err, ms); };
+  // Tanpa batas waktu, set() Firebase menggantung bila sinyal buruk: kunci "sedang menyimpan" tidak pernah lepas dan tombol Simpan tampak mati tanpa pesan.
+  // Fungsi (bukan promise) dipakai supaya galat sinkron (mis. nilai undefined) juga tertangkap dan kunci dilepas.
+  const dgBatas = (f, ms) => new Promise((ok, gagal) => {
+    const t = setTimeout(() => gagal(new Error('Server belum menjawab (sinyal lambat). Perubahan akan tersimpan otomatis bila koneksi pulih; periksa sinyal lalu tekan Simpan lagi.')), ms || 15000);
+    let p; try { p = f(); } catch (e) { clearTimeout(t); return gagal(e); }
+    Promise.resolve(p).then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); gagal(e); });
+  });
   const audit = (aksi, id) => { try { if (typeof v4Audit === 'function') v4Audit(aksi, 'PERANGKAT', id, null, null); } catch (e) {} };
 
   // ---------- Status ----------
@@ -191,23 +198,23 @@ ${isi}
   function bersih(items) { return items.map(x => ({ n: String(x.n || '').trim().replace(/\s+/g, ' ').slice(0, 120), jp: jpInt(x.jp) })).filter(x => x.n); }
   function simpan() {
     if (!pemilik()) return say('Hanya pemilik perangkat yang bisa menyimpan.', true);
-    if (typeof db === 'undefined' || !db) return;
+    if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
-    if (P.busy) return;
+    if (P.busy) return say('⏳ Masih menyimpan, mohon tunggu sebentar...', false, 2000);
     if (P.jp !== '' && !jpNum()) return say('JP per pekan harus 1–40 (atau kosongkan).', true);
     const now = new Date().toISOString(), jp = jpNum() || null, rec = P.rec, isi = {};
     for (let i = 0; i < SEM.length; i++) {
       const s = SEM[i]; isi[s] = bersih(P.data[s]);
       if (isi[s].length > MAX_ITEMS) return say('Maksimal ' + MAX_ITEMS + ' materi per semester.', true);
     }
-    P.busy = true;
-    const tulis = SEM.map(s => {
+    P.busy = true; say('⏳ Menyimpan...', false, 1500);
+    const tulis = () => SEM.map(s => {
       const ref = db.ref('perangkat_materi_v4/' + idMateri(s));
       if (!isi[s].length) return P.ada[s] ? ref.remove() : Promise.resolve();
       return ref.set({ guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: P.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
         materi: isi[s], jpPerPekan: jp, at: now, by: myName() });
     });
-    Promise.all(tulis).then(() => {
+    dgBatas(() => Promise.all(tulis())).then(() => {
       P.busy = false; P.dirty = false; SEM.forEach(s => { P.data[s] = isi[s]; P.ada[s] = isi[s].length > 0; });
       audit('SAVE_PERANGKAT_MATERI', idMateri(P.sem)); SEM.forEach(x => R().cabutSetuju(R().idSemester(P.id, x), ['prota', 'promes'])); say('✅ Materi tersimpan'); if (P.rec) gambar();
     }).catch(err => { P.busy = false; console.error('[SI MAMBA] prota/promes:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });

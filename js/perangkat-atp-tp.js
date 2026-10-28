@@ -62,6 +62,13 @@
   const myId = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : '';
   const myName = () => (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : '';
   const say = (m, err, ms) => { if (typeof toast === 'function') toast(m, !!err, ms); };
+  // Tanpa batas waktu, set() Firebase menggantung bila sinyal buruk: kunci "sedang menyimpan" tidak pernah lepas dan tombol Simpan tampak mati tanpa pesan.
+  // Fungsi (bukan promise) dipakai supaya galat sinkron (mis. nilai undefined) juga tertangkap dan kunci dilepas.
+  const dgBatas = (f, ms) => new Promise((ok, gagal) => {
+    const t = setTimeout(() => gagal(new Error('Server belum menjawab (sinyal lambat). Perubahan akan tersimpan otomatis bila koneksi pulih; periksa sinyal lalu tekan Simpan lagi.')), ms || 15000);
+    let p; try { p = f(); } catch (e) { clearTimeout(t); return gagal(e); }
+    Promise.resolve(p).then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); gagal(e); });
+  });
   const audit = (aksi, id) => { try { if (typeof v4Audit === 'function') v4Audit(aksi, 'PERANGKAT', id, null, null); } catch (e) {} };
 
   // ---------- Status ----------
@@ -299,31 +306,32 @@ tr{page-break-inside:avoid}
   function simpan(diam) {
     sinkron(); const rec = A.rec;
     if (rec.guruKey !== myId()) return say('Hanya pemilik perangkat yang bisa menyimpan.', true);
-    if (typeof db === 'undefined' || !db) return;
+    if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
-    if (A.busy) return; A.busy = true;
+    if (A.busy) return say('⏳ Masih menyimpan, mohon tunggu sebentar...', false, 2000);
     const obj = { guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: A.ta, mapel: rec.mapel, kelas: rec.kelas, fase: A.fase,
       manual: !!A.manual, items: bersihItems().map(x => ({ k: x.k, e: x.e, t: x.t, m: x.m, sem: x.sem, jp: x.jp === '' ? 0 : x.jp })), jpPerPekan: jpNum() || null,
       at: new Date().toISOString(), by: myName() };
-    return db.ref('perangkat_tp_v4/' + idTp()).set(obj).then(() => {
-      A.busy = false; A.dirty = false; audit('SAVE_PERANGKAT_TP', idTp()); SEM.forEach(s => R().cabutSetuju(R().idSemester(A.id, s), ['atp', 'tp'])); // TP dipakai bersama Ganjil dan Genap if (!diam) say('✅ Tersimpan'); if (A.rec) gambar();
+    A.busy = true; if (!diam) say('⏳ Menyimpan...', false, 1500);
+    return dgBatas(() => db.ref('perangkat_tp_v4/' + idTp()).set(obj)).then(() => {
+      A.busy = false; A.dirty = false; audit('SAVE_PERANGKAT_TP', idTp()); R().cabutSetuju(A.id, ['atp', 'tp']); if (!diam) say('✅ Tersimpan'); if (A.rec) gambar();
     }).catch(err => { A.busy = false; console.error('[SI MAMBA] atp:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function terapkan() {
     sinkron(); const rec = A.rec;
     if (rec.guruKey !== myId()) return say('Hanya pemilik perangkat yang bisa menerapkan.', true);
-    if (typeof db === 'undefined' || !db) return;
+    if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     const per = {};
     SEM.forEach(s => { per[s] = bersihItems().filter(x => x.sem === s && x.jp !== '').map(x => ({ n: (x.m || x.t).slice(0, 120), jp: x.jp })); });
     const tanpaJp = bersihItems().filter(x => x.jp === '').length;
     if (!per.ganjil.length && !per.genap.length) return say('Isi JP pada TP dulu (atau gunakan Bagi rata JP).', true);
     if (!confirm('Isi daftar materi Prota/Promes dengan ' + per.ganjil.length + ' materi Ganjil dan ' + per.genap.length + ' materi Genap?' + (tanpaJp ? '\n' + tanpaJp + ' TP tanpa JP dilewati.' : '') + '\nIsi lama pada semester yang terisi akan diganti.')) return;
-    if (A.busy) return; A.busy = true;
+    if (A.busy) return say('⏳ Masih menyimpan, mohon tunggu sebentar...', false, 2000); A.busy = true; say('⏳ Menyimpan...', false, 1500);
     const now = new Date().toISOString();
-    const tulis = SEM.filter(s => per[s].length).map(s => db.ref('perangkat_materi_v4/' + idMateri(s)).set({ guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: A.ta, semester: s,
+    const tulis = () => SEM.filter(s => per[s].length).map(s => db.ref('perangkat_materi_v4/' + idMateri(s)).set({ guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: A.ta, semester: s,
       mapel: rec.mapel, kelas: rec.kelas, materi: per[s], jpPerPekan: jpNum() || null, at: now, by: myName() }));
-    Promise.all(tulis).then(() => { A.busy = false; return simpan(true); }).then(() => { A.busy = false; audit('APPLY_PERANGKAT_TP', idTp()); SEM.forEach(s => R().cabutSetuju(R().idSemester(A.id, s), ['prota', 'promes'])); say('✅ Materi Prota/Promes terisi. Buka 🗂 Prota/Promes untuk melihatnya.'); })
+    dgBatas(() => Promise.all(tulis())).then(() => { A.busy = false; return simpan(true); }).then(() => { A.busy = false; audit('APPLY_PERANGKAT_TP', idTp()); SEM.forEach(s => R().cabutSetuju(R().idSemester(A.id, s), ['prota', 'promes'])); say('✅ Materi Prota/Promes terisi. Buka 🗂 Prota/Promes untuk melihatnya.'); })
       .catch(err => { A.busy = false; console.error('[SI MAMBA] atp terapkan:', err); say('❌ Gagal menerapkan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {

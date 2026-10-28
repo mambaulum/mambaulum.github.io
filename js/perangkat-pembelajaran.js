@@ -82,6 +82,8 @@
     if (!t || t.length > 500) return false;
     try { return new URL(t).protocol === 'https:'; } catch (e) { return false; }
   }
+  // Tautan dari database dicek lagi saat ditampilkan: hanya https yang menjadi href (cegah javascript:/data: bila data ditulis langsung ke RTDB).
+  const amanUrl = u => urlOk(u) ? String(u).trim() : '#';
   // Kunci data per dokumen yang dibuat di aplikasi (format id sama dengan modul masing-masing).
   function genKeys(node, bersemester) {
     const pre = taSlug() + '_' + (bersemester ? S.sem + '_' : '') + (isAdm() ? '' : slug(myId()) + '_');
@@ -183,6 +185,13 @@
   const taText = () => (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) ? String(currentTahunAjaran) : '';
   const taSlug = () => slug(taText());
   const say = (m, err, ms) => { if (typeof toast === 'function') toast(m, !!err, ms); };
+  // Tanpa batas waktu, update()/set() Firebase menggantung bila sinyal buruk: kunci "sedang menyimpan" tidak pernah lepas dan tombol Simpan tampak mati.
+  // Fungsi (bukan promise) dipakai supaya galat sinkron juga tertangkap dan kunci dilepas.
+  const dgBatas = (f, ms) => new Promise((ok, gagal) => {
+    const t = setTimeout(() => gagal(new Error('Server belum menjawab (sinyal lambat). Perubahan akan tersimpan otomatis bila koneksi pulih; periksa sinyal lalu coba lagi.')), ms || 15000);
+    let p; try { p = f(); } catch (e) { clearTimeout(t); return gagal(e); }
+    Promise.resolve(p).then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); gagal(e); });
+  });
   const kelasList = () => (typeof KELAS_LIST !== 'undefined' && Array.isArray(KELAS_LIST)) ? KELAS_LIST : [];
   // ---------- Jadwal pelajaran (node 'jadwal': satu data = satu slot {kelas, hari, jam, mapel, guru, guruKey}) ----------
   // Pola seperti Jurnal: pilihan mapel/kelas diambil dari jadwal guru; JP per pekan = jumlah slot unik (hari+jam).
@@ -338,7 +347,7 @@
     const k = S.kaldik, adm = isAdm();
     let h = `<div class="border-muted" style="margin:10px 0;padding:10px;border-radius:8px;background:#f0f9ff;">
       <div style="font-weight:700;">📅 Kalender Pendidikan (Kaldik) Semester ${SEM_LABEL[S.sem]}</div>`;
-    if (k && k.url) h += `<div style="margin-top:4px;font-size:13px;">${esc(k.judul || 'Kaldik')} · <a href="${esc(k.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a></div>`;
+    if (k && k.url) h += `<div style="margin-top:4px;font-size:13px;">${esc(k.judul || 'Kaldik')} · <a href="${esc(amanUrl(k.url))}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a></div>`;
     else h += `<div style="${muted}margin-top:4px;">Belum ada tautan Kaldik untuk semester ini.</div>`;
     if (adm && !S.kaldikEdit) h += `<button class="btn btn-soft" style="padding:4px 10px;font-size:12px;margin-top:6px;" data-act="kaldik-edit">✏️ ${k && k.url ? 'Ubah' : 'Isi'} tautan Kaldik</button> <button class="btn btn-soft" style="padding:4px 10px;font-size:12px;margin-top:6px;" data-act="rpe-kaldik">🗓 Atur kalender efektif (untuk RPE)</button>`;
     if (adm && S.kaldikEdit) h += `<div style="margin-top:8px;display:grid;gap:6px;max-width:420px;">
@@ -434,7 +443,7 @@
     if (adm) return `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#f9fafb;">
       <div style="font-weight:700;margin-bottom:6px;">${esc(j.full)} · ${esc(rec.guruName || '')}</div>${folderHint(id)}
       ${dilihatHtml(id, rec, jk, x)}${setujuHtml(id, rec, jk, j, x, true)}
-      ${(x.url || appFinal(x, jk, id) || menunggu(x, jk, id)) ? `<div style="font-size:13px;margin-bottom:8px;">${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a>` : viaFolder(x, id) ? `📁 Ada di folder Drive guru (tanpa tautan sendiri) · ${folderLink(folderRow(id))}` : `🛠 ${jk === 'rpe' ? 'RPE dihitung otomatis (tanpa tautan)' : 'Dokumen dibuat di aplikasi (tanpa tautan)'}${appBukaBtn(id, jk)}`} · ${(isFinal(x) || appFinal(x, jk, id)) ? 'Final' : menunggu(x, jk, id) ? 'Menunggu persetujuan' : 'Draf'}</div>
+      ${(x.url || appFinal(x, jk, id) || menunggu(x, jk, id)) ? `<div style="font-size:13px;margin-bottom:8px;">${x.url ? `<a href="${esc(amanUrl(x.url))}" target="_blank" rel="noopener noreferrer"><b>Buka dokumen</b></a>` : viaFolder(x, id) ? `📁 Ada di folder Drive guru (tanpa tautan sendiri) · ${folderLink(folderRow(id))}` : `🛠 ${jk === 'rpe' ? 'RPE dihitung otomatis (tanpa tautan)' : 'Dokumen dibuat di aplikasi (tanpa tautan)'}${appBukaBtn(id, jk)}`} · ${(isFinal(x) || appFinal(x, jk, id)) ? 'Final' : menunggu(x, jk, id) ? 'Menunggu persetujuan' : 'Draf'}</div>
       <input id="ppRevisi" class="field" maxlength="200" placeholder="Catatan revisi untuk guru (kosongkan bila sudah sesuai)" value="${esc(x.revisi || '')}">
       <div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="simpan-revisi" data-id="${esc(id)}" data-j="${jk}">💾 Simpan catatan</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tutup">Tutup</button></div>`
       : `<div style="${muted}">${genAda(jk, id) ? '🛠 Dibuat di aplikasi, belum diajukan atau ditandai final oleh guru.' + appBukaBtn(id, jk) : (jk === 'rpe' ? 'RPE belum siap: kalender efektif belum diisi atau JP per pekan belum diketahui.' : 'Guru belum mengisi tautan dokumen ini.')}</div><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;margin-top:8px;" data-act="tutup">Tutup</button>`}</div>`;
@@ -445,7 +454,7 @@
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <select id="ppStatus" class="field" style="max-width:120px;"><option value="draf" ${x.status !== 'final' ? 'selected' : ''}>Draf</option><option value="final" ${x.status === 'final' ? 'selected' : ''}>Final</option></select>
         <button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="simpan-doc" data-id="${esc(id)}" data-j="${jk}">💾 Simpan</button>
-        ${viaFolder(x, id) ? folderLink(folderRow(id)).replace('<a ', '<a class="btn btn-soft" style="padding:6px 12px;font-size:12px;" ') : ''}${x.url ? `<a class="btn btn-soft" style="padding:6px 12px;font-size:12px;" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">Buka</a><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="hapus-doc" data-id="${esc(id)}" data-j="${jk}">Hapus tautan</button>` : ''}
+        ${viaFolder(x, id) ? folderLink(folderRow(id)).replace('<a ', '<a class="btn btn-soft" style="padding:6px 12px;font-size:12px;" ') : ''}${x.url ? `<a class="btn btn-soft" style="padding:6px 12px;font-size:12px;" href="${esc(amanUrl(x.url))}" target="_blank" rel="noopener noreferrer">Buka</a><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="hapus-doc" data-id="${esc(id)}" data-j="${jk}">Hapus tautan</button>` : ''}
         <button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" data-act="tutup">Tutup</button></div></div>`;
   }
 
@@ -535,7 +544,7 @@
     const optUrut = [['', 'Urut: nama guru'], ['asc', 'Urut: paling belum lengkap'], ['desc', 'Urut: paling lengkap']].map(o => `<option value="${o[0]}" ${S.sortBy === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
     const adaFilter = !!(S.filterGuru || S.filterKelas || S.filterStatus);
     const th = JENIS.map(j => `<th class="pp-c" title="${esc(j.full || j.n)}">${esc(j.k === 'kunci' ? 'Kunci' : j.n)}</th>`).join('');
-    const cols = `<colgroup><col style="width:140px"><col style="width:170px"><col style="width:64px">${JENIS.map(() => '<col style="width:72px">').join('')}<col style="width:104px"></colgroup>`;
+    const cols = `<colgroup><col class="pp-cg"><col class="pp-cm"><col class="pp-ck">${JENIS.map(() => '<col class="pp-cd">').join('')}<col class="pp-cf"></colgroup>`;
     const tiRekap = tenggatInfo(), telat = !!tiRekap && tiRekap.sisa < 0;
     const barisHtml = (id, awal) => {
       const r = S.rows[id], c = hitung(r, id), d = r.docs || {};
@@ -574,11 +583,11 @@
       S.bukaNow[gp.k] = buka;
       const n = gp.ids.length;
       const sel = JENIS.map(j => {
-        let fin = 0, ada = 0, rev = 0, gen = 0;
-        gp.ids.forEach(id => { const x = (S.rows[id].docs || {})[j.k]; if (x && x.url) { ada++; if (isFinal(x)) fin++; if (x.revisi) rev++; } else if (appFinal(x, j.k, id)) { ada++; fin++; if (x && x.revisi) rev++; } else if (genAda(j.k, id)) gen++; });
+        let fin = 0, ada = 0, rev = 0, gen = 0, tgu = 0;
+        gp.ids.forEach(id => { const x = (S.rows[id].docs || {})[j.k]; if (x && x.url) { ada++; if (isFinal(x)) fin++; if (x.revisi) rev++; } else if (appFinal(x, j.k, id)) { ada++; fin++; if (x && x.revisi) rev++; } else if (menunggu(x, j.k, id)) tgu++; else if (genAda(j.k, id)) gen++; });
         let kls, ico;
-        if (rev) { kls = 'pp-rev'; ico = '⚠️'; } else if (fin === n) { kls = 'pp-fin'; ico = '✓'; } else if (ada) { kls = 'pp-draf'; ico = '✎'; } else if (gen) { kls = 'pp-gen'; ico = '🛠'; } else { kls = 'pp-kosong'; ico = '·'; }
-        const ttl = j.n + ': ' + fin + '/' + n + ' final' + (rev ? ', ' + rev + ' ada revisi' : '') + (gen ? ', ' + gen + ' dibuat di aplikasi' : '') + ' (klik untuk ' + (buka ? 'menutup' : 'membuka') + ' rincian)';
+        if (rev) { kls = 'pp-rev'; ico = '⚠️'; } else if (fin === n) { kls = 'pp-fin'; ico = '✓'; } else if (tgu) { kls = 'pp-draf'; ico = '⏳'; } else if (ada) { kls = 'pp-draf'; ico = '✎'; } else if (gen) { kls = 'pp-gen'; ico = '🛠'; } else { kls = 'pp-kosong'; ico = '·'; }
+        const ttl = j.n + ': ' + fin + '/' + n + ' final' + (rev ? ', ' + rev + ' ada revisi' : '') + (tgu ? ', ' + tgu + ' menunggu persetujuan' : '') + (gen ? ', ' + gen + ' dibuat di aplikasi' : '') + ' (klik untuk ' + (buka ? 'menutup' : 'membuka') + ' rincian)';
         return `<td class="pp-c"><button type="button" class="pp-b pp-sm ${kls}" title="${esc(ttl)}" aria-label="${esc(ttl)}" data-act="grp" data-id="${esc(gp.k)}">${ico}${n > 1 ? `<small>${fin}/${n}</small>` : ''}</button></td>`;
       }).join('');
       const pr = gp.t ? Math.round(gp.f * 100 / gp.t) : 0;
@@ -591,6 +600,7 @@
     const css = `<style>
 .pp-rekap{font-size:14px}
 .pp-wrap{overflow:auto;max-height:70vh;border:1px solid #d9e2de;border-radius:10px;background:#fff}
+.pp-cg{width:140px}.pp-cm{width:170px}.pp-ck{width:64px}.pp-cd{width:72px}.pp-cf{width:104px}
 .pp-tbl{width:100%;min-width:1054px;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:14px;color:#1f2937}
 .pp-tbl thead th{position:sticky;top:0;z-index:3;background:#e8f1ed;color:#14532d;font-size:13px;font-weight:700;padding:10px 6px;text-align:left;border-bottom:2px solid #b7cfc4;line-height:1.2}
 .pp-tbl thead th.pp-c{text-align:center}
@@ -602,7 +612,37 @@
 .pp-mapel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:sticky;left:140px;z-index:2;background:#fff;box-shadow:2px 0 0 #d9e2de}
 .pp-tbl thead th:nth-child(1){position:sticky;left:0;z-index:5}
 .pp-tbl thead th:nth-child(2){position:sticky;left:140px;z-index:5}
-@media (max-width:700px){.pp-guru,.pp-mapel,.pp-tbl thead th:nth-child(1),.pp-tbl thead th:nth-child(2){position:static;box-shadow:none}.pp-tbl thead th{position:sticky}}
+@media (max-width:700px){
+.pp-cg{width:92px}.pp-cm{width:84px}.pp-ck{width:36px}.pp-cd{width:44px}.pp-cf{width:62px}
+.pp-tbl{min-width:612px;font-size:12px}
+.pp-tbl thead th{font-size:11px;padding:8px 3px}
+.pp-tbl td{padding:5px 5px}
+.pp-tbl th.pp-c,.pp-tbl td.pp-c{padding:3px 1px}
+.pp-tbl td.pp-c{height:40px}
+.pp-guru{position:sticky;left:0;z-index:2;white-space:normal;line-height:1.2;font-size:12px;box-shadow:2px 0 0 #d9e2de;overflow:hidden;text-overflow:clip;word-break:break-word}
+.pp-tbl thead th:nth-child(1){position:sticky;left:0;top:0;z-index:5}
+.pp-tbl thead th:nth-child(2){position:sticky;left:auto;top:0;z-index:3}
+.pp-mapel{position:static;box-shadow:none;white-space:normal;line-height:1.2;font-size:12px}
+.pp-anak td.pp-mapel{padding-left:5px}
+.pp-grp td.pp-mapel{font-size:11px}
+.pp-kls{font-size:12px}
+.pp-tg{white-space:normal;line-height:1.2;font-size:12px;padding:3px 0;text-overflow:clip}
+.pp-b{width:34px;height:34px;border-radius:8px;font-size:14px}
+.pp-kosong{font-size:18px}
+.pp-b small{font-size:8px}
+.pp-fcell{min-width:0;font-size:11px}
+body.dark-mode .pp-guru{box-shadow:2px 0 0 #374151}
+.pp-bar{height:5px;margin-bottom:3px}
+.pp-tools{gap:6px}
+.pp-filters{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pp-filters .field{width:100%;max-width:none;min-width:0;font-size:13px;padding:7px 8px}
+.pp-filters .btn{grid-column:1/-1}
+.pp-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pp-sum{grid-column:1/-1;margin-right:0;font-size:13px}
+.pp-actions .btn{width:100%;padding:8px 6px;font-size:12px;text-align:center;justify-content:center;white-space:normal;line-height:1.2}
+.pp-leg{gap:5px 10px;font-size:11.5px;margin:8px 0 3px}
+.pp-leg i{width:18px;height:18px;line-height:18px;font-size:11px;margin-right:3px}
+}
 .pp-kls{white-space:nowrap;color:#374151}
 .pp-b{border:0;cursor:pointer;width:38px;height:38px;border-radius:10px;font-size:16px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;vertical-align:middle;touch-action:manipulation}
 .pp-b:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
@@ -890,11 +930,11 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
   // ---------- Simpan ----------
   const siap = () => (window.rpeUtil && window.rpeUtil.siap) ? window.rpeUtil.siap() : Promise.resolve(true);
   function tulis(path, upd, sukses, aksi, idAudit) {
-    if (typeof db === 'undefined' || !db) return;
+    if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
     if (S.busy) return say('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
     S.busy = true;
-    siap().then(() => db.ref(path).update(upd)).then(() => {
+    dgBatas(() => siap().then(() => db.ref(path).update(upd))).then(() => {
       S.busy = false; sukses(); audit(aksi, idAudit); render();
     }).catch(e => { S.busy = false; console.error('[SI MAMBA] perangkat:', e); say('❌ Gagal menyimpan: ' + ((e && e.message) || e), true); });
   }
@@ -903,6 +943,10 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     if (rec.guruKey !== myId()) return say('Hanya pemilik perangkat yang bisa mengubah tautan.', true);
     const url = (document.getElementById('ppUrl') || {}).value || '', st = (document.getElementById('ppStatus') || {}).value === 'final' ? 'final' : 'draf';
     const kosong = !String(url).trim();
+    // Dokumen buatan aplikasi (tanpa tautan): kolom tautan kosong + Simpan dulu menghapus seluruh data dokumen (pengajuan/final/persetujuan)
+    // atau ditolak karena butuh folder Drive. Kini ditahan dengan pesan jelas; membatalkan lewat tombol "Batalkan" di kotak biru.
+    const dx = (rec.docs || {})[jk];
+    if (kosong && dx && !dx.url && dx.app === true) return say('Dokumen ini memakai versi dari aplikasi. Isi tautan bila ingin melampirkan, atau tekan tombol Batalkan di kotak biru untuk membatalkan pengajuan/final.', true, 6000);
     if (kosong) {
       // Tautan per dokumen opsional. Draf tidak butuh tautan; Final tanpa tautan sendiri butuh tautan folder Drive mapel ini.
       if (st !== 'final') return (rec.docs || {})[jk] ? hapusDoc(id, jk) : say('Draf tidak wajib tautan. Isi tautan hanya bila ingin melampirkannya.');
@@ -1164,7 +1208,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     muat();
   };
   window.perangkatResetState = function () {
-    S.epoch++; S.posOk = false; S.buka = {}; S.bukaNow = {}; S.rows = {}; S.kaldik = null; S.rpeKaldik = null; S.jadwalSemua = null; S.jadwal = null; S.siap = false; S.err = null; S.view = 'saya'; S.edit = null; S.tambah = false;
+    S.epoch++; S.posOk = false; S.gen = null; S.buka = {}; S.bukaNow = {}; S.rows = {}; S.kaldik = null; S.rpeKaldik = null; S.jadwalSemua = null; S.jadwal = null; S.siap = false; S.err = null; S.view = 'saya'; S.edit = null; S.tambah = false;
     S.filterGuru = ''; S.filterKelas = ''; S.filterStatus = ''; S.sortBy = ''; S.waBuka = false; S.waSudah = {}; S.tenggatEdit = false; S.setujuBuka = false; S.busy = false; S.kaldikEdit = false; S.sem = semDefault();
     const el = (typeof document !== 'undefined') ? document.getElementById('page-perangkat-v4') : null; if (el) el.innerHTML = '';
   };
