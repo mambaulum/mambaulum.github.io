@@ -28,10 +28,10 @@
     // setuju: true = dokumen ini disahkan Kepala (tombol Setujui muncul; blok Kepala di cetakan berisi QR hanya setelah disetujui).
     //         false = blok Kepala di cetakan tetap kosong untuk tanda tangan basah. Ubah true/false di sini saja.
     { k: 'rpe',    n: 'RPE',               full: 'RPE (Rencana Pekan Efektif)', setuju: true },
-    { k: 'prota',  n: 'Prota',             full: 'Prota (Program Tahunan)', setuju: true },
-    { k: 'promes', n: 'Promes',            full: 'Promes (Program Semester)', setuju: true },
     { k: 'atp',    n: 'ATP',               full: 'ATP (Alur Tujuan Pembelajaran)', setuju: true },
     { k: 'tp',     n: 'TP',                full: 'TP (Tujuan Pembelajaran)', setuju: false },
+    { k: 'prota',  n: 'Prota',             full: 'Prota (Program Tahunan)', setuju: true },
+    { k: 'promes', n: 'Promes',            full: 'Promes (Program Semester)', setuju: true },
     { k: 'kisi',   n: 'Kisi-kisi',         full: 'Kisi-kisi Asesmen', setuju: true },
     { k: 'kartu',  n: 'Kartu Soal',        full: 'Kartu Soal', setuju: false },
     { k: 'kunci',  n: 'Kunci & Penskoran', full: 'Kunci Jawaban dan Pedoman Penskoran', setuju: false }
@@ -110,7 +110,9 @@
   function viaFolder(x, id) { return !!(x && !x.url && x.app !== true && x.status === 'final' && folderRow(id)); }
   function appFinal(x, jk, id) {
     if (jk === 'rpe') return !(x && x.url) && genAda('rpe', id);
-    return !!(x && !x.url && x.app === true && x.status === 'final' && genAda(jk, id)) || viaFolder(x, id);
+    // Dokumen aplikasi (tanpa tautan) yang sudah DISETUJUI Kepala/Admin juga dihitung final, sama seperti dokumen bertautan
+    // (lihat isFinal). Tanpa ini, kotak tabel tetap biru dan hitungan final tidak naik walau persetujuan sudah tersimpan.
+    return !!(x && !x.url && x.app === true && x.status === 'final' && genAda(jk, id)) || viaFolder(x, id) || !!(x && !x.url && x.setuju && genAda(jk, id));
   }
   const folderLink = (f, t) => `<a href="${esc(f)}" target="_blank" rel="noopener noreferrer"><b>${t || 'Buka folder'}</b></a>`;
   function folderHint(id) { const f = folderRow(id); return f ? `<div style="font-size:12px;margin-bottom:6px;">📁 Folder Drive guru: ${folderLink(f, 'Buka')}</div>` : ''; }
@@ -121,6 +123,35 @@
   }
   function selesai(x, jk, id) { return !!(x && x.url && isFinal(x)) || appFinal(x, jk, id); }
   const APP_ACT = { rpe: 'rpe', atp: 'atp', tp: 'atp', kisi: 'kisi', kartu: 'soal', kunci: 'soal', prota: 'prota', promes: 'prota' };
+  // ---------- Urutan pengisian ----------
+  // Tahap berikutnya TERTUTUP (tombol bergembok) sampai semua dokumen tahap sebelumnya selesai (final/disetujui; RPE otomatis).
+  // Berlaku hanya untuk pemilik perangkat. Tahap yang SUDAH ada isinya tetap terbuka supaya pekerjaan lama tidak terkunci.
+  const TAHAP = [
+    { a: 'rpe',   n: 'RPE',          jk: ['rpe'] },
+    { a: 'atp',   n: 'ATP/TP',       jk: ['atp', 'tp'] },
+    { a: 'prota', n: 'Prota/Promes', jk: ['prota', 'promes'] },
+    { a: 'kisi',  n: 'Kisi-kisi',    jk: ['kisi'] },
+    { a: 'soal',  n: 'Soal',         jk: ['kartu', 'kunci'] }
+  ];
+  function kunciTahap(a, id) {
+    const rec = S.rows && S.rows[id]; if (!rec || rec.guruKey !== myId()) return '';
+    const i = TAHAP.findIndex(t => t.a === a); if (i < 1) return '';
+    const d = rec.docs || {};
+    if (TAHAP[i].jk.some(k => d[k] || genAda(k, id))) return '';
+    for (let n = 0; n < i; n++) {
+      const kurang = TAHAP[n].jk.filter(k => !selesai(d[k], k, id));
+      if (!kurang.length) continue;
+      const nama = kurang.map(k => (JENIS.find(z => z.k === k) || {}).n || k).join(', ');
+      return '🔒 Selesaikan dulu tahap ' + (n + 1) + ' (' + TAHAP[n].n + '). ' + (n === 0
+        ? 'RPE selesai otomatis bila Admin sudah mengisi kalender efektif dan JP per pekan diketahui.'
+        : 'Belum final: ' + nama + '. Tandai final di kartu, atau tunggu disetujui Kepala.');
+    }
+    return '';
+  }
+  function tombolTahap(a, label, id) {
+    const k = kunciTahap(a, id);
+    return `<button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;${k ? 'opacity:.55;' : ''}" data-act="${a}" data-id="${esc(id)}"${k ? ` title="${esc(k)}" aria-disabled="true"` : ''}>${k ? '🔒 ' : ''}${label}</button>`;
+  }
   function appBukaBtn(id, jk) {
     const a = APP_ACT[jk]; if (!a) return '';
     return ` <button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:6px;" data-act="${a}" data-id="${esc(id)}">Buka di aplikasi</button>`;
@@ -372,7 +403,7 @@
     return `<div class="border-muted" style="margin-top:10px;padding:10px;border-radius:10px;">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
         <div style="font-weight:700;">${esc(rec.mapel)} · Kelas ${esc(rec.kelas)}${(() => { const jj = jpJadwal(rec); return jj ? `<div style="${muted}font-weight:400;">📅 Jadwal: ${jj} JP/pekan${rec.jpPerPekan && rec.jpPerPekan !== jj ? ` · di dokumen tersimpan ${esc(rec.jpPerPekan)} (beda dari jadwal, cek kembali)` : ''}</div>` : ''; })()}</div>
-        <div style="font-size:12px;">${c.final}/${c.total} final${c.draf ? ` · ${c.draf} draf` : ''} <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="rpe" data-id="${esc(id)}">🖨 Buat RPE</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="prota" data-id="${esc(id)}">🗂 Prota/Promes</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="atp" data-id="${esc(id)}">🎯 ATP/TP</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="kisi" data-id="${esc(id)}">📋 Kisi-kisi</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="soal" data-id="${esc(id)}">📝 Soal</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="hapus-baris" data-id="${esc(id)}">🗑</button></div></div>
+        <div style="font-size:12px;">${c.final}/${c.total} final${c.draf ? ` · ${c.draf} draf` : ''} ${tombolTahap('rpe', '🖨 Buat RPE', id)}${tombolTahap('atp', '🎯 ATP/TP', id)}${tombolTahap('prota', '🗂 Prota/Promes', id)}${tombolTahap('kisi', '📋 Kisi-kisi', id)}${tombolTahap('soal', '📝 Soal', id)}<button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="hapus-baris" data-id="${esc(id)}">🗑</button></div></div>
       <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>${folderHtml(id, rec)}${siapHtml}${panel}</div>`;
   }
 
@@ -387,8 +418,8 @@
     const aktif = appFinal(x, jk, id);
     return `<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;font-size:12px;color:#1e3a8a;">🛠 Dokumen ini sudah dibuat di aplikasi — ${x.url ? 'tautan di bawah tetap berlaku sebagai lampiran' : 'tidak wajib diunggah ke Google Drive'}.
       <div style="margin-top:6px;">${aktif
-        ? '<b>✅ Ditandai final (memakai dokumen aplikasi).</b> <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-act="app-batal" data-id="' + esc(id) + '" data-j="' + jk + '">Batalkan</button>'
-        : '<button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="app-final" data-id="' + esc(id) + '" data-j="' + jk + '">✅ Cukup pakai dokumen aplikasi (tandai final)</button>'}</div></div>`;
+        ? '<b>✅ ' + (x.setuju && !(x.app === true && x.status === 'final') ? 'Sudah disetujui Kepala (dokumen aplikasi dianggap final).' : 'Ditandai final (memakai dokumen aplikasi).') + '</b> <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-act="app-batal" data-id="' + esc(id) + '" data-j="' + jk + '">Batalkan</button>'
+        : '<button class="btn btn-success" style="padding:6px 12px;font-size:12px;" data-act="app-final" data-id="' + esc(id) + '" data-j="' + jk + '">✅ Ajukan pakai dokumen dari aplikasi</button>'}</div></div>`;
   }
   function editorHtml(id, rec, jk) {
     const j = JENIS.find(x => x.k === jk); if (!j) return '';
@@ -1047,6 +1078,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     const t = e.target.closest ? e.target.closest('[data-act]') : null; if (!t) return;
     const a = t.getAttribute('data-act'), id = t.getAttribute('data-id'), j = t.getAttribute('data-j');
     if (t.tagName === 'SELECT' && e.type === 'click') return; // select ditangani lewat 'change'
+    if (a === 'rpe' || a === 'atp' || a === 'prota' || a === 'kisi' || a === 'soal') { const kunci = kunciTahap(a, id); if (kunci) return say(kunci, true, 6000); }
     switch (a) {
       case 'muat': return muat();
       case 'view': S.view = t.getAttribute('data-v') === 'rekap' ? 'rekap' : 'saya'; S.edit = null; return render();

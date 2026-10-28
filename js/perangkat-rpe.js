@@ -489,6 +489,32 @@ ${tabelHtml(h)}
     if (!id || typeof db === 'undefined' || !db || !navigator.onLine) return;
     (daftarJk || []).forEach(jk => { try { db.ref('perangkat_v4/' + id + '/docs/' + jk + '/setuju').remove().catch(() => {}); db.ref('perangkat_v4/' + id + '/docs/' + jk + '/dilihat').remove().catch(() => {}); } catch (e) {} });
   }
+  // ---------- Logo pada kop cetakan ----------
+  // Logo diambil sekali dari logo/logo-lembaga.png (ikut cache service worker, jadi tetap ada saat offline) lalu
+  // disisipkan sebagai data-URI supaya tampil di jendela cetak MAUPUN di berkas Word. Gagal muat -> kop dicetak tanpa logo.
+  let logoCache = null;
+  function logoData() {
+    if (logoCache) return logoCache;
+    logoCache = fetch('logo/logo-lembaga.png').then(r => r.ok ? r.blob() : Promise.reject(new Error('logo ' + r.status)))
+      .then(bl => (bl.type || '').indexOf('image/') === 0 ? new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.onerror = no; fr.readAsDataURL(bl); }) : Promise.reject(new Error('bukan gambar')))
+      .catch(() => { logoCache = null; return ''; });
+    return logoCache;
+  }
+  // Kop jadi tabel 3 kolom: [logo | teks kop | kolom kosong selebar logo]. Kolom kosong menjaga teks tetap di tengah halaman,
+  // dan karena logo punya kolom sendiri, logo TIDAK menimpa teks (nama madrasah panjang cukup turun baris di kolom tengah).
+  // Tabel memakai border:0 agar tidak diberi garis oleh wordDari(). Dokumen tanpa <div class="kop"> dibiarkan apa adanya.
+  function sisipLogo(h, src) {
+    if (!src) return h;
+    const aw = '<div class="kop">', a = h.indexOf(aw); if (a < 0) return h;
+    const b = blokSeimbang(h, a); if (b < 0) return h;
+    const dalam = h.slice(a + aw.length, b - '</div>'.length);
+    const img = '<img src="' + src + '" alt="Logo" height="83" style="height:22mm;width:auto;max-width:26mm;display:block;margin:0" onerror="this.style.display=\'none\'">';
+    const td = 'border:0;padding:0;vertical-align:middle;';
+    return h.slice(0, a) + aw + '<table style="width:100%;border:0;border-collapse:collapse"><tr>'
+      + '<td style="width:26mm;' + td + 'text-align:left">' + img + '</td>'
+      + '<td style="' + td + 'padding:0 3mm;text-align:center">' + dalam + '</td>'
+      + '<td style="width:26mm;' + td + '"></td></tr></table></div>' + h.slice(b);
+  }
   // mode 'word' => unduh .doc; selain itu buka jendela cetak.
   // Jendela cetak dibuka SINKRON (agar tidak diblokir popup), isinya ditulis setelah QR selesai dibuat.
   function keluarkan(html, nama, mode) {
@@ -502,8 +528,9 @@ ${tabelHtml(h)}
     const siap = (ada && window.TTD && typeof window.TTD.isiHtml === 'function')
       ? window.TTD.isiHtml(html).catch(e => { console.error('[perangkat] QR tanda tangan gagal:', e); return html; })
       : Promise.resolve(html);
-    siap.then(h => {
-      h = String(h).replace(/\[\[TTD:[^\]\s]*\]\]/g, '');   // penanda yang tak terproses jangan sampai tercetak
+    Promise.all([siap, logoData()]).then(hasil => {
+      let h = sisipLogo(String(hasil[0]), hasil[1]);
+      h = h.replace(/\[\[TTD:[^\]\s]*\]\]/g, '');   // penanda yang tak terproses jangan sampai tercetak
       if (mode === 'word') {
         const blob = new Blob(['\ufeff' + wordDari(h)], { type: 'application/msword' }), a = document.createElement('a');
         a.href = URL.createObjectURL(blob); a.download = String(nama || 'dokumen').replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').slice(0, 80) + '.doc';
@@ -573,5 +600,5 @@ ${tabelHtml(h)}
   }
   window.rpeUtil = { siap: siap, parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
     esc: esc, slug: slug, fmtTgl: fmtTgl, fmtRentang: fmtRentang, daftar: daftar, BULAN: BULAN,
-    keluarkan: keluarkan, ttdSp: ttdSp, ttdKepalaSp: ttdKepalaSp, cabutSetuju: cabutSetuju, idSemester: idSemester, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
+    keluarkan: keluarkan, sisipLogo: sisipLogo, ttdSp: ttdSp, ttdKepalaSp: ttdKepalaSp, cabutSetuju: cabutSetuju, idSemester: idSemester, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
 })();
