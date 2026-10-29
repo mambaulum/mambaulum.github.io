@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.246';
+const APP_VERSION = 'v8.247';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -89,7 +89,7 @@ const PRECACHE_URLS = [
   './js/kelola-absen-guru.js?v=6',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=5',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/laporan-rekap.js?v=2',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-guru.js?v=25',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-guru.js?v=26',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-kebersihan.js?v=3',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
   './js/versi-app.js?v=2',                   // Penampil versi + Cek pembaruan (footer menu samping; berdiri sendiri)
   './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -100,7 +100,7 @@ const PRECACHE_URLS = [
   './js/kalender-akademik.js?v=1',          // Kalender Akademik/Nasional + panel "Hari Ini" (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/ortu-akun-admin.js?v=1',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/amalan-kegiatan.js?v=32',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
+  './js/amalan-kegiatan.js?v=33',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=3',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)

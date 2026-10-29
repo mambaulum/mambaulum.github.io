@@ -427,12 +427,43 @@ function v4RenderActivityFill() {
       }
     }
     // ---- Komponen bersama tampilan rekap (tab, tabel) ----
+    // CSS navigasi rekap (dipasang sekali). Warna mengikuti tema (tanpa warna latar tetap) supaya aman di mode gelap.
+    function v4RekapCssPasang() {
+      if (document.getElementById('v4RekapNavCss')) return;
+      const st = document.createElement('style'); st.id = 'v4RekapNavCss';
+      st.textContent = ''
+        + '.rk-nav{display:flex;flex-direction:column;gap:8px;margin-top:10px}'
+        + '.rk-pilih{display:none}.rk-pilih .field{width:100%;font-weight:600}'
+        + '.rk-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}'
+        + '.rk-tab{flex:0 0 auto;padding:8px 14px;min-height:38px;border-radius:999px;border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}'
+        + '.rk-tab.aktif{background:#059669;border-color:#059669;color:#fff}'
+        + '.rk-unduh{display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
+        + '.rk-unduh-l{font-size:12px;opacity:.7;margin-right:2px}'
+        + '.rk-unduh .btn{padding:6px 12px;font-size:12px;min-height:34px}'
+        + '.rk-sub{margin-top:10px}.rk-sub-l{display:block;font-size:12px;opacity:.7;margin-bottom:4px}'
+        + '.rk-seg{display:flex;border:1px solid rgba(128,128,128,.4);border-radius:10px;overflow:hidden}'
+        + '.rk-seg-b{flex:1;padding:10px 6px;min-height:40px;border:0;background:transparent;color:inherit;font-size:13px;font-weight:600;cursor:pointer}'
+        + '.rk-seg-b+.rk-seg-b{border-left:1px solid rgba(128,128,128,.4)}'
+        + '.rk-seg-b.aktif{background:#059669;color:#fff}'
+        + '@media (max-width:640px){'
+        +   '.rk-pilih{display:block}.rk-tabs{display:none}'
+        +   '.v4-card .amalan-filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}'
+        +   '.v4-card .amalan-filters>*{min-width:0}.v4-card .amalan-filters .field{width:100%}'
+        +   '.v4-card .amalan-filters .amalan-reload{grid-column:1/-1}.v4-card .amalan-filters .amalan-reload .btn{width:100%}'
+        + '}';
+      document.head.appendChild(st);
+    }
+    // Navigasi rekap: di layar lebar = deret tab bulat yang bisa digeser; di HP = satu pilihan "Tampilan" (dropdown) supaya tidak berbaris-baris.
     function v4RekapReligiTabsHtml() {
+      v4RekapCssPasang();
       const vw = v4RekapReligiState.view;
-      const b = (id, label) => `<button class="btn ${vw===id?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.view='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
-      return `<div class="amalan-tabs">
-        ${b('kelas','📅 Per Hari')}${b('siswa','🧑‍🎓 Per Siswa')}${b('pj','📋 Kepatuhan PJ')}${b('raport','📘 Raport')}${b('raportdesk','📝 Deskripsi Raport')}${b('alpa','🚨 Sering Alpa')}${b('petugas','👮 Petugas QR')}
-        <span class="amalan-sp"><button class="btn btn-soft" onclick="v4ExportRekapReligi('xlsx')">📥 Excel</button><button class="btn btn-soft" onclick="v4ExportRekapReligi('pdf')">📄 PDF</button></span>
+      const daftar = [['kelas','📅','Per Hari'],['siswa','🧑‍🎓','Per Siswa'],['pj','📋','Kepatuhan PJ'],['raport','📘','Raport'],['raportdesk','📝','Deskripsi Raport'],['alpa','🚨','Sering Alpa'],['petugas','👮','Petugas QR']];
+      const tabs = daftar.map(d => `<button type="button" class="rk-tab${vw===d[0]?' aktif':''}" onclick="v4RekapReligiState.view='${d[0]}';v4RenderRekapReligiSiswa();">${d[1]} ${d[2]}</button>`).join('');
+      const opsi = daftar.map(d => `<option value="${d[0]}" ${vw===d[0]?'selected':''}>${d[1]} ${d[2]}</option>`).join('');
+      return `<div class="rk-nav">
+        <div class="rk-pilih"><label class="label">Tampilan</label><select class="field" onchange="v4RekapReligiState.view=this.value;v4RenderRekapReligiSiswa();">${opsi}</select></div>
+        <div class="rk-tabs" role="tablist">${tabs}</div>
+        <div class="rk-unduh"><span class="rk-unduh-l">Unduh:</span><button class="btn btn-soft" onclick="v4ExportRekapReligi('xlsx')">📥 Excel</button><button class="btn btn-soft" onclick="v4ExportRekapReligi('pdf')">📄 PDF</button></div>
       </div>`;
     }
     function v4RekapReligiTabelHtml(tabel) {
@@ -518,14 +549,14 @@ function v4RenderActivityFill() {
       const tahunOptions = [tSkrg - 1, tSkrg, tSkrg + 1].map(t => `<option value="${t}" ${st.tahun===t?'selected':''}>${t}</option>`).join('');
       const adm = v4IsAdmin() || v4IsHead();
       const mode = st.petugasMode === 'guru' ? 'guru' : 'detail';
-      const modeBtn = (id, label) => `<button class="btn ${mode===id?'btn-success':'btn-soft'}" onclick="v4RekapReligiState.petugasMode='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
+      const modeBtn = (id, label) => `<button type="button" class="rk-seg-b${mode===id?' aktif':''}" onclick="v4RekapReligiState.petugasMode='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
       const controlsHtml = `<div class="v4-card"><div class="amalan-filters">
         <div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
         <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>
         <div class="amalan-reload"><button class="btn btn-soft" onclick="v4RekapPetugasMuat(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true);v4HonorSholatSiapkan(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true).then(() => v4RenderRekapReligiSiswa());v4RenderRekapReligiSiswa();">🔄 Muat ulang</button></div>
       </div>
       ${v4RekapReligiTabsHtml()}
-      <div class="amalan-tabs">${modeBtn('detail','🗒️ Rincian per Hari')}${modeBtn('guru','👤 Ringkasan per Guru')}</div></div>`;
+      <div class="rk-sub"><span class="rk-sub-l">Tampilkan petugas QR sebagai:</span><div class="rk-seg">${modeBtn('detail','🗒️ Rincian per Hari')}${modeBtn('guru','👤 Ringkasan per Guru')}</div></div></div>`;
 
       const ym = st.tahun + '-' + String(st.bulan).padStart(2, '0');
       v4RekapPetugasMuat(st.tahun, st.bulan, false);

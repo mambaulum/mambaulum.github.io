@@ -27,6 +27,10 @@
     // true = seperti sebelumnya: wajib absensi siswa lengkap, dicocokkan menurut TANGGAL SHOLAT (bukan kapan diisi), jadi isian susulan
     // untuk tanggal lampau tetap melengkapi hari itu.
     const HONOR_SHOLAT_WAJIB_ABSENSI_SISWA = true;
+    // Petugas (PJ/pengganti yang check-in) WAJIB mengisi absensi SEMUA siswa wajib sendiri: tiap record siswa pada tanggal+jenis itu harus tercatat atas nama petugas (guruKey, atau nama bila guruKey kosong). Siswa yang diisi orang lain atau dilewati membuat hari itu tidak lolos. Isi false untuk kembali ke aturan lama (siapa pun yang mengisi).
+    const HONOR_SHOLAT_WAJIB_PETUGAS_ISI = true;
+    // Aturan "petugas mengisi sendiri" hanya berlaku untuk tanggal sholat >= tanggal ini, supaya data yang sudah terisi sebelumnya tidak berubah jadi "Belum".
+    const HONOR_SHOLAT_PETUGAS_ISI_MULAI = '2026-10-29';
     const HONOR_SHOLAT_TTL_MS = 5 * 60 * 1000;
     const HONOR_SHOLAT_TOLERANSI_MS = 5 * 60 * 1000;   // jam check-in boleh "lebih maju" maksimal ini dari jam server
     let honorSholatCache = {};   // 'YYYY-MM' -> { status:'loading'|'ok'|'gagal', at, hasil, error, tunggu:[] }
@@ -117,7 +121,8 @@
           if (Number(ci.serverAt) > 0 && ms > Number(ci.serverAt) + HONOR_SHOLAT_TOLERANSI_MS) alasan.push('Jam check-in lebih maju dari jam server');
         }
         if (HONOR_SHOLAT_WAJIB_ABSENSI_SISWA) {   // kunci = tanggal sholat (tgl), bukan waktu pengisian
-          const sudah = ((c.hadirSiswa || {})[jenis] || {})[tgl] || new Set(), rinci = [];
+          const sudah = ((c.hadirSiswa || {})[jenis] || {})[tgl] || new Set(), rinci = [], rinciLain = [];
+          const pemilik = (((c.pengisiSiswa || {})[jenis] || {})[tgl]) || {};   // studentId -> identitas guru pengisi record terakhir
           const kelasKosong = [], daftarWajib = (c.siswaWajib || {})[jenis] || [];
           // Tanpa kelas wajib sama sekali (mis. semua kelas ditandai "tidak ikut", atau kegiatannya tidak punya kelas peserta) tidak ada yang bisa diperiksa:
           // JANGAN lolos diam-diam. Dan bila belum ada satu pun absensi siswa pada tanggal itu, hari itu pasti belum lengkap.
@@ -128,10 +133,15 @@
             // belum termuat / nama kelas salah / Rules menolak baca; kelasnya tidak bisa diverifikasi -> hari ditolak + alasan jelas.
             if (!g.siswa || g.siswa.length === 0) { kelasKosong.push(g.kelas); return; }
             const wajibHariIni = g.siswa.filter(s => !(s.masuk && s.masuk > tgl)); // belum terdaftar pada tanggal itu -> tidak wajib
-            const belum = wajibHariIni.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + wajibHariIni.length + ' siswa');
+            const belum = wajibHariIni.filter(s => !sudah.has(s.key)); if (belum.length) rinci.push(g.kelas + ' ' + belum.length + '/' + wajibHariIni.length + ' siswa: ' + belum.slice(0, 3).map(s => s.name).join(', ') + (belum.length > 3 ? ', dst' : ''));
+            if (HONOR_SHOLAT_WAJIB_PETUGAS_ISI && tgl >= HONOR_SHOLAT_PETUGAS_ISI_MULAI) {
+              const lain = wajibHariIni.filter(s => sudah.has(s.key) && pemilik[s.key] !== gk);
+              if (lain.length) rinciLain.push(g.kelas + ' ' + lain.length + '/' + wajibHariIni.length + ' siswa: ' + lain.slice(0, 3).map(s => s.name).join(', ') + (lain.length > 3 ? ', dst' : '') + ' [diisi: ' + Array.from(new Set(lain.map(s => (pemilik[s.key] ? honorSholatNamaGuru(pemilik[s.key], pemilik[s.key]) : '?')))).join('/') + ']');
+            }
           });
           if (kelasKosong.length) alasan.push('Kelas wajib tanpa data siswa (' + kelasKosong.join(', ') + '): kelengkapan absensi tidak dapat diverifikasi. Bila kelas itu memang tidak ikut sholat, atur "kelas tidak ikut" pada kegiatannya; bila ada siswanya, periksa data siswa');
           if (rinci.length) alasan.push('Absensi siswa belum lengkap (' + rinci.join(', ') + ')');
+          if (rinciLain.length) alasan.push('Absensi siswa harus diisi sendiri oleh petugas, tetapi ada yang diisi orang lain (' + rinciLain.join(', ') + ')');
         }
         const ek = gk + '|' + tgl + '|' + jenis, lolos = alasan.length === 0, e = entri[ek];
         const pengisiHari = [...((((c.pengisi || {})[jenis] || {})[tgl]) || [])];
@@ -190,11 +200,11 @@
         const perlu = new Set(kelasList);
         return db.ref('siswa').once('value').then(snap => {
           const peta = {}; kelasList.forEach(k => { peta[k] = []; });
-          snap.forEach(ch => { const v = ch.val() || {}; if (perlu.has(v.kelas)) peta[v.kelas].push({ key: ch.key, name: v.name || ch.key, masuk: honorSiswaMasuk(v) }); });
+          snap.forEach(ch => { const v = ch.val() || {}; if (v.aktif !== false && perlu.has(v.kelas)) peta[v.kelas].push({ key: ch.key, name: v.name || ch.key, masuk: honorSiswaMasuk(v) }); });
           return simpan(peta);
         });
       }
-      return Promise.all(kelasList.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(sn => { const arr = []; sn.forEach(ch => { const v = ch.val() || {}; arr.push({ key: ch.key, name: v.name || ch.key, masuk: honorSiswaMasuk(v) }); }); return [k, arr]; })))
+      return Promise.all(kelasList.map(k => db.ref('siswa').orderByChild('kelas').equalTo(k).once('value').then(sn => { const arr = []; sn.forEach(ch => { const v = ch.val() || {}; if (v.aktif === false) return; arr.push({ key: ch.key, name: v.name || ch.key, masuk: honorSiswaMasuk(v) }); }); return [k, arr]; })))
         .then(pasangan => { const peta = {}; pasangan.forEach(x => { peta[x[0]] = x[1]; }); return simpan(peta); });
     }
     function honorSholatMuat(ym) {
@@ -207,7 +217,7 @@
       };
       try {
         const religiLama = (allReligiAttendance || []).filter(r => r && r.tanggal && r.tanggal.slice(0, 7) === ym && sesuaiTahunAjaranTermasukDataLama(r));
-        const c = { ym, religiLama, checkins: {}, koreksi: {}, hadirSiswa: {}, pengisi: {}, siswaWajib: {}, jenisType: honorSholatJenisType, hariOk: (j, t) => v4HariDiizinkanSholat(j, t) };
+        const c = { ym, religiLama, checkins: {}, koreksi: {}, hadirSiswa: {}, pengisi: {}, pengisiSiswa: {}, siswaWajib: {}, jenisType: honorSholatJenisType, hariOk: (j, t) => v4HariDiizinkanSholat(j, t) };
         if (ym + '-31' < HONOR_SHOLAT_MULAI_CHECKIN) return selesai(null, honorSholatHitung(c));   // bulan lama: murni Absen Religi lama
         if (typeof db === 'undefined' || !db || !navigator.onLine) return selesai(new Error('Butuh koneksi internet untuk memeriksa check-in petugas dan kelengkapan absensi siswa sholat.'));
         if (!(V4.activityTypes || []).length) { if (typeof v4LoadCore === 'function') v4LoadCore(); return selesai(new Error('Data Amalan Yaumiyah belum termuat. Coba lagi sebentar lagi.')); }
@@ -226,6 +236,7 @@
             const kosong = semuaKelas.filter(k => !(m[k] || []).length);
             if (kosong.length) console.warn('[SI MAMBA] Honor sholat: kelas wajib tanpa siswa (' + kosong.join(', ') + ') -> hari sholat ditolak sampai data/pengaturan diperbaiki.');
           });
+        const resolvePengisi = honorBuatResolver();
         const bacaAbsen = Promise.all(jenisList.map(j => Promise.all(tipe[j].map(t => db.ref('activity_attendance_v4').orderByKey().startAt(t.key + '_' + awal).endAt(t.key + '_' + akhir).once('value').then(s => {
           const peta = c.hadirSiswa[j] || (c.hadirSiswa[j] = {});
           s.forEach(ch => {
@@ -233,6 +244,7 @@
             if (!r.studentId || !(typeof v4NormStatusKegiatan === 'function' ? v4NormStatusKegiatan(r.status) : r.status)) return;
             const tgl = r.tanggal || String(ch.key).slice(t.key.length + 1, t.key.length + 11);
             (peta[tgl] || (peta[tgl] = new Set())).add(r.studentId);
+            { const ps = c.pengisiSiswa[j] || (c.pengisiSiswa[j] = {}); (ps[tgl] || (ps[tgl] = {}))[r.studentId] = (r.guruKey || r.recordedBy) ? resolvePengisi(r.guruKey, r.recordedBy) : ''; }   // siapa yang mengisi record siswa ini (identitas guru, sama dengan resolver petugas)
             if (r.recordedBy) { const pj = c.pengisi[j] || (c.pengisi[j] = {}); (pj[tgl] || (pj[tgl] = new Set())).add(String(r.recordedBy)); }   // penanda untuk Admin (Rekap Petugas QR)
           });
         })))));
