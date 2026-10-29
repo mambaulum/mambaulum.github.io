@@ -118,7 +118,7 @@
   const S = { rec: null, ta: '', fase: '', sem: 'ganjil', slots: { ganjil: [], genap: [] }, judul: { ganjil: '', genap: '' },
               skor: { pg: '1', is: '2', ur: '5' }, cfg: { ganjil: null, genap: null }, nip: '', yatim: { ganjil: 0, genap: 0 },
               loading: false, err: null, busy: false, dirty: false, ro: false, epoch: 0 };
-  const MUT = ['simpan', 'ganti', 'bank'];
+  const MUT = ['simpan', 'ganti', 'bank', 'skor100'];
   // Mode baca-saja untuk Admin/Kepsek yang membuka perangkat milik guru lain (simpan memang hanya untuk pemilik).
   function kunciRo(el, mut) {
     el.querySelectorAll('input:not([data-f="nip"]),select,textarea').forEach(i => { i.disabled = true; });
@@ -133,6 +133,25 @@
   const kopCfg = () => S.cfg.ganjil || S.cfg.genap || {};
   const skorB = b => angka(S.skor[b]);
   const skorMaks = s => S.slots[s].reduce((t, x) => t + skorB(x.b), 0);
+  // Cari skor bulat per bentuk agar total skor maksimal = 100, dengan perbandingan sedekat mungkin ke skor yang sedang diisi (bawaan 1:2:5).
+  // Mengembalikan null bila tidak ada kombinasi bulat yang tepat 100 untuk jumlah soal tersebut.
+  function skor100(s) {
+    const n = { pg: 0, is: 0, ur: 0 }; S.slots[s].forEach(x => { n[x.b]++; });
+    const K = ['pg', 'is', 'ur'], ada = K.filter(k => n[k] > 0); if (!ada.length) return null;
+    const p = {}; K.forEach(k => { p[k] = skorB(k) > 0 ? skorB(k) : 1; });
+    const tot = ada.reduce((t, k) => t + p[k] * n[k], 0), ideal = {}; ada.forEach(k => { ideal[k] = p[k] * 100 / tot; });
+    const R = k => n[k] > 0 ? [1, 99] : [0, 0];
+    let best = null, bd = Infinity;
+    for (let a = R('pg')[0]; a <= R('pg')[1]; a++) for (let b = R('is')[0]; b <= R('is')[1]; b++) {
+      const sisa = 100 - a * n.pg - b * n.is;
+      for (let c = R('ur')[0]; c <= R('ur')[1]; c++) {
+        if (sisa - c * n.ur !== 0) continue;
+        const x = { pg: a, is: b, ur: c }; let d = 0; ada.forEach(k => { d += Math.pow((x[k] - ideal[k]) / ideal[k], 2); });
+        if (d < bd) { bd = d; best = x; }
+      }
+    }
+    return best;
+  }
   const judulAs = s => S.judul[s] || (s === 'genap' ? 'Asesmen Sumatif Akhir Tahun' : 'Asesmen Sumatif Akhir Semester');
   // Label di bawah kop: tambahkan kata "Semester" hanya bila judul belum memuatnya (hindari "Semester Semester").
   const labelAs = s => { const j = judulAs(s); return /semester/i.test(j) ? j + ' ' + SEM_LABEL[s] : j + ' Semester ' + SEM_LABEL[s]; };
@@ -332,7 +351,7 @@ body{font-size:11pt;line-height:1.25}
   }
   function ringkasHtml() {
     const sl = S.slots[S.sem], kosong = sl.filter(x => !lengkap(x)).length, draf = sl.filter(x => lengkap(x) && x.src === 'bank' && !x.ok).length;
-    return `Soal: <b>${sl.length}</b> · lengkap <b>${sl.length - kosong}</b>${kosong ? ` · <span style="color:#b45309">belum lengkap ${kosong}</span>` : ''}${draf ? ` · <span style="color:#b45309">draf bank belum diperiksa ${draf}</span>` : ''} · Skor maksimal: <b>${skorMaks(S.sem)}</b>`
+    return `Soal: <b>${sl.length}</b> · lengkap <b>${sl.length - kosong}</b>${kosong ? ` · <span style="color:#b45309">belum lengkap ${kosong}</span>` : ''}${draf ? ` · <span style="color:#b45309">draf bank belum diperiksa ${draf}</span>` : ''} · Skor maksimal: <b style="color:${skorMaks(S.sem) === 100 ? '#15803d' : '#b45309'}">${skorMaks(S.sem)}</b>${skorMaks(S.sem) === 100 ? ' ✓' : ' (belum 100)'}`
       + (S.yatim[S.sem] ? `<div style="color:#b91c1c;margin-top:4px;">⚠️ ${S.yatim[S.sem]} soal tersimpan tidak punya slot lagi (jumlah soal di Kisi-kisi dikurangi). Soal itu akan terhapus bila Anda menekan Simpan.</div>` : '');
   }
   function kartuHtml(x, i) {
@@ -371,7 +390,7 @@ body{font-size:11pt;line-height:1.25}
     if (!sl.length) return h + `<div style="padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:13px;color:#92400e;">Belum ada slot soal untuk semester ${SEM_LABEL[s]}. Buka 📋 Kisi-kisi, isi jumlah soal tiap TP (atau Bagi otomatis), tekan Simpan, lalu buka menu ini lagi.</div>`;
     const fld = (k, label) => `<label style="font-size:12px;">${label}<br><input class="field" type="number" min="0" max="99" inputmode="numeric" style="width:90px;" data-skor="${k}" value="${esc(S.skor[k])}"></label>`;
     h += `<div style="padding:8px 10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;">Soal dari bank adalah <b>draf</b>. Periksa kebenaran isi, kunci, dan kesesuaiannya dengan buku ajar madrasah sebelum dipakai, lalu centang "Sudah saya periksa".</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">${btn('bank', '⚡ Isi dari bank soal', 'btn-success')}${fld('pg', 'Skor per soal PG')}${fld('is', 'Skor per soal isian')}${fld('ur', 'Skor per soal uraian')}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">${btn('bank', '⚡ Isi dari bank soal', 'btn-success')}${fld('pg', 'Skor per soal PG')}${fld('is', 'Skor per soal isian')}${fld('ur', 'Skor per soal uraian')}${btn('skor100', '🎯 Atur skor = 100', 'btn-soft')}</div>
       <div id="soalSum" style="margin:10px 0;font-size:13px;">${ringkasHtml()}</div>`;
     h += sl.map((x, i) => kartuHtml(x, i)).join('');
     return h + `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
@@ -437,8 +456,24 @@ body{font-size:11pt;line-height:1.25}
     if (x.b === 'pg') { const u = acak(kandidat[3].length, x.key + '|' + kandidat[2]); x.o = u.map(n => kandidat[3][n]); x.kp = u.indexOf(0); } else x.kt = kandidat[3];
     S.dirty = true;
   }
+  // Guru mengubah soal yang sudah Final/Disetujui -> Kartu Soal & Kunci kembali "menunggu persetujuan Kepala".
+  // Hanya dokumen buatan aplikasi (tanpa tautan) yang sudah ada dan berstatus Final/Disetujui; yang belum pernah diajukan atau sudah menunggu dibiarkan.
+  // Mengembalikan jumlah dokumen yang diajukan ulang. Best effort: kegagalan di sini tidak membatalkan penyimpanan soal.
+  function ajukanUlang(sems) {
+    if (typeof db === 'undefined' || !db) return Promise.resolve(0);
+    const now = new Date().toISOString(), per = {}; let n = 0;
+    const jobs = [];
+    sems.forEach(s => { const id = R().idSemester(S.id, s); ['kartu', 'kunci'].forEach(jk => jobs.push(
+      db.ref('perangkat_v4/' + id + '/docs/' + jk).once('value').then(sn => {
+        const x = sn.val(); if (!x || x.url || x.app !== true) return;
+        if (!x.setuju && x.status !== 'final') return;
+        const u = per[id] = per[id] || {}, b = 'docs/' + jk + '/';
+        u[b + 'status'] = 'draf'; u[b + 'diajukan'] = now; u[b + 'setuju'] = null; u[b + 'dilihat'] = null; u[b + 'at'] = now; u[b + 'by'] = myName(); u.updatedAt = now; n++;
+      }))); });
+    return Promise.all(jobs).then(() => Promise.all(Object.keys(per).map(id => db.ref('perangkat_v4/' + id).update(per[id])))).then(() => n);
+  }
   function simpan() {
-    sinkron(); const rec = S.rec;
+    sinkron(); const rec = S.rec, berubah = !!S.dirty;
     if (rec.guruKey !== myId()) return say('Hanya pemilik perangkat yang bisa menyimpan.', true);
     if (typeof db === 'undefined' || !db) return say('Database belum siap, muat ulang halaman lalu coba lagi.', true);
     if (!navigator.onLine) return say('Perlu koneksi internet untuk menyimpan.', true);
@@ -451,7 +486,8 @@ body{font-size:11pt;line-height:1.25}
       guruKey: rec.guruKey, guruName: rec.guruName || myName(), tahunAjaran: S.ta, semester: s, mapel: rec.mapel, kelas: rec.kelas,
       skor: { pg: angka(S.skor.pg), is: angka(S.skor.is), ur: angka(S.skor.ur) },
       soal: S.slots[s].map(x => ({ key: cut(x.key, 80), q: cut(x.q, 600), o: x.b === 'pg' ? x.o.map(o => cut(o, 160)) : [], kp: x.kp, st: x.st || '', ks: cut(x.ks, 7), kt: cut(x.kt, 600), src: x.src, ok: !!x.ok })), at: now, by: myName() }));
-    dgBatas(() => Promise.all(tulis())).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); SEM.forEach(x => R().cabutSetuju(R().idSemester(S.id, x), ['kartu', 'kunci'])); say('✅ Soal tersimpan'); if (S.rec) gambar(); })
+    dgBatas(() => Promise.all(tulis())).then(() => { S.busy = false; S.dirty = false; S.yatim = { ganjil: 0, genap: 0 }; audit('SAVE_PERANGKAT_SOAL', idSem(S.sem)); SEM.forEach(x => R().cabutSetuju(R().idSemester(S.id, x), ['kartu', 'kunci'])); say('✅ Soal tersimpan'); if (S.rec) gambar();
+      if (berubah) ajukanUlang(SEM.filter(s => S.slots[s].length)).then(n => { if (n) { audit('AJUKAN_ULANG_PERANGKAT_SOAL', idSem(S.sem)); say('⏳ Kartu Soal & Kunci kembali menunggu persetujuan Kepala', false, 4500); } }).catch(err => console.error('[SI MAMBA] ajukan ulang soal:', err)); })
       .catch(err => { S.busy = false; console.error('[SI MAMBA] soal:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
   function klik(e) {
@@ -464,6 +500,12 @@ body{font-size:11pt;line-height:1.25}
       case 'sem': S.sem = t.getAttribute('data-s') === 'genap' ? 'genap' : 'ganjil'; return gambar();
       case 'bank': { const n = isiDariBank(S.slots[S.sem], window.BANK_SOAL_MI, S.rec && S.rec.kelas); if (n) S.dirty = true; say(n ? '✅ ' + n + ' soal diisi dari bank (draf, mohon diperiksa). Sisanya diketik guru.' : 'Tidak ada soal bank yang cocok untuk slot kosong. Ketik soal sendiri.', !n); return gambar(); }
       case 'ganti': ganti(+t.getAttribute('data-i')); return gambar();
+      case 'skor100': {
+        const h = skor100(S.sem);
+        if (!h) { say('Tidak bisa tepat 100 dengan skor bulat untuk jumlah soal ini. Atur manual; nilai akhir tetap dikonversi ke skala 100 oleh rumus.', true, 4000); return gambar(); }
+        S.skor = { pg: String(h.pg), is: String(h.is), ur: String(h.ur) }; S.dirty = true;
+        say('✅ Skor diatur: PG ' + h.pg + ', isian ' + h.is + ', uraian ' + h.ur + ' (total 100)'); return gambar();
+      }
       case 'simpan': return simpan();
       case 'cetak-kartu': return cetak('kartu');
       case 'cetak-naskah2': return cetak('naskah', undefined, true);

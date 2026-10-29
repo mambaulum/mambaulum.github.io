@@ -33,8 +33,8 @@
     { k: 'prota',  n: 'Prota',             full: 'Prota (Program Tahunan)', setuju: true },
     { k: 'promes', n: 'Promes',            full: 'Promes (Program Semester)', setuju: true },
     { k: 'kisi',   n: 'Kisi-kisi',         full: 'Kisi-kisi Asesmen', setuju: true },
-    { k: 'kartu',  n: 'Kartu Soal',        full: 'Kartu Soal', setuju: false },
-    { k: 'kunci',  n: 'Kunci & Penskoran', full: 'Kunci Jawaban dan Pedoman Penskoran', setuju: false }
+    { k: 'kartu',  n: 'Kartu Soal',        full: 'Kartu Soal', setuju: true },
+    { k: 'kunci',  n: 'Kunci & Penskoran', full: 'Kunci Jawaban dan Pedoman Penskoran', setuju: true }
   ];
   function tglPendek(iso) { try { return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } }
   // Dokumen dihitung FINAL bila guru menandainya Final ATAU Kepala sudah menyetujuinya (persetujuan berarti dokumen sudah dianggap final).
