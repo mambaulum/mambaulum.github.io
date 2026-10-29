@@ -264,7 +264,7 @@ ${isi}
     const ep = ++P.epoch; P.loading = true; P.err = null; gambar();
     if (typeof db === 'undefined' || !db) { P.loading = false; P.err = 'Database belum siap.'; return gambar(); }
     const slug = R().slug(P.ta);
-    Promise.all([db.ref('perangkat_materi_v4/' + idMateri('ganjil')).once('value'), db.ref('perangkat_materi_v4/' + idMateri('genap')).once('value'),
+    return Promise.all([db.ref('perangkat_materi_v4/' + idMateri('ganjil')).once('value'), db.ref('perangkat_materi_v4/' + idMateri('genap')).once('value'),
       db.ref('perangkat_rpe_kaldik_v4/' + slug + '_ganjil').once('value'), db.ref('perangkat_rpe_kaldik_v4/' + slug + '_genap').once('value')]).then(r => {
       if (ep !== P.epoch) return;
       const d = [r[0].val(), r[1].val()];
@@ -283,6 +283,29 @@ ${isi}
     try { P.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { P.nip = ''; }
     R().nipIsi(P, '#protaOverlay');
     ov(); muat();
+  };
+  // Cetak Paket: bangun HTML Prota atau Promes ('prota' | 'promes') tanpa jendela dan tanpa menyimpan (dipakai js/perangkat-paket.js).
+  window.protaPaket = function (id, rec, sem, ta, jenis) {
+    if (!rec) return Promise.reject(new Error('Data mapel tidak ditemukan.'));
+    if (!window.rpeUtil) return Promise.reject(new Error('Modul RPE belum dimuat.'));
+    if (document.getElementById('protaOverlay')) return Promise.reject(new Error('Tutup dulu jendela Prota/Promes yang sedang terbuka.'));
+    P.id = id; P.rec = rec; P.ta = String(ta || ''); P.sem = sem === 'genap' ? 'genap' : 'ganjil'; P.dirty = false; P.bulk = false;
+    P.data = { ganjil: [], genap: [] }; P.ada = { ganjil: false, genap: false }; P.cfg = { ganjil: null, genap: null }; P.nip = '';
+    const lepas = () => { P.rec = null; P.epoch++; };
+    return R().nipMuat().catch(() => '').then(n => { P.nip = n || ''; return muat(); }).then(() => {
+      if (P.err) throw new Error(P.err);
+      let html;
+      if (jenis === 'prota') {
+        const isi = htmlProta(); if (!isi) throw new Error('Daftar materi belum diisi (buka Prota/Promes, isi materi, lalu Simpan).');
+        html = bungkus('PROGRAM TAHUNAN (PROTA)', 'portrait', isi, 'prota');
+      } else {
+        if (!P.cfg[P.sem]) throw new Error('Kalender efektif semester ini belum diisi Admin.');
+        if (!jpNum()) throw new Error('JP per pekan belum diisi (buka Prota/Promes dan isi JP per pekan).');
+        if (!P.data[P.sem].length) throw new Error('Daftar materi semester ini belum diisi.');
+        html = bungkus('PROGRAM SEMESTER (PROMES)', 'landscape', htmlPromes(), 'promes');
+      }
+      lepas(); return { html: html, nama: jenis === 'prota' ? 'Prota' : 'Promes' };
+    }).catch(e => { lepas(); throw e; });
   };
   window.protaUtil = { alokasi: alokasi, susunPromes: susunPromes, bacaItems: bacaItems, jumlahJp: jumlahJp, state: P };
 })();

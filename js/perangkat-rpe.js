@@ -554,6 +554,26 @@ ${tabelHtml(h)}
     M.mode = 'atur'; M.id = null; M.rec = null; M.sem = sem === 'genap' ? 'genap' : 'ganjil'; M.ta = String(ta || '');
     muatCfg(function () { siapEdit(); muatHariJadwal(); });
   };
+  // Cetak Paket: bangun HTML RPE tanpa membuka jendela dan tanpa menyimpan apa pun (dipakai js/perangkat-paket.js).
+  // Mengembalikan Promise<{html, nama}>; menolak (reject) dengan Error berisi alasan yang bisa dibaca guru.
+  window.rpePaket = function (id, rec, sem, ta) {
+    if (!rec) return Promise.reject(new Error('Data mapel tidak ditemukan.'));
+    if (document.getElementById('rpeOverlay')) return Promise.reject(new Error('Tutup dulu jendela RPE yang sedang terbuka.'));
+    if (typeof db === 'undefined' || !db) return Promise.reject(new Error('Database belum siap.'));
+    M.mode = 'cetak'; M.id = id; M.rec = rec; M.sem = sem === 'genap' ? 'genap' : 'ganjil'; M.ta = String(ta || '');
+    M.jp = rec.jpPerPekan ? String(rec.jpPerPekan) : ''; M.edit = null;
+    const lepas = () => { M.rec = null; M.epoch++; };
+    return nipMuat().catch(() => '').then(nip => {
+      M.nip = nip || nipLokal();
+      return db.ref(path()).once('value');
+    }).then(sn => {
+      const cfg = bacaCfg(sn.val() || null);
+      if (!cfg) throw new Error('Kalender efektif semester ini belum diisi Admin.');
+      const h = hitungRpe(cfg, jpNum());
+      const html = dokumen(cfg, h, { guru: rec.guruName || myName(), nip: String(M.nip || '').trim().slice(0, 30), mapel: rec.mapel, kelas: rec.kelas, ta: M.ta, sem: SEM_LABEL[M.sem] });
+      lepas(); return { html: html, nama: 'RPE' };
+    }).catch(e => { lepas(); throw e; });
+  };
   // Sesi tulis untuk Rules: Admin -> sesi_admin (kredAdminSiap, Kunci Admin tersimpan di perangkat); Guru -> sesi_guru (kredGuruSiap).
   function siap() {
     try {

@@ -415,7 +415,7 @@
     return `<div class="border-muted" style="margin-top:10px;padding:10px;border-radius:10px;">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
         <div style="font-weight:700;">${esc(rec.mapel)} · Kelas ${esc(rec.kelas)}${(() => { const jj = jpJadwal(rec); return jj ? `<div style="${muted}font-weight:400;">📅 Jadwal: ${jj} JP/pekan${rec.jpPerPekan && rec.jpPerPekan !== jj ? ` · di dokumen tersimpan ${esc(rec.jpPerPekan)} (beda dari jadwal, cek kembali)` : ''}</div>` : ''; })()}</div>
-        <div style="font-size:12px;">${c.final}/${c.total} final${c.draf ? ` · ${c.draf} draf` : ''} ${tombolTahap('rpe', '🖨 Buat RPE', id)}${tombolTahap('atp', '🎯 ATP/TP', id)}${tombolTahap('prota', '🗂 Prota/Promes', id)}${tombolTahap('kisi', '📋 Kisi-kisi', id)}${tombolTahap('soal', '📝 Soal', id)}<button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="hapus-baris" data-id="${esc(id)}">🗑</button></div></div>
+        <div style="font-size:12px;">${c.final}/${c.total} final${c.draf ? ` · ${c.draf} draf` : ''} ${tombolTahap('rpe', '🖨 Buat RPE', id)}${tombolTahap('atp', '🎯 ATP/TP', id)}${tombolTahap('prota', '🗂 Prota/Promes', id)}${tombolTahap('kisi', '📋 Kisi-kisi', id)}${tombolTahap('soal', '📝 Soal', id)}<button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="paket" data-id="${esc(id)}">📦 Cetak Paket</button><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;margin-left:4px;" data-act="hapus-baris" data-id="${esc(id)}">🗑</button></div></div>
       <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${chips}</div>${folderHtml(id, rec)}${siapHtml}${panel}</div>`;
   }
 
@@ -1164,6 +1164,8 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
                   return window.kisiBuka(id, S.rows[id], S.sem, taText());
       case 'soal': if (typeof window.soalBuka !== 'function') return say('Modul Soal belum dimuat (js/perangkat-soal.js).', true);
                   return window.soalBuka(id, S.rows[id], S.sem, taText());
+      case 'paket': if (typeof window.paketBuka !== 'function') return say('Modul Paket belum dimuat (js/perangkat-paket.js).', true);
+                  return window.paketBuka(id, S.rows[id], S.sem, taText(), { genAda: genAda, appFinal: appFinal, menunggu: menunggu, perluSetuju: perluSetuju });
       case 'rpe-kaldik': if (typeof window.rpeKaldikBuka !== 'function') return say('Modul RPE belum dimuat (js/perangkat-rpe.js).', true);
                   return window.rpeKaldikBuka(S.sem, taText());
       case 'filter-reset': S.filterGuru = ''; S.filterKelas = ''; S.filterStatus = ''; S.buka = {}; S.edit = null; return render();

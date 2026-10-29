@@ -151,17 +151,23 @@ tr{page-break-inside:avoid}
   function cetakAtp(mode) {
     sinkron(); simpanNip();
     if (!A.items.length) return say('Pilih TP dulu.', true);
-    buka(dokumen('ATP', kopHtml('ALUR TUJUAN PEMBELAJARAN (ATP)', 'Tahun Pelajaran ' + esc(A.ta)) + infoHtml() + tabelAtp()), 'ATP', mode);
+    buka(htmlAtp(), 'ATP', mode);
+  }
+  function htmlAtp() {
+    return dokumen('ATP', kopHtml('ALUR TUJUAN PEMBELAJARAN (ATP)', 'Tahun Pelajaran ' + esc(A.ta)) + infoHtml() + tabelAtp());
   }
   function cetakTp(mode) {
     sinkron(); simpanNip();
     if (!A.items.length) return say('Pilih TP dulu.', true);
+    buka(htmlTp(), 'TP', mode);
+  }
+  function htmlTp() {
     const cp = A.cp.length ? `<h4>Capaian Pembelajaran (ringkasan)</h4>${A.cp.map(c => `<div class="cp">${esc(c)}</div>`).join('')}<div class="cp" style="color:#555;">Rujukan: ${esc(rujukanCp())}.</div>` : '';
     const per = SEM.map(s => {
       const l = daSem(s); if (!l.length) return '';
       return `<h4>Semester ${SEM_LABEL[s]}</h4><table class="tp-tbl"><thead><tr><th style="width:30px">No</th><th style="width:120px">Elemen</th><th>Tujuan Pembelajaran</th></tr></thead><tbody>${l.map((x, i) => `<tr><td class="c">${i + 1}</td><td>${esc(x.e)}</td><td>${esc(x.t)}</td></tr>`).join('')}</tbody></table>`;
     }).join('');
-    buka(dokumen('TP', kopHtml('TUJUAN PEMBELAJARAN (TP)', 'Tahun Pelajaran ' + esc(A.ta)) + infoHtml() + cp + per), 'TP', mode);
+    return dokumen('TP', kopHtml('TUJUAN PEMBELAJARAN (TP)', 'Tahun Pelajaran ' + esc(A.ta)) + infoHtml() + cp + per);
   }
   function simpanNip() { R().nipSimpan(A.nip); }
 
@@ -179,6 +185,7 @@ tr{page-break-inside:avoid}
     const el = document.getElementById('atpOverlay'); if (el) el.remove(); A.epoch++; A.rec = null; A.dirty = false;
   }
   function gambar() {
+    if (A.quiet) return;   // mode Cetak Paket: tanpa jendela
     const el = ov(); let isi;
     if (A.loading) isi = `<div style="${muted}padding:12px;">⏳ Memuat data TP...</div>${btn('tutup', 'Tutup')}`;
     else if (A.err) isi = `<div style="padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:13px;margin-bottom:8px;">⚠️ Gagal memuat: ${esc(A.err)}</div>${btn('tutup', 'Tutup')}`;
@@ -372,7 +379,7 @@ tr{page-break-inside:avoid}
   function muat() {
     const ep = ++A.epoch; A.loading = true; A.err = null; gambar();
     if (typeof db === 'undefined' || !db) { A.loading = false; A.err = 'Database belum siap.'; return gambar(); }
-    Promise.all([db.ref('perangkat_tp_v4/' + idTp()).once('value'),
+    return Promise.all([db.ref('perangkat_tp_v4/' + idTp()).once('value'),
       db.ref('perangkat_rpe_kaldik_v4/' + R().slug(A.ta) + '_ganjil').once('value'), db.ref('perangkat_rpe_kaldik_v4/' + R().slug(A.ta) + '_genap').once('value')]).then(r => {
       if (ep !== A.epoch) return;
       const n = r[0].val();
@@ -400,6 +407,26 @@ tr{page-break-inside:avoid}
     try { A.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { A.nip = ''; }
     R().nipIsi(A, '#atpOverlay');
     muat();
+  };
+  // Cetak Paket: bangun HTML ATP atau TP ('atp' | 'tp') tanpa jendela dan tanpa menyimpan (dipakai js/perangkat-paket.js).
+  window.atpPaket = function (id, rec, sem, ta, jenis) {
+    if (!rec) return Promise.reject(new Error('Data mapel tidak ditemukan.'));
+    if (!window.rpeUtil) return Promise.reject(new Error('Modul RPE belum dimuat.'));
+    if (!window.BANK_TP_MI) return Promise.reject(new Error('Bank TP belum dimuat (js/data-tp-mi.js dan js/data-tp-umum.js).'));
+    if (document.getElementById('atpOverlay')) return Promise.reject(new Error('Tutup dulu jendela ATP/TP yang sedang terbuka.'));
+    A.quiet = true; A.id = id; A.rec = rec; A.ro = rec.guruKey !== myId(); A.ta = String(ta || ''); A.fase = fase(rec.kelas); A.kunci = kunciMapel(rec.mapel);
+    A.bank = (A.fase && A.kunci) ? itemBank(A.kunci, A.fase) : [];
+    const mp = window.BANK_TP_MI.mapel[A.kunci];
+    A.cp = (A.fase && mp && mp.cp[A.fase]) ? mp.cp[A.fase] : [];
+    A.items = []; A.manual = false; A.dirty = false; A.tab = 'pilih'; A.res = '0'; A.form = { e: '', t: '', m: '', sem: 'ganjil' };
+    A.jp = rec.jpPerPekan ? String(rec.jpPerPekan) : ''; A.nip = '';
+    const lepas = () => { A.quiet = false; A.rec = null; A.epoch++; };
+    return R().nipMuat().catch(() => '').then(n => { A.nip = n || ''; return muat(); }).then(() => {
+      if (A.err) throw new Error(A.err);
+      if (!A.items.length) throw new Error('Belum ada TP yang dipilih (buka ATP/TP, pilih TP, lalu Simpan).');
+      const tp = jenis === 'tp', html = tp ? htmlTp() : htmlAtp();
+      lepas(); return { html: html, nama: tp ? 'TP' : 'ATP' };
+    }).catch(e => { lepas(); throw e; });
   };
   window.atpUtil = { fase: fase, kunciMapel: kunciMapel, bagiRata: bagiRata, itemBank: itemBank, state: A, tabelAtp: tabelAtp, setSel: setSel };
 })();

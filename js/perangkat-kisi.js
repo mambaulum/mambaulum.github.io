@@ -197,6 +197,7 @@ ${tabelKisi(s)}
     return h;
   }
   function gambar() {
+    if (K.quiet) return;   // mode Cetak Paket: tanpa jendela
     const el = ov(); let isi;
     if (K.loading) isi = `<div style="${muted}padding:12px;">⏳ Memuat TP dan kisi-kisi...</div>${btn('tutup', 'Tutup')}`;
     else if (K.err) isi = `<div style="padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:13px;margin-bottom:8px;">⚠️ ${esc(K.err)}</div>${btn('tutup', 'Tutup')}`;
@@ -269,7 +270,7 @@ ${tabelKisi(s)}
   function muat() {
     const ep = ++K.epoch; K.loading = true; K.err = null; gambar();
     if (typeof db === 'undefined' || !db) { K.loading = false; K.err = 'Database belum siap.'; return gambar(); }
-    Promise.all([db.ref('perangkat_tp_v4/' + idTp()).once('value'),
+    return Promise.all([db.ref('perangkat_tp_v4/' + idTp()).once('value'),
       db.ref('perangkat_kisi_v4/' + idKisi('ganjil')).once('value'), db.ref('perangkat_kisi_v4/' + idKisi('genap')).once('value'),
       db.ref('perangkat_rpe_kaldik_v4/' + slug(K.ta) + '_ganjil').once('value'), db.ref('perangkat_rpe_kaldik_v4/' + slug(K.ta) + '_genap').once('value')]).then(r => {
       if (ep !== K.epoch) return;
@@ -300,6 +301,22 @@ ${tabelKisi(s)}
     try { K.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { K.nip = ''; }
     R().nipIsi(K, '#kisiOverlay');
     muat();
+  };
+  // Cetak Paket: bangun HTML kisi-kisi semester terpilih tanpa jendela dan tanpa menyimpan (dipakai js/perangkat-paket.js).
+  window.kisiPaket = function (id, rec, sem, ta) {
+    if (!rec) return Promise.reject(new Error('Data mapel tidak ditemukan.'));
+    if (!window.rpeUtil) return Promise.reject(new Error('Modul RPE belum dimuat.'));
+    if (document.getElementById('kisiOverlay')) return Promise.reject(new Error('Tutup dulu jendela Kisi-kisi yang sedang terbuka.'));
+    K.quiet = true; K.id = id; K.rec = rec; K.ro = rec.guruKey !== myId(); K.ta = String(ta || ''); K.fase = fase(rec.kelas); K.sem = sem === 'genap' ? 'genap' : 'ganjil'; K.dirty = false;
+    K.rows = { ganjil: [], genap: [] }; K.set = { ganjil: mkSet('ganjil'), genap: mkSet('genap') }; K.nip = '';
+    const s = K.sem, lepas = () => { K.quiet = false; K.rec = null; K.epoch++; };
+    return R().nipMuat().catch(() => '').then(n => { K.nip = n || ''; return muat(); }).then(() => {
+      if (K.err) throw new Error(K.err);
+      if (!K.rows[s].length) throw new Error('Belum ada TP di semester ini.');
+      if (!jmlSoal(s)) throw new Error('Jumlah soal kisi-kisi belum diisi (buka Kisi-kisi, tekan Bagi otomatis, lalu Simpan).');
+      const html = dokumen(s);
+      lepas(); return { html: html, nama: 'Kisi-kisi' };
+    }).catch(e => { lepas(); throw e; });
   };
   window.kisiUtil = { levelDari: levelDari, indikator: indikator, bagiBobot: bagiBobot, nomori: nomori, tabelKisi: tabelKisi, dokumen: dokumen, state: K };
 })();

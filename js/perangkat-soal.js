@@ -379,6 +379,7 @@ body{font-size:11pt;line-height:1.25}
       ${btn('simpan', '💾 Simpan', 'btn-success')}${btn('cetak-kartu', '🖨 Kartu Soal')}${btn('cetak-naskah2', ' Naskah 2 Kolom')}${btn('cetak-naskah', '🖨 Naskah Soal')}${btn('cetak-kunci', '🖨 Kunci &amp; Penskoran')}${btn('word-kartu', '📄 Kartu Word')}${btn('word-naskah', '📄 Naskah Word')}${btn('word-kunci', '📄 Kunci Word')}${btn('cetak-telaah', '🖨 Lembar Telaah')}${btn('word-telaah', '📄 Telaah Word')}</div>`;
   }
   function gambar() {
+    if (S.quiet) return;   // mode Cetak Paket: tanpa jendela
     const el = ov(); let isi;
     if (S.loading) isi = `<div style="${muted}padding:12px;">⏳ Memuat kisi-kisi dan soal...</div>${btn('tutup', 'Tutup')}`;
     else if (S.err) isi = `<div style="padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:13px;margin-bottom:8px;">⚠️ ${esc(S.err)}</div>${btn('tutup', 'Tutup')}`;
@@ -480,7 +481,7 @@ body{font-size:11pt;line-height:1.25}
     const ep = ++S.epoch; S.loading = true; S.err = null; gambar();
     if (typeof db === 'undefined' || !db) { S.loading = false; S.err = 'Database belum siap.'; return gambar(); }
     const baca = p => db.ref(p).once('value');
-    Promise.all([baca('perangkat_kisi_v4/' + idSem('ganjil')), baca('perangkat_kisi_v4/' + idSem('genap')),
+    return Promise.all([baca('perangkat_kisi_v4/' + idSem('ganjil')), baca('perangkat_kisi_v4/' + idSem('genap')),
       baca('perangkat_soal_v4/' + idSem('ganjil')), baca('perangkat_soal_v4/' + idSem('genap')),
       baca('perangkat_rpe_kaldik_v4/' + slug(S.ta) + '_ganjil'), baca('perangkat_rpe_kaldik_v4/' + slug(S.ta) + '_genap')]).then(r => {
       if (ep !== S.epoch) return;
@@ -514,6 +515,23 @@ body{font-size:11pt;line-height:1.25}
     try { S.nip = localStorage.getItem('rpe_nip_' + myId()) || ''; } catch (e) { S.nip = ''; }
     R().nipIsi(S, '#soalOverlay');
     muat();
+  };
+  // Cetak Paket: bangun HTML Kartu / Naskah / Kunci / Telaah ('kartu' | 'naskah' | 'kunci' | 'telaah') tanpa jendela dan tanpa menyimpan
+  // (dipakai js/perangkat-paket.js). opsi.tanya = tanyakan konfirmasi bila ada soal belum lengkap (seperti tombol cetak biasa).
+  window.soalPaket = function (id, rec, sem, ta, bagian, opsi) {
+    if (!rec) return Promise.reject(new Error('Data mapel tidak ditemukan.'));
+    if (!window.rpeUtil) return Promise.reject(new Error('Modul RPE belum dimuat.'));
+    if (document.getElementById('soalOverlay')) return Promise.reject(new Error('Tutup dulu jendela Soal yang sedang terbuka.'));
+    S.quiet = true; S.id = id; S.rec = rec; S.ro = rec.guruKey !== myId(); S.ta = String(ta || ''); S.fase = fase(rec.kelas); S.sem = sem === 'genap' ? 'genap' : 'ganjil'; S.dirty = false;
+    S.slots = { ganjil: [], genap: [] }; S.skor = { pg: '1', is: '2', ur: '5' }; S.yatim = { ganjil: 0, genap: 0 }; S.nip = '';
+    const s = S.sem, lepas = () => { S.quiet = false; S.rec = null; S.epoch++; };
+    return R().nipMuat().catch(() => '').then(n => { S.nip = n || ''; return muat(); }).then(() => {
+      if (S.err) throw new Error(S.err);
+      if (!S.slots[s].length) throw new Error('Belum ada slot soal (buka Kisi-kisi, isi jumlah soal, lalu Simpan).');
+      if (bagian !== 'telaah' && (!opsi || opsi.tanya !== false)) { if (!cekCetak(s)) throw new Error('Dibatalkan: soal belum lengkap.'); }
+      const html = bagian === 'kartu' ? dokKartu(s) : bagian === 'naskah' ? dokNaskah(s, false) : bagian === 'telaah' ? dokTelaah(s) : dokKunci(s);
+      lepas(); return { html: html, nama: bagian === 'kartu' ? 'Kartu Soal' : bagian === 'naskah' ? 'Naskah Soal' : bagian === 'telaah' ? 'Lembar Telaah' : 'Kunci' };
+    }).catch(e => { lepas(); throw e; });
   };
   window.soalUtil = { acak: acak, buatSlot: buatSlot, isiDariBank: isiDariBank, urutKelas: urutKelas, lengkap: lengkap, dokKartu: dokKartu, dokNaskah: dokNaskah, dokKunci: dokKunci, dokTelaah: dokTelaah, state: S };
 })();
