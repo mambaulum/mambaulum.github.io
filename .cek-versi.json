@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.259",
-  "disimpan": "2026-10-29T03:07:18.101Z",
+  "appVersion": "v8.260",
+  "disimpan": "2026-10-29T03:16:08.036Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -135,8 +135,8 @@
       "hash": "01cf4e9d995c986db82b039eb96ffa2d185645d7"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=5",
-      "hash": "385a0cb9192e97560ab7507abef54a7011b8cee6"
+      "v": "v=6",
+      "hash": "3bddeadbdb8d1c0a05d141dcd7a28356fad9de43"
     },
     "js/kredensial.js": {
       "v": "v=8",
