@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.246",
-  "disimpan": "2026-10-29T01:01:50.584Z",
+  "appVersion": "v8.247",
+  "disimpan": "2026-10-29T01:19:15.878Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -91,8 +91,8 @@
       "hash": "03c2c7e6153a1d0f7a158e6ced225112b4f03d3f"
     },
     "js/honor-guru.js": {
-      "v": "v=25",
-      "hash": "93ffe60b35b38d6ecce3a9268c8288a81cb78de5"
+      "v": "v=26",
+      "hash": "0b12dff2669b7bb16a5bbbaf7f375d64d3a0a347"
     },
     "js/honor-kebersihan.js": {
       "v": "v=3",
@@ -131,8 +131,8 @@
       "hash": "4cab1cc5e42e2513151540022c97e068a2d74a00"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=32",
-      "hash": "34159a71de85f2b52b3db843fb190dc754005648"
+      "v": "v=33",
+      "hash": "6eb4a5634023353c0612f2f50cdb44a81f05c511"
     },
     "js/bacaan-shalat.js": {
       "v": "v=3",
