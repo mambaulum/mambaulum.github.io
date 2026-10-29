@@ -231,7 +231,7 @@ function bsStateBaru() {
   return {
     tab: 'target', kelas: '', targets: null, targetsTA: '', editId: '',
     setoran: {}, setoranTA: {}, targetSel: '', tglNilai: '', draft: {},
-    grafik: 'klasikal', siswaSel: '', amalanSiswa: {}, memuat: false, err: ''
+    grafik: 'klasikal', siswaSel: '', amalanSiswa: {}, memuat: false, err: '', wa: null, waList: { petugas: [], wali: [] }
   };
 }
 let bsState = bsStateBaru();
@@ -329,6 +329,153 @@ function bsRender() {
     ${body}`;
 }
 
+
+// ============================================================
+// PENGINGAT WHATSAPP (Admin / Kepala Madrasah) -- di tab Target
+// ============================================================
+// Tanpa API berbayar/server: tiap penerima = satu tombol yang membuka wa.me dengan nomor & pesan sudah terisi (kirimWA di app.js);
+// pengirim tinggal menekan "Kirim" di WhatsApp. Penanda "sudah dibuka" disimpan di perangkat ini saja (localStorage) dan hanya
+// berarti WhatsApp pernah dibuka untuk penerima itu -- aplikasi tidak bisa tahu pesan benar-benar terkirim.
+// Penanggung jawab = wali kelas dari kelas target (atau semua wali kelas untuk target "Semua kelas") + guru pembuat target.
+// Tidak menambah field/data baru di Firebase (jadi tidak perlu ubah Rules).
+const BS_WA_KUNCI = 'bsWaDibuka';
+let bsWaMem = {};
+function bsWaBacaTanda() { try { return JSON.parse(localStorage.getItem(BS_WA_KUNCI) || '{}') || {}; } catch (e) { return Object.assign({}, bsWaMem); } }
+function bsWaTandai(id) {
+  const m = bsWaBacaTanda(); m[id] = Date.now();
+  const kunci = Object.keys(m); if (kunci.length > 800) kunci.sort((a, b) => m[a] - m[b]).slice(0, kunci.length - 800).forEach(k => delete m[k]);
+  bsWaMem = m; try { localStorage.setItem(BS_WA_KUNCI, JSON.stringify(m)); } catch (e) { /* penanda hanya sementara */ }
+}
+function bsWaSudah(id) { return !!bsWaBacaTanda()[id]; }
+function bsWaPesanPetugas() { return 'Assalamualaikum {nama}.\nPengingat dari {madrasah}: Bapak/Ibu penanggung jawab agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon agenda disiapkan dan setoran siswa dinilai tepat waktu. Terima kasih. 🙏'; }
+function bsWaPesanWali() { return 'Assalamualaikum Bapak/Ibu wali murid {siswa}.\nPengingat dari {madrasah}: agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon ananda dibantu berlatih dan didampingi di rumah. Penanggung jawab: {pj}. Terima kasih. 🙏'; }
+function bsWaState(targets) {
+  if (!bsState.wa) bsState.wa = { targetId: '', kelas: '', pesanPetugas: bsWaPesanPetugas(), pesanWali: bsWaPesanWali(), buka: false };
+  const w = bsState.wa, aktif = (targets || []).filter(t => t.aktif !== false);
+  if (!aktif.find(t => t.key === w.targetId)) {
+    // Default: target aktif terdekat dari hari ini (yang belum lewat lebih dari 7 hari), kalau tak ada ambil yang terakhir.
+    const h = bsHariIni(), urut = aktif.slice().sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)));
+    const t = urut.find(x => bsSelisihHari(x.tanggal, h) <= 7) || urut[urut.length - 1];
+    w.targetId = t ? t.key : '';
+  }
+  return w;
+}
+function bsWaIsi(tpl, v) {
+  return String(tpl || '').replace(/\{(nama|siswa|bacaan|waktu|kelas|pj|madrasah)\}/g, (m, k) => (v[k] == null ? '' : v[k]));
+}
+function bsWaMadrasah() { return (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) ? MADRASAH.nama : 'Madrasah'; }
+function bsWaKelasTarget(t, w) { return t ? (t.kelas === '*' ? (w.kelas || bsState.kelas || '') : t.kelas) : ''; }
+function bsWaPetugas(t, kelas) {
+  const gl = (typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru : [];
+  const hasil = [], ada = new Set();
+  const tambah = (g, peran) => { if (!g || ada.has(g.key || g.name)) return; ada.add(g.key || g.name); hasil.push({ key: g.key || g.name, nama: g.name || '-', noWa: g.noWa || '', peran }); };
+  gl.filter(g => g && g.waliKelasOf && (t.kelas === '*' || g.waliKelasOf === t.kelas)).sort((a, b) => bsCmp(a.name, b.name)).forEach(g => tambah(g, 'Wali Kelas ' + g.waliKelasOf));
+  tambah(gl.find(g => g && t.dibuatOleh && g.name === t.dibuatOleh), 'Pembuat target');
+  return hasil;
+}
+function bsWaWali(kelas) {
+  const arr = bsSiswaKelas(kelas) || (typeof allSiswa !== 'undefined' ? allSiswa.filter(s => s.kelas === kelas) : null);
+  if (!arr) return null;
+  const perNomor = new Map(), tanpa = [];
+  arr.filter(s => s && s.aktif !== false).forEach(s => {
+    const k = (typeof ortuWaKey === 'function') ? ortuWaKey(s.noWaOrtu) : null;
+    if (!k) { tanpa.push(s.name); return; }
+    if (!perNomor.has(k)) perNomor.set(k, { nomor: k, siswa: [] });
+    perNomor.get(k).siswa.push(s.name);
+  });
+  return { daftar: [...perNomor.values()].sort((a, b) => bsCmp(a.siswa[0], b.siswa[0])), tanpa: tanpa.sort(bsCmp) };
+}
+function bsWaPanelHtml(targets) {
+  if (!(bsIsAdmin() || bsIsHead())) return '';
+  const aktif = (targets || []).filter(t => t.aktif !== false).sort(bsBandingTarget);
+  const w = bsWaState(targets);
+  if (!aktif.length) return '';
+  const t = aktif.find(x => x.key === w.targetId) || aktif[0];
+  const kelas = bsWaKelasTarget(t, w);
+  const waktu = bsLabelTarget(t);
+  const opsiT = aktif.map(x => `<option value="${bsEsc(x.key)}" ${x.key === t.key ? 'selected' : ''}>${bsEsc(x.nama)} — ${bsEsc(x.kelas === '*' ? 'Semua kelas' : x.kelas)} — ${bsEsc(bsLabelTarget(x))}</option>`).join('');
+  const petugas = bsWaPetugas(t, kelas);
+  const pjTeks = petugas.map(p => p.nama).join(', ') || '-';
+  const wali = kelas ? bsWaWali(kelas) : { daftar: [], tanpa: [] };
+  if (kelas && !wali && typeof v4FetchSiswaByKelas === 'function') v4FetchSiswaByKelas(kelas, () => { if (bsState.tab === 'target') bsRender(); });
+  bsState.waList = { petugas, wali: wali ? wali.daftar : [], t: t.key, kelas, waktu, pjTeks };
+  const tandaOk = id => bsWaSudah(id) ? '<span class="bs-wa-st" style="color:#059669;font-weight:600;font-size:12px;">✓ sudah dibuka</span>' : '<span class="bs-wa-st text-muted" style="font-size:12px;">belum</span>';
+  const barisPetugas = petugas.map((p, i) => {
+    const id = 'P|' + t.key + '|' + p.key;
+    return `<div id="bsWaRow_P${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
+      <div style="min-width:0;"><strong>${bsEsc(p.nama)}</strong> <span class="text-muted" style="font-size:11px;">${bsEsc(p.peran)}</span>${p.noWa ? '' : '<div style="color:#dc2626;font-size:11px;">Nomor WA belum diisi di data guru</div>'}</div>
+      <div style="display:flex;align-items:center;gap:8px;">${tandaOk(id)}<button class="btn btn-success" style="padding:5px 10px;font-size:12px;" ${p.noWa ? '' : 'disabled'} onclick="bsWaKirimPetugas(${i})">📲 WhatsApp</button></div></div>`;
+  }).join('') || '<p class="text-muted" style="font-size:12px;">Belum ada wali kelas/pembuat target yang terdata sebagai penanggung jawab.</p>';
+  let blokWali;
+  if (t.kelas === '*') {
+    const pil = bsKelasPilihan().map(k => `<option value="${bsEsc(k)}" ${k === kelas ? 'selected' : ''}>${bsEsc(bsNamaKelas(k))}</option>`).join('');
+    var pilKelasWa = `<div style="margin-bottom:8px;max-width:220px;"><label class="label">Kelas wali murid</label><select class="field" onchange="bsWaPilihKelas(this.value)">${pil}</select></div>`;
+  } else var pilKelasWa = '';
+  if (!kelas) blokWali = '<p class="text-muted" style="font-size:12px;">Pilih kelas dulu.</p>';
+  else if (!wali) blokWali = '<p class="text-muted" style="font-size:12px;">⏳ Memuat daftar siswa...</p>';
+  else {
+    const belum = wali.daftar.filter(d => !bsWaSudah('W|' + t.key + '|' + d.nomor)).length;
+    const baris = wali.daftar.map((d, i) => {
+      const id = 'W|' + t.key + '|' + d.nomor;
+      return `<div id="bsWaRow_W${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
+        <div style="min-width:0;font-size:13px;">${bsEsc(d.siswa.join(', '))}<div class="text-muted" style="font-size:11px;">+${bsEsc(d.nomor)}</div></div>
+        <div style="display:flex;align-items:center;gap:8px;">${tandaOk(id)}<button class="btn btn-soft" style="padding:5px 10px;font-size:12px;" onclick="bsWaKirimWali(${i})">📲 WhatsApp</button></div></div>`;
+    }).join('');
+    blokWali = `${pilKelasWa}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+        <span style="font-size:12px;">${wali.daftar.length} nomor wali · <strong id="bsWaSisa">${belum}</strong> belum dibuka</span>
+        <button class="btn btn-success" style="padding:6px 12px;font-size:12px;" onclick="bsWaBerikutnya()" ${belum ? '' : 'disabled'}>▶ Buka yang berikutnya</button></div>
+      <div style="max-height:300px;overflow-y:auto;">${baris || '<p class="text-muted" style="font-size:12px;">Belum ada siswa dengan nomor WA wali.</p>'}</div>
+      ${wali.tanpa.length ? `<p style="font-size:12px;color:#b45309;margin-top:8px;">⚠️ Nomor WA wali belum diisi (${wali.tanpa.length}): ${bsEsc(wali.tanpa.slice(0, 8).join(', '))}${wali.tanpa.length > 8 ? ', dst' : ''}. Isi lewat Edit Siswa.</p>` : ''}`;
+  }
+  return `<details class="card" style="margin-bottom:14px;border:1px solid #e5e7eb;" ${w.buka ? 'open' : ''} ontoggle="if(bsState.wa)bsState.wa.buka=this.open">
+    <summary style="cursor:pointer;font-weight:700;">📲 Ingatkan lewat WhatsApp (petugas &amp; wali murid)</summary>
+    <p class="text-muted" style="font-size:12px;margin:8px 0;">WhatsApp terbuka dengan nomor &amp; pesan sudah terisi; Anda tinggal menekan Kirim di WhatsApp. Penanda "sudah dibuka" hanya catatan di perangkat ini.</p>
+    <div style="margin-bottom:8px;"><label class="label">Agenda / target bacaan</label><select class="field" onchange="bsWaPilihTarget(this.value)">${opsiT}</select>
+      <div class="text-muted" style="font-size:11px;margin-top:2px;">${bsEsc(waktu)} · Penanggung jawab: ${bsEsc(pjTeks)}</div></div>
+    <p style="font-weight:600;margin:10px 0 4px;">👤 Petugas / penanggung jawab</p>${barisPetugas}
+    <label class="label" style="margin-top:8px;">Pesan untuk petugas (boleh diubah)</label>
+    <textarea class="field" rows="4" oninput="bsState.wa.pesanPetugas=this.value">${bsEsc(w.pesanPetugas)}</textarea>
+    <p style="font-weight:600;margin:14px 0 4px;">👪 Wali murid ${kelas ? '— ' + bsEsc(bsNamaKelas(kelas)) : ''}</p>${blokWali}
+    <label class="label" style="margin-top:8px;">Pesan untuk wali murid (boleh diubah)</label>
+    <textarea class="field" rows="4" oninput="bsState.wa.pesanWali=this.value">${bsEsc(w.pesanWali)}</textarea>
+    <p class="text-muted" style="font-size:11px;margin-top:4px;">Isian otomatis: {nama} {siswa} {bacaan} {waktu} {kelas} {pj} {madrasah}. <a href="#" onclick="bsWaResetPesan();return false;">Kembalikan pesan awal</a></p>
+  </details>`;
+}
+function bsWaPilihTarget(id) { if (bsState.wa) { bsState.wa.targetId = id; bsState.wa.buka = true; } bsRender(); }
+function bsWaPilihKelas(k) { if (bsState.wa) { bsState.wa.kelas = k; bsState.wa.buka = true; } bsRender(); }
+function bsWaResetPesan() { if (bsState.wa) { bsState.wa.pesanPetugas = bsWaPesanPetugas(); bsState.wa.pesanWali = bsWaPesanWali(); bsState.wa.buka = true; } bsRender(); }
+function bsWaTargetKini() { return (bsState.targets || []).find(x => bsState.waList && x.key === bsState.waList.t); }
+function bsWaTandaiBaris(rowId, id) {
+  bsWaTandai(id);
+  const el = bsEl(rowId), st = el && el.querySelector('.bs-wa-st');
+  if (st) { st.className = 'bs-wa-st'; st.style.cssText = 'color:#059669;font-weight:600;font-size:12px;'; st.textContent = '✓ sudah dibuka'; }
+  const ls = bsState.waList || { wali: [] }, sisa = bsEl('bsWaSisa');
+  if (sisa) sisa.textContent = ls.wali.filter(d => !bsWaSudah('W|' + ls.t + '|' + d.nomor)).length;
+}
+function bsWaKirimPetugas(i) {
+  if (!(bsIsAdmin() || bsIsHead())) return;
+  const ls = bsState.waList || {}, p = (ls.petugas || [])[i], t = bsWaTargetKini();
+  if (!p || !t || typeof kirimWA !== 'function') return;
+  const pesan = bsWaIsi(bsState.wa.pesanPetugas, { nama: p.nama, bacaan: t.nama, waktu: ls.waktu, kelas: t.kelas === '*' ? 'semua kelas' : bsNamaKelas(t.kelas), pj: ls.pjTeks, madrasah: bsWaMadrasah() });
+  kirimWA(p.noWa, pesan);
+  bsWaTandaiBaris('bsWaRow_P' + i, 'P|' + t.key + '|' + p.key);
+}
+function bsWaKirimWali(i) {
+  if (!(bsIsAdmin() || bsIsHead())) return;
+  const ls = bsState.waList || {}, d = (ls.wali || [])[i], t = bsWaTargetKini();
+  if (!d || !t || typeof kirimWA !== 'function') return;
+  const pesan = bsWaIsi(bsState.wa.pesanWali, { siswa: d.siswa.join(' & '), nama: d.siswa.join(' & '), bacaan: t.nama, waktu: ls.waktu, kelas: bsNamaKelas(ls.kelas), pj: ls.pjTeks, madrasah: bsWaMadrasah() });
+  kirimWA(d.nomor, pesan);
+  bsWaTandaiBaris('bsWaRow_W' + i, 'W|' + t.key + '|' + d.nomor);
+}
+function bsWaBerikutnya() {
+  const ls = bsState.waList || { wali: [] };
+  const i = ls.wali.findIndex(d => !bsWaSudah('W|' + ls.t + '|' + d.nomor));
+  if (i < 0) return toast('Semua wali murid di kelas ini sudah dibuka.', false, 2000);
+  bsWaKirimWali(i);
+  const el = bsEl('bsWaRow_W' + i); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+}
+
 // ---------- Tab TARGET ----------
 function bsBodyTarget() {
   const targets = (bsState.targets || []).filter(t => bsIsAdmin() || bsIsHead() || t.kelas === '*' || bsKelasScope().includes(t.kelas)).sort(bsBandingTarget);
@@ -372,7 +519,7 @@ function bsBodyTarget() {
         <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="bsHapusTarget('${bsEscJs(t.key)}')">🗑️</button>` : '<span class="text-muted" style="font-size:11px;">lihat saja</span>'}</td>
     </tr>`;
   }).join('');
-  return form + contoh + (kosong ? '<p class="text-muted" style="font-size:13px;">Belum ada target bacaan.</p>' : `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Bacaan</th><th>Kelas</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${baris}</tbody></table></div>`);
+  return bsWaPanelHtml(targets) + form + contoh + (kosong ? '<p class="text-muted" style="font-size:13px;">Belum ada target bacaan.</p>' : `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Bacaan</th><th>Kelas</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${baris}</tbody></table></div>`);
 }
 function bsTargetJenisBerubah() {
   const j = bsEl('bsTgJenis'), l = bsEl('bsTgTanggalLabel');

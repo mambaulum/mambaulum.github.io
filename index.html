@@ -120,9 +120,9 @@
   <script defer src="js/saran-kritik.js?v=1"></script>
   <script defer src="js/ortu-akun-admin.js?v=1"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
-  <script defer src="js/amalan-kegiatan.js?v=33"></script>
+  <script defer src="js/amalan-kegiatan.js?v=41"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
-  <script defer src="js/bacaan-shalat.js?v=3"></script>
+  <script defer src="js/bacaan-shalat.js?v=4"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
@@ -1981,7 +1981,7 @@
 .amalan-admin{display:flex;gap:5px;flex-wrap:wrap;padding-top:6px;border-top:1px dashed rgba(128,128,128,.3);}
 .amalan-admin .btn{padding:3px 9px;font-size:11px;min-height:28px;}
 #v4ActivityFillSection .v4-task{padding:8px 10px;margin:0 0 8px;}
-.v4-act-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:2px solid #e5e7eb;margin:0 0 8px;-webkit-overflow-scrolling:touch;}.v4-act-tab{flex:0 0 auto;border:0;background:transparent;padding:8px 14px;font-weight:600;font-size:13px;color:#6b7280;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0;white-space:nowrap;}.v4-act-tab:hover{background:#f3f4f6;}.v4-act-tab.aktif{color:#059669;border-bottom-color:#059669;background:#ecfdf5;}.v4-act-tabs-k{border-bottom:1px solid #e5e7eb;margin:6px 0 8px;}.v4-act-tab-k{padding:6px 11px;font-size:12px;}.v4-act-tab-k.tdk{opacity:.5;text-decoration:line-through;}
+.v4-act-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:2px solid #e5e7eb;margin:0 0 8px;-webkit-overflow-scrolling:touch;}.v4-act-tab{flex:0 0 auto;border:0;background:transparent;padding:8px 14px;font-weight:600;font-size:13px;color:#6b7280;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0;white-space:nowrap;}.v4-act-tab:hover{background:#f3f4f6;}.v4-act-tab.aktif{color:#059669;border-bottom-color:#059669;background:#ecfdf5;}.v4-act-tabs-utama .v4-act-tab{flex:1 1 0;text-align:center;font-size:14px;padding:10px 8px;}.v4-act-tabs-k{border-bottom:1px solid #e5e7eb;margin:6px 0 8px;}.v4-act-tab-k{padding:6px 11px;font-size:12px;}.v4-act-tab-k.tdk{opacity:.5;text-decoration:line-through;}
 #v4ActivityFillSection [style*="margin-top:10px"]{margin-top:6px !important;}
 #v4ActivityFillSection [style*="margin-bottom:8px"]{margin-bottom:5px !important;}
 #v4RekapReligiSiswa .v4-card{margin:0 0 8px;padding:8px 10px !important;}
@@ -2009,7 +2009,13 @@ body.dark-mode .amalan-table th{background:#1f2937;}
 body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
 #v4ActivityFillSection [id^="btnSaveV4Act_"]{position:sticky;bottom:8px;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.25);}
 </style>
-          <div class="v4-section-title"><h3>🕌 Amalan Yaumiyah</h3><button id="v4ActivityAddBtn" class="btn btn-success" onclick="v4OpenActivityTypeForm()">➕ Tambah Jenis</button></div>
+          <div class="v4-section-title"><h3>🕌 Amalan Yaumiyah</h3></div>
+          <div class="v4-act-tabs v4-act-tabs-utama" role="tablist" aria-label="Bagian Amalan Yaumiyah">
+            <button type="button" role="tab" id="v4ActHalTabIsi" aria-selected="true" class="v4-act-tab aktif" onclick="v4ActHalamanTab('isi')">📝 Isi Absensi &amp; Kegiatan</button>
+            <button type="button" role="tab" id="v4ActHalTabRekap" aria-selected="false" class="v4-act-tab" onclick="v4ActHalamanTab('rekap')">📊 Rekap Absensi Sholat</button>
+          </div>
+          <div id="v4ActPanelIsi">
+          <div style="display:flex;justify-content:flex-end;margin:0 0 8px;"><button id="v4ActivityAddBtn" class="btn btn-success" onclick="v4OpenActivityTypeForm()">➕ Tambah Jenis</button></div>
                     <div id="v4ActivityConfig" class="v4-shell"></div>
           <div id="v4ActivityTypeForm" class="v4-card" style="display:none;margin-bottom:16px;">
             <h4>➕ Jenis Amalan/Kegiatan Baru</h4>
@@ -2026,9 +2032,10 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
           </div>
           <hr>
           <div id="v4ActivityFillSection"></div>
-          <hr>
-          <div class="v4-section-title"><h3>📊 Rekap Absensi Sholat Siswa</h3></div>
+          </div>
+          <div id="v4ActPanelRekap" style="display:none;">
           <div id="v4RekapReligiSiswa"></div>
+          </div>
         </div>
       </div>
 
