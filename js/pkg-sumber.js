@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/pkg-sumber.js  (v14: Alpha di hari libur/tanpa jadwal tidak dihitung, Izin/Sakit di hari tanpa jadwal juga dibuang; v13: hari efektif absensi hanya hari berjadwal guru; v2 - disesuaikan dengan struktur asli app.js; v8: absensi menampilkan hari tanpa catatan dan tidak mengusulkan skor bila hadir 0 tetapi ada hari tanpa catatan; v9: sumber baru tugasadm untuk indikator 10.5; v10: sumber baru rapat untuk indikator 12.2; v11: RPE ikut dihitung pada indikator 13.2; v12: tugasadm menyertakan penunjukan sebagai PJ kegiatan Amalan Yaumiyah; v13: absensi mengembalikan perInd (10.1 tepat waktu, 10.3 kehadiran, 10.4 izin/sakit vs alpa dipisah), jurnal dipotong dengan tanggalHadir dan 7.4 dikeluarkan dari indikator jurnal)
+   SI MAMBA - js/pkg-sumber.js  (v17: indikator 7.1 kembali WAJIB persetujuan Kepala untuk KISI-KISI dan KARTU SOAL (skor 2 hanya bila keduanya ada dan disetujui Kepala; sekadar diajukan guru = 1); v16: indikator 7.1 menganggap kisi-kisi FINAL bila guru sudah mengajukannya (status final, diajukan, atau disetujui Kepala), tidak lagi menunggu persetujuan Kepala; v15: sumber perangkat juga menjadi BUKTI (tanpa usulan skor) untuk indikator berbukti RPP/perangkat penilaian: 3.5, 4.1, 4.4, 4.5, 4.9, 5.2, 5.3, 7.2, 7.3, 7.4, 13.1, 13.3; sumber absensi juga menjadi bukti 9.1-9.5 dan 10.2; v14: Alpha di hari libur/tanpa jadwal tidak dihitung, Izin/Sakit di hari tanpa jadwal juga dibuang; v13: hari efektif absensi hanya hari berjadwal guru; v2 - disesuaikan dengan struktur asli app.js; v8: absensi menampilkan hari tanpa catatan dan tidak mengusulkan skor bila hadir 0 tetapi ada hari tanpa catatan; v9: sumber baru tugasadm untuk indikator 10.5; v10: sumber baru rapat untuk indikator 12.2; v11: RPE ikut dihitung pada indikator 13.2; v12: tugasadm menyertakan penunjukan sebagai PJ kegiatan Amalan Yaumiyah; v13: absensi mengembalikan perInd (10.1 tepat waktu, 10.3 kehadiran, 10.4 izin/sakit vs alpa dipisah), jurnal dipotong dengan tanggalHadir dan 7.4 dikeluarkan dari indikator jurnal)
    Pembaca data SI MAMBA yang dijadikan BUKTI OTOMATIS untuk menu "PKG Guru" (js/pkg.js):
      1) absensi guru    -> kehadiran, keterlambatan, izin/sakit/alpa
      2) jurnal mengajar -> jumlah jurnal dan hari berjurnal dibanding hari hadir
@@ -390,7 +390,7 @@
         else if (jk === 'kisi') gen = !!(kisi[key] && arr(kisi[key].items).some(function (it) { return it && ((+it.pg || 0) + (+it.is || 0) + (+it.ur || 0)) > 0; }));
         else if (jk === 'kartu' || jk === 'kunci') gen = !!(soal[key] && arr(soal[key].soal).some(function (x) { return x && String(x.q || '').trim(); }));
         else if (jk === 'rpe') gen = !!(row && +row.jpPerPekan > 0 && kald[p.sem]);   // RPE dibuat di aplikasi: JP per pekan tersimpan + kalender efektif semester tersedia
-        return { ada: !!(ln && ln.url) || gen, setuju: !!(ln && ln.setuju) };
+        return { ada: !!(ln && ln.url) || gen, setuju: !!(ln && ln.setuju), final: !!(ln && (ln.setuju || ln.status === 'final' || (ln.app === true && ln.diajukan))) };   // v16: final = disetujui Kepala, ditandai final, atau diajukan guru
       };
       var rpeSiap = function (key) { return !!kald[pairs[key].sem]; };   // RPE hanya dituntut bila kalender efektif semester itu sudah diisi (tanpa itu guru tidak bisa membuatnya)
       var modulDi = function (key) { var l = modul.filter(function (m) { return m.__key === key; }); return { ada: l.length, setuju: l.filter(function (m) { return m.persetujuan === 'disetujui'; }), semua: l }; };
@@ -400,7 +400,7 @@
         '3_2': { perlu: ['v4', 'tp', 'modul'], f: function (k) { var m = modulDi(k), t = ada('tp', k); return m.setuju.length && t.ada ? 2 : (m.ada ? 1 : 0); } },
         '3_3': { perlu: ['v4', 'materi', 'modul'], f: function (k) { var m = modulDi(k), p = ada('prota', k); return m.setuju.some(function (x) { return String(x.materiIsi || '').trim(); }) ? 2 : ((m.ada || p.ada) ? 1 : 0); } },
         '3_4': { perlu: ['v4', 'materi'], f: function (k) { var a = ada('prota', k), b = ada('promes', k); return lvl(a.ada && b.ada, a.ada || b.ada, a.setuju && b.setuju); } },
-        '7_1': { perlu: ['v4', 'kisi', 'soal'], f: function (k) { var a = ada('kisi', k), b = ada('kartu', k); return lvl(a.ada && b.ada, a.ada || b.ada, a.setuju); } },
+        '7_1': { perlu: ['v4', 'kisi', 'soal'], f: function (k) { var a = ada('kisi', k), b = ada('kartu', k); return lvl(a.ada && b.ada, a.ada || b.ada, a.setuju && b.setuju); } },   // v17: kisi-kisi DAN kartu soal wajib disetujui Kepala (diajukan guru saja belum cukup)
         '13_2': { perlu: ['v4', 'tp', 'materi'], f: function (k) { var t = ada('tp', k), a = ada('atp', k), p = ada('promes', k), r = ada('rpe', k), perlu = rpeSiap(k); return lvl(t.ada && a.ada && p.ada && (!perlu || r.ada), t.ada || p.ada || r.ada, a.setuju && (!perlu || r.setuju)); } }
       };
       var perInd = {}, rincian = [], angka = { satuan: keys.length }, tanpa = [];
@@ -423,7 +423,7 @@
       var cnt = function (jk) { return keys.filter(function (k) { return ada(jk, k).ada; }).length; };
       return {
         ok: true, path: 'perangkat_v4 + modul_ajar', saran: null, perInd: perInd,
-        dasar: 'Per indikator: 2 bila semua satuan ada dan disetujui Kepala; 1 bila ada sebagian atau belum disetujui; 0 bila belum ada.',
+        dasar: 'Per indikator: 2 bila semua satuan ada dan disetujui Kepala (indikator 7.1: kisi-kisi dan kartu soal sama-sama wajib disetujui Kepala; hanya diajukan guru = 1); 1 bila sebagian; 0 bila belum ada. Indikator lain (mis. 4.1, 4.4) hanya bukti, tanpa skor.',
         ringkas: keys.length + ' satuan (semester ' + sems.join('/') + '): ATP/TP ' + cnt('atp') + ', Prota/Promes ' + cnt('promes') + ', RPE ' + cnt('rpe') + ', kisi-kisi ' + cnt('kisi') + ', kartu soal ' + cnt('kartu') + '; modul ajar ' + nm + ' (disetujui ' + nms + ')',
         rincian: rincian, angka: angka
       };
@@ -686,10 +686,10 @@
   // regex pada teks bukti instrumen, sehingga mis. "daftar hadir guru" (bukti pendamping 9.1-9.5) ikut memberi usulan skor untuk
   // perilaku santun/teladan, dan kelengkapan input nilai memberi usulan untuk 11.1 (adil). Indikator di luar daftar = tanpa usulan.
   var DAFTAR = {
-    absensi: { label: 'Absensi guru', ikon: '🕘', indikator: ['10_1', '10_3', '10_4'], ambil: ambilAbsensi },
+    absensi: { label: 'Absensi guru', ikon: '🕘', indikator: ['9_1', '9_2', '9_3', '9_4', '9_5', '10_1', '10_2', '10_3', '10_4'], ambil: ambilAbsensi },
     jurnal: { label: 'Jurnal mengajar', ikon: '📓', indikator: ['14_2'], ambil: ambilJurnal },
     nilai: { label: 'Nilai siswa', ikon: '📊', indikator: ['5_1', '7_1', '7_2', '7_3'], ambil: ambilNilai },
-    perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '7_1', '13_2'], ambil: ambilPerangkat },
+    perangkat: { label: 'Perangkat pembelajaran & modul ajar', ikon: '📚', indikator: ['3_1', '3_2', '3_3', '3_4', '3_5', '4_1', '4_4', '4_5', '4_9', '5_2', '5_3', '7_1', '7_2', '7_3', '7_4', '13_1', '13_2', '13_3'], ambil: ambilPerangkat },
     buku: { label: 'Buku Penghubung (komunikasi dengan orang tua)', ikon: '💬', indikator: ['12_1'], ambil: ambilBuku },
     kegiatan: { label: 'Kegiatan madrasah (rapat, lembur, ujian)', ikon: '🗓️', indikator: ['12_2'], ambil: ambilKegiatan },
     rapat: { label: 'Kehadiran rapat madrasah', ikon: '📋', indikator: ['12_2'], ambil: ambilRapat },
@@ -710,5 +710,5 @@
     }, Promise.resolve()).then(function () { return hasil; });
   }
 
-  window.PKG_SUMBER = { versi: 13, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
+  window.PKG_SUMBER = { versi: 16, cfg: CFG, daftar: DAFTAR, urut: URUT, jalankan: jalankan };
 })();

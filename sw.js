@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.256';
+const APP_VERSION = 'v8.259';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -101,7 +101,7 @@ const PRECACHE_URLS = [
   './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/ortu-akun-admin.js?v=1',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/amalan-kegiatan.js?v=41',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
-  './js/bacaan-shalat.js?v=4',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
+  './js/bacaan-shalat.js?v=5',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=12',
@@ -109,9 +109,9 @@ const PRECACHE_URLS = [
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=7',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-pkg-mi.js?v=1',              // instrumen & rumus PKG Guru MI (dimuat SEBELUM pkg.js)
-  './js/pkg-sumber.js?v=65',               // pembaca absensi guru/jurnal/nilai/perangkat pembelajaran untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
+  './js/pkg-sumber.js?v=68',               // pembaca absensi guru/jurnal/nilai/perangkat pembelajaran untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
   './js/data-pkg-angket.js?v=6',          // butir & rumus angket PKG (dimuat SEBELUM pkg.js; juga dipakai angket.html)
-  './js/pkg.js?v=96',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
+  './js/pkg.js?v=97',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/pkg-surat.js?v=4',                // surat PKG berQR Kepala (dimuat SESUDAH pkg.js)
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
   './js/data-tp-mi.js?v=3',
@@ -128,7 +128,7 @@ const PRECACHE_URLS = [
   './js/perangkat-kisi.js?v=12',
   './js/perangkat-soal.js?v=24',
   './js/perangkat-paket.js?v=2',
-  './js/perangkat-pembelajaran.js?v=23',
+  './js/perangkat-pembelajaran.js?v=24',
   './js/modul-ajar.js?v=16',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',

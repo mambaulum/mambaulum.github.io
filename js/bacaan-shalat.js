@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/bacaan-shalat.js (v1)
+   SI MAMBA - js/bacaan-shalat.js (v2)
    Menu "Bacaan Sholat" -- hafalan bacaan sholat + amalan harian di rumah + gamifikasi.
 
    TIGA AKSES:
@@ -19,6 +19,9 @@
    - bs_target/{id}                  : target bacaan (nama, jenis, tanggal, kelas | '*', urutan, teks?, aktif)
    - bs_setoran/{targetId}_{siswaKey}: SATU catatan terbaru per siswa per target (status, nilai, catatan, percobaan)
    - bs_amalan_rumah/{siswaKey}_{tgl}: checklist harian dari orang tua (items: {subuh:true, ...})
+   SEMANTIK "percobaan" (bs_setoran.percobaan): mulai 1. Naik +1 HANYA bila catatan sebelumnya Remedial lalu siswa
+   diuji ulang (status baru Lulus/Remedial). Tidak naik untuk: simpan ulang status sama (hanya nilai/catatan berubah),
+   "Belum Setor" -> apa pun, dan koreksi salah klik (Lulus -> Remedial). Percobaan=1 + Lulus = bonus "lulus pertama".
    Poin & lencana TIDAK disimpan: selalu dihitung ulang dari tiga data di atas (tidak bisa "dikarang").
 
    Dimuat SESUDAH app.js (memakai helper app.js saat dijalankan, bukan saat dimuat).
@@ -42,11 +45,11 @@ const BS_AMALAN = [
 ];
 const BS_LEVEL = [
   { min: 0,    nama: 'Pemula',          e: '🌱' },
-  { min: 150,  nama: 'Rajin',           e: '🌟' },
-  { min: 400,  nama: 'Teladan',         e: '🏅' },
-  { min: 800,  nama: 'Bintang',         e: '🌠' },
-  { min: 1500, nama: 'Juara',           e: '🏆' },
-  { min: 2500, nama: 'Pahlawan Sholat', e: '👑' }
+  { min: 400,   nama: 'Rajin',           e: '🌟' },
+  { min: 1200,  nama: 'Teladan',         e: '🏅' },
+  { min: 3000,  nama: 'Bintang',         e: '🌠' },
+  { min: 6000,  nama: 'Juara',           e: '🏆' },
+  { min: 10000, nama: 'Pahlawan Sholat', e: '👑' }
 ];
 const BS_POIN_LULUS = 50, BS_POIN_LULUS_PERTAMA = 10, BS_STREAK_BINTANG = 7;
 const BS_HARI_ISI_MUNDUR = 2;   // orang tua boleh mengisi hari ini + 2 hari ke belakang
@@ -91,6 +94,10 @@ function bsMingguLabel(tgl) {   // "6 – 12 Okt 2026" untuk pekan yang memuat t
 function bsMingguSingkat(key) {
   try { const s = mingguKeTanggal(key).senin; return s.getDate() + ' ' + BS_BULAN[s.getMonth()]; } catch (e) { return key; }
 }
+// Kunci ringan agar tombol aksi tidak terproses dua kali (klik ganda) selagi permintaan masih berjalan.
+const bsKunci = {};
+function bsKunciMulai(k) { if (bsKunci[k]) return false; bsKunci[k] = true; return true; }
+function bsKunciSelesai(k) { delete bsKunci[k]; }
 function bsOnline() { return typeof navigator === 'undefined' || navigator.onLine !== false; }
 function bsEl(id) { return document.getElementById(id); }
 function bsLabelTarget(t) {
@@ -102,10 +109,16 @@ function bsLabelTarget(t) {
 function bsIsAdmin() { return typeof v4IsAdmin === 'function' && !!v4IsAdmin(); }
 function bsIsHead() { return typeof v4IsHead === 'function' && !!v4IsHead(); }
 function bsIsTeacher() { return typeof v4IsTeacher === 'function' && !!v4IsTeacher(); }
-function bsKelasScope() { return typeof loaderScopeKelas === 'function' ? loaderScopeKelas() : []; }
+// Admin & Kepala: semua kelas. Guru: HANYA kelas yang dia wali-i (waliKelasOf). Kelas yang sekadar diajar
+// (currentUser.kelas / flag semuaKelas) TIDAK ikut -- beda dengan loaderScopeKelas() yang sengaja melebar.
+function bsKelasScope() {
+  if (bsIsAdmin() || bsIsHead()) return typeof KELAS_LIST !== 'undefined' ? [...KELAS_LIST] : [];
+  const w = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.waliKelasOf : null;
+  return w ? [w] : [];
+}
 // Dipanggil app.js untuk menyembunyikan/menampilkan menu sidebar.
-function bsCanOpenMenu() { return bsIsAdmin() || bsIsHead() || bsIsTeacher(); }
-// Menilai setoran: Admin (semua kelas) + guru/wali kelas untuk kelas yang dia ampu. Kepala Madrasah: lihat saja.
+function bsCanOpenMenu() { return bsIsAdmin() || bsIsHead() || (bsIsTeacher() && bsKelasScope().length > 0); }
+// Menilai setoran: Admin (semua kelas) + wali kelas untuk kelasnya sendiri. Kepala Madrasah: lihat saja.
 function bsCanNilai(kelas) { return bsIsAdmin() || (bsIsTeacher() && bsKelasScope().includes(kelas)); }
 // Membuat/mengubah target: Admin (termasuk '*' = semua kelas); guru/wali hanya untuk kelasnya sendiri.
 function bsCanTarget(kelas) {
@@ -136,17 +149,23 @@ function bsLevelDari(poin) {
   };
 }
 // targets: target yang berlaku untuk siswa; setoranByTarget: {targetId: rec}; amalanList: [{tanggal, items}]
-function bsHitungGame(targets, setoranByTarget, amalanList, hariIni) {
+// semuaTarget (opsional): termasuk target nonaktif, supaya poin & lencana tidak turun saat target dinonaktifkan.
+function bsHitungGame(targets, setoranByTarget, amalanList, hariIni, semuaTarget) {
   hariIni = hariIni || bsHariIni();
   const harian = {};
   (amalanList || []).forEach(r => { if (r && r.tanggal) harian[r.tanggal] = r.items || {}; });
   const tanggals = Object.keys(harian).sort();
   let poin = 0;
   tanggals.forEach(tg => BS_AMALAN.forEach(a => { if (harian[tg][a.k] === true) poin += a.poin; }));
-  let lulus = 0, lulusPertama = 0;
-  (targets || []).forEach(t => {
+  let lulus = 0, lulusSemua = 0, lulusPertama = 0;
+  const aktifKey = {}; (targets || []).forEach(t => { aktifKey[t.key] = true; });
+  (semuaTarget || targets || []).forEach(t => {
     const s = (setoranByTarget || {})[t.key];
-    if (s && s.status === 'Lulus') { lulus++; poin += BS_POIN_LULUS; if ((s.percobaan || 1) === 1) { lulusPertama++; poin += BS_POIN_LULUS_PERTAMA; } }
+    if (s && s.status === 'Lulus') {
+      lulusSemua++; if (aktifKey[t.key]) lulus++;
+      poin += BS_POIN_LULUS;
+      if ((s.percobaan || 1) === 1) { lulusPertama++; poin += BS_POIN_LULUS_PERTAMA; }
+    }
   });
   // Rentetan hari berturut-turut terpanjang yang memenuhi syarat (hari tanpa isian = putus)
   const rentetan = pred => {
@@ -170,8 +189,8 @@ function bsHitungGame(targets, setoranByTarget, amalanList, hariIni) {
   tambah('lima_waktu', '🌈', 'Pejuang Lima Waktu', 'Sholat 5 waktu lengkap 5 hari berturut-turut', rentetan(semuaWajib), 5);
   tambah('mengaji', '📖', 'Sahabat Al-Qur\'an', 'Mengaji ' + BS_STREAK_BINTANG + ' hari berturut-turut', rentetan(it => it.mengaji === true), BS_STREAK_BINTANG);
   tambah('rajin', '📅', 'Anak Rajin', 'Checklist amalan terisi 30 hari', tanggals.filter(tg => Object.keys(harian[tg]).some(k => harian[tg][k] === true)).length, 30);
-  tambah('lulus_1', '🎯', 'Langkah Pertama', 'Lulus 1 target bacaan', lulus, 1);
-  tambah('lulus_5', '🕌', 'Hafidz Cilik', 'Lulus 5 target bacaan', lulus, 5);
+  tambah('lulus_1', '🎯', 'Langkah Pertama', 'Lulus 1 target bacaan', lulusSemua, 1);
+  tambah('lulus_5', '🕌', 'Hafidz Cilik', 'Lulus 5 target bacaan', lulusSemua, 5);
   tambah('sekali_jalan', '⚡', 'Sekali Jalan', 'Lulus 3 target di percobaan pertama', lulusPertama, 3);
   const nTarget = (targets || []).length;
   if (nTarget >= 3) tambah('juara', '🏆', 'Juara Bacaan Sholat', 'Lulus semua target bacaan', lulus, nTarget);
@@ -231,7 +250,7 @@ function bsStateBaru() {
   return {
     tab: 'target', kelas: '', targets: null, targetsTA: '', editId: '',
     setoran: {}, setoranTA: {}, targetSel: '', tglNilai: '', draft: {},
-    grafik: 'klasikal', siswaSel: '', amalanSiswa: {}, memuat: false, err: '', wa: null, waList: { petugas: [], wali: [] }
+    grafik: 'klasikal', siswaSel: '', amalanSiswa: {}, memuat: false, err: ''
   };
 }
 let bsState = bsStateBaru();
@@ -277,7 +296,7 @@ function bsSiswaKelas(k) {
 
 function setupBacaanShalatPage() {
   const root = bsEl('bsRoot'); if (!root) return;
-  if (!bsCanOpenMenu()) { root.innerHTML = '<p class="text-muted">Menu ini hanya untuk Guru, Wali Kelas, Kepala Madrasah, dan Admin.</p>'; return; }
+  if (!bsCanOpenMenu()) { root.innerHTML = '<p class="text-muted">Menu ini hanya untuk Wali Kelas (kelasnya sendiri), Kepala Madrasah, dan Admin.</p>'; return; }
   const pil = bsKelasPilihan();
   if (!bsState.kelas || !pil.includes(bsState.kelas)) bsState.kelas = pil[0] || '';
   if (!bsState.tglNilai) bsState.tglNilai = bsHariIni();
@@ -289,10 +308,10 @@ function setupBacaanShalatPage() {
 function bsPastikanDataKelas() {
   const k = bsState.kelas;
   if (!k || bsState.tab === 'target') return;
-  if (typeof v4PanelSiswaCache !== 'undefined' && !v4PanelSiswaCache[k] && typeof v4FetchSiswaByKelas === 'function') {
-    v4FetchSiswaByKelas(k, () => { if (bsState.kelas === k) bsRender(); });
-  }
-  bsMuatSetoran(k, false)
+  const perluSiswa = typeof v4PanelSiswaCache !== 'undefined' && !v4PanelSiswaCache[k] && typeof v4FetchSiswaByKelas === 'function';
+  // Pembungkus Promise + batas waktu 15 dtk (jaga-jaga callback tidak terpanggil), supaya cukup SATU render.
+  const pSiswa = perluSiswa ? new Promise(res => { let sel = false; const fin = () => { if (!sel) { sel = true; res(); } }; try { v4FetchSiswaByKelas(k, fin); } catch (e) { fin(); } setTimeout(fin, 15000); }) : Promise.resolve();
+  Promise.all([pSiswa, bsMuatSetoran(k, false)])
     .catch(e => { bsState.err = 'Gagal memuat penilaian: ' + ((e && e.message) || e); })
     .then(() => { if (bsState.kelas === k) bsRender(); });
 }
@@ -327,153 +346,6 @@ function bsRender() {
     </div>
     ${bsIsHead() ? '<p class="v4-muted" style="font-size:12px;margin-bottom:8px;">👑 Mode Kepala Madrasah: hanya melihat (target &amp; penilaian dikelola Admin/guru kelas).</p>' : ''}
     ${body}`;
-}
-
-
-// ============================================================
-// PENGINGAT WHATSAPP (Admin / Kepala Madrasah) -- di tab Target
-// ============================================================
-// Tanpa API berbayar/server: tiap penerima = satu tombol yang membuka wa.me dengan nomor & pesan sudah terisi (kirimWA di app.js);
-// pengirim tinggal menekan "Kirim" di WhatsApp. Penanda "sudah dibuka" disimpan di perangkat ini saja (localStorage) dan hanya
-// berarti WhatsApp pernah dibuka untuk penerima itu -- aplikasi tidak bisa tahu pesan benar-benar terkirim.
-// Penanggung jawab = wali kelas dari kelas target (atau semua wali kelas untuk target "Semua kelas") + guru pembuat target.
-// Tidak menambah field/data baru di Firebase (jadi tidak perlu ubah Rules).
-const BS_WA_KUNCI = 'bsWaDibuka';
-let bsWaMem = {};
-function bsWaBacaTanda() { try { return JSON.parse(localStorage.getItem(BS_WA_KUNCI) || '{}') || {}; } catch (e) { return Object.assign({}, bsWaMem); } }
-function bsWaTandai(id) {
-  const m = bsWaBacaTanda(); m[id] = Date.now();
-  const kunci = Object.keys(m); if (kunci.length > 800) kunci.sort((a, b) => m[a] - m[b]).slice(0, kunci.length - 800).forEach(k => delete m[k]);
-  bsWaMem = m; try { localStorage.setItem(BS_WA_KUNCI, JSON.stringify(m)); } catch (e) { /* penanda hanya sementara */ }
-}
-function bsWaSudah(id) { return !!bsWaBacaTanda()[id]; }
-function bsWaPesanPetugas() { return 'Assalamualaikum {nama}.\nPengingat dari {madrasah}: Bapak/Ibu penanggung jawab agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon agenda disiapkan dan setoran siswa dinilai tepat waktu. Terima kasih. 🙏'; }
-function bsWaPesanWali() { return 'Assalamualaikum Bapak/Ibu wali murid {siswa}.\nPengingat dari {madrasah}: agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon ananda dibantu berlatih dan didampingi di rumah. Penanggung jawab: {pj}. Terima kasih. 🙏'; }
-function bsWaState(targets) {
-  if (!bsState.wa) bsState.wa = { targetId: '', kelas: '', pesanPetugas: bsWaPesanPetugas(), pesanWali: bsWaPesanWali(), buka: false };
-  const w = bsState.wa, aktif = (targets || []).filter(t => t.aktif !== false);
-  if (!aktif.find(t => t.key === w.targetId)) {
-    // Default: target aktif terdekat dari hari ini (yang belum lewat lebih dari 7 hari), kalau tak ada ambil yang terakhir.
-    const h = bsHariIni(), urut = aktif.slice().sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)));
-    const t = urut.find(x => bsSelisihHari(x.tanggal, h) <= 7) || urut[urut.length - 1];
-    w.targetId = t ? t.key : '';
-  }
-  return w;
-}
-function bsWaIsi(tpl, v) {
-  return String(tpl || '').replace(/\{(nama|siswa|bacaan|waktu|kelas|pj|madrasah)\}/g, (m, k) => (v[k] == null ? '' : v[k]));
-}
-function bsWaMadrasah() { return (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) ? MADRASAH.nama : 'Madrasah'; }
-function bsWaKelasTarget(t, w) { return t ? (t.kelas === '*' ? (w.kelas || bsState.kelas || '') : t.kelas) : ''; }
-function bsWaPetugas(t, kelas) {
-  const gl = (typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru : [];
-  const hasil = [], ada = new Set();
-  const tambah = (g, peran) => { if (!g || ada.has(g.key || g.name)) return; ada.add(g.key || g.name); hasil.push({ key: g.key || g.name, nama: g.name || '-', noWa: g.noWa || '', peran }); };
-  gl.filter(g => g && g.waliKelasOf && (t.kelas === '*' || g.waliKelasOf === t.kelas)).sort((a, b) => bsCmp(a.name, b.name)).forEach(g => tambah(g, 'Wali Kelas ' + g.waliKelasOf));
-  tambah(gl.find(g => g && t.dibuatOleh && g.name === t.dibuatOleh), 'Pembuat target');
-  return hasil;
-}
-function bsWaWali(kelas) {
-  const arr = bsSiswaKelas(kelas) || (typeof allSiswa !== 'undefined' ? allSiswa.filter(s => s.kelas === kelas) : null);
-  if (!arr) return null;
-  const perNomor = new Map(), tanpa = [];
-  arr.filter(s => s && s.aktif !== false).forEach(s => {
-    const k = (typeof ortuWaKey === 'function') ? ortuWaKey(s.noWaOrtu) : null;
-    if (!k) { tanpa.push(s.name); return; }
-    if (!perNomor.has(k)) perNomor.set(k, { nomor: k, siswa: [] });
-    perNomor.get(k).siswa.push(s.name);
-  });
-  return { daftar: [...perNomor.values()].sort((a, b) => bsCmp(a.siswa[0], b.siswa[0])), tanpa: tanpa.sort(bsCmp) };
-}
-function bsWaPanelHtml(targets) {
-  if (!(bsIsAdmin() || bsIsHead())) return '';
-  const aktif = (targets || []).filter(t => t.aktif !== false).sort(bsBandingTarget);
-  const w = bsWaState(targets);
-  if (!aktif.length) return '';
-  const t = aktif.find(x => x.key === w.targetId) || aktif[0];
-  const kelas = bsWaKelasTarget(t, w);
-  const waktu = bsLabelTarget(t);
-  const opsiT = aktif.map(x => `<option value="${bsEsc(x.key)}" ${x.key === t.key ? 'selected' : ''}>${bsEsc(x.nama)} — ${bsEsc(x.kelas === '*' ? 'Semua kelas' : x.kelas)} — ${bsEsc(bsLabelTarget(x))}</option>`).join('');
-  const petugas = bsWaPetugas(t, kelas);
-  const pjTeks = petugas.map(p => p.nama).join(', ') || '-';
-  const wali = kelas ? bsWaWali(kelas) : { daftar: [], tanpa: [] };
-  if (kelas && !wali && typeof v4FetchSiswaByKelas === 'function') v4FetchSiswaByKelas(kelas, () => { if (bsState.tab === 'target') bsRender(); });
-  bsState.waList = { petugas, wali: wali ? wali.daftar : [], t: t.key, kelas, waktu, pjTeks };
-  const tandaOk = id => bsWaSudah(id) ? '<span class="bs-wa-st" style="color:#059669;font-weight:600;font-size:12px;">✓ sudah dibuka</span>' : '<span class="bs-wa-st text-muted" style="font-size:12px;">belum</span>';
-  const barisPetugas = petugas.map((p, i) => {
-    const id = 'P|' + t.key + '|' + p.key;
-    return `<div id="bsWaRow_P${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
-      <div style="min-width:0;"><strong>${bsEsc(p.nama)}</strong> <span class="text-muted" style="font-size:11px;">${bsEsc(p.peran)}</span>${p.noWa ? '' : '<div style="color:#dc2626;font-size:11px;">Nomor WA belum diisi di data guru</div>'}</div>
-      <div style="display:flex;align-items:center;gap:8px;">${tandaOk(id)}<button class="btn btn-success" style="padding:5px 10px;font-size:12px;" ${p.noWa ? '' : 'disabled'} onclick="bsWaKirimPetugas(${i})">📲 WhatsApp</button></div></div>`;
-  }).join('') || '<p class="text-muted" style="font-size:12px;">Belum ada wali kelas/pembuat target yang terdata sebagai penanggung jawab.</p>';
-  let blokWali;
-  if (t.kelas === '*') {
-    const pil = bsKelasPilihan().map(k => `<option value="${bsEsc(k)}" ${k === kelas ? 'selected' : ''}>${bsEsc(bsNamaKelas(k))}</option>`).join('');
-    var pilKelasWa = `<div style="margin-bottom:8px;max-width:220px;"><label class="label">Kelas wali murid</label><select class="field" onchange="bsWaPilihKelas(this.value)">${pil}</select></div>`;
-  } else var pilKelasWa = '';
-  if (!kelas) blokWali = '<p class="text-muted" style="font-size:12px;">Pilih kelas dulu.</p>';
-  else if (!wali) blokWali = '<p class="text-muted" style="font-size:12px;">⏳ Memuat daftar siswa...</p>';
-  else {
-    const belum = wali.daftar.filter(d => !bsWaSudah('W|' + t.key + '|' + d.nomor)).length;
-    const baris = wali.daftar.map((d, i) => {
-      const id = 'W|' + t.key + '|' + d.nomor;
-      return `<div id="bsWaRow_W${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
-        <div style="min-width:0;font-size:13px;">${bsEsc(d.siswa.join(', '))}<div class="text-muted" style="font-size:11px;">+${bsEsc(d.nomor)}</div></div>
-        <div style="display:flex;align-items:center;gap:8px;">${tandaOk(id)}<button class="btn btn-soft" style="padding:5px 10px;font-size:12px;" onclick="bsWaKirimWali(${i})">📲 WhatsApp</button></div></div>`;
-    }).join('');
-    blokWali = `${pilKelasWa}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-        <span style="font-size:12px;">${wali.daftar.length} nomor wali · <strong id="bsWaSisa">${belum}</strong> belum dibuka</span>
-        <button class="btn btn-success" style="padding:6px 12px;font-size:12px;" onclick="bsWaBerikutnya()" ${belum ? '' : 'disabled'}>▶ Buka yang berikutnya</button></div>
-      <div style="max-height:300px;overflow-y:auto;">${baris || '<p class="text-muted" style="font-size:12px;">Belum ada siswa dengan nomor WA wali.</p>'}</div>
-      ${wali.tanpa.length ? `<p style="font-size:12px;color:#b45309;margin-top:8px;">⚠️ Nomor WA wali belum diisi (${wali.tanpa.length}): ${bsEsc(wali.tanpa.slice(0, 8).join(', '))}${wali.tanpa.length > 8 ? ', dst' : ''}. Isi lewat Edit Siswa.</p>` : ''}`;
-  }
-  return `<details class="card" style="margin-bottom:14px;border:1px solid #e5e7eb;" ${w.buka ? 'open' : ''} ontoggle="if(bsState.wa)bsState.wa.buka=this.open">
-    <summary style="cursor:pointer;font-weight:700;">📲 Ingatkan lewat WhatsApp (petugas &amp; wali murid)</summary>
-    <p class="text-muted" style="font-size:12px;margin:8px 0;">WhatsApp terbuka dengan nomor &amp; pesan sudah terisi; Anda tinggal menekan Kirim di WhatsApp. Penanda "sudah dibuka" hanya catatan di perangkat ini.</p>
-    <div style="margin-bottom:8px;"><label class="label">Agenda / target bacaan</label><select class="field" onchange="bsWaPilihTarget(this.value)">${opsiT}</select>
-      <div class="text-muted" style="font-size:11px;margin-top:2px;">${bsEsc(waktu)} · Penanggung jawab: ${bsEsc(pjTeks)}</div></div>
-    <p style="font-weight:600;margin:10px 0 4px;">👤 Petugas / penanggung jawab</p>${barisPetugas}
-    <label class="label" style="margin-top:8px;">Pesan untuk petugas (boleh diubah)</label>
-    <textarea class="field" rows="4" oninput="bsState.wa.pesanPetugas=this.value">${bsEsc(w.pesanPetugas)}</textarea>
-    <p style="font-weight:600;margin:14px 0 4px;">👪 Wali murid ${kelas ? '— ' + bsEsc(bsNamaKelas(kelas)) : ''}</p>${blokWali}
-    <label class="label" style="margin-top:8px;">Pesan untuk wali murid (boleh diubah)</label>
-    <textarea class="field" rows="4" oninput="bsState.wa.pesanWali=this.value">${bsEsc(w.pesanWali)}</textarea>
-    <p class="text-muted" style="font-size:11px;margin-top:4px;">Isian otomatis: {nama} {siswa} {bacaan} {waktu} {kelas} {pj} {madrasah}. <a href="#" onclick="bsWaResetPesan();return false;">Kembalikan pesan awal</a></p>
-  </details>`;
-}
-function bsWaPilihTarget(id) { if (bsState.wa) { bsState.wa.targetId = id; bsState.wa.buka = true; } bsRender(); }
-function bsWaPilihKelas(k) { if (bsState.wa) { bsState.wa.kelas = k; bsState.wa.buka = true; } bsRender(); }
-function bsWaResetPesan() { if (bsState.wa) { bsState.wa.pesanPetugas = bsWaPesanPetugas(); bsState.wa.pesanWali = bsWaPesanWali(); bsState.wa.buka = true; } bsRender(); }
-function bsWaTargetKini() { return (bsState.targets || []).find(x => bsState.waList && x.key === bsState.waList.t); }
-function bsWaTandaiBaris(rowId, id) {
-  bsWaTandai(id);
-  const el = bsEl(rowId), st = el && el.querySelector('.bs-wa-st');
-  if (st) { st.className = 'bs-wa-st'; st.style.cssText = 'color:#059669;font-weight:600;font-size:12px;'; st.textContent = '✓ sudah dibuka'; }
-  const ls = bsState.waList || { wali: [] }, sisa = bsEl('bsWaSisa');
-  if (sisa) sisa.textContent = ls.wali.filter(d => !bsWaSudah('W|' + ls.t + '|' + d.nomor)).length;
-}
-function bsWaKirimPetugas(i) {
-  if (!(bsIsAdmin() || bsIsHead())) return;
-  const ls = bsState.waList || {}, p = (ls.petugas || [])[i], t = bsWaTargetKini();
-  if (!p || !t || typeof kirimWA !== 'function') return;
-  const pesan = bsWaIsi(bsState.wa.pesanPetugas, { nama: p.nama, bacaan: t.nama, waktu: ls.waktu, kelas: t.kelas === '*' ? 'semua kelas' : bsNamaKelas(t.kelas), pj: ls.pjTeks, madrasah: bsWaMadrasah() });
-  kirimWA(p.noWa, pesan);
-  bsWaTandaiBaris('bsWaRow_P' + i, 'P|' + t.key + '|' + p.key);
-}
-function bsWaKirimWali(i) {
-  if (!(bsIsAdmin() || bsIsHead())) return;
-  const ls = bsState.waList || {}, d = (ls.wali || [])[i], t = bsWaTargetKini();
-  if (!d || !t || typeof kirimWA !== 'function') return;
-  const pesan = bsWaIsi(bsState.wa.pesanWali, { siswa: d.siswa.join(' & '), nama: d.siswa.join(' & '), bacaan: t.nama, waktu: ls.waktu, kelas: bsNamaKelas(ls.kelas), pj: ls.pjTeks, madrasah: bsWaMadrasah() });
-  kirimWA(d.nomor, pesan);
-  bsWaTandaiBaris('bsWaRow_W' + i, 'W|' + t.key + '|' + d.nomor);
-}
-function bsWaBerikutnya() {
-  const ls = bsState.waList || { wali: [] };
-  const i = ls.wali.findIndex(d => !bsWaSudah('W|' + ls.t + '|' + d.nomor));
-  if (i < 0) return toast('Semua wali murid di kelas ini sudah dibuka.', false, 2000);
-  bsWaKirimWali(i);
-  const el = bsEl('bsWaRow_W' + i); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
 }
 
 // ---------- Tab TARGET ----------
@@ -519,7 +391,7 @@ function bsBodyTarget() {
         <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="bsHapusTarget('${bsEscJs(t.key)}')">🗑️</button>` : '<span class="text-muted" style="font-size:11px;">lihat saja</span>'}</td>
     </tr>`;
   }).join('');
-  return bsWaPanelHtml(targets) + form + contoh + (kosong ? '<p class="text-muted" style="font-size:13px;">Belum ada target bacaan.</p>' : `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Bacaan</th><th>Kelas</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${baris}</tbody></table></div>`);
+  return form + contoh + (kosong ? '<p class="text-muted" style="font-size:13px;">Belum ada target bacaan.</p>' : `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Bacaan</th><th>Kelas</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${baris}</tbody></table></div>`);
 }
 function bsTargetJenisBerubah() {
   const j = bsEl('bsTgJenis'), l = bsEl('bsTgTanggalLabel');
@@ -560,15 +432,19 @@ function bsSimpanTarget() {
 function bsToggleAktif(id) {
   const t = (bsState.targets || []).find(x => x.key === id); if (!t || !bsCanTarget(t.kelas)) return;
   if (!bsOnline()) return toast('📡 Sedang offline.', true);
-  const baru = t.aktif === false;
+  const baru = t.aktif === false, kunci = 'aktif_' + id;
+  if (!bsKunciMulai(kunci)) return;
   db.ref('bs_target/' + id).update({ aktif: baru, updatedAt: new Date().toISOString() })
     .then(() => { t.aktif = baru; toast(baru ? '▶️ Target diaktifkan.' : '⏸️ Target dinonaktifkan (data penilaian tetap tersimpan).'); bsRender(); })
-    .catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true));
+    .catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
+    .then(() => bsKunciSelesai(kunci));
 }
 function bsHapusTarget(id) {
   const t = (bsState.targets || []).find(x => x.key === id); if (!t || !bsCanTarget(t.kelas)) return;
   if (!bsOnline()) return toast('📡 Sedang offline.', true);
   // Tolak hapus kalau sudah ada penilaian (hindari data yatim) -- sarankan nonaktifkan.
+  const kunci = 'hapus_' + id;
+  if (!bsKunciMulai(kunci)) return;
   db.ref('bs_setoran').orderByChild('targetId').equalTo(id).limitToFirst(1).once('value').then(snap => {
     if (snap.exists()) return toast('⚠️ Target ini sudah punya penilaian siswa, jadi tidak bisa dihapus. Gunakan ⏸️ Nonaktifkan.', true);
     const ok = typeof doubleConfirm === 'function' ? doubleConfirm('Hapus target "' + t.nama + '"?') : confirm('Hapus target "' + t.nama + '"?');
@@ -578,7 +454,8 @@ function bsHapusTarget(id) {
       if (typeof v4Audit === 'function') v4Audit('BS_HAPUS_TARGET', 'BACAAN_SHALAT', id, { nama: t.nama }, null);
       toast('✅ Target dihapus.'); bsRender();
     });
-  }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true));
+  }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
+    .then(() => bsKunciSelesai(kunci));
 }
 function bsIsiContoh() {
   if (!bsIsAdmin()) return toast('Hanya Admin.', true);
@@ -586,6 +463,7 @@ function bsIsiContoh() {
   if ((bsState.targets || []).length) return toast('Sudah ada target; contoh tidak diisi agar tidak dobel.', true);
   const ok = typeof doubleConfirm === 'function' ? doubleConfirm('Isi ' + BS_CONTOH_TARGET.length + ' target contoh (mingguan, semua kelas)?') : confirm('Isi target contoh?');
   if (!ok) return;
+  if (!bsKunciMulai('contoh')) return;
   const d = new Date(), senin = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
   const now = new Date().toISOString(), payload = {}, baru = [];
   BS_CONTOH_TARGET.forEach((nama, i) => {
@@ -598,13 +476,14 @@ function bsIsiContoh() {
     bsState.targets = (bsState.targets || []).concat(baru);
     if (typeof v4Audit === 'function') v4Audit('BS_ISI_CONTOH_TARGET', 'BACAAN_SHALAT', null, null, { jumlah: baru.length });
     toast('✅ ' + baru.length + ' target contoh ditambahkan.'); bsRender();
-  }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true));
+  }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
+    .then(() => bsKunciSelesai('contoh'));
 }
 
 // ---------- Tab PENILAIAN ----------
 function bsKunciSetoran(targetId, sk) { return targetId + '_' + sk; }
 function bsDraftBeda(d, saved) {
-  if (!saved) return !!d.status;   // belum ada catatan: dianggap perubahan kalau status sudah dipilih
+  if (!saved) return !!d.status || (d.nilai !== '' && d.nilai != null) || (d.catatan || '').trim() !== '';   // nilai/catatan tanpa status tetap terdeteksi -> divalidasi saat simpan
   const n1 = d.nilai === '' || d.nilai == null ? null : Number(d.nilai), n2 = saved.nilai == null ? null : Number(saved.nilai);
   return d.status !== saved.status || n1 !== n2 || (d.catatan || '').trim() !== (saved.catatan || '');
 }
@@ -652,7 +531,8 @@ function bsBodyNilai() {
   const setoran = bsState.setoran[k], bisa = bsCanNilai(k);
   let nL = 0, nR = 0;
   siswa.forEach(s => { const x = setoran[bsKunciSetoran(t.key, s.key)]; if (x && x.status === 'Lulus') nL++; else if (x && x.status === 'Remedial') nR++; });
-  const opsiTarget = targets.map(x => `<option value="${bsEsc(x.key)}" ${x.key === t.key ? 'selected' : ''}>${bsEsc((x.urutan || '') + '. ' + x.nama)}</option>`).join('');
+  const draftPer = {}; Object.values(bsState.draft).forEach(d => { if (d.kelas === k && bsDraftBeda(d, setoran[bsKunciSetoran(d.targetId, d.siswaKey)])) draftPer[d.targetId] = (draftPer[d.targetId] || 0) + 1; });
+  const opsiTarget = targets.map(x => `<option value="${bsEsc(x.key)}" ${x.key === t.key ? 'selected' : ''}>${bsEsc((x.urutan || '') + '. ' + x.nama + (draftPer[x.key] ? '  ✏️ ' + draftPer[x.key] + ' belum disimpan' : ''))}</option>`).join('');
   const baris = siswa.map(s => {
     const key = bsKunciSetoran(t.key, s.key), saved = setoran[key], d = bsState.draft[key];
     const cur = d ? d.status : (saved ? saved.status : '');
@@ -708,7 +588,8 @@ function bsSimpanNilai() {
     const rec = {
       targetId: d.targetId, targetNama: d.targetNama, siswaKey: d.siswaKey, siswaNama: d.siswaNama, kelas: k, status: d.status,
       tanggal: sama ? (lama.tanggal || tgl) : tgl,
-      percobaan: lama ? (sama ? (lama.percobaan || 1) : (lama.percobaan || 1) + 1) : 1,
+      // Percobaan baru dihitung hanya bila sebelumnya Remedial lalu diuji ulang. 'Belum Setor' & koreksi salah klik bukan percobaan.
+      percobaan: !lama ? 1 : ((lama.status === 'Remedial' && !sama && d.status !== 'Belum Setor') ? (lama.percobaan || 1) + 1 : (lama.percobaan || 1)),
       guruKey: bsGuruKey(), guruName: bsGuruNama(), tahunAjaran: ta, updatedAt: now
     };
     if (d.nilai !== '' && d.nilai != null) rec.nilai = Number(d.nilai);
@@ -779,10 +660,11 @@ function bsGrafikIndividu(k, targets, siswa) {
   if (!siswa.some(s => s.key === bsState.siswaSel)) bsState.siswaSel = siswa[0].key;
   const sk = bsState.siswaSel, s = siswa.find(x => x.key === sk), setoran = bsState.setoran[k];
   const opsi = siswa.map(x => `<option value="${bsEsc(x.key)}" ${x.key === sk ? 'selected' : ''}>${bsEsc(x.name)}</option>`).join('');
-  const byTarget = {}; targets.forEach(t => { const x = setoran[bsKunciSetoran(t.key, sk)]; if (x) byTarget[t.key] = x; });
+  const semuaT = bsTargetUntukKelas(bsState.targets, k, true);
+  const byTarget = {}; semuaT.forEach(t => { const x = setoran[bsKunciSetoran(t.key, sk)]; if (x) byTarget[t.key] = x; });
   const amalan = bsState.amalanSiswa[sk];
   if (!amalan) bsMuatAmalanIndividu();
-  const game = bsHitungGame(targets, byTarget, amalan || []);
+  const game = bsHitungGame(targets, byTarget, amalan || [], null, semuaT);
   const lulusUrut = Object.values(byTarget).filter(x => x.status === 'Lulus' && x.tanggal).sort((a, b) => bsCmp(a.tanggal, b.tanggal));
   const garis = []; lulusUrut.forEach((x, i) => { const last = garis[garis.length - 1]; const lb = bsFmtTgl(x.tanggal, true); if (last && last.label === lb) last.nilai = i + 1; else garis.push({ label: lb, nilai: i + 1 }); });
   const tabel = targets.map(t => { const x = byTarget[t.key]; return `<tr><td>${bsEsc((t.urutan || '') + '. ' + t.nama)}</td><td>${bsChip(x ? x.status : 'Belum Setor')}</td><td style="text-align:center;">${x && x.nilai != null ? bsEsc(x.nilai) : '-'}</td><td style="text-align:center;">${x ? bsEsc(x.percobaan || 1) : '-'}</td><td>${x ? bsEsc(bsFmtTgl(x.tanggal, true)) : '-'}</td><td style="font-size:12px;">${x ? bsEsc(x.catatan || '') : ''}</td></tr>`; }).join('');
@@ -812,7 +694,7 @@ function bsGrafikIndividu(k, targets, siswa) {
 // ============================================================
 // 2) AKSES ORANG TUA (disambung dari renderPortalOrtuDashboard di app.js)
 // ============================================================
-let bsOrtu = { token: 0, siswa: null, targets: [], setoran: {}, amalan: {}, tgl: '', err: '' };
+let bsOrtu = { token: 0, siswa: null, targets: [], semua: [], setoran: {}, amalan: {}, tgl: '', err: '' };
 
 function bsOrtuRender(siswa) {
   const content = bsEl('portalOrtuContent');
@@ -824,25 +706,36 @@ function bsOrtuRender(siswa) {
   if (pertama && pertama.nextSibling) content.insertBefore(box, pertama.nextSibling); else content.appendChild(box);
   bsOrtuMuat(siswa);
 }
+let bsOrtuSiswaTerakhir = null;
+function bsOrtuCobaLagi() { if (bsOrtuSiswaTerakhir) bsOrtuMuat(bsOrtuSiswaTerakhir); }
 function bsOrtuMuat(siswa) {
   const my = ++bsOrtu.token, ta = bsTA(), box = bsEl('bsOrtuBox');
+  bsOrtuSiswaTerakhir = siswa;
   if (box) box.innerHTML = '<div class="card" style="margin-bottom:12px;"><p class="text-muted" style="text-align:center;padding:10px;">⏳ Memuat amalan &amp; bacaan sholat...</p></div>';
+  // Jaringan lambat: setelah 8 dtk beri tahu pengguna + tombol coba lagi (pemuatan lama tetap berjalan).
+  const lambat = setTimeout(() => {
+    if (my !== bsOrtu.token) return;
+    const b = bsEl('bsOrtuBox'); if (!b || !/Memuat amalan/.test(b.textContent || '')) return;
+    b.innerHTML = '<div class="card" style="margin-bottom:12px;"><p class="text-muted" style="text-align:center;padding:10px;">⏳ Koneksi terasa lambat, masih memuat... <button class="btn btn-soft" style="padding:3px 10px;font-size:12px;margin-left:6px;" onclick="bsOrtuCobaLagi()">🔄 Coba lagi</button></p></div>';
+  }, 8000);
   Promise.all([
     db.ref('bs_target').orderByChild('tahunAjaran').equalTo(ta).once('value'),
     db.ref('bs_setoran').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
     db.ref('bs_amalan_rumah').orderByChild('siswaKey').equalTo(siswa.key).once('value')
   ]).then(([ts, ss, as]) => {
+    clearTimeout(lambat);
     if (my !== bsOrtu.token) return;
-    const targets = []; ts.forEach(c => { const v = c.val() || {}; if ((v.kelas === '*' || v.kelas === siswa.kelas) && v.aktif !== false) { v.key = c.key; targets.push(v); } });
+    const targets = [], semua = []; ts.forEach(c => { const v = c.val() || {}; if (v.kelas === '*' || v.kelas === siswa.kelas) { v.key = c.key; semua.push(v); if (v.aktif !== false) targets.push(v); } });
     targets.sort(bsBandingTarget);
     const setoran = {}; ss.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === ta && v.targetId) setoran[v.targetId] = v; });
     const amalan = {}; as.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === ta && v.tanggal) amalan[v.tanggal] = v.items || {}; });
-    bsOrtu = { token: my, siswa, targets, setoran, amalan, tgl: bsHariIni(), err: '' };
+    bsOrtu = { token: my, siswa, targets, semua, setoran, amalan, tgl: bsHariIni(), err: '' };
     bsOrtuGambar();
   }).catch(err => {
+    clearTimeout(lambat);
     if (my !== bsOrtu.token) return;
     const b = bsEl('bsOrtuBox');
-    if (b) b.innerHTML = `<div class="card" style="margin-bottom:12px;"><p style="color:#dc2626;font-size:13px;">Gagal memuat Bacaan Sholat: ${bsEsc((err && err.message) || err)}</p></div>`;
+    if (b) b.innerHTML = `<div class="card" style="margin-bottom:12px;"><p style="color:#dc2626;font-size:13px;">Gagal memuat Bacaan Sholat: ${bsEsc((err && err.message) || err)} <button class="btn btn-soft" style="padding:3px 10px;font-size:12px;margin-left:6px;" onclick="bsOrtuCobaLagi()">🔄 Coba lagi</button></p></div>`;
   });
 }
 function bsOrtuDaftarAmalan() { return Object.keys(bsOrtu.amalan).map(tg => ({ tanggal: tg, items: bsOrtu.amalan[tg] })); }
@@ -851,7 +744,7 @@ function bsTglBolehIsi(tgl) { const h = bsHariIni(); return tgl <= h && bsSelisi
 function bsOrtuGambar() {
   const box = bsEl('bsOrtuBox'); if (!box || !bsOrtu.siswa) return;
   const o = bsOrtu, h = bsHariIni();
-  const game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h);
+  const game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h, o.semua);
   const tglOps = [0, 1, 2].map(n => { const tg = bsTambahHari(h, -n); return `<button class="btn ${o.tgl === tg ? 'btn-primary' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="bsOrtuPilihTgl('${tg}')">${n === 0 ? 'Hari ini' : n === 1 ? 'Kemarin' : '2 hari lalu'}</button>`; }).join('');
   const items = o.amalan[o.tgl] || {};
   const nCek = BS_AMALAN.filter(a => items[a.k] === true).length;
@@ -892,15 +785,20 @@ function bsOrtuToggle(kode) {
   const tg = o.tgl || bsHariIni();
   if (!bsTglBolehIsi(tg)) return toast('⚠️ Hanya bisa mengisi hari ini sampai ' + BS_HARI_ISI_MUNDUR + ' hari ke belakang.', true);
   if (!bsOnline()) return toast('📡 Sedang offline. Checklist butuh koneksi internet.', true);
+  const pKey = tg + '|' + kode;
+  if (!bsKunciMulai('toggle_' + pKey)) return;   // item yang sama masih menyimpan: abaikan ketukan ganda
   const sebelum = Object.assign({}, o.amalan[tg] || {});
   const items = {}; BS_AMALAN.forEach(a => { items[a.k] = sebelum[a.k] === true; });
   items[kode] = !items[kode];
   o.amalan[tg] = items; bsOrtuGambar();
-  const rec = { siswaKey: s.key, siswaNama: s.name || '', kelas: s.kelas || '', tanggal: tg, items, diisiOleh: 'ortu', tahunAjaran: bsTA(), updatedAt: new Date().toISOString() };
+  // Tulis HANYA item yang diubah (multi-path update), supaya centang orang tua lain di HP lain tidak tertimpa.
+  const upd = { siswaKey: s.key, siswaNama: s.name || '', kelas: s.kelas || '', tanggal: tg, diisiOleh: 'ortu', tahunAjaran: bsTA(), updatedAt: new Date().toISOString() };
+  upd['items/' + kode] = items[kode];
   const token = o.token;
-  db.ref('bs_amalan_rumah/' + s.key + '_' + tg).set(rec).catch(err => {
+  db.ref('bs_amalan_rumah/' + s.key + '_' + tg).update(upd).then(() => bsKunciSelesai('toggle_' + pKey)).catch(err => {
+    bsKunciSelesai('toggle_' + pKey);
     if (bsOrtu.token !== token) return;
-    if (Object.keys(sebelum).length) bsOrtu.amalan[tg] = sebelum; else delete bsOrtu.amalan[tg];
+    const cur = Object.assign({}, bsOrtu.amalan[tg] || {}); cur[kode] = sebelum[kode] === true; bsOrtu.amalan[tg] = cur;   // kembalikan item ini saja
     bsOrtuGambar(); toast('❌ Gagal menyimpan checklist: ' + ((err && err.message) || err), true);
   });
 }
@@ -912,7 +810,7 @@ function bsAnakTutup() { const e = bsEl('bsAnakOverlay'); if (e) e.remove(); doc
 function bsAnakBuka() {
   const o = bsOrtu; if (!o.siswa) return;
   bsAnakTutup();
-  const h = bsHariIni(), game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h), berikut = bsOrtuTargetBerikut();
+  const h = bsHariIni(), game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h, o.semua), berikut = bsOrtuTargetBerikut();
   const items = o.amalan[h] || {};
   const hariIni = BS_AMALAN.map(a => { const on = items[a.k] === true;
     return `<div style="text-align:center;padding:8px 4px;border-radius:12px;background:${on ? '#bbf7d0' : 'rgba(255,255,255,.7)'};"><div style="font-size:26px;${on ? '' : 'filter:grayscale(1);opacity:.55;'}">${a.e}</div><div style="font-size:11px;font-weight:700;margin-top:2px;">${bsEsc(a.nama)}</div><div style="font-size:14px;">${on ? '✅' : '⬜'}</div></div>`; }).join('');
