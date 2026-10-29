@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/bacaan-shalat.js (v2)
+   SI MAMBA - js/bacaan-shalat.js (v3)
    Menu "Bacaan Sholat" -- hafalan bacaan sholat + amalan harian di rumah + gamifikasi.
 
    TIGA AKSES:
@@ -75,7 +75,10 @@ function bsCmp(a, b) {
 function bsTA() { return typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : ''; }
 function bsHariIni() { return tglLokal(); }
 function bsTglParse(tgl) { const p = String(tgl || '').split('-').map(Number); return new Date(p[0], (p[1] || 1) - 1, p[2] || 1); }
-function bsTambahHari(tgl, n) { const d = bsTglParse(tgl); d.setDate(d.getDate() + n); return tglLokal(d); }
+// Format tanggal dari komponen LOKAL Date (bebas zona waktu). Jangan pakai tglLokal(d) untuk Date hasil bsTglParse:
+// tglLokal membaca tanggal menurut WIB, sehingga di perangkat WITA/WIT hasilnya mundur satu hari.
+function bsFmtLokal(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function bsTambahHari(tgl, n) { const d = bsTglParse(tgl); d.setDate(d.getDate() + n); return bsFmtLokal(d); }
 function bsSelisihHari(a, b) {   // b - a, dalam hari (selalu bulat, bebas efek jam musim panas)
   const x = bsTglParse(a), y = bsTglParse(b);
   return Math.round((Date.UTC(y.getFullYear(), y.getMonth(), y.getDate()) - Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())) / 86400000);
@@ -468,7 +471,7 @@ function bsIsiContoh() {
   const now = new Date().toISOString(), payload = {}, baru = [];
   BS_CONTOH_TARGET.forEach((nama, i) => {
     const id = db.ref('bs_target').push().key;
-    const tgl = tglLokal(new Date(senin.getFullYear(), senin.getMonth(), senin.getDate() + i * 7));
+    const tgl = bsFmtLokal(new Date(senin.getFullYear(), senin.getMonth(), senin.getDate() + i * 7));
     const rec = { nama, jenis: 'mingguan', tanggal: tgl, kelas: '*', urutan: i + 1, aktif: true, tahunAjaran: bsTA(), dibuat: now, dibuatOleh: bsGuruNama() };
     payload[id] = rec; baru.push(Object.assign({ key: id }, rec));
   });
