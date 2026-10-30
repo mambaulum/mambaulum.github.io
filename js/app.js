@@ -7873,6 +7873,12 @@
       const guru=(allGuru||[]).find(g=>g.key===currentUser.key)||{};
       const assigns=[]; if(guru.waliKelasOf) assigns.push('🌟 Wali Kelas: '+guru.waliKelasOf); if(guru.kelas) assigns.push('📚 Mengajar: '+(Array.isArray(guru.kelas)?guru.kelas.join(', '):guru.kelas)); if(guru.assignmentActivity) assigns.push('🕌 Petugas kegiatan'); if(guru.assignmentEkskul) assigns.push('🎯 Pembina ekskul');
       document.getElementById('v4Assignments')&&(document.getElementById('v4Assignments').innerHTML=assigns.length?assigns.map(x=>`<div style="margin-bottom:6px;">${v4Safe(x)}</div>`).join(''):'<span>Belum ada assignment tambahan.</span>');
+      // Bacaan Sholat: guru PJ per kelas (bs_pj_kelas) ikut menentukan menu. Data PJ dimuat SEKALI di sini, lalu menu
+      // diterapkan ulang (satu kali saja, supaya tidak berputar). Hanya guru yang perlu; Admin/Kepala sudah pasti.
+      if (typeof bsMuatPjAwal === 'function' && typeof bsPjMap !== 'undefined' && bsPjMap === null && v4IsTeacher() && !window.__bsPjDiterapkan) {
+        window.__bsPjDiterapkan = true;
+        bsMuatPjAwal(false).then(() => { try { v4ApplyMode(); } catch (e) { /* menu tetap seperti semula */ } });
+      }
     }
 
     // ============================================================

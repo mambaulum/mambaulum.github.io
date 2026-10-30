@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/bacaan-shalat.js (v3 + Pengingat WA + PJ per kelas oleh Admin, tab Pengingat, target per kelas & otomatis)
+   SI MAMBA - js/bacaan-shalat.js (v16: sesi tulis untuk Rules via bsSiapTulis; v3 + Pengingat WA + PJ per kelas oleh Admin, tab Pengingat, target per kelas & otomatis)
    Menu "Bacaan Sholat" -- hafalan bacaan sholat + amalan harian di rumah + gamifikasi.
 
    TIGA AKSES:
@@ -51,6 +51,9 @@ const BS_LEVEL = [
   { min: 6000,  nama: 'Juara',           e: '🏆' },
   { min: 10000, nama: 'Pahlawan Sholat', e: '👑' }
 ];
+// Alasan Remedial (sekali ketuk). Disimpan di bs_setoran.alasan sebagai teks dipisah '; ' dan tampil ke orang tua.
+const BS_ALASAN_REMEDIAL = ['Hafalan belum lancar', 'Makhraj atau tajwid', 'Urutan bacaan', 'Suara kurang jelas'];
+const BS_HARI_NILAI_MUNDUR = 14;   // tanggal penilaian paling jauh 14 hari ke belakang
 const BS_POIN_LULUS = 50, BS_POIN_LULUS_PERTAMA = 10, BS_STREAK_BINTANG = 7;
 const BS_HARI_ISI_MUNDUR = 2;   // orang tua boleh mengisi hari ini + 2 hari ke belakang
 const BS_CONTOH_TARGET = ['Niat Sholat', 'Takbiratul Ihram', 'Doa Iftitah', 'Surat Al-Fatihah', 'Surat Al-Ikhlas',
@@ -102,6 +105,14 @@ const bsKunci = {};
 function bsKunciMulai(k) { if (bsKunci[k]) return false; bsKunci[k] = true; return true; }
 function bsKunciSelesai(k) { delete bsKunci[k]; }
 function bsOnline() { return typeof navigator === 'undefined' || navigator.onLine !== false; }
+function bsAlasanParse(str) { const s = String(str || '').split('; '); return BS_ALASAN_REMEDIAL.filter(a => s.includes(a)); }
+function bsAlasanGabung(arr) { return BS_ALASAN_REMEDIAL.filter(a => (arr || []).includes(a)).join('; '); }
+// Hari pertama target: tanggal itu sendiri (harian) atau Senin pekan itu (mingguan).
+function bsAwalTarget(t) {
+  if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(t.tanggal || '')) return '';
+  if (t.jenis !== 'mingguan') return t.tanggal;
+  return bsTambahHari(t.tanggal, -((bsTglParse(t.tanggal).getDay() + 6) % 7));
+}
 function bsEl(id) { return document.getElementById(id); }
 function bsLabelTarget(t) {
   if (!t) return '-';
@@ -112,14 +123,45 @@ function bsLabelTarget(t) {
 function bsIsAdmin() { return typeof v4IsAdmin === 'function' && !!v4IsAdmin(); }
 function bsIsHead() { return typeof v4IsHead === 'function' && !!v4IsHead(); }
 function bsIsTeacher() { return typeof v4IsTeacher === 'function' && !!v4IsTeacher(); }
-// Admin & Kepala: semua kelas. Guru: HANYA kelas yang dia wali-i (waliKelasOf). Kelas yang sekadar diajar
-// (currentUser.kelas / flag semuaKelas) TIDAK ikut -- beda dengan loaderScopeKelas() yang sengaja melebar.
+// Peta PJ per kelas (node bs_pj_kelas: {kelas: {key, name}}). Disimpan di variabel global TERPISAH dari bsState
+// supaya tidak hilang saat bacaanShalatResetState(). Harus dimuat SEBELUM menu dicek: lihat bsMuatPjAwal().
+let bsPjMap = null;       // null = belum dimuat
+let bsPjMuatJanji = null;
+function bsMuatPjAwal(paksa) {
+  if (typeof db === 'undefined') return Promise.resolve({});
+  if (!paksa && bsPjMuatJanji) return bsPjMuatJanji;
+  bsPjMuatJanji = db.ref('bs_pj_kelas').once('value')
+    .then(s => { bsPjMap = s.val() || {}; bsState.pjKelas = bsPjMap; return bsPjMap; })
+    .catch(() => { bsPjMuatJanji = null; if (!bsPjMap) bsPjMap = {}; return bsPjMap; });   // Rules belum mengizinkan baca: anggap tidak ada PJ
+  return bsPjMuatJanji;
+}
+function bsPjSimpanLokal(kelas, rec) {   // dipakai saat Admin menetapkan/menghapus PJ
+  bsPjMap = bsPjMap || {};
+  if (rec) bsPjMap[kelas] = rec; else delete bsPjMap[kelas];
+  bsState.pjKelas = bsPjMap;
+}
+// Kelas yang PJ-nya adalah guru yang sedang login (cocok lewat key atau nama).
+// Akses lewat PJ baru berlaku mulai pekan pertama November 2026 (Senin, 2 Nov 2026). Sebelum tanggal itu, guru yang
+// hanya PJ (bukan wali kelas) belum punya akses; wali kelas, Kepala, dan Admin tidak terpengaruh.
+const BS_PJ_AKSES_MULAI = '2026-11-02';
+function bsKelasPjSaya() {
+  if (!bsPjMap) return [];
+  if (bsHariIni() < BS_PJ_AKSES_MULAI) return [];
+  const key = bsGuruKey(), nama = bsGuruNama();
+  return Object.keys(bsPjMap).filter(k => { const p = bsPjMap[k]; return p && ((p.key && p.key === key) || (p.name && nama && p.name === nama)); });
+}
+// Admin & Kepala: semua kelas. Guru: kelas yang dia wali-i (waliKelasOf) DITAMBAH kelas yang ia pegang sebagai PJ
+// (bs_pj_kelas). Kelas yang sekadar diajar (currentUser.kelas / flag semuaKelas) TIDAK ikut.
 function bsKelasScope() {
   if (bsIsAdmin() || bsIsHead()) return typeof KELAS_LIST !== 'undefined' ? [...KELAS_LIST] : [];
+  const hasil = new Set();
   const w = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.waliKelasOf : null;
-  return w ? [w] : [];
+  if (w) hasil.add(w);
+  bsKelasPjSaya().forEach(k => hasil.add(k));
+  return [...hasil];
 }
-// Dipanggil app.js untuk menyembunyikan/menampilkan menu sidebar.
+// Dipanggil app.js untuk menyembunyikan/menampilkan menu sidebar. Data PJ harus sudah dimuat (bsMuatPjAwal),
+// kalau belum, guru yang hanya PJ (bukan wali kelas) belum terhitung.
 function bsCanOpenMenu() { return bsIsAdmin() || bsIsHead() || (bsIsTeacher() && bsKelasScope().length > 0); }
 // Menilai setoran: Admin (semua kelas) + wali kelas untuk kelasnya sendiri. Kepala Madrasah: lihat saja.
 function bsCanNilai(kelas) { return bsIsAdmin() || (bsIsTeacher() && bsKelasScope().includes(kelas)); }
@@ -138,6 +180,14 @@ function bsKelasPilihan() {
 }
 function bsGuruKey() { return (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : ''; }
 function bsGuruNama() { return (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : ''; }
+// v16: Rules bs_setoran / bs_target / bs_pj_kelas meminta bukti sesi (Admin -> sesi_admin, Guru -> sesi_guru) SEBELUM menulis.
+// Sama dengan pola siapTulis di app.js. Galat ditampilkan apa adanya (pesan jelas dari kredensial.js), bukan PERMISSION_DENIED samar.
+function bsSiapTulis() {
+  try {
+    const f = bsIsAdmin() ? window.kredAdminSiap : window.kredGuruSiap;
+    return Promise.resolve(typeof f === 'function' ? f() : true);
+  } catch (e) { return Promise.reject(e); }
+}
 
 // ============================================================
 // GAMIFIKASI -- dihitung ulang dari data (tidak disimpan)
@@ -253,7 +303,7 @@ function bsStateBaru() {
   return {
     tab: 'target', kelas: '', targets: null, targetsTA: '', editId: '',
     setoran: {}, setoranTA: {}, targetSel: '', tglNilai: '', draft: {},
-    grafik: 'klasikal', siswaSel: '', amalanSiswa: {}, memuat: false, err: ''
+    grafik: 'klasikal', siswaSel: '', amalanSiswa: {}, memuat: false, err: '', pjKelas: bsPjMap || {}, rekapMode: 'kelas'
   };
 }
 let bsState = bsStateBaru();
@@ -268,7 +318,7 @@ function bsMuatTargets(paksa) {
   const ta = bsTA();
   if (!paksa && bsState.targets && bsState.targetsTA === ta) return Promise.resolve(bsState.targets);
   // PJ per kelas (node bs_pj_kelas). Bila Rules node ini belum dipasang, kegagalan baca diabaikan (PJ otomatis dipakai).
-  const pPj = db.ref('bs_pj_kelas').once('value').then(s => { bsState.pjKelas = s.val() || {}; }).catch(() => { bsState.pjKelas = bsState.pjKelas || {}; });
+  const pPj = bsMuatPjAwal(!!paksa);
   const pTarget = db.ref('bs_target').orderByChild('tahunAjaran').equalTo(ta).once('value').then(snap => {
     const arr = []; snap.forEach(c => { const v = c.val() || {}; v.key = c.key; arr.push(v); });
     bsState.targets = arr; bsState.targetsTA = ta; return arr;
@@ -302,17 +352,22 @@ function bsSiswaKelas(k) {
 
 function setupBacaanShalatPage() {
   const root = bsEl('bsRoot'); if (!root) return;
-  if (!bsCanOpenMenu()) { root.innerHTML = '<p class="text-muted">Menu ini hanya untuk Wali Kelas (kelasnya sendiri), Kepala Madrasah, dan Admin.</p>'; return; }
-  const pil = bsKelasPilihan();
-  if (!bsState.kelas || !pil.includes(bsState.kelas)) bsState.kelas = pil[0] || '';
-  if (!bsState.tglNilai) bsState.tglNilai = bsHariIni();
-  bsState.memuat = true; bsState.err = ''; bsRender();
-  bsMuatTargets(false)
-    .catch(e => { bsState.err = 'Gagal memuat target: ' + ((e && e.message) || e); })
-    .then(() => { bsState.memuat = false; bsRender(); bsPastikanDataKelas(); });
+  // PJ dimuat dulu: tanpa itu guru yang hanya PJ (bukan wali kelas) akan ditolak di cek menu.
+  root.innerHTML = '<p class="text-muted" style="padding:14px;">⏳ Memuat data...</p>';
+  bsMuatPjAwal(true).then(() => {
+    if (!bsCanOpenMenu()) { root.innerHTML = '<p class="text-muted">Menu ini hanya untuk Wali Kelas / Penanggung Jawab (kelasnya sendiri), Kepala Madrasah, dan Admin.</p>'; return; }
+    const pil = bsKelasPilihan();
+    if (!bsState.kelas || !pil.includes(bsState.kelas)) bsState.kelas = pil[0] || '';
+    if (!bsState.tglNilai) bsState.tglNilai = bsHariIni();
+    bsState.memuat = true; bsState.err = ''; bsRender();
+    return bsMuatTargets(false)
+      .catch(e => { bsState.err = 'Gagal memuat target: ' + ((e && e.message) || e); })
+      .then(() => { bsState.memuat = false; bsRender(); bsPastikanDataKelas(); });
+  });
 }
 function bsPastikanDataKelas() {
   const k = bsState.kelas;
+  if (bsState.tab === 'rekap' && bsState.rekapMode === 'semua') { bsPastikanDataSemua(); return; }
   if (!k || bsState.tab === 'target' || bsState.tab === 'ingatkan') return;
   const perluSiswa = typeof v4PanelSiswaCache !== 'undefined' && !v4PanelSiswaCache[k] && typeof v4FetchSiswaByKelas === 'function';
   // Pembungkus Promise + batas waktu 15 dtk (jaga-jaga callback tidak terpanggil), supaya cukup SATU render.
@@ -323,7 +378,7 @@ function bsPastikanDataKelas() {
 }
 function bsSegarkan() {
   if (!bsOnline()) return toast('📡 Sedang offline.', true);
-  bsState.targets = null; bsState.setoran = {}; bsState.setoranTA = {}; bsState.amalanSiswa = {};
+  bsState.targets = null; bsState.setoran = {}; bsState.setoranTA = {}; bsState.amalanSiswa = {}; bsPjMuatJanji = null;
   if (typeof v4PanelSiswaCache !== 'undefined' && bsState.kelas) { delete v4PanelSiswaCache[bsState.kelas]; }
   setupBacaanShalatPage();
 }
@@ -333,18 +388,19 @@ function bsPilihKelas(k) { bsState.kelas = k; bsState.siswaSel = ''; bsState.tar
 function bsRender() {
   const root = bsEl('bsRoot'); if (!root || !bsCanOpenMenu()) return;
   const pil = bsKelasPilihan();
-  const tabs = [['target', '🎯 Target']].concat((bsIsAdmin() || bsIsHead()) ? [['ingatkan', '📲 Pengingat']] : []).concat([['nilai', '📝 Penilaian'], ['grafik', '📊 Grafik']]);
+  const tabs = [['target', '🎯 Target']].concat((bsIsAdmin() || bsIsHead()) ? [['ingatkan', '📲 Pengingat']] : []).concat([['nilai', '📝 Penilaian'], ['rekap', '📋 Rekap'], ['grafik', '📊 Grafik']]);
   const opsiKelas = pil.map(k => `<option value="${bsEsc(k)}" ${k === bsState.kelas ? 'selected' : ''}>${bsEsc(bsNamaKelas(k))}</option>`).join('');
   let body = '';
   if (bsState.memuat) body = '<p class="text-muted" style="padding:14px;">⏳ Memuat data...</p>';
   else if (bsState.tab === 'target') body = bsBodyTarget();
   else if (bsState.tab === 'ingatkan') body = bsBodyIngatkan();
   else if (bsState.tab === 'nilai') body = bsBodyNilai();
+  else if (bsState.tab === 'rekap') body = bsBodyRekap();
   else body = bsBodyGrafik();
   root.innerHTML = `
     ${bsState.err ? `<div style="padding:10px;margin-bottom:10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;">⚠️ ${bsEsc(bsState.err)} <button class="btn btn-soft" style="padding:3px 10px;font-size:12px;margin-left:6px;" onclick="bsSegarkan()">🔄 Coba lagi</button></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
-      <div style="min-width:150px;"><label class="label">Kelas</label>
+      <div style="min-width:150px;${(bsState.tab === 'rekap' && bsState.rekapMode === 'semua') ? 'display:none;' : ''}"><label class="label">Kelas</label>
         <select class="field" onchange="bsPilihKelas(this.value)">${opsiKelas || '<option value="">(tidak ada kelas)</option>'}</select></div>
       <button class="btn btn-soft" style="padding:8px 12px;" onclick="bsSegarkan()">🔄 Segarkan</button>
     </div>
@@ -547,14 +603,14 @@ function bsSetPjKelas(kelas, guruValue) {
   const ref = db.ref('bs_pj_kelas/' + kelas);
   bsState.pjKelas = bsState.pjKelas || {};
   if (!guruValue) {
-    ref.remove().then(() => { delete bsState.pjKelas[kelas]; toast('Penanggung jawab dihapus'); bsRender(); })
+    bsSiapTulis().then(() => ref.remove()).then(() => { bsPjSimpanLokal(kelas, null); toast('Penanggung jawab dihapus'); bsRender(); })
       .catch(err => toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true));
     return;
   }
   const g = gl.find(x => x && (x.key || x.name) === guruValue); if (!g) return;
   const rec = { kelas, key: g.key || g.name, name: g.name, updatedAt: new Date().toISOString(), updatedBy: bsGuruNama() };
-  ref.set(rec).then(() => {
-    bsState.pjKelas[kelas] = rec;
+  bsSiapTulis().then(() => ref.set(rec)).then(() => {
+    bsPjSimpanLokal(kelas, rec);
     if (typeof v4Audit === 'function') v4Audit('BS_SET_PJ_KELAS', 'BACAAN_SHALAT', kelas, null, { kelas, pj: g.name });
     toast('✅ Penanggung jawab ' + bsNamaKelas(kelas) + ' tersimpan.'); bsRender();
   }).catch(err => toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true));
@@ -566,10 +622,12 @@ function bsBuatTargetOtomatis(kelas) {
   const punya = new Set((bsState.targets || []).map(t => t.kelas));
   const daftar = (kelas ? [kelas] : semua).filter(k => !punya.has(k));
   if (!daftar.length) return toast('Kelas ini sudah punya target.', true);
-  const msg = 'Buat ' + BS_CONTOH_TARGET.length + ' target bacaan sholat (mingguan, satu per pekan mulai pekan ini) untuk ' + (daftar.length === 1 ? bsNamaKelas(daftar[0]) : daftar.length + ' kelas yang belum punya target') + '?';
+  const msg = 'Buat ' + BS_CONTOH_TARGET.length + ' target bacaan sholat (mingguan, satu per pekan mulai ' + bsFmtTgl(BS_PJ_AKSES_MULAI) + ' atau pekan ini bila sudah lewat) untuk ' + (daftar.length === 1 ? bsNamaKelas(daftar[0]) : daftar.length + ' kelas yang belum punya target') + '?';
   if (!(typeof doubleConfirm === 'function' ? doubleConfirm(msg) : confirm(msg))) return;
   if (!bsKunciMulai('otomatis')) return;
-  const d = new Date(), senin = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  // Mulai dari Senin pekan ini, tetapi tidak lebih awal dari BS_PJ_AKSES_MULAI (2 Nov 2026): target pertama jatuh di pekan PJ mulai aktif.
+  const d = new Date(), seninIni = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)), seninMulai = bsTglParse(BS_PJ_AKSES_MULAI);
+  const senin = seninIni < seninMulai ? seninMulai : seninIni;
   const now = new Date().toISOString(), payload = {}, baru = [];
   daftar.forEach(k => BS_CONTOH_TARGET.forEach((nama, i) => {
     const id = db.ref('bs_target').push().key;
@@ -577,7 +635,7 @@ function bsBuatTargetOtomatis(kelas) {
     const rec = { nama, jenis: 'mingguan', tanggal: tgl, kelas: k, urutan: i + 1, aktif: true, tahunAjaran: bsTA(), dibuat: now, dibuatOleh: bsGuruNama() };
     payload[id] = rec; baru.push(Object.assign({ key: id }, rec));
   }));
-  db.ref('bs_target').update(payload).then(() => {
+  bsSiapTulis().then(() => db.ref('bs_target').update(payload)).then(() => {
     bsState.targets = (bsState.targets || []).concat(baru);
     if (typeof v4Audit === 'function') v4Audit('BS_TARGET_OTOMATIS', 'BACAAN_SHALAT', null, null, { kelas: daftar.join(', '), jumlah: baru.length });
     toast('✅ ' + baru.length + ' target dibuat untuk ' + daftar.length + ' kelas.'); bsRender();
@@ -595,7 +653,7 @@ function bsHapusTargetLama() {
   Promise.all(lama.map(t => db.ref('bs_setoran').orderByChild('targetId').equalTo(t.key).limitToFirst(1).once('value').then(snap => ({ t, ada: snap.exists() })))).then(hasil => {
     const payload = {}; let dihapus = 0, dinonaktif = 0;
     hasil.forEach(h => { if (h.ada) { if (h.t.aktif !== false) { payload[h.t.key + '/aktif'] = false; payload[h.t.key + '/updatedAt'] = new Date().toISOString(); } dinonaktif++; } else { payload[h.t.key] = null; dihapus++; } });
-    return db.ref('bs_target').update(payload).then(() => {
+    return bsSiapTulis().then(() => db.ref('bs_target').update(payload)).then(() => {
       bsState.targets = (bsState.targets || []).filter(t => !hasil.some(h => !h.ada && h.t.key === t.key));
       hasil.filter(h => h.ada).forEach(h => { const t = bsState.targets.find(x => x.key === h.t.key); if (t) t.aktif = false; });
       if (typeof v4Audit === 'function') v4Audit('BS_HAPUS_TARGET_LAMA', 'BACAAN_SHALAT', null, null, { dihapus, dinonaktif });
@@ -684,7 +742,7 @@ function bsSimpanTarget() {
   if (edit) {
     rec = Object.assign({}, edit, data); if (teks) rec.teks = teks; else delete rec.teks;
     const dataUbah = Object.assign({}, data, { teks: teks || null });
-    janji = db.ref('bs_target/' + edit.key).update(dataUbah);
+    janji = bsSiapTulis().then(() => db.ref('bs_target/' + edit.key).update(dataUbah));
   } else {
     const updates = {};
     kelasPilih.forEach(k => {   // satu target per kelas yang dicentang (tidak ada lagi target "semua kelas" untuk target baru)
@@ -693,7 +751,7 @@ function bsSimpanTarget() {
       if (teks) d.teks = teks;
       updates[key] = d; recsBaru.push(Object.assign({ key }, d));
     });
-    rec = recsBaru[0]; janji = db.ref('bs_target').update(updates);
+    rec = recsBaru[0]; janji = bsSiapTulis().then(() => db.ref('bs_target').update(updates));
   }
   janji.then(() => {
     clearBusy('bsSimpanTarget', bsEl('bsBtnSimpanTarget'));
@@ -708,7 +766,7 @@ function bsToggleAktif(id) {
   if (!bsOnline()) return toast('📡 Sedang offline.', true);
   const baru = t.aktif === false, kunci = 'aktif_' + id;
   if (!bsKunciMulai(kunci)) return;
-  db.ref('bs_target/' + id).update({ aktif: baru, updatedAt: new Date().toISOString() })
+  bsSiapTulis().then(() => db.ref('bs_target/' + id).update({ aktif: baru, updatedAt: new Date().toISOString() }))
     .then(() => { t.aktif = baru; toast(baru ? '▶️ Target diaktifkan.' : '⏸️ Target dinonaktifkan (data penilaian tetap tersimpan).'); bsRender(); })
     .catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
     .then(() => bsKunciSelesai(kunci));
@@ -723,7 +781,7 @@ function bsHapusTarget(id) {
     if (snap.exists()) return toast('⚠️ Target ini sudah punya penilaian siswa, jadi tidak bisa dihapus. Gunakan ⏸️ Nonaktifkan.', true);
     const ok = typeof doubleConfirm === 'function' ? doubleConfirm('Hapus target "' + t.nama + '"?') : confirm('Hapus target "' + t.nama + '"?');
     if (!ok) return;
-    return db.ref('bs_target/' + id).remove().then(() => {
+    return bsSiapTulis().then(() => db.ref('bs_target/' + id).remove()).then(() => {
       bsState.targets = bsState.targets.filter(x => x.key !== id);
       if (typeof v4Audit === 'function') v4Audit('BS_HAPUS_TARGET', 'BACAAN_SHALAT', id, { nama: t.nama }, null);
       toast('✅ Target dihapus.'); bsRender();
@@ -735,15 +793,16 @@ function bsHapusTarget(id) {
 // ---------- Tab PENILAIAN ----------
 function bsKunciSetoran(targetId, sk) { return targetId + '_' + sk; }
 function bsDraftBeda(d, saved) {
-  if (!saved) return !!d.status || (d.nilai !== '' && d.nilai != null) || (d.catatan || '').trim() !== '';   // nilai/catatan tanpa status tetap terdeteksi -> divalidasi saat simpan
+  if (!saved) return !!d.status || (d.nilai !== '' && d.nilai != null) || (d.catatan || '').trim() !== '' || (d.alasan || []).length > 0;   // nilai/catatan tanpa status tetap terdeteksi -> divalidasi saat simpan
   const n1 = d.nilai === '' || d.nilai == null ? null : Number(d.nilai), n2 = saved.nilai == null ? null : Number(saved.nilai);
-  return d.status !== saved.status || n1 !== n2 || (d.catatan || '').trim() !== (saved.catatan || '');
+  return d.status !== saved.status || n1 !== n2 || (d.catatan || '').trim() !== (saved.catatan || '') || bsAlasanGabung(d.alasan) !== (saved.status === 'Remedial' ? bsAlasanGabung(bsAlasanParse(saved.alasan)) : '');
 }
 function bsBuatDraft(sk) {
   const k = bsState.kelas, tid = bsState.targetSel, saved = (bsState.setoran[k] || {})[bsKunciSetoran(tid, sk)];
   const s = (bsSiswaKelas(k) || []).find(x => x.key === sk), t = (bsState.targets || []).find(x => x.key === tid);
   return { kelas: k, targetId: tid, targetNama: t ? t.nama : '', siswaKey: sk, siswaNama: s ? s.name : '',
-    status: saved ? saved.status : '', nilai: saved && saved.nilai != null ? saved.nilai : '', catatan: saved ? (saved.catatan || '') : '' };
+    status: saved ? saved.status : '', nilai: saved && saved.nilai != null ? saved.nilai : '', catatan: saved ? (saved.catatan || '') : '',
+    alasan: saved && saved.status === 'Remedial' ? bsAlasanParse(saved.alasan) : [] };
 }
 function bsDraftAmbil(sk) {
   const key = bsKunciSetoran(bsState.targetSel, sk);
@@ -761,7 +820,13 @@ function bsUpdateLabelSimpan() {
 function bsPilihTarget(id) { bsState.targetSel = id; bsRender(); }
 function bsPilihStatus(sk, idx) {
   if (!bsCanNilai(bsState.kelas)) return;
-  const d = bsDraftAmbil(sk); d.status = BS_STATUS[idx]; bsRender();
+  const d = bsDraftAmbil(sk); d.status = BS_STATUS[idx]; if (d.status !== 'Remedial') d.alasan = []; bsRender();
+}
+function bsToggleAlasan(sk, idx) {
+  if (!bsCanNilai(bsState.kelas)) return;
+  const d = bsDraftAmbil(sk), a = BS_ALASAN_REMEDIAL[idx]; if (!a || d.status !== 'Remedial') return;
+  const cur = new Set(d.alasan || []); if (cur.has(a)) cur.delete(a); else cur.add(a);
+  d.alasan = BS_ALASAN_REMEDIAL.filter(x => cur.has(x)); bsRender();
 }
 function bsSetNilai(sk, v) { if (!bsCanNilai(bsState.kelas)) return; bsDraftAmbil(sk).nilai = v; bsUpdateLabelSimpan(); }
 function bsSetCatatan(sk, v) { if (!bsCanNilai(bsState.kelas)) return; bsDraftAmbil(sk).catatan = v; bsUpdateLabelSimpan(); }
@@ -772,7 +837,7 @@ function bsBodyNilai() {
   if (!targets.length) return '<p class="text-muted" style="font-size:13px;">Belum ada target aktif untuk kelas ini. Buat dulu di tab 🎯 Target.</p>';
   if (!targets.some(t => t.key === bsState.targetSel)) bsState.targetSel = targets[0].key;
   const t = targets.find(x => x.key === bsState.targetSel);
-  const siswa = bsSiswaKelas(k);
+  const siswa = bsSiswaAktif(k);   // hanya siswa aktif (sama dengan Rekap)
   if (!siswa) {
     const gagal = typeof v4PanelSiswaGagal !== 'undefined' && v4PanelSiswaGagal[k];
     return gagal ? `<div style="padding:10px;border-radius:8px;background:#fef2f2;color:#991b1b;font-size:13px;">⚠️ Gagal memuat siswa kelas ${bsEsc(k)} (${bsEsc(gagal)}). <button class="btn btn-soft" style="padding:3px 10px;font-size:12px;" onclick="bsPastikanDataKelas()">🔄 Coba lagi</button></div>`
@@ -795,21 +860,24 @@ function bsBodyNilai() {
       const aktif = cur === st;
       return `<button ${bisa ? '' : 'disabled'} onclick="bsPilihStatus('${bsEscJs(s.key)}',${i})" style="padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:${bisa ? 'pointer' : 'default'};border:2px solid ${BS_STATUS_WARNA[st]};background:${aktif ? BS_STATUS_WARNA[st] : '#fff'};color:${aktif ? '#fff' : BS_STATUS_WARNA[st]};">${BS_STATUS_IKON[st]} ${st}</button>`;
     }).join('');
+    const alasanCur = d ? (d.alasan || []) : (saved && saved.status === 'Remedial' ? bsAlasanParse(saved.alasan) : []);
+    const chipAlasan = (bisa && cur === 'Remedial') ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center;"><span class="text-muted" style="font-size:11px;">Alasan remedial:</span>${BS_ALASAN_REMEDIAL.map((a, i) => { const on = alasanCur.includes(a); return `<button onclick="bsToggleAlasan('${bsEscJs(s.key)}',${i})" style="padding:4px 9px;border-radius:999px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #d97706;background:${on ? '#d97706' : '#fff'};color:${on ? '#fff' : '#b45309'};">${bsEsc(a)}</button>`; }).join('')}</div>` : '';
     return `<div style="padding:10px;border:1px solid ${dirty ? '#f59e0b' : '#e5e7eb'};border-radius:10px;margin-bottom:8px;${dirty ? 'background:#fffbeb;' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:600;font-size:14px;">${bsEsc(s.name)} ${saved ? `<span class="text-muted" style="font-size:11px;font-weight:400;">· ${bsEsc(bsFmtTgl(saved.tanggal, true))}${(saved.percobaan || 1) > 1 ? ' · percobaan ke-' + saved.percobaan : ''}</span>` : ''}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">${tombol}</div>
       </div>
+      ${chipAlasan}
       ${bisa ? `<div style="display:flex;gap:6px;margin-top:6px;">
         <input type="number" min="0" max="100" class="field" style="width:84px;" placeholder="Nilai" value="${bsEsc(nilai)}" oninput="bsSetNilai('${bsEscJs(s.key)}',this.value)">
         <input type="text" maxlength="300" class="field" placeholder="Catatan guru (opsional)" value="${bsEsc(cat)}" oninput="bsSetCatatan('${bsEscJs(s.key)}',this.value)">
-      </div>` : (saved && (saved.nilai != null || saved.catatan) ? `<div class="text-muted" style="font-size:12px;margin-top:4px;">${saved.nilai != null ? 'Nilai: ' + bsEsc(saved.nilai) + '. ' : ''}${bsEsc(saved.catatan || '')}</div>` : '')}
+      </div>` : (saved && (saved.nilai != null || saved.catatan || saved.alasan) ? `<div class="text-muted" style="font-size:12px;margin-top:4px;">${saved.nilai != null ? 'Nilai: ' + bsEsc(saved.nilai) + '. ' : ''}${saved.alasan ? 'Alasan: ' + bsEsc(saved.alasan) + '. ' : ''}${bsEsc(saved.catatan || '')}</div>` : '')}
     </div>`;
   }).join('');
   return `<div class="card" style="border:1px solid #e5e7eb;">
     <div class="v4-grid-2">
       <div><label class="label">Target yang diuji</label><select class="field" onchange="bsPilihTarget(this.value)">${opsiTarget}</select></div>
-      <div><label class="label">Tanggal penilaian</label><input type="date" class="field" value="${bsEsc(bsState.tglNilai)}" max="${bsEsc(bsHariIni())}" onchange="bsState.tglNilai=this.value"></div>
+      <div><label class="label">Tanggal penilaian</label><input type="date" class="field" value="${bsEsc(bsState.tglNilai)}" min="${bsEsc(bsTambahHari(bsHariIni(), -BS_HARI_NILAI_MUNDUR))}" max="${bsEsc(bsHariIni())}" onchange="bsState.tglNilai=this.value"></div>
     </div>
     <p style="font-size:12px;margin:8px 0;" class="text-muted">${bsEsc(bsLabelTarget(t))} · ✅ ${nL} Lulus · 🔁 ${nR} Remedial · ⏳ ${siswa.length - nL - nR} Belum Setor (dari ${siswa.length} siswa)</p>
     ${t.teks ? `<div style="padding:8px 10px;background:#f0fdf4;border-radius:8px;font-size:13px;margin-bottom:8px;white-space:pre-wrap;">${bsEsc(t.teks)}</div>` : ''}
@@ -832,6 +900,21 @@ function bsSimpanNilai() {
   if (tanpaStatus.length) return toast('⚠️ Pilih status (Lulus/Remedial/Belum Setor) dulu untuk: ' + tanpaStatus.slice(0, 3).map(d => d.siswaNama).join(', ') + (tanpaStatus.length > 3 ? ', dst.' : ''), true);
   const salahNilai = dirty.find(d => d.nilai !== '' && d.nilai != null && !(isFinite(Number(d.nilai)) && Number(d.nilai) >= 0 && Number(d.nilai) <= 100));
   if (salahNilai) return toast('⚠️ Nilai ' + salahNilai.siswaNama + ' harus angka 0–100.', true);
+  const belumDgnNilai = dirty.find(d => d.status === 'Belum Setor' && d.nilai !== '' && d.nilai != null);
+  if (belumDgnNilai) return toast('⚠️ ' + belumDgnNilai.siswaNama + ': status Belum Setor tidak boleh punya nilai. Kosongkan nilai atau ubah statusnya.', true);
+  const remedialKosong = dirty.filter(d => d.status === 'Remedial' && !(d.alasan || []).length && !(d.catatan || '').trim());
+  if (remedialKosong.length) return toast('⚠️ Remedial wajib disertai alasan (pilih salah satu) atau catatan: ' + remedialKosong.slice(0, 3).map(d => d.siswaNama).join(', ') + (remedialKosong.length > 3 ? ', dst.' : ''), true);
+  // Tanggal penilaian: tidak terlalu jauh ke belakang, dan tidak sebelum target itu dimulai (hanya untuk catatan yang memakai tanggal ini).
+  const batasMundur = bsTambahHari(bsHariIni(), -BS_HARI_NILAI_MUNDUR);
+  const barisTglBaru = dirty.filter(d => { const l = saved[bsKunciSetoran(d.targetId, d.siswaKey)]; return !(l && l.status === d.status); });
+  if (barisTglBaru.length && tgl < batasMundur) return toast('⚠️ Tanggal penilaian paling jauh ' + BS_HARI_NILAI_MUNDUR + ' hari ke belakang (mulai ' + bsFmtTgl(batasMundur) + ').', true);
+  const sebelumMulai = barisTglBaru.find(d => { const t = (bsState.targets || []).find(x => x.key === d.targetId), aw = bsAwalTarget(t); return aw && tgl < aw; });
+  if (sebelumMulai) { const t = (bsState.targets || []).find(x => x.key === sebelumMulai.targetId); return toast('⚠️ Tanggal penilaian tidak boleh sebelum target "' + (t ? t.nama : '') + '" dimulai (' + bsFmtTgl(bsAwalTarget(t)) + ').', true); }
+  const turunLulus = dirty.filter(d => { const l = saved[bsKunciSetoran(d.targetId, d.siswaKey)]; return l && l.status === 'Lulus' && d.status !== 'Lulus'; });
+  if (turunLulus.length) {
+    const msg = 'Ubah status LULUS menjadi ' + (turunLulus.length === 1 ? turunLulus[0].status : 'status lain') + ' untuk: ' + turunLulus.slice(0, 5).map(d => d.siswaNama).join(', ') + (turunLulus.length > 5 ? ', dst' : '') + '? Poin dan lencana siswa ikut berubah.';
+    if (!confirm(msg)) return;
+  }
   const btn = bsEl('bsBtnSimpanNilai'); setBusy('bsSimpanNilai', btn);
   const now = new Date().toISOString(), ta = bsTA(), records = {}, lokal = {};
   dirty.forEach(d => {
@@ -845,10 +928,11 @@ function bsSimpanNilai() {
       guruKey: bsGuruKey(), guruName: bsGuruNama(), tahunAjaran: ta, updatedAt: now
     };
     if (d.nilai !== '' && d.nilai != null) rec.nilai = Number(d.nilai);
+    if (d.status === 'Remedial' && (d.alasan || []).length) rec.alasan = bsAlasanGabung(d.alasan);
     const cat = (d.catatan || '').trim(); if (cat) rec.catatan = cat.slice(0, 300);
     records[key] = rec; lokal[key] = Object.assign({ key }, rec);
   });
-  db.ref('bs_setoran').update(records).then(() => {
+  bsSiapTulis().then(() => db.ref('bs_setoran').update(records)).then(() => {
     clearBusy('bsSimpanNilai', bsEl('bsBtnSimpanNilai'));
     Object.keys(lokal).forEach(key => { bsState.setoran[k][key] = lokal[key]; delete bsState.draft[key]; });
     if (typeof v4Audit === 'function') v4Audit('BS_NILAI_SETORAN', 'BACAAN_SHALAT', k, null, { kelas: k, jumlah: dirty.length, tanggal: tgl });
@@ -857,6 +941,129 @@ function bsSimpanNilai() {
     clearBusy('bsSimpanNilai', bsEl('bsBtnSimpanNilai'));
     toast('❌ Gagal menyimpan (draft dipertahankan): ' + ((err && err.message) || err), true);
   });
+}
+
+// ---------- Tab REKAP (per kelas / semua kelas) ----------
+function bsPilihModeRekap(m) { bsState.rekapMode = m; bsRender(); bsPastikanDataKelas(); }
+function bsRekapBukaKelas(k) { bsState.kelas = k; bsState.rekapMode = 'kelas'; bsRender(); bsPastikanDataKelas(); }
+function bsSiswaAktif(k) { const a = bsSiswaKelas(k); return a ? a.filter(s => s && s.aktif !== false) : null; }
+function bsPromiseSiswa(k) {
+  const perlu = typeof v4PanelSiswaCache !== 'undefined' && !v4PanelSiswaCache[k] && typeof v4FetchSiswaByKelas === 'function';
+  return perlu ? new Promise(res => { let sel = false; const fin = () => { if (!sel) { sel = true; res(); } }; try { v4FetchSiswaByKelas(k, fin); } catch (e) { fin(); } setTimeout(fin, 15000); }) : Promise.resolve();
+}
+function bsPastikanDataSemua() {
+  const daftar = bsKelasPilihan(); if (!daftar.length) return;
+  if (!bsKunciMulai('rekapSemua')) return;
+  Promise.all(daftar.map(k => Promise.all([bsPromiseSiswa(k), bsMuatSetoran(k, false)])))
+    .catch(e => { bsState.err = 'Gagal memuat rekap: ' + ((e && e.message) || e); })
+    .then(() => { bsKunciSelesai('rekapSemua'); if (bsState.tab === 'rekap' && bsState.rekapMode === 'semua') bsRender(); });
+}
+// Hitung rekap satu kelas dari data yang sudah dimuat; null bila siswa/penilaian belum siap.
+function bsHitungRekapKelas(k) {
+  const siswa = bsSiswaAktif(k), setoran = bsState.setoran[k];
+  if (!siswa || !setoran) return null;
+  const targets = bsTargetUntukKelas(bsState.targets, k);
+  let l = 0, r = 0;
+  const perSiswa = siswa.map(s => {
+    let sl = 0, sr = 0;
+    targets.forEach(t => { const x = setoran[bsKunciSetoran(t.key, s.key)]; if (x && x.status === 'Lulus') sl++; else if (x && x.status === 'Remedial') sr++; });
+    l += sl; r += sr; return { s, l: sl, r: sr };
+  });
+  const total = siswa.length * targets.length;
+  return { k, siswa, targets, setoran, perSiswa, l, r, b: total - l - r, total, persen: total ? Math.round(l / total * 100) : 0 };
+}
+function bsBodyRekap() {
+  const mode = bsState.rekapMode === 'semua' ? 'semua' : 'kelas';
+  const sw = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+    <button class="btn ${mode === 'kelas' ? 'btn-primary' : 'btn-soft'}" style="padding:7px 14px;" onclick="bsPilihModeRekap('kelas')">🏫 Per Kelas</button>
+    <button class="btn ${mode === 'semua' ? 'btn-primary' : 'btn-soft'}" style="padding:7px 14px;" onclick="bsPilihModeRekap('semua')">🌐 Semua Kelas</button>
+    <button class="btn btn-soft" style="padding:7px 14px;margin-left:auto;" onclick="bsRekapUnduh()">📥 Unduh CSV</button></div>`;
+  return sw + (mode === 'semua' ? bsRekapSemua() : bsRekapKelas());
+}
+function bsRekapKelas() {
+  const k = bsState.kelas;
+  if (!k) return '<p class="text-muted">Belum ada kelas yang bisa dipilih.</p>';
+  const targets = bsTargetUntukKelas(bsState.targets, k);
+  if (!targets.length) return '<p class="text-muted" style="font-size:13px;">Belum ada target aktif untuk kelas ini.</p>';
+  const R = bsHitungRekapKelas(k);
+  if (!R) return '<p class="text-muted" style="padding:10px;">⏳ Memuat data...</p>';
+  if (!R.siswa.length) return '<p class="text-muted">Belum ada siswa di kelas ini.</p>';
+  const sel = (s, t) => {
+    const x = R.setoran[bsKunciSetoran(t.key, s.key)];
+    if (!x) return '<td style="text-align:center;color:#9ca3af;">·</td>';
+    const w = BS_STATUS_WARNA[x.status] || '#6b7280', bg = BS_STATUS_BG[x.status] || '#f3f4f6';
+    return `<td style="text-align:center;background:${bg};color:${w};font-weight:700;font-size:12px;" title="${bsEsc(x.status + (x.nilai != null ? ' · nilai ' + x.nilai : '') + ((x.percobaan || 1) > 1 ? ' · percobaan ke-' + x.percobaan : ''))}">${BS_STATUS_IKON[x.status] || ''}${x.nilai != null ? ' ' + bsEsc(x.nilai) : ''}</td>`;
+  };
+  const thT = R.targets.map(t => `<th style="min-width:64px;font-size:11px;font-weight:600;vertical-align:bottom;" title="${bsEsc(t.nama)}">${bsEsc((t.urutan || '') + '. ' + t.nama)}</th>`).join('');
+  const baris = R.perSiswa.map((p, i) => `<tr><td style="position:sticky;left:0;background:#fff;white-space:nowrap;font-size:13px;font-weight:600;z-index:1;">${i + 1}. ${bsEsc(p.s.name)}</td>${R.targets.map(t => sel(p.s, t)).join('')}
+      <td style="text-align:center;white-space:nowrap;font-size:12px;">${p.l}/${R.targets.length}</td><td style="text-align:center;font-weight:700;font-size:12px;">${R.targets.length ? Math.round(p.l / R.targets.length * 100) : 0}%</td></tr>`).join('');
+  const kaki = R.targets.map(t => { const n = R.siswa.filter(s => { const x = R.setoran[bsKunciSetoran(t.key, s.key)]; return x && x.status === 'Lulus'; }).length; return `<td style="text-align:center;font-size:12px;font-weight:700;">${n}/${R.siswa.length}</td>`; }).join('');
+  return `<div class="card" style="border:1px solid #e5e7eb;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+        <div><div style="font-size:22px;font-weight:800;">${R.siswa.length}</div><div class="text-muted" style="font-size:11px;">Siswa</div></div>
+        <div><div style="font-size:22px;font-weight:800;">${R.targets.length}</div><div class="text-muted" style="font-size:11px;">Target</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:#059669;">${R.persen}%</div><div class="text-muted" style="font-size:11px;">Ketuntasan</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:#d97706;">${R.r}</div><div class="text-muted" style="font-size:11px;">Remedial</div></div>
+      </div><div style="margin-top:8px;">${bsBarTumpuk(R.l, R.r, R.b)}</div></div>
+    <div class="card" style="border:1px solid #e5e7eb;"><p style="font-weight:700;margin-bottom:4px;">📋 Rekap ${bsEsc(bsNamaKelas(k))}</p>
+      <p class="text-muted" style="font-size:11px;margin-bottom:8px;">${BS_STATUS_IKON.Lulus} Lulus · ${BS_STATUS_IKON.Remedial} Remedial · · belum setor. Angka di samping ikon = nilai. Geser tabel ke samping bila target banyak.</p>
+      <div style="overflow-x:auto;"><table style="border-collapse:separate;border-spacing:0;width:100%;"><thead><tr><th style="position:sticky;left:0;background:#f3f4f6;text-align:left;z-index:2;">Siswa</th>${thT}<th>Lulus</th><th>%</th></tr></thead>
+      <tbody>${baris}</tbody><tfoot><tr><td style="position:sticky;left:0;background:#f3f4f6;font-weight:700;font-size:12px;">Lulus per target</td>${kaki}<td></td><td></td></tr></tfoot></table></div></div>`;
+}
+function bsRekapSemua() {
+  const daftar = bsKelasPilihan();
+  if (!daftar.length) return '<p class="text-muted">Belum ada kelas yang bisa dipilih.</p>';
+  const hasil = daftar.map(k => ({ k, R: bsHitungRekapKelas(k) }));
+  const siap = hasil.filter(h => h.R);
+  const memuat = hasil.length - siap.length;
+  let S = 0, L = 0, Rm = 0, B = 0, T = 0;
+  siap.forEach(h => { S += h.R.siswa.length; L += h.R.l; Rm += h.R.r; B += h.R.b; T += h.R.total; });
+  const persen = T ? Math.round(L / T * 100) : 0;
+  const baris = hasil.map(({ k, R }) => {
+    if (!R) return `<tr><td style="font-weight:600;">${bsEsc(bsNamaKelas(k))}</td><td colspan="6" class="text-muted" style="font-size:12px;">⏳ memuat...</td></tr>`;
+    return `<tr><td style="white-space:nowrap;"><a href="javascript:void(0)" onclick="bsRekapBukaKelas('${bsEscJs(k)}')" style="color:#2563eb;text-decoration:none;font-weight:600;">${bsEsc(bsNamaKelas(k))}</a></td>
+      <td style="text-align:center;">${R.siswa.length}</td><td style="text-align:center;">${R.targets.length}</td>
+      <td style="text-align:center;color:#059669;font-weight:700;">${R.l}</td><td style="text-align:center;color:#d97706;font-weight:700;">${R.r}</td>
+      <td style="text-align:center;">${R.targets.length ? R.persen + '%' : '<span class="text-muted">—</span>'}</td>
+      <td style="min-width:110px;">${R.total ? bsBarTumpuk(R.l, R.r, R.b) : '<span class="text-muted" style="font-size:11px;">belum ada target</span>'}</td></tr>`;
+  }).join('');
+  return `<div class="card" style="border:1px solid #e5e7eb;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+        <div><div style="font-size:22px;font-weight:800;">${hasil.length}</div><div class="text-muted" style="font-size:11px;">Kelas</div></div>
+        <div><div style="font-size:22px;font-weight:800;">${S}</div><div class="text-muted" style="font-size:11px;">Siswa</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:#059669;">${persen}%</div><div class="text-muted" style="font-size:11px;">Ketuntasan</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:#d97706;">${Rm}</div><div class="text-muted" style="font-size:11px;">Remedial</div></div>
+      </div>${memuat ? `<p class="text-muted" style="font-size:11px;margin-top:6px;">⏳ ${memuat} kelas masih dimuat, angka total belum lengkap.</p>` : ''}</div>
+    <div class="card" style="border:1px solid #e5e7eb;"><p style="font-weight:700;margin-bottom:4px;">🌐 Rekap Semua Kelas</p>
+      <p class="text-muted" style="font-size:11px;margin-bottom:8px;">Lulus &amp; Remedial dihitung per sel (siswa × target aktif). Ketuk nama kelas untuk melihat rincian per siswa.</p>
+      <div style="font-size:11px;margin-bottom:8px;" class="text-muted"><span style="color:#059669;">■</span> Lulus &nbsp;<span style="color:#d97706;">■</span> Remedial &nbsp;<span style="color:#9ca3af;">■</span> Belum Setor</div>
+      <div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Siswa</th><th>Target</th><th>Lulus</th><th>Remedial</th><th>%</th><th>Progres</th></tr></thead><tbody>${baris}</tbody></table></div></div>`;
+}
+function bsCsvSel(v) { v = v == null ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function bsRekapUnduh() {
+  const mode = bsState.rekapMode === 'semua' ? 'semua' : 'kelas';
+  const baris = [];
+  if (mode === 'semua') {
+    const daftar = bsKelasPilihan().map(k => ({ k, R: bsHitungRekapKelas(k) }));
+    if (!daftar.length || daftar.some(d => !d.R)) return toast('⏳ Data belum lengkap, tunggu sampai semua kelas selesai dimuat.', true);
+    baris.push(['Kelas', 'Siswa', 'Target', 'Lulus', 'Remedial', 'Belum Setor', 'Ketuntasan (%)']);
+    daftar.forEach(({ k, R }) => baris.push([bsNamaKelas(k), R.siswa.length, R.targets.length, R.l, R.r, R.b, R.persen]));
+  } else {
+    const k = bsState.kelas, R = k ? bsHitungRekapKelas(k) : null;
+    if (!R) return toast('⏳ Data belum siap.', true);
+    baris.push(['No', 'Siswa'].concat(R.targets.map(t => t.nama), ['Lulus', 'Ketuntasan (%)']));
+    R.perSiswa.forEach((p, i) => baris.push([i + 1, p.s.name].concat(R.targets.map(t => {
+      const x = R.setoran[bsKunciSetoran(t.key, p.s.key)];
+      return x ? x.status + (x.nilai != null ? ' (' + x.nilai + ')' : '') : 'Belum Setor';
+    }), [p.l + '/' + R.targets.length, R.targets.length ? Math.round(p.l / R.targets.length * 100) : 0])));
+  }
+  const csv = '﻿' + baris.map(r => r.map(bsCsvSel).join(',')).join('\r\n');
+  const nama = 'rekap-bacaan-sholat-' + (mode === 'semua' ? 'semua-kelas' : String(bsState.kelas).replace(/\s+/g, '-')) + '-' + bsHariIni() + '.csv';
+  try {
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = nama; document.body.appendChild(a); a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 500);
+  } catch (e) { toast('❌ Gagal membuat file: ' + ((e && e.message) || e), true); }
 }
 
 // ---------- Tab GRAFIK ----------
@@ -870,7 +1077,7 @@ function bsMuatAmalanIndividu() {
 function bsBodyGrafik() {
   const k = bsState.kelas;
   if (!k) return '<p class="text-muted">Belum ada kelas yang bisa dipilih.</p>';
-  const targets = bsTargetUntukKelas(bsState.targets, k), siswa = bsSiswaKelas(k);
+  const targets = bsTargetUntukKelas(bsState.targets, k), siswa = bsSiswaAktif(k);
   if (!targets.length) return '<p class="text-muted" style="font-size:13px;">Belum ada target aktif untuk kelas ini.</p>';
   if (!siswa || !bsState.setoran[k]) return '<p class="text-muted" style="padding:10px;">⏳ Memuat data...</p>';
   if (!siswa.length) return '<p class="text-muted">Belum ada siswa di kelas ini.</p>';
@@ -919,7 +1126,7 @@ function bsGrafikIndividu(k, targets, siswa) {
   const game = bsHitungGame(targets, byTarget, amalan || [], null, semuaT);
   const lulusUrut = Object.values(byTarget).filter(x => x.status === 'Lulus' && x.tanggal).sort((a, b) => bsCmp(a.tanggal, b.tanggal));
   const garis = []; lulusUrut.forEach((x, i) => { const last = garis[garis.length - 1]; const lb = bsFmtTgl(x.tanggal, true); if (last && last.label === lb) last.nilai = i + 1; else garis.push({ label: lb, nilai: i + 1 }); });
-  const tabel = targets.map(t => { const x = byTarget[t.key]; return `<tr><td>${bsEsc((t.urutan || '') + '. ' + t.nama)}</td><td>${bsChip(x ? x.status : 'Belum Setor')}</td><td style="text-align:center;">${x && x.nilai != null ? bsEsc(x.nilai) : '-'}</td><td style="text-align:center;">${x ? bsEsc(x.percobaan || 1) : '-'}</td><td>${x ? bsEsc(bsFmtTgl(x.tanggal, true)) : '-'}</td><td style="font-size:12px;">${x ? bsEsc(x.catatan || '') : ''}</td></tr>`; }).join('');
+  const tabel = targets.map(t => { const x = byTarget[t.key]; return `<tr><td>${bsEsc((t.urutan || '') + '. ' + t.nama)}</td><td>${bsChip(x ? x.status : 'Belum Setor')}</td><td style="text-align:center;">${x && x.nilai != null ? bsEsc(x.nilai) : '-'}</td><td style="text-align:center;">${x ? bsEsc(x.percobaan || 1) : '-'}</td><td>${x ? bsEsc(bsFmtTgl(x.tanggal, true)) : '-'}</td><td style="font-size:12px;">${x ? bsEsc((x.alasan ? '[' + x.alasan + '] ' : '') + (x.catatan || '')) : ''}</td></tr>`; }).join('');
   let rumah = '<p class="text-muted" style="font-size:13px;">⏳ Memuat amalan di rumah...</p>';
   if (amalan) {
     const h = bsHariIni(), peta = {}; amalan.forEach(r => { peta[r.tanggal] = r.items || {}; });
@@ -1008,7 +1215,7 @@ function bsOrtuGambar() {
     return `<div style="padding:9px 0;border-bottom:1px solid #f1f5f9;">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;"><span style="font-size:13px;font-weight:600;">${bsEsc((t.urutan || '') + '. ' + t.nama)}</span>${bsChip(st)}</div>
       <div class="text-muted" style="font-size:11px;margin-top:2px;">${x ? bsEsc('Dinilai ' + bsFmtTgl(x.tanggal) + (x.guruName ? ' oleh ' + x.guruName : '') + ((x.percobaan || 1) > 1 ? ' · percobaan ke-' + x.percobaan : '') + (x.nilai != null ? ' · nilai ' + x.nilai : '')) : bsEsc(bsLabelTarget(t))}</div>
-      ${x && x.catatan ? `<div style="font-size:12px;margin-top:3px;padding:6px 8px;background:#f9fafb;border-radius:6px;">💬 ${bsEsc(x.catatan)}</div>` : ''}</div>`; }).join('');
+      ${x && x.alasan ? `<div style="font-size:12px;margin-top:3px;color:#b45309;">🔁 Perlu dilatih: ${bsEsc(x.alasan)}</div>` : ''}${x && x.catatan ? `<div style="font-size:12px;margin-top:3px;padding:6px 8px;background:#f9fafb;border-radius:6px;">💬 ${bsEsc(x.catatan)}</div>` : ''}</div>`; }).join('');
   const persen = game.nTarget ? Math.round(game.lulus / game.nTarget * 100) : 0;
   box.innerHTML = `
     <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,#ecfdf5,#fef9c3);border:1px solid #a7f3d0;">
