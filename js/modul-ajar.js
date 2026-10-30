@@ -8,6 +8,8 @@
    Pembaruan (selaras KMA 1503 Tahun 2025): kolom Karakteristik Materi; Kesiapan Murid = format lengkap (opsional); Pendahuluan & Penutup = format minimum; saran
    Dimensi Profil Lulusan 2-3 hanya anjuran (tidak memblokir); Panca Cinta dikelompokkan (Sumber, Tanda, Tali Cinta); DPL & Panca Cinta
    terisi otomatis menurut mapel pada modul baru.
+   Materi dari ATP: modul baru bisa memilih materi dari ATP/TP guru sendiri (perangkat_tp_v4, menu ATP/TP) sehingga Materi, Semester,
+   Tujuan Pembelajaran, dan saran jumlah pertemuan (dari JP) terisi otomatis. Bergantung pada window.rpeUtil (js/perangkat-rpe.js).
 ============================================================ */
 (function () {
   'use strict';
@@ -351,6 +353,8 @@
   // Admin yang menyusun modul atas nama guru lain: cocokkan nama guru pada isian Nama Guru.
   // Satu hari mengajar = satu pertemuan; jumlah jam (JP) pada hari itu = panjang pertemuan.
   var MENIT_JP = 35;
+  var ALOKASI_DEFAULT = '2 × ' + MENIT_JP + ' menit';   // alokasi bawaan semua modul & pertemuan baru
+  function alokasiDasar() { return val('mpf-alokasi') || ALOKASI_DEFAULT; }
   function jadwalOpsi() {
     var list = (typeof allJadwal !== 'undefined' && allJadwal) ? allJadwal : [];
     var nama = val('mpf-guru') || (currentUser && currentUser.name) || '';
@@ -484,12 +488,12 @@
   function pertCollect() { return pertCollectRaw().filter(function (p) { return !pertKosong(p); }); }
   function pertRender(list, bukaIdx) {
     var box = $('mpfPert'); if (!box) return;
-    if (!list.length) list = [fixPert({ alokasi: val('mpf-alokasi') })];
+    if (!list.length) list = [fixPert({ alokasi: alokasiDasar() })];
     box.innerHTML = list.map(function (p, i) { return pertRowHtml(p, i, i === (bukaIdx == null ? 0 : bukaIdx)); }).join('');
     refreshAcc();
   }
   function pertSesuaikan(list, n) {   // tambah baris kosong / buang baris kosong di ujung sampai berjumlah n
-    var out = list.slice(), al = val('mpf-alokasi');
+    var out = list.slice(), al = alokasiDasar();
     while (out.length < n && out.length < PERT_MAX) out.push(fixPert({ alokasi: al }));
     while (out.length > n && pertKosong(out[out.length - 1])) out.pop();
     out.forEach(function (p) { if (!p.alokasi && pertKosong(p)) p.alokasi = al; });
@@ -1226,7 +1230,7 @@
         fld('', 'Kelas *', '<select id="mpf-kelas" class="field">' + kelasOpt + '</select>') +
         fld('', 'Semester', '<select id="mpf-semester" class="field">' + semOpt + '</select>') +
         fld('', 'Materi *', inp('mpf-materi', m.materi, 'Contoh: Alam sekitar', 'mpDlMateri')) +
-        fld('', 'Alokasi Waktu', inp('mpf-alokasi', m.alokasi, 'Contoh: 2 × 35 menit')) +
+        fld('', 'Alokasi Waktu', inp('mpf-alokasi', m.alokasi || (editingKey ? '' : ALOKASI_DEFAULT), 'Contoh: 2 × 35 menit')) +
         fld('', 'Model Pembelajaran', inp('mpf-model', m.model, 'Contoh: Project Based Learning', 'mpDlModel')) +
       '</div>' +
       acc('mpacc-detail', 'Detail identitas (sekolah, fase, tahun, guru, metode, pendekatan)',
@@ -1243,6 +1247,7 @@
       '<datalist id="mpDlMateri"></datalist>' +
       '<datalist id="mpDlPend"><option value="Saintifik"><option value="Kontekstual"><option value="Pembelajaran berdiferensiasi"><option value="Tematik"></datalist>' +
       (editingKey ? '' : jadwalBarHtml()) +
+      (editingKey ? '' : '<div id="mpfAtpBar"></div>') +
       '<div class="mp-rel" id="mpfRel" style="margin:10px 0 8px;"></div>' +
       '<div id="mpfLanjutInfo" class="mp-rel" style="background:#fef3c7;margin-bottom:8px;" hidden></div>' +
       '<fieldset id="mpfLanjut" style="border:0;margin:0;padding:0;min-width:0;">' +
@@ -1338,8 +1343,8 @@
       rel.innerHTML = '<b>Hubungan kelas:</b> ' + relasi({ mapel: val('mpf-mapel') || '(mapel)', kelas: val('mpf-kelas') }, val('mpf-guru'));
     };
     var auto = function () { if (!editingKey) applyRef(true); };
-    k.addEventListener('change', function () { var f = faseDari(k.value); if ($('mpf-fase') && (f || !k.value)) $('mpf-fase').value = f; upd(); auto(); urutkanForm(); });
-    var mp = $('mpf-mapel'); if (mp) mp.addEventListener('change', function () { batasiKelas(); upd(); auto(); refreshMateriSaran(); autoSaran(); autoProfil(); urutkanForm(); });
+    k.addEventListener('change', function () { var f = faseDari(k.value); if ($('mpf-fase') && (f || !k.value)) $('mpf-fase').value = f; upd(); auto(); urutkanForm(); refreshAtp(); });
+    var mp = $('mpf-mapel'); if (mp) mp.addEventListener('change', function () { batasiKelas(); upd(); auto(); refreshMateriSaran(); autoSaran(); autoProfil(); urutkanForm(); refreshAtp(); });
     refreshMateriSaran();
     var fs = $('mpf-fase'); if (fs) fs.addEventListener('change', auto);
     var sr = $('mpf-sumberref'); if (sr) sr.addEventListener('change', function () { refSumber = sr.value; applyRef(false); });   // ganti sumber = muat ulang CP/TP (minta konfirmasi bila sudah diedit)
@@ -1354,6 +1359,7 @@
     autoProfil();
     urutkanForm();
     refreshAcc();
+    refreshAtp();
   }
   function collect() {
     var o = {
@@ -1379,6 +1385,90 @@
      Bagian yang sudah diisi/diubah guru TIDAK ditimpa. Bagian hasil draf sebelumnya (lastDraft) boleh diperbarui
      bila tombol ditekan lagi (mis. setelah materi atau model diganti). CP & TP tetap dari Referensi Kurikulum. */
   var lastDraft = {};
+  /* ---------- Materi dari ATP guru ----------
+     ATP/TP guru disimpan menu Perangkat Pembelajaran di perangkat_tp_v4/<ta>_<guru>_<mapel>_<kelas> = { items: [ { k, e, t, m, sem, jp } ] }
+     (t = TP, m = materi pokok, sem = ganjil/genap, jp = alokasi JP). Di sini item dikelompokkan per materi; memilih satu materi mengisi
+     Materi, Semester, Tujuan Pembelajaran (TP milik materi itu), dan saran jumlah pertemuan (total JP / JP per pertemuan).
+     Hanya membaca; tidak pernah menulis ke perangkat_*. Bila ATP belum ada, materi tetap bisa diketik atau dipilih dari saran. */
+  var atpCache = {}, atpTampil = [];   // atpCache: id -> { loading } | { err } | { items }; dikosongkan tiap formulir dibuka
+  function atpDaftar(v) {
+    if (Array.isArray(v)) return v.filter(Boolean);
+    return (v && typeof v === 'object') ? Object.keys(v).map(function (k) { return v[k]; }).filter(Boolean) : [];
+  }
+  function atpId() {
+    var R = window.rpeUtil;
+    if (!R || typeof R.slug !== 'function' || !currentUser) return '';
+    var ta = val('mpf-ta') || taAktif(), mapel = val('mpf-mapel'), kelas = val('mpf-kelas');
+    if (!ta || !mapel || !kelas) return '';
+    return [R.slug(ta), R.slug(currentUser.key || currentUser.name || ''), R.slug(mapel), R.slug(kelas)].join('_');
+  }
+  function atpGrup(items) {
+    var map = {}, out = [];
+    atpDaftar(items).forEach(function (x) {
+      var nama = String(x.m || x.t || '').trim().replace(/\s+/g, ' ').slice(0, 120); if (!nama) return;
+      var sem = x.sem === 'genap' ? 'genap' : 'ganjil', k = sem + '|' + nama.toLowerCase(), g = map[k];
+      if (!g) { g = map[k] = { materi: nama, sem: sem, jp: 0, tp: [], i: out.length }; out.push(g); }
+      var n = parseInt(x.jp, 10); if (n > 0) g.jp += n;
+      var t = String(x.t || '').trim(); if (t && g.tp.indexOf(t) === -1) g.tp.push(t);
+    });
+    return out.sort(function (a, b) { return (a.sem === b.sem ? 0 : (a.sem === 'ganjil' ? -1 : 1)) || (a.i - b.i); });
+  }
+  function atpSudahAda(g) {   // sudah ada modul milik guru ini untuk materi tersebut (mapel, kelas, tahun sama)?
+    var mapel = val('mpf-mapel'), kelas = val('mpf-kelas'), ta = val('mpf-ta') || taAktif();
+    return data.some(function (m) {
+      return isOwner(m) && m.mapel === mapel && m.kelas === kelas && String(m.tahunAjaran || '') === ta && normNama(m.materi) === normNama(g.materi);
+    });
+  }
+  function refreshAtp() {
+    var bar = $('mpfAtpBar'); if (!bar || editingKey) return;
+    var info = function (t) { bar.innerHTML = '<div class="mp-rel" style="margin:6px 0 0;">' + t + '</div>'; };
+    if (!window.rpeUtil || typeof window.rpeUtil.slug !== 'function') { bar.innerHTML = ''; return; }
+    var id = atpId();
+    if (!id) { atpTampil = []; return info('📌 Pilih Mata Pelajaran dan Kelas untuk menampilkan materi dari ATP Anda.'); }
+    var c = atpCache[id];
+    if (c === undefined) {
+      if (typeof db === 'undefined' || !db) { atpCache[id] = { err: 'Database belum siap' }; return refreshAtp(); }
+      atpCache[id] = { loading: true }; info('⏳ Memuat ATP Anda…');
+      db.ref('perangkat_tp_v4/' + id).once('value').then(function (snap) {
+        var v = snap.val(); atpCache[id] = { items: v ? atpDaftar(v.items) : [] };
+      }, function (err) { atpCache[id] = { err: (err && err.message) || String(err) }; }).then(function () { if (atpId() === id) refreshAtp(); });
+      return;
+    }
+    if (c.loading) return;   // pemuatan yang berjalan menggambar ulang sendiri
+    var mapel = val('mpf-mapel'), kelas = val('mpf-kelas');
+    if (c.err) { atpTampil = []; return info('⚠️ ATP tidak bisa dimuat (' + esc(c.err) + '). Materi tetap bisa diketik atau dipilih dari saran (tombol ▾).'); }
+    var gr = atpGrup(c.items); atpTampil = gr;
+    if (!gr.length) return info('📌 Belum ada ATP/TP tersimpan untuk ' + esc(mapel) + ' kelas ' + esc(kelas) + ' (tahun ' + esc(val('mpf-ta') || taAktif()) + '). Isi dulu di menu Perangkat Pembelajaran › ATP/TP agar materi bisa dipilih di sini; sementara ketik materi sendiri.');
+    bar.innerHTML = '<div class="mp-refbar" style="margin-top:6px;"><select id="mpfAtp" class="field" style="max-width:420px;"><option value="">📌 Pilih materi dari ATP saya…</option>' +
+      gr.map(function (g, i) {
+        return '<option value="' + i + '">' + (atpSudahAda(g) ? '✓ ' : '') + esc(g.materi) + ' (' + (g.sem === 'genap' ? 'Genap' : 'Ganjil') + (g.jp ? ' · ' + g.jp + ' JP' : '') + ')</option>';
+      }).join('') + '</select><div class="mp-rel" id="mpfAtpInfo" style="margin:0;flex:1;">' + gr.length + ' materi dari ATP. Pilih untuk mengisi Materi, Semester, Tujuan Pembelajaran, dan saran jumlah pertemuan. ✓ = sudah ada modulnya.</div></div>';
+  }
+  function isiDariAtp(v) {
+    var g = atpTampil[parseInt(v, 10)]; if (!g) return;
+    var mt = $('mpf-materi'); if (!mt) return;
+    mt.disabled = false; mt.value = g.materi;
+    var sm = $('mpf-semester'); if (sm) sm.value = g.sem === 'genap' ? 'Genap' : 'Ganjil';
+    var tpEl = $('mpf-tujuan'), tpTerisi = false;
+    if (tpEl && g.tp.length) {
+      var baru = g.tp.join('\n'), cur = tpEl.value.trim();
+      if (!cur || cur === lastFill.tp || cur === baru || confirm('Tujuan Pembelajaran sudah Anda ubah. Ganti dengan ' + g.tp.length + ' TP dari ATP untuk materi ini?')) {
+        tpEl.value = baru; lastFill.tp = tpEl.value.trim(); tpTerisi = true;
+      }
+    }
+    var n = 0, dibatasi = false;
+    if (g.jp > 0) {
+      var menit = menitTotal(alokasiDasar()), jpPer = menit > 0 ? Math.max(1, Math.round(menit / MENIT_JP)) : 2;
+      n = Math.ceil(g.jp / jpPer); if (n > PERT_MAX) { n = PERT_MAX; dibatasi = true; }
+      n = Math.max(1, n); pertSaran = n; pertInfoRefresh();
+      var rows = pertCollectRaw();
+      if (rows.every(pertKosong)) pertRender(pertSesuaikan(rows, n));   // pertemuan yang sudah diisi guru tidak disentuh
+    }
+    urutkanForm(); refreshAcc(); autoDraf();
+    var sel = $('mpfAtp'); if (sel) sel.value = '';
+    toast('📌 Terisi dari ATP: ' + g.materi + (tpTerisi ? ' · ' + g.tp.length + ' TP' : '') + (n ? ' · ' + g.jp + ' JP → saran ' + n + ' pertemuan' + (dibatasi ? ' (dibatasi ' + PERT_MAX + ')' : '') : '') + '.', false, 4000);
+  }
+
   var SINTAKS = [
     { re: /problem|masalah/i, langkah: [
       'Orientasi pada masalah: guru menyajikan masalah kontekstual tentang {materi}.',
@@ -1487,6 +1577,32 @@
   }
   function bernomor(arr) { return arr.map(function (x, i) { return (i + 1) + '. ' + x; }).join('\n'); }
   function bullets(arr) { return arr.map(function (x) { return '- ' + x; }).join('\n'); }
+  // Soal LKPD berpola dari TP: kata kerja TP diubah jadi kalimat perintah; isi soal memakai teks TP guru.
+  var KATA_SOAL = {
+    menjelaskan: 'Jelaskan', menyebutkan: 'Sebutkan', mengidentifikasi: 'Identifikasilah',
+    mendeskripsikan: 'Deskripsikan', menunjukkan: 'Tunjukkan', mencontohkan: 'Berikan contoh',
+    membedakan: 'Bedakan', membandingkan: 'Bandingkan', menyimpulkan: 'Simpulkan',
+    menganalisis: 'Analisislah', menghitung: 'Hitunglah', menentukan: 'Tentukan',
+    menyelesaikan: 'Selesaikan', menerapkan: 'Terapkan', menggambar: 'Gambarlah',
+    menuliskan: 'Tuliskan', menulis: 'Tuliskan', membaca: 'Bacalah', menghafal: 'Hafalkanlah',
+    melafalkan: 'Lafalkanlah', mempraktikkan: 'Praktikkan', meneladani: 'Tuliskan contoh meneladani',
+    menceritakan: 'Ceritakan', mengurutkan: 'Urutkan', mengelompokkan: 'Kelompokkan',
+    memahami: 'Jelaskan pemahamanmu tentang', mengenal: 'Sebutkan hal yang kamu kenal tentang'
+  };
+  function soalDariTP(tp, M) {
+    var t = String(tp || '').trim().replace(/[.;]+$/, '');
+    t = t.replace(/^(peserta didik|murid|siswa|ananda)\s+(?:diharapkan\s+)?(?:mampu|dapat|bisa)\s+/i, '');
+    var m = t.match(/^(\S+)\s+(.+)$/), v = m ? m[1].toLowerCase() : '';
+    if (m && KATA_SOAL[v]) return KATA_SOAL[v] + ' ' + m[2] + '!';
+    return 'Tuliskan hal-hal penting yang kamu pelajari tentang ' + (t || M) + '!';
+  }
+  function soalLkpd(tp, M) {
+    var daftar = tp.length ? tp.map(function (x) { return soalDariTP(x, M); }) :
+      ['Tuliskan tiga hal penting yang kamu ketahui tentang ' + M + '!', 'Berikan satu contoh ' + M + ' dalam kehidupan sehari-hari!'];
+    return daftar.map(function (q, i) {
+      return 'Soal ' + (i + 1) + ': ' + q + '\nJawab: ....................................................';
+    }).join('\n');
+  }
 
   function susunDraf(c) {
     var M = c.materi, tp = c.tp || [], out = {};
@@ -1538,8 +1654,7 @@
       'Petunjuk:\n' + bernomor(['Berdoalah sebelum mengerjakan.', 'Bacalah setiap kegiatan dengan teliti.', 'Kerjakan bersama kelompokmu dan tanyakan kepada guru jika ada yang belum jelas.']) + '\n\n' +
       'Kegiatan 1: Amati/kerjakan tugas yang diberikan guru tentang ' + M + ', lalu tuliskan hasilnya.\n' +
       'Kegiatan 2: Jawablah pertanyaan berikut.\n' +
-      (tp.length ? tp.map(function (x, i) { return 'Soal ' + (i + 1) + ': (buat pertanyaan untuk tujuan: ' + x + ')'; }).join('\n')
-                 : 'Soal 1: (tuliskan pertanyaan sesuai tujuan pembelajaran)');
+      soalLkpd(tp, M);
 
     out.media = bullets(['Papan tulis dan spidol', 'Gambar, poster, atau slide tentang ' + M, 'Video pendek atau benda nyata yang berkaitan (jika tersedia)', 'Lembar Kerja Peserta Didik (LKPD)', 'Buku pegangan ' + c.mapel + ' Kelas ' + c.kelas]);
 
@@ -1819,13 +1934,13 @@
     editingKey = key || null;
     var m = key ? byKey(key) : null;
     formRef = (m && m.kurikulumRefKey) ? { key: m.kurikulumRefKey, versi: m.kurikulumVersi, at: m.kurikulumAt } : null;
-    lastFill = { cp: '', tp: '' }; lastDraft = {};
+    lastFill = { cp: '', tp: '' }; lastDraft = {}; atpCache = {};
     pertSaran = (m && pertSaved(m).length) ? Math.min(PERT_MAX, pertSaved(m).length) : PERT_DEFAULT;   // edit: ikuti jumlah pertemuan tersimpan
     tab = 'buat'; render(); loadRef(false); window.scrollTo(0, 0);
   }
   function showTab(id) {
     if (id === 'rekap' && !canApprove()) return;
-    if (id === 'buat' && tab !== 'buat') { editingKey = null; formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; pertSaran = PERT_DEFAULT; }
+    if (id === 'buat' && tab !== 'buat') { editingKey = null; formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; atpCache = {}; pertSaran = PERT_DEFAULT; }
     if (id !== 'referensi') { refMode = 'list'; refEditKey = null; refParsed = null; }
     tab = id; render();
     if (id === 'buat' || id === 'referensi') loadRef(false);
@@ -2052,6 +2167,8 @@
     var id = e.target && e.target.id;
     if (id === 'mpf-mapel' || id === 'mpf-kelas' || id === 'mpf-materi') urutkanForm();
     if (id === 'mpfJadwal') { isiDariJadwal(e.target.value); return; }
+    if (id === 'mpfAtp') { isiDariAtp(e.target.value); return; }
+    if (id === 'mpf-ta' && e.type === 'change') refreshAtp();
     if (e.target && e.target.classList && Array.prototype.some.call(e.target.classList, function (c) { return c.indexOf('mpp-') === 0; })) { refreshAcc(); return; }
     if (id === 'mpf-guru') { refreshJadwalOpsi(); }
     if (id === 'mpf-autodraf') { if (e.target.checked) autoDraf(); return; }
@@ -2092,7 +2209,7 @@
       case 'ajukan': case 'setujui': case 'tolak': aksiPersetujuan(act, key, b); break;
       case 'pertadd': {
         var rA = pertCollectRaw(); if (rA.length >= PERT_MAX) { toast('Maksimal ' + PERT_MAX + ' pertemuan per modul.', true); break; }
-        rA.push(fixPert({ alokasi: val('mpf-alokasi') })); pertRender(rA, rA.length - 1); break;
+        rA.push(fixPert({ alokasi: alokasiDasar() })); pertRender(rA, rA.length - 1); break;
       }
       case 'pertdup': {
         var rD = pertCollectRaw(), iD = parseInt(b.dataset.i, 10); if (!rD[iD]) break;
@@ -2200,7 +2317,7 @@
     data = []; loaded = false; loading = false; loadErr = '';
     refs = []; refLoaded = false; refLoading = false; refErr = '';
     refMode = 'list'; refEditKey = null; refParsed = null; refPaste = '';
-    formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; pertSaran = PERT_DEFAULT; refSumber = 'auto';
+    formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; atpCache = {}; atpTampil = []; pertSaran = PERT_DEFAULT; refSumber = 'auto';
     tab = 'daftar'; editingKey = null; komp = 'materiIsi'; rekapOpen = '';
     filt = { q: '', mapel: '', kelas: '', semester: '', pers: '' };
     if (root) root.innerHTML = '';
