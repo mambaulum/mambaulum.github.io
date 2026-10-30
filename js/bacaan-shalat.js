@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/bacaan-shalat.js (v3 + Pengingat WA + PJ per target, hanya Admin)
+   SI MAMBA - js/bacaan-shalat.js (v3 + Pengingat WA + PJ per kelas oleh Admin, tab Pengingat, target per kelas & otomatis)
    Menu "Bacaan Sholat" -- hafalan bacaan sholat + amalan harian di rumah + gamifikasi.
 
    TIGA AKSES:
@@ -267,10 +267,13 @@ function bacaanShalatResetState() {
 function bsMuatTargets(paksa) {
   const ta = bsTA();
   if (!paksa && bsState.targets && bsState.targetsTA === ta) return Promise.resolve(bsState.targets);
-  return db.ref('bs_target').orderByChild('tahunAjaran').equalTo(ta).once('value').then(snap => {
+  // PJ per kelas (node bs_pj_kelas). Bila Rules node ini belum dipasang, kegagalan baca diabaikan (PJ otomatis dipakai).
+  const pPj = db.ref('bs_pj_kelas').once('value').then(s => { bsState.pjKelas = s.val() || {}; }).catch(() => { bsState.pjKelas = bsState.pjKelas || {}; });
+  const pTarget = db.ref('bs_target').orderByChild('tahunAjaran').equalTo(ta).once('value').then(snap => {
     const arr = []; snap.forEach(c => { const v = c.val() || {}; v.key = c.key; arr.push(v); });
     bsState.targets = arr; bsState.targetsTA = ta; return arr;
   });
+  return Promise.all([pTarget, pPj]).then(r => r[0]);
 }
 function bsBandingTarget(a, b) { return (a.urutan || 0) - (b.urutan || 0) || bsCmp(a.nama, b.nama); }
 function bsTargetUntukKelas(targets, kelas, termasukNonaktif) {
@@ -310,7 +313,7 @@ function setupBacaanShalatPage() {
 }
 function bsPastikanDataKelas() {
   const k = bsState.kelas;
-  if (!k || bsState.tab === 'target') return;
+  if (!k || bsState.tab === 'target' || bsState.tab === 'ingatkan') return;
   const perluSiswa = typeof v4PanelSiswaCache !== 'undefined' && !v4PanelSiswaCache[k] && typeof v4FetchSiswaByKelas === 'function';
   // Pembungkus Promise + batas waktu 15 dtk (jaga-jaga callback tidak terpanggil), supaya cukup SATU render.
   const pSiswa = perluSiswa ? new Promise(res => { let sel = false; const fin = () => { if (!sel) { sel = true; res(); } }; try { v4FetchSiswaByKelas(k, fin); } catch (e) { fin(); } setTimeout(fin, 15000); }) : Promise.resolve();
@@ -330,11 +333,12 @@ function bsPilihKelas(k) { bsState.kelas = k; bsState.siswaSel = ''; bsState.tar
 function bsRender() {
   const root = bsEl('bsRoot'); if (!root || !bsCanOpenMenu()) return;
   const pil = bsKelasPilihan();
-  const tabs = [['target', '🎯 Target'], ['nilai', '📝 Penilaian'], ['grafik', '📊 Grafik']];
+  const tabs = [['target', '🎯 Target']].concat((bsIsAdmin() || bsIsHead()) ? [['ingatkan', '📲 Pengingat']] : []).concat([['nilai', '📝 Penilaian'], ['grafik', '📊 Grafik']]);
   const opsiKelas = pil.map(k => `<option value="${bsEsc(k)}" ${k === bsState.kelas ? 'selected' : ''}>${bsEsc(bsNamaKelas(k))}</option>`).join('');
   let body = '';
   if (bsState.memuat) body = '<p class="text-muted" style="padding:14px;">⏳ Memuat data...</p>';
   else if (bsState.tab === 'target') body = bsBodyTarget();
+  else if (bsState.tab === 'ingatkan') body = bsBodyIngatkan();
   else if (bsState.tab === 'nilai') body = bsBodyNilai();
   else body = bsBodyGrafik();
   root.innerHTML = `
@@ -372,7 +376,7 @@ function bsWaSudah(id) { return !!bsWaBacaTanda()[id]; }
 function bsWaPesanPetugas() { return 'Assalamualaikum {nama}.\nPengingat dari {madrasah}: Bapak/Ibu penanggung jawab agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon agenda disiapkan dan setoran siswa dinilai tepat waktu. Terima kasih. 🙏'; }
 function bsWaPesanWali() { return 'Assalamualaikum Bapak/Ibu wali murid {siswa}.\nPengingat dari {madrasah}: agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon ananda dibantu berlatih dan didampingi di rumah. Penanggung jawab: {pj}. Terima kasih. 🙏'; }
 function bsWaState(targets) {
-  if (!bsState.wa) bsState.wa = { targetId: '', kelas: '', pesanPetugas: bsWaPesanPetugas(), pesanWali: bsWaPesanWali(), buka: false };
+  if (!bsState.wa) bsState.wa = { targetId: '', kelas: '', pesanPetugas: bsWaPesanPetugas(), pesanWali: bsWaPesanWali(), buka: true };
   const w = bsState.wa, aktif = (targets || []).filter(t => t.aktif !== false);
   if (!aktif.find(t => t.key === w.targetId)) {
     // Default: target aktif terdekat dari hari ini (yang belum lewat lebih dari 7 hari), kalau tak ada ambil yang terakhir.
@@ -391,17 +395,20 @@ function bsWaKelasTarget(t, w) { return t ? (t.kelas === '*' ? (w.kelas || bsSta
 function bsPjKeys(t) { return String((t && t.pjKeys) || '').split(',').map(x => x.trim()).filter(Boolean); }
 function bsPjNama(t) {
   const gl = (typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru : [];
-  return bsPjKeys(t).map(k => { const g = gl.find(x => x && x.key === k); return g ? g.name : ''; }).filter(Boolean);
+  const lama = bsPjKeys(t).map(k => { const g = gl.find(x => x && (x.key === k || x.name === k)); return g ? g.name : ''; }).filter(Boolean);
+  if (lama.length) return lama;
+  const pk = (bsState.pjKelas || {})[t && t.kelas];
+  return pk && pk.name ? [pk.name] : [];
 }
 function bsWaPetugas(t, kelas) {
   const gl = (typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru : [];
   const hasil = [], ada = new Set();
   const tambah = (g, peran) => { if (!g || ada.has(g.key || g.name)) return; ada.add(g.key || g.name); hasil.push({ key: g.key || g.name, nama: g.name || '-', noWa: g.noWa || '', peran }); };
-  const pjDipilih = bsPjKeys(t);
-  if (pjDipilih.length) {   // PJ yang dipilih manual di formulir target menggantikan PJ otomatis
-    pjDipilih.forEach(k => tambah(gl.find(g => g && g.key === k), 'PJ target'));
-    if (hasil.length) return hasil;   // bila semua PJ terpilih sudah tak ada di data guru -> pakai PJ otomatis
-  }
+  const cariGuru = k => gl.find(g => g && (g.key === k || g.name === k));
+  const pjLama = bsPjKeys(t);   // PJ per target (versi lama), kalau masih ada
+  if (pjLama.length) { pjLama.forEach(k => tambah(cariGuru(k), 'PJ target')); if (hasil.length) return hasil; }
+  const pjKls = (bsState.pjKelas || {})[t.kelas];   // PJ per kelas (ditentukan Admin di tab Target)
+  if (pjKls && pjKls.key) { tambah(cariGuru(pjKls.key), 'PJ ' + bsNamaKelas(t.kelas)); if (hasil.length) return hasil; }
   gl.filter(g => g && g.waliKelasOf && (t.kelas === '*' || g.waliKelasOf === t.kelas)).sort((a, b) => bsCmp(a.name, b.name)).forEach(g => tambah(g, 'Wali Kelas ' + g.waliKelasOf));
   tambah(gl.find(g => g && t.dibuatOleh && g.name === t.dibuatOleh), 'Pembuat target');
   return hasil;
@@ -430,7 +437,7 @@ function bsWaPanelHtml(targets) {
   const petugas = bsWaPetugas(t, kelas);
   const pjTeks = petugas.map(p => p.nama).join(', ') || '-';
   const wali = kelas ? bsWaWali(kelas) : { daftar: [], tanpa: [] };
-  if (kelas && !wali && typeof v4FetchSiswaByKelas === 'function') v4FetchSiswaByKelas(kelas, () => { if (bsState.tab === 'target') bsRender(); });
+  if (kelas && !wali && typeof v4FetchSiswaByKelas === 'function') v4FetchSiswaByKelas(kelas, () => { if (bsState.tab === 'ingatkan') bsRender(); });
   bsState.waList = { petugas, wali: wali ? wali.daftar : [], t: t.key, kelas, waktu, pjTeks };
   const tandaOk = id => bsWaSudah(id) ? '<span class="bs-wa-st" style="color:#059669;font-weight:600;font-size:12px;">✓ sudah dibuka</span>' : '<span class="bs-wa-st text-muted" style="font-size:12px;">belum</span>';
   const barisPetugas = petugas.map((p, i) => {
@@ -510,48 +517,131 @@ function bsWaBerikutnya() {
 }
 
 // ---------- Tab TARGET ----------
-function bsPjPilihanHtml(pjKeys) {
-  const gl = (typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru.filter(g => g && g.key && g.name) : [];
-  if (!gl.length) return '<p class="text-muted" style="font-size:12px;">Data guru belum termuat.</p>';
-  const dipilih = new Set(String(pjKeys || '').split(',').map(x => x.trim()).filter(Boolean));
-  const urut = gl.slice().sort((a, b) => bsCmp(a.name, b.name));
-  return '<div style="max-height:170px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;">' + urut.map(g =>
-    `<label style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;cursor:pointer;"><input type="checkbox" class="bsTgPj" value="${bsEsc(g.key)}" ${dipilih.has(g.key) ? 'checked' : ''}> <span>${bsEsc(g.name)}${g.waliKelasOf ? ' <span class="text-muted" style="font-size:11px;">· wali ' + bsEsc(g.waliKelasOf) + '</span>' : ''}${g.noWa ? '' : ' <span style="font-size:11px;color:#b45309;">· no. WA kosong</span>'}</span></label>`).join('') + '</div>';
+// ---------- PJ per kelas + target otomatis + pembersihan target lama ----------
+function bsPjKelasHtml() {
+  if (!(bsIsAdmin() || bsIsHead())) return '';
+  const admin = bsIsAdmin();
+  const gl = ((typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru : []).filter(g => g && g.name).slice().sort((a, b) => bsCmp(a.name, b.name));
+  const kl = typeof KELAS_LIST !== 'undefined' ? KELAS_LIST : [];
+  const pj = bsState.pjKelas || {}, tg = bsState.targets || [];
+  const tanpa = kl.filter(k => !tg.some(t => t.kelas === k));
+  const baris = kl.map(k => {
+    const p = pj[k] || {}, n = tg.filter(t => t.kelas === k).length;
+    const pilih = admin
+      ? `<select class="field" style="font-size:12px;padding:5px;" onchange="bsSetPjKelas('${bsEscJs(k)}', this.value)"><option value="">-- Belum Ditentukan --</option>${gl.map(g => { const v = g.key || g.name; return `<option value="${bsEsc(v)}" ${v === p.key ? 'selected' : ''}>${bsEsc(g.name)}</option>`; }).join('')}</select>`
+      : bsEsc(p.name || '—');
+    const tombol = (admin && !n) ? ` <button class="btn btn-primary" style="padding:3px 9px;font-size:11px;" onclick="bsBuatTargetOtomatis('${bsEscJs(k)}')">⚡ Buat otomatis</button>` : '';
+    return `<tr><td style="font-weight:600;white-space:nowrap;">${bsEsc(bsNamaKelas(k))}</td><td>${pilih}</td><td style="white-space:nowrap;font-size:12px;">${n ? n + ' target' : '<span class="text-muted">belum ada</span>'}${tombol}</td></tr>`;
+  }).join('');
+  const lama = tg.filter(t => t.kelas === '*');
+  const peringatanLama = (admin && lama.length) ? `<div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;margin-bottom:10px;font-size:13px;">⚠️ Ada ${lama.length} target lama berlaku "Semua kelas". Target seperti ini sudah tidak dipakai lagi. <button class="btn btn-danger" style="margin-left:6px;padding:4px 10px;font-size:12px;" onclick="bsHapusTargetLama()">🧹 Hapus target lama</button></div>` : '';
+  const semuaOto = (admin && tanpa.length > 1) ? `<button class="btn btn-soft" style="padding:5px 10px;font-size:12px;margin-bottom:8px;" onclick="bsBuatTargetOtomatis('')">⚡ Buat otomatis untuk ${tanpa.length} kelas yang belum punya target</button>` : '';
+  return `${peringatanLama}<div class="v4-card" style="margin-bottom:14px;"><h4>👤 Penanggung Jawab Bacaan Sholat per Kelas</h4>
+    <div class="v4-muted" style="margin-bottom:8px;">${admin ? 'Admin menentukan satu guru penanggung jawab untuk tiap kelas. Guru ini yang diingatkan lewat WhatsApp di tab 📲 Pengingat.' : 'Penanggung jawab ditentukan oleh Admin.'}</div>
+    ${semuaOto}<div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Penanggung Jawab</th><th>Target</th></tr></thead><tbody>${baris}</tbody></table></div></div>`;
+}
+function bsSetPjKelas(kelas, guruValue) {
+  if (!bsIsAdmin()) return toast('Hanya Admin!', true);
+  if (!bsOnline()) return toast('📡 Sedang offline.', true);
+  const gl = (typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru : [];
+  const ref = db.ref('bs_pj_kelas/' + kelas);
+  bsState.pjKelas = bsState.pjKelas || {};
+  if (!guruValue) {
+    ref.remove().then(() => { delete bsState.pjKelas[kelas]; toast('Penanggung jawab dihapus'); bsRender(); })
+      .catch(err => toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true));
+    return;
+  }
+  const g = gl.find(x => x && (x.key || x.name) === guruValue); if (!g) return;
+  const rec = { kelas, key: g.key || g.name, name: g.name, updatedAt: new Date().toISOString(), updatedBy: bsGuruNama() };
+  ref.set(rec).then(() => {
+    bsState.pjKelas[kelas] = rec;
+    if (typeof v4Audit === 'function') v4Audit('BS_SET_PJ_KELAS', 'BACAAN_SHALAT', kelas, null, { kelas, pj: g.name });
+    toast('✅ Penanggung jawab ' + bsNamaKelas(kelas) + ' tersimpan.'); bsRender();
+  }).catch(err => toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true));
+}
+function bsBuatTargetOtomatis(kelas) {
+  if (!bsIsAdmin()) return toast('Hanya Admin.', true);
+  if (!bsOnline()) return toast('📡 Sedang offline.', true);
+  const semua = typeof KELAS_LIST !== 'undefined' ? KELAS_LIST : [];
+  const punya = new Set((bsState.targets || []).map(t => t.kelas));
+  const daftar = (kelas ? [kelas] : semua).filter(k => !punya.has(k));
+  if (!daftar.length) return toast('Kelas ini sudah punya target.', true);
+  const msg = 'Buat ' + BS_CONTOH_TARGET.length + ' target bacaan sholat (mingguan, satu per pekan mulai pekan ini) untuk ' + (daftar.length === 1 ? bsNamaKelas(daftar[0]) : daftar.length + ' kelas yang belum punya target') + '?';
+  if (!(typeof doubleConfirm === 'function' ? doubleConfirm(msg) : confirm(msg))) return;
+  if (!bsKunciMulai('otomatis')) return;
+  const d = new Date(), senin = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  const now = new Date().toISOString(), payload = {}, baru = [];
+  daftar.forEach(k => BS_CONTOH_TARGET.forEach((nama, i) => {
+    const id = db.ref('bs_target').push().key;
+    const tgl = bsFmtLokal(new Date(senin.getFullYear(), senin.getMonth(), senin.getDate() + i * 7));
+    const rec = { nama, jenis: 'mingguan', tanggal: tgl, kelas: k, urutan: i + 1, aktif: true, tahunAjaran: bsTA(), dibuat: now, dibuatOleh: bsGuruNama() };
+    payload[id] = rec; baru.push(Object.assign({ key: id }, rec));
+  }));
+  db.ref('bs_target').update(payload).then(() => {
+    bsState.targets = (bsState.targets || []).concat(baru);
+    if (typeof v4Audit === 'function') v4Audit('BS_TARGET_OTOMATIS', 'BACAAN_SHALAT', null, null, { kelas: daftar.join(', '), jumlah: baru.length });
+    toast('✅ ' + baru.length + ' target dibuat untuk ' + daftar.length + ' kelas.'); bsRender();
+  }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
+    .then(() => bsKunciSelesai('otomatis'));
+}
+function bsHapusTargetLama() {
+  if (!bsIsAdmin()) return toast('Hanya Admin.', true);
+  if (!bsOnline()) return toast('📡 Sedang offline.', true);
+  const lama = (bsState.targets || []).filter(t => t.kelas === '*');
+  if (!lama.length) return toast('Tidak ada target lama.', true);
+  const msg = 'Hapus ' + lama.length + ' target lama "Semua kelas"? Target yang sudah punya penilaian siswa tidak dihapus, hanya dinonaktifkan.';
+  if (!(typeof doubleConfirm === 'function' ? doubleConfirm(msg) : confirm(msg))) return;
+  if (!bsKunciMulai('hapusLama')) return;
+  Promise.all(lama.map(t => db.ref('bs_setoran').orderByChild('targetId').equalTo(t.key).limitToFirst(1).once('value').then(snap => ({ t, ada: snap.exists() })))).then(hasil => {
+    const payload = {}; let dihapus = 0, dinonaktif = 0;
+    hasil.forEach(h => { if (h.ada) { if (h.t.aktif !== false) { payload[h.t.key + '/aktif'] = false; payload[h.t.key + '/updatedAt'] = new Date().toISOString(); } dinonaktif++; } else { payload[h.t.key] = null; dihapus++; } });
+    return db.ref('bs_target').update(payload).then(() => {
+      bsState.targets = (bsState.targets || []).filter(t => !hasil.some(h => !h.ada && h.t.key === t.key));
+      hasil.filter(h => h.ada).forEach(h => { const t = bsState.targets.find(x => x.key === h.t.key); if (t) t.aktif = false; });
+      if (typeof v4Audit === 'function') v4Audit('BS_HAPUS_TARGET_LAMA', 'BACAAN_SHALAT', null, null, { dihapus, dinonaktif });
+      toast('✅ ' + dihapus + ' target lama dihapus' + (dinonaktif ? ', ' + dinonaktif + ' dinonaktifkan (sudah ada penilaian)' : '') + '.'); bsRender();
+    });
+  }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
+    .then(() => bsKunciSelesai('hapusLama'));
+}
+function bsBodyIngatkan() {
+  if (!(bsIsAdmin() || bsIsHead())) return '<p class="text-muted">Tab ini hanya untuk Admin dan Kepala Madrasah.</p>';
+  const targets = (bsState.targets || []).filter(t => t.aktif !== false).sort(bsBandingTarget);
+  return bsWaPanelHtml(targets) || '<p class="text-muted" style="font-size:13px;">Belum ada target aktif. Buat target di tab 🎯 Target dulu, lalu kembali ke sini untuk mengirim pengingat.</p>';
 }
 function bsBodyTarget() {
   const targets = (bsState.targets || []).filter(t => bsIsAdmin() || bsIsHead() || t.kelas === '*' || bsKelasScope().includes(t.kelas)).sort(bsBandingTarget);
   const edit = bsState.editId ? (bsState.targets || []).find(t => t.key === bsState.editId) : null;
   const pilKelasForm = [];
-  if (bsIsAdmin()) pilKelasForm.push(['*', 'Semua kelas']);
+  if (edit && edit.kelas === '*') pilKelasForm.push(['*', 'Semua kelas']);   // opsi lama hanya muncul saat mengubah target lama
   bsKelasPilihan().forEach(k => { if (bsCanTarget(k)) pilKelasForm.push([k, bsNamaKelas(k)]); });
   const nextUrutan = (targets.reduce((m, t) => Math.max(m, t.urutan || 0), 0)) + 1;
-  const v = edit || { nama: '', jenis: 'mingguan', tanggal: bsHariIni(), kelas: pilKelasForm[0] ? pilKelasForm[0][0] : '', urutan: nextUrutan, teks: '' };
+  const v = edit || { nama: '', jenis: 'mingguan', tanggal: bsHariIni(), kelas: (pilKelasForm.find(x => x[0] === bsState.kelas) || pilKelasForm[0] || [''])[0], urutan: nextUrutan, teks: '' };
+  const kelasInputHtml = (!edit && pilKelasForm.length > 1)
+    ? `<div><label class="label">Berlaku untuk kelas * <span class="text-muted" style="font-weight:400;font-size:11px;">(boleh lebih dari satu)</span></label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;">${pilKelasForm.map(([k, t]) => `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;"><input type="checkbox" class="bsTgKelasCb" value="${bsEsc(k)}" ${k === bsState.kelas ? 'checked' : ''}> ${bsEsc(t)}</label>`).join('')}</div></div>`
+    : `<div><label class="label">Berlaku untuk *</label>
+          <select id="bsTgKelas" class="field">${pilKelasForm.map(([k, t]) => `<option value="${bsEsc(k)}" ${v.kelas === k ? 'selected' : ''}>${bsEsc(t)}</option>`).join('')}</select></div>`;
   const form = bsPunyaAksesTarget() ? `
-    <div class="card" style="margin-bottom:14px;border:1px solid #e5e7eb;">
-      <p style="font-weight:700;margin-bottom:8px;">${edit ? '✏️ Ubah Target' : '➕ Tambah Target Bacaan'}</p>
+    <details class="card" style="margin-bottom:14px;border:1px solid #e5e7eb;" ${(edit || !targets.length) ? 'open' : ''}>
+      <summary style="cursor:pointer;font-weight:700;margin-bottom:8px;">${edit ? '✏️ Ubah Target' : '➕ Tambah Target Bacaan'}</summary>
       <div class="v4-grid-2">
         <div><label class="label">Nama bacaan *</label><input id="bsTgNama" class="field" maxlength="120" placeholder="mis. Doa Iftitah" value="${bsEsc(v.nama)}"></div>
         <div><label class="label">Periode *</label>
           <select id="bsTgJenis" class="field" onchange="bsTargetJenisBerubah()"><option value="harian" ${v.jenis === 'harian' ? 'selected' : ''}>Harian</option><option value="mingguan" ${v.jenis === 'mingguan' ? 'selected' : ''}>Mingguan</option></select></div>
         <div><label class="label" id="bsTgTanggalLabel">${v.jenis === 'harian' ? 'Tanggal target *' : 'Tanggal di pekan target *'}</label><input id="bsTgTanggal" type="date" class="field" value="${bsEsc(v.tanggal)}"></div>
-        <div><label class="label">Berlaku untuk *</label>
-          <select id="bsTgKelas" class="field">${pilKelasForm.map(([k, t]) => `<option value="${bsEsc(k)}" ${v.kelas === k ? 'selected' : ''}>${bsEsc(t)}</option>`).join('')}</select></div>
+        ${kelasInputHtml}
         <div><label class="label">Urutan</label><input id="bsTgUrutan" type="number" min="1" max="999" class="field" value="${bsEsc(v.urutan)}"></div>
       </div>
-      ${bsIsAdmin() ? `<details style="margin-top:8px;" ${(v.pjKeys || '') ? 'open' : ''}>
-        <summary style="cursor:pointer;font-weight:600;font-size:13px;">👤 Penanggung jawab (PJ) agenda — opsional</summary>
-        <p class="text-muted" style="font-size:11px;margin:4px 0;">Hanya Admin yang dapat mengatur. Centang guru yang bertugas. Kosong = otomatis: wali kelas dari kelas target + pembuat target. PJ ini yang diingatkan lewat WhatsApp.</p>
-        ${bsPjPilihanHtml(v.pjKeys || '')}
-      </details>` : ''}
       <label class="label" style="margin-top:8px;">Teks bacaan / catatan untuk siswa (opsional)</label>
       <textarea id="bsTgTeks" class="field" rows="3" maxlength="2000" placeholder="Tulis teks bacaan atau petunjuk singkat. Tampil di Mode Anak.">${bsEsc(v.teks || '')}</textarea>
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
         <button class="btn btn-success" id="bsBtnSimpanTarget" onclick="bsSimpanTarget()">💾 ${edit ? 'Simpan Perubahan' : 'Tambah Target'}</button>
         ${edit ? '<button class="btn btn-soft" onclick="bsBatalEditTarget()">Batal</button>' : ''}
       </div>
-    </div>` : '';
+    </details>` : '';
   const kosong = !targets.length;
-  const contoh = (bsIsAdmin() && kosong) ? `<div style="padding:12px;border:1px dashed #9ca3af;border-radius:10px;margin-bottom:12px;font-size:13px;">Belum ada target. Untuk mulai cepat, isi daftar contoh (${BS_CONTOH_TARGET.length} bacaan sholat, satu per pekan mulai pekan ini, berlaku semua kelas) lalu ubah sesuai kebutuhan. <button class="btn btn-primary" style="margin-left:6px;padding:6px 12px;" onclick="bsIsiContoh()">✨ Isi contoh daftar</button></div>` : '';
+  const contoh = '';
   const baris = targets.map(t => {
     const bisa = bsCanTarget(t.kelas);
     const aktif = t.aktif !== false;
@@ -565,7 +655,7 @@ function bsBodyTarget() {
         <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="bsHapusTarget('${bsEscJs(t.key)}')">🗑️</button>` : '<span class="text-muted" style="font-size:11px;">lihat saja</span>'}</td>
     </tr>`;
   }).join('');
-  return bsWaPanelHtml(targets) + form + contoh + (kosong ? '<p class="text-muted" style="font-size:13px;">Belum ada target bacaan.</p>' : `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Bacaan</th><th>Kelas</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${baris}</tbody></table></div>`);
+  return bsPjKelasHtml() + form + contoh + (kosong ? '<p class="text-muted" style="font-size:13px;">Belum ada target bacaan.</p>' : `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Bacaan</th><th>Kelas</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${baris}</tbody></table></div>`);
 }
 function bsTargetJenisBerubah() {
   const j = bsEl('bsTgJenis'), l = bsEl('bsTgTanggalLabel');
@@ -578,34 +668,39 @@ function bsSimpanTarget() {
   if (!bsOnline()) return toast('📡 Sedang offline. Menyimpan target butuh koneksi internet.', true);
   if (isBusy('bsSimpanTarget')) return;
   const nama = (bsEl('bsTgNama').value || '').trim(), jenis = bsEl('bsTgJenis').value, tanggal = bsEl('bsTgTanggal').value;
-  const kelas = bsEl('bsTgKelas').value, urutan = parseInt(bsEl('bsTgUrutan').value, 10) || 1, teks = (bsEl('bsTgTeks').value || '').trim();
-  const pjAdmin = bsIsAdmin();   // hanya Admin yang boleh menentukan PJ; guru wali kelas tidak mengubahnya
-  const pjKeys = pjAdmin ? Array.from(document.querySelectorAll('.bsTgPj:checked')).map(el => el.value).join(',') : '';
-  if (pjKeys.length > 300) return toast('⚠️ Terlalu banyak PJ dipilih (maksimal sekitar 10 guru).', true);
+  const kelasEl = bsEl('bsTgKelas');
+  const kelasPilih = kelasEl ? [kelasEl.value] : Array.from(document.querySelectorAll('.bsTgKelasCb:checked')).map(el => el.value);
+  const kelas = kelasPilih[0] || '', urutan = parseInt(bsEl('bsTgUrutan').value, 10) || 1, teks = (bsEl('bsTgTeks').value || '').trim();
   if (nama.length < 2) return toast('⚠️ Nama bacaan minimal 2 huruf.', true);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal || '')) return toast('⚠️ Tanggal target belum diisi.', true);
-  if (!kelas || !bsCanTarget(kelas)) return toast('⚠️ Anda tidak boleh membuat target untuk kelas tersebut.', true);
+  if (!kelasPilih.length) return toast('⚠️ Pilih minimal satu kelas.', true);
+  if (kelasPilih.some(k => !k || !bsCanTarget(k))) return toast('⚠️ Anda tidak boleh membuat target untuk kelas tersebut.', true);
   const edit = bsState.editId ? (bsState.targets || []).find(t => t.key === bsState.editId) : null;
   if (edit && !bsCanTarget(edit.kelas)) return toast('⚠️ Anda tidak boleh mengubah target milik kelas lain.', true);
   const btn = bsEl('bsBtnSimpanTarget'); setBusy('bsSimpanTarget', btn);
   const now = new Date().toISOString();
   const data = { nama, jenis, tanggal, kelas, urutan, tahunAjaran: bsTA(), updatedAt: now, diubahOleh: bsGuruNama() };
-  let janji, rec;
+  let janji, rec, recsBaru = [];
   if (edit) {
     rec = Object.assign({}, edit, data); if (teks) rec.teks = teks; else delete rec.teks;
     const dataUbah = Object.assign({}, data, { teks: teks || null });
-    if (pjAdmin) { dataUbah.pjKeys = pjKeys || null; if (pjKeys) rec.pjKeys = pjKeys; else delete rec.pjKeys; }   // non-Admin: PJ lama dibiarkan
     janji = db.ref('bs_target/' + edit.key).update(dataUbah);
   } else {
-    const ref = db.ref('bs_target').push(); data.aktif = true; data.dibuat = now; data.dibuatOleh = bsGuruNama(); if (teks) data.teks = teks; if (pjAdmin && pjKeys) data.pjKeys = pjKeys;
-    rec = Object.assign({ key: ref.key }, data); janji = ref.set(data);
+    const updates = {};
+    kelasPilih.forEach(k => {   // satu target per kelas yang dicentang (tidak ada lagi target "semua kelas" untuk target baru)
+      const key = db.ref('bs_target').push().key;
+      const d = Object.assign({}, data, { kelas: k, aktif: true, dibuat: now, dibuatOleh: bsGuruNama() });
+      if (teks) d.teks = teks;
+      updates[key] = d; recsBaru.push(Object.assign({ key }, d));
+    });
+    rec = recsBaru[0]; janji = db.ref('bs_target').update(updates);
   }
   janji.then(() => {
     clearBusy('bsSimpanTarget', bsEl('bsBtnSimpanTarget'));
-    if (edit) { const i = bsState.targets.findIndex(t => t.key === edit.key); if (i >= 0) bsState.targets[i] = rec; } else bsState.targets.push(rec);
+    if (edit) { const i = bsState.targets.findIndex(t => t.key === edit.key); if (i >= 0) bsState.targets[i] = rec; } else recsBaru.forEach(r => bsState.targets.push(r));
     bsState.editId = '';
-    if (typeof v4Audit === 'function') v4Audit(edit ? 'BS_UBAH_TARGET' : 'BS_BUAT_TARGET', 'BACAAN_SHALAT', rec.key, null, Object.assign({ nama, jenis, kelas }, pjAdmin ? { pjKeys: pjKeys || null } : {}));
-    toast('✅ Target tersimpan.'); bsRender();
+    if (typeof v4Audit === 'function') (edit ? [rec] : recsBaru).forEach(r => v4Audit(edit ? 'BS_UBAH_TARGET' : 'BS_BUAT_TARGET', 'BACAAN_SHALAT', r.key, null, { nama, jenis, kelas: r.kelas }));
+    toast(edit || recsBaru.length < 2 ? '✅ Target tersimpan.' : '✅ ' + recsBaru.length + ' target (per kelas) tersimpan.'); bsRender();
   }).catch(err => { clearBusy('bsSimpanTarget', bsEl('bsBtnSimpanTarget')); toast('❌ Gagal menyimpan target: ' + ((err && err.message) || err), true); });
 }
 function bsToggleAktif(id) {
@@ -635,28 +730,6 @@ function bsHapusTarget(id) {
     });
   }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
     .then(() => bsKunciSelesai(kunci));
-}
-function bsIsiContoh() {
-  if (!bsIsAdmin()) return toast('Hanya Admin.', true);
-  if (!bsOnline()) return toast('📡 Sedang offline.', true);
-  if ((bsState.targets || []).length) return toast('Sudah ada target; contoh tidak diisi agar tidak dobel.', true);
-  const ok = typeof doubleConfirm === 'function' ? doubleConfirm('Isi ' + BS_CONTOH_TARGET.length + ' target contoh (mingguan, semua kelas)?') : confirm('Isi target contoh?');
-  if (!ok) return;
-  if (!bsKunciMulai('contoh')) return;
-  const d = new Date(), senin = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
-  const now = new Date().toISOString(), payload = {}, baru = [];
-  BS_CONTOH_TARGET.forEach((nama, i) => {
-    const id = db.ref('bs_target').push().key;
-    const tgl = bsFmtLokal(new Date(senin.getFullYear(), senin.getMonth(), senin.getDate() + i * 7));
-    const rec = { nama, jenis: 'mingguan', tanggal: tgl, kelas: '*', urutan: i + 1, aktif: true, tahunAjaran: bsTA(), dibuat: now, dibuatOleh: bsGuruNama() };
-    payload[id] = rec; baru.push(Object.assign({ key: id }, rec));
-  });
-  db.ref('bs_target').update(payload).then(() => {
-    bsState.targets = (bsState.targets || []).concat(baru);
-    if (typeof v4Audit === 'function') v4Audit('BS_ISI_CONTOH_TARGET', 'BACAAN_SHALAT', null, null, { jumlah: baru.length });
-    toast('✅ ' + baru.length + ' target contoh ditambahkan.'); bsRender();
-  }).catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
-    .then(() => bsKunciSelesai('contoh'));
 }
 
 // ---------- Tab PENILAIAN ----------
