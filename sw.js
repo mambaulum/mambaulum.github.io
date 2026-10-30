@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.258';
+const APP_VERSION = 'v8.261';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -134,9 +134,9 @@ const PRECACHE_URLS = [
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=13',
   './js/auto-logout.js?v=5',
-  './js/login-kode.js?v=12',               // juga dipakai login OFFLINE (membungkus login())
+  './js/login-kode.js?v=13',               // juga dipakai login OFFLINE (membungkus login())
   './js/impersonate.js?v=7',
-  './js/peran-ganda.js?v=1',              // peran ganda: guru yang juga Kepala beralih Guru/Kepala tanpa logout (dimuat SESUDAH app.js, kredensial.js, login-kode.js)
+  './js/peran-ganda.js?v=4',              // peran ganda: guru yang juga Kepala beralih Guru/Kepala tanpa logout (dimuat SESUDAH app.js, kredensial.js, login-kode.js)
   './js/absen-manual-gps.js?v=5',          // konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (dimuat SESUDAH app.js)
   './js/surat-guru.js?v=47',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
