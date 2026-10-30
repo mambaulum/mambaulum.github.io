@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.261",
-  "disimpan": "2026-10-30T00:34:08.485Z",
+  "appVersion": "v8.270",
+  "disimpan": "2026-10-30T02:06:05.110Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -51,16 +51,16 @@
       "hash": "929631093175eed9c99eb7b583ad96ace8243a92"
     },
     "js/kas.js": {
-      "v": "v=9",
-      "hash": "fe133e4f2f932d1f0eb4aeafedb44d0188dde580"
+      "v": "v=10",
+      "hash": "3f0afd882d3dd7aaaa3eac8049d2e28e63a7e4de"
     },
     "js/administrasi-ujian.js": {
       "v": "v=4",
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=134",
-      "hash": "c695dd8fae3be8be5dbee9fd1e3bd8f63f5aa37b"
+      "v": "v=137",
+      "hash": "a596b1c24f29a854f6bd91ac2bff956f60831b48"
     },
     "js/portal-ortu.js": {
       "v": "v=2",
@@ -79,8 +79,8 @@
       "hash": "3700ebef46ef11a5254e1e55e9c00da89b2e5995"
     },
     "js/kelola-absen-guru.js": {
-      "v": "v=6",
-      "hash": "482eeb323bf8024a485ebe78e065345be0e716e0"
+      "v": "v=7",
+      "hash": "88df7ae87bfc4cce0e780101e7014f6ce8b0e6ca"
     },
     "js/jadwal.js": {
       "v": "v=5",
@@ -91,8 +91,8 @@
       "hash": "03c2c7e6153a1d0f7a158e6ced225112b4f03d3f"
     },
     "js/honor-guru.js": {
-      "v": "v=26",
-      "hash": "0b12dff2669b7bb16a5bbbaf7f375d64d3a0a347"
+      "v": "v=27",
+      "hash": "6a95edff1460c68e9642d09deeb6ed5ec399612b"
     },
     "js/honor-kebersihan.js": {
       "v": "v=3",
@@ -107,8 +107,8 @@
       "hash": "195a226359bbeeb1a04cdff8a9bcc2254d91238f"
     },
     "js/v4-tahfidz-pramuka-ekskul.js": {
-      "v": "v=2",
-      "hash": "d10c16b9b5f24fc25de13434b0e0da14f1109254"
+      "v": "v=5",
+      "hash": "6a1d49ad1764ffcb57791a1c06132cc26ee3636f"
     },
     "js/v4-pengaturan-notif-rapor.js": {
       "v": "v=3",
@@ -135,8 +135,8 @@
       "hash": "01cf4e9d995c986db82b039eb96ffa2d185645d7"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=4",
-      "hash": "3bddeadbdb8d1c0a05d141dcd7a28356fad9de43"
+      "v": "v=9",
+      "hash": "2e1e95e8a68b50c4e42f7080b4354a7b55458d91"
     },
     "js/kredensial.js": {
       "v": "v=8",
@@ -171,7 +171,7 @@
       "hash": "bdb3241404421382d218ae3ffa508b5ee43198dc"
     },
     "js/pkg-sumber.js": {
-      "v": "v=65",
+      "v": "v=68",
       "hash": "03aae66c9d0f3e833763f96428c2afe0a8207733"
     },
     "js/data-pkg-angket.js": {
@@ -179,7 +179,7 @@
       "hash": "7473a9ca49ee3e51d3936208f1768e01097485a7"
     },
     "js/pkg.js": {
-      "v": "v=96",
+      "v": "v=97",
       "hash": "343381b1b6853bead3b1943c9a9a6d2ec6f45e86"
     },
     "js/pkg-analisis.js": {
@@ -247,8 +247,8 @@
       "hash": "e356a41ec4785be45ab33d61f484f9b5379ad133"
     },
     "js/perangkat-pembelajaran.js": {
-      "v": "v=25",
-      "hash": "0b582e27284f9f4d3e2a99a1396a3bf57eec4f7c"
+      "v": "v=26",
+      "hash": "9b5a54d38fc87fb6db5b15b3c3e2c6c1a53a2fc1"
     },
     "js/modul-ajar.js": {
       "v": "v=16",
