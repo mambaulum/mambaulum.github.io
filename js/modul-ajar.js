@@ -9,6 +9,11 @@
 (function () {
   'use strict';
 
+  // Akses global eksternal (app.js) yang aman: tidak melempar ReferenceError bila belum terdefinisi.
+  function madr() { return (typeof MADRASAH !== 'undefined' && MADRASAH) || {}; }
+  function semAktif() { return (typeof currentSemesterAktif !== 'undefined' && currentSemesterAktif) || ''; }
+  function taAktif() { return (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) || ''; }
+
   var PAGE = 'modul-ajar';
   var SECTIONS = [
     { k: 'cp',        t: 'Capaian Pembelajaran (CP)', ph: 'Terisi otomatis dari Referensi Kurikulum sesuai mapel & fase; bisa diedit…' },
@@ -33,6 +38,7 @@
     { id: 'komponen', t: '🧩 Komponen' },
     { id: 'favorit',  t: '⭐ Favorit' },
     { id: 'arsip',    t: '🗄️ Arsip' },
+    { id: 'rekap',    t: '📊 Rekap' },
     { id: 'referensi', t: '🧭 Referensi' }
   ];
 
@@ -40,12 +46,45 @@
   var DPL = ['Keimanan dan Ketakwaan terhadap Tuhan YME', 'Kewargaan', 'Penalaran Kritis', 'Kreativitas', 'Kolaborasi', 'Kemandirian', 'Kesehatan', 'Komunikasi'];
   var PANCA = ['Cinta kepada Allah dan Rasul-Nya', 'Cinta ilmu', 'Cinta lingkungan', 'Cinta diri dan sesama', 'Cinta tanah air'];
 
+  // ---- Rencana Pembelajaran Mendalam (RPM): bidang tambahan di atas modul yang sudah ada ----
+  // lengkap:true = hanya tampil di form & tercetak bila "format lengkap" dicentang. Disimpan datar (string) di node modul.
+  var RPM_FIELDS = [
+    { g: 'Identifikasi', k: 'rpmKesiapan', t: 'Kesiapan Murid', lengkap: true, ph: 'Kondisi awal murid: pengetahuan prasyarat, minat, gaya belajar, kebutuhan khusus…' },
+    { g: 'Identifikasi', k: 'rpmIntegrasiKbc', t: 'Materi Integrasi KBC', ph: 'Materi Panca Cinta yang dikaitkan dengan materi pelajaran (pilih yang ada benang merahnya)…', rows: 2 },
+    { g: 'Desain Pembelajaran', k: 'rpmLintas', t: 'Lintas Disiplin Ilmu', lengkap: true, ph: 'Mapel/disiplin lain yang dikaitkan pada topik ini…', rows: 2 },
+    { g: 'Desain Pembelajaran', k: 'rpmPedagogis', t: 'Praktik Pedagogis', ph: 'Strategi/model yang dipakai (jika kosong, saat cetak diambil dari Model/Metode/Pendekatan)…', rows: 2 },
+    { g: 'Desain Pembelajaran', k: 'rpmLingkungan', t: 'Lingkungan Pembelajaran', ph: 'Ruang fisik/virtual & budaya kelas yang aman, nyaman, ramah, menyenangkan, sejahtera…', rows: 2 },
+    { g: 'Desain Pembelajaran', k: 'rpmKemitraan', t: 'Kemitraan Pembelajaran', lengkap: true, ph: 'Pihak yang dilibatkan: orang tua, narasumber, komunitas, guru lain…', rows: 2 },
+    { g: 'Desain Pembelajaran', k: 'rpmDigital', t: 'Pemanfaatan Digital', lengkap: true, ph: 'Perangkat/aplikasi/sumber digital yang dipakai…', rows: 2 },
+    { g: 'Pengalaman Belajar', k: 'rpmPendahuluan', t: 'Pendahuluan', lengkap: true, ph: 'Pembukaan: doa, apersepsi, pemantik, penyampaian tujuan…' },
+    { g: 'Pengalaman Belajar', k: 'rpmMemahami', t: 'Memahami', ph: 'Kegiatan murid membangun pemahaman konsep (berkesadaran, bermakna, menggembirakan; sisipkan Panca Cinta)…' },
+    { g: 'Pengalaman Belajar', k: 'rpmMengaplikasi', t: 'Mengaplikasi', ph: 'Kegiatan murid menerapkan pemahaman dalam tugas/proyek/kasus nyata…' },
+    { g: 'Pengalaman Belajar', k: 'rpmMerefleksi', t: 'Merefleksi', ph: 'Kegiatan murid merenungkan proses & hasil belajarnya…' },
+    { g: 'Pengalaman Belajar', k: 'rpmPenutup', t: 'Penutup', lengkap: true, ph: 'Kesimpulan, umpan balik, tindak lanjut, doa penutup…' },
+    { g: 'Asesmen', k: 'rpmAsesAwal', t: 'Asesmen Awal', ph: 'Teknik/instrumen asesmen diagnostik di awal pembelajaran…', rows: 2 },
+    { g: 'Asesmen', k: 'rpmAsesProses', t: 'Asesmen Proses', ph: 'Teknik/instrumen asesmen formatif selama pembelajaran…', rows: 2 },
+    { g: 'Asesmen', k: 'rpmAsesAkhir', t: 'Asesmen Akhir', ph: 'Teknik/instrumen asesmen sumatif di akhir pembelajaran…', rows: 2 },
+    { g: 'Asesmen', k: 'rpmRubrik', t: 'Rubrik dan Kriteria Penilaian', lengkap: true, ph: 'Rubrik penilaian beserta kriteria ketercapaian…', rows: 4 },
+    { g: 'Asesmen', k: 'rpmKktp', t: 'KKTP (Kriteria Ketercapaian Tujuan Pembelajaran)', lengkap: true, ph: 'Batas/kriteria murid dinyatakan mencapai tiap tujuan pembelajaran; sesuaikan dengan kesepakatan madrasah…', rows: 4 }
+  ];
+  // Daftar kolom RPM yang masih kosong (minimum selalu dicek; kolom lengkap hanya bila modul memakai format lengkap).
+  function rpmKurang(m) {
+    var out = [], L = rpmLengkap(m);
+    if (!(m.dpl && m.dpl.length)) out.push('Dimensi Profil Lulusan');
+    if (!(m.pancaCinta && m.pancaCinta.length)) out.push('Panca Cinta');
+    RPM_FIELDS.forEach(function (f) {
+      if ((L || !f.lengkap) && !String(m[f.k] || '').trim()) out.push(f.t + (f.lengkap ? ' (lengkap)' : ''));
+    });
+    return out;
+  }
+  function rpmLengkap(m) { return !!m && (m.rpmLengkap === '1' || m.rpmLengkap === true); }
+
   var REF_MIN = 20; // panjang minimum CP/TP (bila diisi) pada referensi kurikulum
   var data = [], loaded = false, loading = false, loadErr = '';
   var refs = [], refLoaded = false, refLoading = false, refErr = '';
   var refMode = 'list', refEditKey = null, refParsed = null, refPaste = '';
   var formRef = null, lastFill = { cp: '', tp: '' };
-  var tab = 'daftar', editingKey = null, komp = 'materiIsi';
+  var tab = 'daftar', editingKey = null, komp = 'materiIsi', rekapOpen = '';
   var filt = { q: '', mapel: '', kelas: '', semester: '', pers: '' };
   var root = null;
   var gen = 0; // naik tiap resetState(); callback load yang datang terlambat (milik sesi lama) diabaikan
@@ -107,15 +146,18 @@
     if (isBusy('persModul')) return toast('Sedang memproses…', false, 1500);
     setBusy('persModul', btn);
     db.ref('modul_ajar/' + key).transaction(function (cur) {
-      if (cur === null) return cur;   // cache lokal belum ada: biarkan server mengulang dengan data asli
+      // cur === null = cache lokal kosong/basi. null di sini nilai biasa ("tulis kosong"), BUKAN abort: server menolak karena
+      // hash data tidak cocok lalu memanggil fungsi ini lagi dengan data asli. Hanya `return;` (undefined) yang membatalkan.
+      if (cur === null) return cur;
       var st = PERS[cur.persetujuan] ? cur.persetujuan : 'draf';
-      if (dari.indexOf(st) === -1) return;   // status sudah berubah: batalkan
+      if (dari.indexOf(st) === -1) return;   // undefined = abort -> committed=false
       return Object.assign({}, cur, patch, { persetujuan: ke });
     }, function (err, committed, snap) {
       clearBusy('persModul', btn);
       if (err) return toast('Gagal: ' + err.message, true);
       if (!committed) { toast('Status modul sudah berubah. Memuat ulang…', true, 4000); return load(true, function () { renderBody(); }); }
-      var v = snap.val() || {}; v.key = key; Object.assign(m, v);
+      if (!snap.exists()) { toast('Modul tidak ditemukan (mungkin sudah dihapus). Memuat ulang…', true, 4000); return load(true, function () { renderBody(); }); }
+      var v = snap.val(); v.key = key; Object.assign(m, v);
       addLog(logAksi, judulModul(m)); toast(okMsg); kirimNotif(ke, m);
       if (tab === 'buat') { editingKey = null; tab = 'daftar'; render(); } else renderBody();
     }, false);
@@ -137,7 +179,9 @@
     if (act === 'ajukan') {
       if (!canEdit(m)) return toast('Hanya pemilik modul yang bisa mengajukan.', true);
       if (!m.materi || !m.tujuan) return toast('Lengkapi materi dan tujuan pembelajaran sebelum mengajukan.', true);
-      if (!confirm('Ajukan modul ini ke Kepala Madrasah?\nSetelah diajukan, modul dikunci sampai ditinjau.')) return;
+      var kurang = rpmKurang(m);
+      var peringatan = kurang.length ? '⚠️ Kolom RPM berikut masih kosong:\n- ' + kurang.join('\n- ') + '\n\nTekan Batal untuk melengkapi dulu, atau OK untuk tetap mengajukan.\n\n' : '';
+      if (!confirm(peringatan + 'Ajukan modul ini ke Kepala Madrasah?\nSetelah diajukan, modul dikunci sampai ditinjau.')) return;
       return transisi(key, ['draf', 'ditolak'], 'diajukan', { diajukanAt: now, catatanKepsek: null, persetujuanOleh: null, persetujuanRole: null, persetujuanAt: null },
         '📨 Modul diajukan ke Kepala Madrasah', 'ajukan_modul_ajar', btn);
     }
@@ -145,7 +189,7 @@
     var role = isKepsek() ? 'Kepala Madrasah' : 'Admin';
     if (act === 'setujui') {
       // Persetujuan atas nama Kepala. Kepsek: nama Kepala dari data madrasah. Admin: nama Kepala terisi (boleh diganti), peran Admin tetap tercatat.
-      var kpMadrasah = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || '';
+      var kpMadrasah = madr().kepala_sekolah || '';
       var atasNama = kpMadrasah || currentUser.name;
       if (!isKepsek()) {
         var jawab = prompt('Disetujui atas nama siapa? (Admin tetap tercatat sebagai yang menginput.)', kpMadrasah);
@@ -171,6 +215,10 @@
     if (n >= 1 && n <= 2) return 'A';
     if (n >= 3 && n <= 4) return 'B';
     if (n >= 5 && n <= 6) return 'C';
+    // Jenjang lanjutan (bila aplikasi dipakai multi-jenjang): SMP/MTs 7-9 = Fase D, SMA/MA 10 = Fase E, 11-12 = Fase F.
+    if (n >= 7 && n <= 9) return 'D';
+    if (n === 10) return 'E';
+    if (n >= 11 && n <= 12) return 'F';
     return '';
   }
   function jumlahSiswa(kelas) {
@@ -354,6 +402,8 @@
     });
   }
   function sortData() { data.sort(function (a, b) { return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); }); }
+  // Modul berstatus 'diajukan' dikunci (juga ditegakkan Firebase Rules): favorit, arsip, pulih, hapus ikut ditolak.
+  function terkunci(m) { if (m && pers(m) === 'diajukan') { toast('Modul sedang diajukan dan dikunci sampai ditinjau Kepala Madrasah.', true); return true; } return false; }
   function byKey(key) { return data.filter(function (m) { return m.key === key; })[0]; }
   function write(key, payload, okMsg, cb) {
     if (!isReallyOnline()) return toast('Perlu koneksi internet untuk menyimpan.', true);
@@ -620,6 +670,7 @@
     var tabsHtml = TABS.map(function (t) {
       var label = (t.id === 'buat' && editingKey) ? '✏️ Edit Modul' : t.t;
       if (t.id === 'buat' && !canCreate()) return '';
+      if (t.id === 'rekap' && !canApprove()) return '';
       var on = tab === t.id;
       return '<button type="button" id="mp-tab-' + t.id + '" role="tab" aria-selected="' + on + '" aria-controls="mpBody" class="mp-tab' + (on ? ' active' : '') + '" data-mp="tab" data-tab="' + t.id + '">' + label + '</button>';
     }).join('');
@@ -636,6 +687,10 @@
     if (loading) { b.innerHTML = '<p class="text-muted" style="padding:12px 0;">⏳ Memuat modul…</p>'; return; }
     if (tab === 'buat') { b.innerHTML = formHtml(editingKey ? byKey(editingKey) : null); bindForm(); return; }
     if (loadErr) { b.innerHTML = '<p style="color:#dc2626;padding:8px 0;">' + esc(loadErr) + '</p><button class="btn btn-soft" data-mp="reload">🔄 Coba lagi</button>'; return; }
+    if (tab === 'rekap') {
+      if (!canApprove()) { tab = 'daftar'; return renderBody(); }
+      b.innerHTML = rekapToolbarHtml() + '<div id="mpRekapIsi"></div>'; renderRekapIsi(); return;
+    }
     if (tab === 'komponen') { b.innerHTML = komponenHtml(); renderList(); return; }
     b.innerHTML = toolbarHtml() + '<div id="mpList"></div>';
     renderList();
@@ -659,7 +714,8 @@
       '<select id="mpFMapel" class="field">' + opts(mapelOpt, filt.mapel, 'Semua mapel') + '</select>' +
       '<select id="mpFKelas" class="field">' + opts(kelasOpt, filt.kelas, 'Semua kelas') + '</select>' +
       '<select id="mpFSem" class="field">' + opts(['Ganjil', 'Genap'], filt.semester, 'Semua semester') + '</select>' +
-      (canCreate() && tab === 'daftar' ? '<button class="btn btn-success" data-mp="baru">+ MODUL BARU</button>' : '') + '</div>';
+      (canCreate() && tab === 'daftar' ? '<button class="btn btn-success" data-mp="baru">+ MODUL BARU</button>' : '') +
+      (canView() && tab === 'daftar' ? '<button class="btn btn-soft" data-mp="cetakgab" title="Cetak semua modul yang tampil (sesuai filter) dalam satu dokumen">🖨️ CETAK GABUNGAN RPM</button>' : '') + '</div>';
   }
   function uniq(a) { return a.filter(function (x, i) { return x && a.indexOf(x) === i; }).sort(); }
   function komponenHtml() {
@@ -682,6 +738,98 @@
       return true;
     });
   }
+  /* ---------- rekap pemantauan (Admin & Kepala Madrasah) ---------- */
+  // Satu guru = satu baris. Kunci guru: ownerKey; bila akunnya sudah dibuat ulang / modul lama tanpa ownerKey, dicocokkan lewat nama
+  // (aturan sama dengan isOwner). Modul arsip tidak dihitung. Guru tanpa modul tetap tampil selama filter mapel/kelas tidak dipakai.
+  function daftarGuru() { return (typeof allGuru !== 'undefined' && allGuru) ? allGuru : []; }
+  function guruKeyOf(m) {
+    var gl = daftarGuru(), mk = m.ownerKey || '';
+    if (mk && gl.some(function (g) { return g && g.key === mk; })) return mk;
+    var n = normNama(m.ownerName || m.guru), g2 = n ? gl.filter(function (g) { return g && normNama(g.name) === n; })[0] : null;
+    return g2 ? g2.key : (mk || 'n:' + n);
+  }
+  function rekapRows() {
+    var gl = daftarGuru(), rows = {}, q = normNama(filt.q);
+    function row(key, nama) { return rows[key] || (rows[key] = { key: key, nama: nama || '-', total: 0, draf: 0, diajukan: 0, disetujui: 0, ditolak: 0, last: '', items: [] }); }
+    if (!filt.mapel && !filt.kelas) gl.forEach(function (g) { if (g && (g.role === 'guru' || g.role === 'wali_kelas')) row(g.key, g.name); });
+    data.forEach(function (m) {
+      if (m.status === 'arsip') return;
+      if (filt.mapel && m.mapel !== filt.mapel) return;
+      if (filt.kelas && m.kelas !== filt.kelas) return;
+      if (filt.semester && m.semester !== filt.semester) return;
+      var k = guruKeyOf(m), g = gl.filter(function (x) { return x && x.key === k; })[0];
+      var r = row(k, (g && g.name) || m.ownerName || m.guru), st = pers(m);
+      r.total++; r[st]++; r.items.push(m);
+      if (String(m.updatedAt || '') > r.last) r.last = String(m.updatedAt || '');
+    });
+    return Object.keys(rows).map(function (k) { return rows[k]; })
+      .filter(function (r) { return !q || normNama(r.nama).indexOf(q) !== -1; })
+      .sort(function (a, b) { return (b.diajukan - a.diajukan) || String(a.nama).localeCompare(String(b.nama), 'id'); });
+  }
+  function rekapToolbarHtml() {
+    var aktif = data.filter(function (m) { return m.status !== 'arsip'; });
+    function opts(list, cur, all) {
+      return '<option value="">' + all + '</option>' + list.map(function (x) { return '<option value="' + esc(x) + '"' + (x === cur ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
+    }
+    return '<div class="mp-toolbar">' +
+      '<input id="mpQ" class="field" placeholder="🔍 Cari nama guru…" value="' + esc(filt.q) + '">' +
+      '<select id="mpFMapel" class="field">' + opts(uniq(aktif.map(function (m) { return m.mapel; })), filt.mapel, 'Semua mapel') + '</select>' +
+      '<select id="mpFKelas" class="field">' + opts(uniq(aktif.map(function (m) { return m.kelas; })), filt.kelas, 'Semua kelas') + '</select>' +
+      '<select id="mpFSem" class="field">' + opts(['Ganjil', 'Genap'], filt.semester, 'Semua semester') + '</select>' +
+      '<button class="btn btn-soft" data-mp="rekapcsv">⬇️ EKSPOR CSV</button></div>';
+  }
+  function renderRekapIsi() {
+    var box = $('mpRekapIsi'); if (!box || !canApprove()) return;
+    var rows = rekapRows(), sum = { total: 0, draf: 0, diajukan: 0, disetujui: 0, ditolak: 0 }, sudah = 0, belum = 0;
+    rows.forEach(function (r) {
+      Object.keys(sum).forEach(function (k) { sum[k] += r[k]; });
+      if (r.total) sudah++; else belum++;
+    });
+    var pct = sum.total ? Math.round(sum.disetujui * 100 / sum.total) : 0;
+    var kartu = function (angka, label, bg, fg) {
+      return '<div style="flex:1 1 130px;min-width:130px;padding:10px 12px;border-radius:10px;background:' + bg + ';color:' + fg + ';"><div style="font-size:20px;font-weight:700;">' + angka + '</div><div style="font-size:12px;">' + label + '</div></div>';
+    };
+    var html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px;">' +
+      kartu(sum.total, 'Modul (tidak termasuk arsip)', '#f3f4f6', '#374151') +
+      kartu(sudah + ' / ' + rows.length, 'Guru sudah membuat modul', '#dbeafe', '#1e40af') +
+      kartu(sum.diajukan, 'Menunggu persetujuan', '#fef3c7', '#92400e') +
+      kartu(sum.disetujui + ' (' + pct + '%)', 'Disetujui', '#d1fae5', '#065f46') +
+      (belum ? kartu(belum, 'Guru belum punya modul', '#fee2e2', '#991b1b') : '') + '</div>';
+    if (sum.diajukan) html += '<div class="mp-rel" style="margin-bottom:8px;background:#fef3c7;">🔔 <b>' + sum.diajukan + '</b> modul menunggu persetujuan. <button type="button" class="btn btn-soft mp-btn" data-mp="rekapantrean">Buka antrean</button></div>';
+    if (!rows.length) { box.innerHTML = html + '<p class="text-muted" style="padding:12px 0;font-size:13px;">Tidak ada data yang cocok dengan filter.</p>'; return; }
+    var th = 'padding:6px 8px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:12px;white-space:nowrap;', td = 'padding:6px 8px;border-bottom:1px solid #f3f4f6;font-size:13px;';
+    var body = rows.map(function (r) {
+      var buka = rekapOpen === r.key, sepi = !r.total;
+      var tr = '<tr><td style="' + td + '"><button type="button" class="btn btn-soft mp-btn" data-mp="rekapguru" data-key="' + esc(r.key) + '">' + (buka ? '▾ ' : '▸ ') + esc(r.nama) + '</button></td>' +
+        '<td style="' + td + '"><b>' + r.total + '</b></td><td style="' + td + '">' + r.draf + '</td>' +
+        '<td style="' + td + (r.diajukan ? 'background:#fef3c7;font-weight:700;' : '') + '">' + r.diajukan + '</td>' +
+        '<td style="' + td + '">' + r.disetujui + '</td><td style="' + td + '">' + r.ditolak + '</td>' +
+        '<td style="' + td + 'white-space:nowrap;">' + (sepi ? '<span style="color:#991b1b;">Belum ada modul</span>' : tglIso(r.last)) + '</td></tr>';
+      if (buka) {
+        var det = r.items.length ? r.items.slice().sort(function (a, b) { return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); }).map(function (m) {
+          var bt = function (act, label, cls) { return '<button class="btn ' + (cls || 'btn-soft') + ' mp-btn" data-mp="' + act + '" data-key="' + esc(m.key) + '">' + label + '</button>'; };
+          return '<div class="mp-card" style="margin:6px 0;"><div class="mp-card-h"><div class="mp-title">' + esc(judulModul(m)) + '</div>' +
+            '<div class="mp-metas">' + persBadge(m) + chip(m.kelas) + chip('Sem. ' + (m.semester || '-')) + chip('Diperbarui ' + tglIso(m.updatedAt)) + '</div></div>' +
+            '<div class="mp-actions">' + (pers(m) === 'diajukan' ? bt('setujui', '✅ SETUJUI', 'btn-success') + bt('tolak', '❌ TOLAK', 'btn-danger') : '') + bt('cetak', 'CETAK') + '</div></div>';
+        }).join('') : '<p class="text-muted" style="font-size:13px;">Belum ada modul yang cocok dengan filter.</p>';
+        tr += '<tr><td colspan="7" style="padding:4px 8px 10px;background:#fafafa;">' + det + '</td></tr>';
+      }
+      return tr;
+    }).join('');
+    box.innerHTML = html + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr>' +
+      ['Guru', 'Total', 'Draf', 'Diajukan', 'Disetujui', 'Ditolak', 'Terakhir diperbarui'].map(function (h) { return '<th style="' + th + '">' + h + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+  function rekapCsv() {
+    if (!canApprove()) return;
+    var cell = function (v) { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
+    var baris = [['Guru', 'Total', 'Draf', 'Diajukan', 'Disetujui', 'Ditolak', 'Terakhir Diperbarui']];
+    rekapRows().forEach(function (r) { baris.push([r.nama, r.total, r.draf, r.diajukan, r.disetujui, r.ditolak, r.last ? tglIso(r.last) : '']); });
+    var csv = baris.map(function (b) { return b.map(cell).join(';'); }).join('\r\n');
+    var nama = 'rekap-modul-ajar-' + new Date().toISOString().slice(0, 10) + '.csv';
+    if (typeof downloadFile === 'function') downloadFile(csv, nama, 'text/csv');
+    else { var u = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })), a = document.createElement('a'); a.href = u; a.download = nama; a.click(); URL.revokeObjectURL(u); }
+  }
   function renderList() {
     var box = $('mpList'); if (!box) return;
     var items = filtered();
@@ -701,7 +849,7 @@
     if (canApprove() && !arsip && st === 'diajukan') acts += btn('setujui', '✅ SETUJUI', 'btn-success') + btn('tolak', '❌ TOLAK', 'btn-danger');
     if (canCreate()) acts += btn('dup', 'DUPLIKAT');
     if (edit && !arsip) acts += btn('fav', m.favorit ? '⭐ Favorit' : '☆ Favorit');
-    acts += btn('cetak', 'CETAK') + btn('pdf', 'PDF');
+    acts += btn('cetak', 'CETAK') + btn('pdf', 'PDF') + btn('cetakrpm', 'CETAK RPM');
     if (edit && !arsip) acts += btn('arsip', 'ARSIPKAN', 'btn-warning');
     if (edit && arsip) acts += btn('pulih', '♻️ Pulihkan') + btn('hapus', '🗑️ Hapus', 'btn-danger');
     var go = '';
@@ -737,6 +885,29 @@
       return '<label class="mp-check"><input type="checkbox" class="' + cls + '" value="' + esc(x) + '"' + (sel.indexOf(x) !== -1 ? ' checked' : '') + '> <span>' + esc(x) + '</span></label>';
     }).join('') + '</div>';
   }
+  function rpmAccHtml(m) {
+    m = m || {};
+    var ck = rpmLengkap(m), gr = '', isi = '';
+    isi += '<div class="mp-rel" style="margin-bottom:6px;">Format <b>minimum</b> cukup untuk administrasi harian. Centang <b>format lengkap</b> bila modul akan disupervisi/akreditasi; kolom bertanda (lengkap) akan muncul dan ikut tercetak. Cetak dengan tombol <b>CETAK RPM</b>.</div>' +
+      '<label class="mp-check" style="margin-bottom:6px;"><input type="checkbox" id="mpf-rpmLengkap"' + (ck ? ' checked' : '') + '> <span><b>Gunakan format lengkap</b></span></label>';
+    RPM_FIELDS.forEach(function (f) {
+      if (f.g !== gr) { gr = f.g; isi += '<div style="font-weight:700;font-size:13px;margin:10px 0 2px;color:#065f46;">' + esc(gr) + '</div>'; }
+      isi += '<div class="' + (f.lengkap ? 'mp-rpm-lkp' : '') + '"' + (f.lengkap && !ck ? ' style="display:none;"' : '') + '>' +
+        '<label class="label" style="margin-top:4px;">' + esc(f.t) + (f.lengkap ? ' <span class="text-muted" style="font-weight:400;">(lengkap)</span>' : '') + '</label>' +
+        '<textarea id="mpf-' + f.k + '" class="field" rows="' + (f.rows || 3) + '" placeholder="' + esc(f.ph || '') + '">' + esc(m[f.k] || '') + '</textarea></div>';
+    });
+    return '<details class="mp-acc" id="mpacc-rpm" style="border:1px solid #e5e7eb;border-radius:10px;margin:6px 0;padding:0 12px;">' +
+      '<summary style="cursor:pointer;padding:10px 0;font-weight:600;font-size:14px;display:flex;justify-content:space-between;gap:8px;align-items:center;">' +
+      '<span>Rencana Pembelajaran Mendalam (RPM) &amp; KBC</span><span id="mpbadge-rpm" class="text-muted" style="font-size:12px;font-weight:500;"></span></summary>' +
+      '<div style="padding-bottom:10px;">' + isi + '</div></details>';
+  }
+  function rpmRefresh() {
+    var cb = $('mpf-rpmLengkap'); if (!cb || !root) return;
+    Array.prototype.forEach.call(root.querySelectorAll('.mp-rpm-lkp'), function (d) { d.style.display = cb.checked ? '' : 'none'; });
+    var aktif = RPM_FIELDS.filter(function (f) { return cb.checked || !f.lengkap; });
+    var n = aktif.filter(function (f) { var el = $('mpf-' + f.k); return el && el.value.trim(); }).length, b = $('mpbadge-rpm');
+    if (b) { b.textContent = (cb.checked ? 'Lengkap' : 'Minimum') + ' · ' + n + '/' + aktif.length + ' terisi'; b.style.color = n ? '#059669' : ''; }
+  }
   function formHtml(m) {
     m = m || {};
     var kelasList = kelasBoleh(), kelas = m.kelas || (kelasList[0] || '');
@@ -744,7 +915,7 @@
     if (!kelasList.length) return '<p style="color:#dc2626;">🔒 Anda belum ditugaskan ke kelas manapun.</p>';
     var guru = m.guru || currentUser.name, fase = m.fase || faseDari(kelas);
     var kelasOpt = kelasList.map(function (k) { return '<option' + (k === kelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('');
-    var semOpt = ['Ganjil', 'Genap'].map(function (s) { return '<option' + (s === (m.semester || currentSemesterAktif) ? ' selected' : '') + '>' + s + '</option>'; }).join('');
+    var semOpt = ['Ganjil', 'Genap'].map(function (s) { return '<option' + (s === (m.semester || semAktif()) ? ' selected' : '') + '>' + s + '</option>'; }).join('');
     var faseOpt = ['A', 'B', 'C', 'D', 'E', 'F'].map(function (f) { return '<option' + (f === fase ? ' selected' : '') + '>' + f + '</option>'; }).join('');
     var fld = function (id, label, html) { return '<div><label class="label">' + label + '</label>' + html + '</div>'; };
     var inp = function (id, v, ph, list) { return '<input id="' + id + '" class="field" value="' + esc(v) + '" placeholder="' + esc(ph || '') + '"' + (list ? ' list="' + list + '"' : '') + '>'; };
@@ -783,9 +954,9 @@
       '</div>' +
       acc('mpacc-detail', 'Detail identitas (sekolah, fase, tahun, guru, metode, pendekatan)',
         '<div class="grid-3">' +
-          fld('', 'Nama Sekolah', '<input id="mpf-sekolah" class="field" value="' + esc(m.sekolah || MADRASAH.nama) + '" readonly>') +
+          fld('', 'Nama Sekolah', '<input id="mpf-sekolah" class="field" value="' + esc(m.sekolah || madr().nama) + '" readonly>') +
           fld('', 'Fase', '<select id="mpf-fase" class="field">' + faseOpt + '</select>') +
-          fld('', 'Tahun Pelajaran', inp('mpf-ta', m.tahunAjaran || currentTahunAjaran, '2026/2027')) +
+          fld('', 'Tahun Pelajaran', inp('mpf-ta', m.tahunAjaran || taAktif(), '2026/2027')) +
           fld('', 'Nama Guru', '<input id="mpf-guru" class="field" value="' + esc(guru) + '"' + (isAdmin() ? '' : ' readonly') + '>') +
           fld('', 'Metode', inp('mpf-metode', m.metode, 'Contoh: Diskusi, Demonstrasi', 'mpDlMetode')) +
           fld('', 'Pendekatan', inp('mpf-pendekatan', m.pendekatan, 'Contoh: Saintifik', 'mpDlPend')) +
@@ -799,17 +970,17 @@
       '<div class="mp-refbar"><button type="button" class="btn btn-primary" data-mp="isiref">🧭 Isi dari kurikulum</button>' +
       '<div class="mp-rel" id="mpfRef" style="margin:0;flex:1;">' + refInfoHtml() + '</div></div>' +
       '<div class="mp-refbar" style="margin-top:6px;"><button type="button" class="btn btn-primary" data-mp="drafauto">✨ Buat draf otomatis</button>' +
-      '<div class="mp-rel" style="margin:0;flex:1;">Mengisi bagian yang masih kosong (Pertanyaan Pemantik s.d. Sumber Belajar) dari materi, model, metode, dan TP di atas. Bagian yang sudah Anda isi tidak ditimpa.</div></div>' +
+      '<div class="mp-rel" style="margin:0;flex:1;">Mengisi bagian yang masih kosong (Pertanyaan Pemantik s.d. Sumber Belajar, serta semua kolom RPM) dari materi, model, metode, dan TP di atas. Bagian yang sudah Anda isi tidak ditimpa.</div></div>' +
       acc('mpacc-profil', 'Dimensi Profil Lulusan & Panca Cinta',
         '<label class="label">Dimensi Profil Lulusan</label>' + checks('mpf-dpl', DPL, m.dpl || []) +
         '<label class="label" style="margin-top:8px;">Panca Cinta (Kurikulum Berbasis Cinta)</label>' + checks('mpf-panca', PANCA, m.pancaCinta || []),
-        false, 'mpbadge-profil') +
+        false, 'mpbadge-profil') + rpmAccHtml(m) +
       '<div style="text-align:right;margin:6px 0 2px;"><button type="button" class="btn btn-soft mp-btn" data-mp="accall">↕ Buka / tutup semua bagian</button></div>' +
       secs +
       '<div class="mp-actions mp-sticky">' +
         '<button class="btn btn-success" id="mpBtnSimpan" data-mp="simpan">💾 SIMPAN</button>' +
         (editingKey ? '<button class="btn btn-soft" data-mp="dup" data-key="' + esc(editingKey) + '">DUPLIKAT</button>' : '') +
-        '<button class="btn btn-soft" data-mp="cetakform">CETAK</button><button class="btn btn-soft" data-mp="pdfform">PDF</button>' +
+        '<button class="btn btn-soft" data-mp="cetakform">CETAK</button><button class="btn btn-soft" data-mp="pdfform">PDF</button><button class="btn btn-soft" data-mp="cetakrpmform">CETAK RPM</button>' +
         (editingKey ? '<button class="btn btn-warning" data-mp="arsip" data-key="' + esc(editingKey) + '">ARSIPKAN</button>' : '') +
         '<button class="btn btn-soft" data-mp="batal">Batal</button></div></div>';
   }
@@ -821,14 +992,15 @@
       b.textContent = el.value.trim() ? '✓ terisi' : (s.req ? 'wajib diisi' : 'kosong');
       b.style.color = el.value.trim() ? '#059669' : (s.req ? '#dc2626' : '');
     });
-    var bpt = $('mpbadge-aktivitas');
-    if (bpt) { var raw = pertCollectRaw(), isi = raw.filter(function (p) { return !pertKosong(p); }).length; bpt.textContent = raw.length + ' pertemuan · ' + isi + ' terisi'; bpt.style.color = isi ? '#059669' : ''; }
+    var raw = pertCollectRaw(), bpt = $('mpbadge-aktivitas');   // dibaca sekali, dipakai badge & tiap baris
+    if (bpt) { var isi = raw.filter(function (p) { return !pertKosong(p); }).length; bpt.textContent = raw.length + ' pertemuan · ' + isi + ' terisi'; bpt.style.color = isi ? '#059669' : ''; }
     Array.prototype.forEach.call(root.querySelectorAll('#mpfPert .mp-pert'), function (d, i) {
-      var raw2 = pertCollectRaw()[i], b = d.querySelector('.mp-pert-b'), t = d.querySelector('.mp-pert-t');
+      var raw2 = raw[i], b = d.querySelector('.mp-pert-b'), t = d.querySelector('.mp-pert-t');
       if (raw2 && b) { b.textContent = pertKosong(raw2) ? 'kosong' : '✓ terisi'; if (t) t.textContent = pertJudul(raw2, i); }
     });
     var n = root.querySelectorAll('.mpf-dpl:checked, .mpf-panca:checked').length, bp = $('mpbadge-profil');
     if (bp) bp.textContent = n ? n + ' dipilih' : 'kosong';
+    rpmRefresh();
   }
   // Saran materi: label materi dari bank TP (semua mapel) lalu dari bank kisi-kisi resmi (AQH & BA).
   // Hanya saran; guru tetap bebas mengetik.
@@ -875,6 +1047,8 @@
     SECTIONS.forEach(function (s) { o[s.k] = val('mpf-' + s.k); });
     var pilih = function (cls) { return Array.prototype.map.call(root.querySelectorAll('.' + cls + ':checked'), function (el) { return el.value; }); };
     o.dpl = pilih('mpf-dpl'); o.pancaCinta = pilih('mpf-panca');
+    RPM_FIELDS.forEach(function (f) { o[f.k] = val('mpf-' + f.k); });
+    var cbL = $('mpf-rpmLengkap'); o.rpmLengkap = (cbL && cbL.checked) ? '1' : '';
     o.pertemuan = pertCollect();
     o.aktivitas = ratakan(o.pertemuan, 'aktivitas'); o.asesmen = ratakan(o.pertemuan, 'asesmen');
     o.kurikulumVersi = formRef ? (formRef.versi || null) : null;
@@ -924,6 +1098,59 @@
       'Kelompok mempresentasikan hasil kerja dan guru memberi penguatan.',
       'Guru memberi penghargaan atas hasil belajar individu dan kelompok.'] }
   ];
+  // Penyesuaian draf RPM untuk mapel rumpun PAI & Bahasa Arab. {M} = materi. Hanya contoh awal; guru wajib menyesuaikan dengan TP/CP.
+  var MAPEL_MADRASAH = [
+    { re: /bahasa arab/i, nama: 'Bahasa Arab', panca: ['Cinta ilmu', 'Cinta diri dan sesama'],
+      kaitan: 'mempelajari bahasa Al-Quran dan Hadis sebagai kunci memahami sumber ajaran Islam, sambil berlatih santun dan percaya diri saat berkomunikasi pada materi {M}.',
+      lintas: ['Bahasa Indonesia/Inggris: membandingkan kosakata dan struktur kalimat sederhana.', 'Al-Quran Hadis: kosakata Arab yang dijumpai dalam bacaan.', 'Seni dan Budaya: kaligrafi atau poster kosakata bertema {M}.'],
+      pembiasaan: 'Guru menyapa dengan salam dan ungkapan sederhana berbahasa Arab, dan peserta didik menjawabnya.',
+      memahami: 'Peserta didik menyimak (istima’) dan menirukan kosakata serta kalimat tentang {M}, lalu memahami artinya.',
+      mengaplikasi: 'Peserta didik bercakap berpasangan (kalam), membaca (qira’ah), dan menulis (kitabah) kalimat sederhana tentang {M}.',
+      merefleksi: 'Peserta didik menilai kemampuan sendiri dan menentukan kosakata atau pola kalimat yang masih perlu dilatih.',
+      asesProses: 'Observasi keterampilan menyimak dan berbicara serta penilaian latihan membaca dan menulis.',
+      asesAkhir: 'Tes lisan (percakapan/hafalan kosakata) dan tes tertulis tentang {M}.' },
+    { re: /qur.?an|hadis|hadits/i, nama: 'Al-Quran Hadis', panca: ['Cinta kepada Allah dan Rasul-Nya', 'Cinta ilmu'],
+      kaitan: 'membaca, memahami, dan mengamalkan pesan pokok {M} sebagai wujud cinta kepada Al-Quran, Hadis, dan Rasulullah SAW.',
+      lintas: ['Bahasa Arab: kosakata dan struktur kalimat dalam {M}.', 'Bahasa Indonesia: peserta didik menuliskan arti dan pesan pokok {M} dengan kata sendiri.', 'Akidah Akhlak: pesan {M} dihubungkan dengan akhlak sehari-hari.'],
+      pembiasaan: 'Peserta didik membaca ayat atau surat pendek bersama (sesuai kebiasaan madrasah).',
+      memahami: 'Guru membacakan (talaqqi) dan peserta didik menirukan dengan memperhatikan makhraj dan tajwid, kemudian memahami arti dan pesan pokok {M}.',
+      mengaplikasi: 'Peserta didik membaca atau menghafal secara bergantian, menuliskan pesan pokok dengan kata sendiri, dan mencontohkan pengamalannya.',
+      merefleksi: 'Peserta didik merenungkan pesan {M} dan menentukan satu amalan yang akan dibiasakan.',
+      asesProses: 'Penilaian bacaan secara lisan (ketepatan makhraj dan tajwid) dan observasi keaktifan.',
+      asesAkhir: 'Tes bacaan/hafalan lisan dan tes tertulis tentang arti serta pesan pokok {M}.' },
+    { re: /akidah|akhlak/i, nama: 'Akidah Akhlak', panca: ['Cinta kepada Allah dan Rasul-Nya', 'Cinta diri dan sesama'],
+      kaitan: 'meneladani sifat Allah dan akhlak Rasulullah SAW yang berkaitan dengan {M}, kemudian membiasakannya dalam sikap sehari-hari di rumah, kelas, dan lingkungan.',
+      lintas: ['Bahasa Indonesia: peserta didik menceritakan kisah teladan yang berkaitan dengan {M}.', 'Pendidikan Pancasila: nilai {M} dihubungkan dengan sikap sebagai warga yang baik.', 'Seni dan Budaya: peserta didik membuat poster atau karya sederhana bertema {M}.'],
+      pembiasaan: 'Guru mengajak peserta didik melantunkan asmaul husna atau shalawat bersama (sesuai kebiasaan madrasah).',
+      memahami: 'Peserta didik menyimak kisah atau contoh akhlak terpuji yang berkaitan dengan {M}, lalu mengidentifikasi sikap yang patut diteladani.',
+      mengaplikasi: 'Peserta didik membuat komitmen pembiasaan berkaitan dengan {M} dan mencatatnya pada jurnal pembiasaan harian.',
+      merefleksi: 'Peserta didik menilai diri sendiri atas pembiasaan tersebut dan mengungkapkan rasa syukur kepada Allah SWT.',
+      asesProses: 'Observasi sikap dan pembiasaan melalui jurnal harian serta penilaian teman sebaya.',
+      asesAkhir: 'Tes lisan/tertulis tentang pemahaman {M}, ditambah penilaian sikap melalui observasi dan jurnal.' },
+    { re: /fikih|fiqih|fiqh/i, nama: 'Fikih', panca: ['Cinta kepada Allah dan Rasul-Nya', 'Cinta lingkungan'],
+      kaitan: 'memahami ketentuan {M} sebagai wujud ketaatan kepada Allah dan Rasul-Nya, serta menumbuhkan sikap disiplin, bersih, dan peduli lingkungan saat mempraktikkannya.',
+      lintas: ['IPAS/Sains: hubungan {M} dengan kebersihan, kesehatan, atau lingkungan (bila relevan).', 'Bahasa Arab: istilah-istilah penting dalam {M}.', 'Bahasa Indonesia: peserta didik menyampaikan hasil praktik secara lisan.'],
+      pembiasaan: 'Guru memastikan kesiapan dan kebersihan tempat belajar sebelum kegiatan dimulai.',
+      memahami: 'Guru mendemonstrasikan tata cara {M}, peserta didik mengamati dan memahami ketentuan serta urutannya.',
+      mengaplikasi: 'Peserta didik mempraktikkan {M} secara bergantian dengan lembar observasi dari teman.',
+      merefleksi: 'Peserta didik menilai ketepatan praktiknya dan menghubungkannya dengan rasa syukur serta ketaatan kepada Allah.',
+      asesProses: 'Unjuk kerja (praktik) dengan lembar observasi ketepatan tata cara.',
+      asesAkhir: 'Tes lisan/tertulis tentang ketentuan {M} dan unjuk kerja praktik.' },
+    { re: /sejarah kebudayaan|\bski\b/i, nama: 'Sejarah Kebudayaan Islam', panca: ['Cinta ilmu', 'Cinta diri dan sesama'],
+      kaitan: 'mengambil ibrah dari peristiwa dan tokoh dalam {M} sebagai teladan, serta menumbuhkan cinta kepada Rasulullah SAW dan semangat berkarya bagi sesama.',
+      lintas: ['IPS: kaitan {M} dengan peristiwa sejarah, tempat, dan waktu.', 'Bahasa Indonesia: peserta didik menceritakan ulang kisah {M}.', 'Seni dan Budaya: dramatisasi singkat atau gambar tentang {M}.'],
+      pembiasaan: 'Guru mengajak peserta didik berdoa dan bershalawat bersama (sesuai kebiasaan madrasah).',
+      memahami: 'Peserta didik menyimak kisah atau peristiwa {M} dan mengurutkan tokoh serta kejadian pentingnya.',
+      mengaplikasi: 'Peserta didik membuat linimasa, peta konsep, atau dramatisasi singkat tentang {M}.',
+      merefleksi: 'Peserta didik menemukan ibrah (pelajaran) dari {M} dan menghubungkannya dengan kehidupan mereka sekarang.',
+      asesProses: 'Penilaian produk (linimasa/peta konsep/dramatisasi) dengan rubrik dan observasi kerja sama.',
+      asesAkhir: 'Tes tertulis/lisan tentang peristiwa, tokoh, dan ibrah dalam {M}.' }
+  ];
+  function mdFor(mapel) {
+    var md = null;
+    MAPEL_MADRASAH.forEach(function (x) { if (!md && x.re.test(mapel || '')) md = x; });
+    return md;
+  }
   var SINTAKS_UMUM = [
     'Mengamati: peserta didik mengamati gambar, benda, atau contoh yang berkaitan dengan {materi}.',
     'Menanya: peserta didik mengajukan pertanyaan tentang hal yang diamati.',
@@ -1024,6 +1251,108 @@
       bullets(['Penjelasan ulang dengan media atau contoh yang lebih sederhana', 'Bimbingan dalam kelompok kecil atau tutor sebaya', 'Latihan tambahan yang bertahap', 'Asesmen ulang setelah pendampingan']);
 
     out.sumber = bullets(['Buku teks ' + c.mapel + ' Kelas ' + c.kelas + ' yang digunakan madrasah', 'Lingkungan sekitar madrasah dan pengalaman peserta didik', 'Sumber daring yang sesuai usia (tulis tautannya di sini)']);
+
+    /* ---- RPM: kolom Rencana Pembelajaran Mendalam & KBC (semua kolom, termasuk versi lengkap) ---- */
+    var NILAI_PANCA = {
+      'Cinta kepada Allah dan Rasul-Nya': 'mensyukuri ciptaan dan nikmat Allah serta meneladani akhlak Rasulullah SAW ketika mempelajari ' + M,
+      'Cinta ilmu': 'memandang ilmu tentang ' + M + ' sebagai cahaya cinta Allah yang menumbuhkan rasa ingin tahu',
+      'Cinta lingkungan': 'menjaga lingkungan sebagai tanda cinta Allah dan mengaitkannya dengan ' + M,
+      'Cinta diri dan sesama': 'menghargai diri sendiri dan teman, bekerja sama, serta saling membantu saat mempelajari ' + M,
+      'Cinta tanah air': 'menumbuhkan rasa syukur dan tanggung jawab sebagai warga negara melalui ' + M
+    };
+    var MD = null;
+    MAPEL_MADRASAH.forEach(function (x) { if (!MD && x.re.test(c.mapel || '')) MD = x; });
+    var pcDef = !(c.panca && c.panca.length), pcList = pcDef ? (MD ? MD.panca : ['Cinta ilmu', 'Cinta diri dan sesama']) : c.panca;
+    out.rpmIntegrasiKbc = bullets(pcList.map(function (p) { return p + ': ' + (NILAI_PANCA[p] || 'dikaitkan dengan ' + M) + '.'; })) +
+      (pcDef ? '\n(Contoh awal: pilih Panca Cinta yang sesuai pada bagian Profil, lalu sesuaikan kalimat ini.)' : '');
+
+    var jml = jumlahSiswa(c.kelas);
+    out.rpmKesiapan = bullets([
+      'Pengetahuan awal tentang ' + M + ' dipetakan melalui asesmen awal.',
+      'Minat, gaya belajar (visual, auditori, kinestetik), dan kebutuhan belajar peserta didik beragam sehingga dilayani dengan pembelajaran berdiferensiasi.',
+      'Kesiapan sosial-emosional dan kebiasaan belajar (fokus, kerja sama, berani bertanya) diamati di awal pembelajaran.'
+    ].concat(jml ? ['Jumlah peserta didik: ' + jml + ' siswa.'] : []));
+
+    var lt = [['Bahasa Indonesia', 'peserta didik menyampaikan hasil belajar ' + M + ' secara lisan dan tulisan'],
+      ['Seni dan Budaya', 'peserta didik membuat karya (poster, gambar, atau cerita) tentang ' + M],
+      ['Pendidikan Agama Islam', 'nilai-nilai Islam yang berkaitan dengan ' + M + ' dihubungkan dengan kehidupan sehari-hari']]
+      .filter(function (x) { return String(c.mapel).toLowerCase() !== x[0].toLowerCase(); });
+    out.rpmLintas = bullets(lt.map(function (x) { return x[0] + ': ' + x[1] + '.'; }));
+
+    var pd = [];
+    if (c.model) pd.push('Model: ' + c.model);
+    if (c.metode) pd.push('Metode: ' + c.metode);
+    if (c.pendekatan) pd.push('Pendekatan: ' + c.pendekatan);
+    out.rpmPedagogis = bullets([
+      pd.length ? pd.join(' | ') : 'Pembelajaran berpusat pada peserta didik dengan bimbingan guru.',
+      'Pembelajaran berkesadaran, bermakna, dan menggembirakan melalui olah pikir, olah hati, olah rasa, dan olah raga.',
+      'Diferensiasi konten, proses, dan produk sesuai kesiapan serta minat peserta didik.',
+      'Kolaborasi dalam kelompok dan umpan balik yang membangun dari guru maupun teman.'
+    ]);
+
+    out.rpmLingkungan = bullets([
+      'Aman: kelas bebas dari perundungan, peserta didik berani bertanya dan berpendapat.',
+      'Nyaman: ruang kelas bersih, tertata, dan memungkinkan peserta didik bergerak serta berkelompok.',
+      'Ramah: guru dan peserta didik saling menyapa, menghargai, dan mendengarkan.',
+      'Menyenangkan: kegiatan dirancang dengan variasi dan apresiasi atas usaha peserta didik.',
+      'Sejahtera: kebutuhan belajar dan kesejahteraan emosional peserta didik diperhatikan.'
+    ]);
+
+    out.rpmKemitraan = bullets([
+      'Orang tua/wali: mendampingi tugas rumah dan memberi dukungan belajar di rumah.',
+      'Guru lain/wali kelas: berbagi informasi tentang kebutuhan belajar peserta didik.',
+      'Narasumber atau tokoh masyarakat sekitar (bila memungkinkan) yang berkaitan dengan ' + M + '.',
+      'Teman sebaya: tutor sebaya dan belajar kelompok.'
+    ]);
+
+    out.rpmDigital = bullets([
+      'Slide atau video pendek tentang ' + M + ' (bila perangkat tersedia).',
+      'Kuis interaktif sederhana untuk asesmen formatif.',
+      'Pencarian informasi daring yang dipandu guru dan sesuai usia peserta didik.',
+      'Jika perangkat digital tidak tersedia, gunakan media konkret dan cetak sebagai gantinya.'
+    ]);
+
+    out.rpmPendahuluan = 'Pendahuluan' + wkt(pen) + '\n' + bernomor([
+      'Peserta didik menenangkan diri (napas dalam atau hening sejenak) dan berdoa bersama sebagai awal belajar yang berkesadaran.',
+      'Guru menyapa dengan hangat, mengecek kehadiran dan kesiapan peserta didik.',
+      'Guru mengajukan pertanyaan pemantik tentang ' + M + ' serta menyampaikan tujuan dan manfaat pembelajaran.'
+    ]);
+
+    var nL = langkah.length, ka = Math.ceil(nL / 3), kb = Math.ceil(2 * nL / 3);
+    out.rpmMemahami = bernomor(langkah.slice(0, ka)) + '\nNilai cinta: guru mengaitkan ' + M + ' dengan ' + pcList.join(', ') + '.';
+    out.rpmMengaplikasi = bernomor(langkah.slice(ka, kb)) + '\nPeserta didik menerapkan pemahamannya pada tugas atau kasus nyata yang bermakna, dikerjakan bersama teman dengan gembira.';
+    out.rpmMerefleksi = bernomor(langkah.slice(kb)) + '\nPeserta didik merenungkan proses dan hasil belajarnya (apa yang dipelajari, perasaan, dan nilai cinta yang ditemukan) pada jurnal atau kartu refleksi.';
+
+    out.rpmPenutup = 'Penutup' + wkt(tut) + '\n' + bernomor([
+      'Peserta didik bersama guru menyimpulkan materi ' + M + '.',
+      'Guru memberi umpan balik dan apresiasi atas usaha peserta didik.',
+      'Guru menyampaikan tindak lanjut dan rencana pembelajaran berikutnya.',
+      'Pembelajaran ditutup dengan doa dan salam.'
+    ]);
+
+    out.rpmAsesAwal = 'Tanya jawab lisan atau kuis singkat untuk memetakan pengetahuan awal tentang ' + M + '.\nObservasi kesiapan dan minat belajar peserta didik.';
+    out.rpmAsesProses = 'Observasi keaktifan, kerja sama, dan sikap (termasuk nilai cinta yang dipilih).\nPenilaian LKPD/produk kelompok dan tanya jawab selama pembelajaran, disertai umpan balik langsung.';
+    out.rpmAsesAkhir = 'Tes tertulis/lisan atau unjuk kerja pada akhir materi.\nIndikator ketercapaian:\n' + (tp.length ? bullets(tp) : '- Sesuaikan dengan tujuan pembelajaran');
+    out.rpmRubrik = '4 - Sangat baik: memenuhi seluruh indikator dengan tepat dan mandiri\n3 - Baik: memenuhi sebagian besar indikator dengan sedikit bantuan\n' +
+      '2 - Cukup: memenuhi sebagian indikator dengan bimbingan\n1 - Perlu bimbingan: belum memenuhi indikator';
+    out.rpmKktp = 'Murid dinyatakan mencapai tujuan pembelajaran bila memenuhi kriteria berikut (mengacu pada rubrik di atas):\n' +
+      (tp.length ? tp.map(function (x, i) { return 'TP ' + (i + 1) + ': ' + x + ' → skor rubrik minimal 3 (Baik).'; }).join('\n')
+                 : '- Capaian tujuan pembelajaran ' + M + ' → skor rubrik minimal 3 (Baik).') +
+      '\nSkor 4 (Sangat baik): dapat diberi kegiatan pengayaan.\nSkor 1-2: mengikuti program remedial lalu asesmen ulang.\n' +
+      '(Batas skor adalah contoh awal; sesuaikan dengan kesepakatan madrasah.)';
+
+    if (MD) {   // lapisan khusus mapel madrasah
+      var sub = function (t) { return String(t).replace(/\{M\}/g, M); };
+      out.rpmIntegrasiKbc += '\nKaitan dengan ' + MD.nama + ': ' + sub(MD.kaitan);
+      out.rpmLintas = bullets(MD.lintas.map(sub));
+      out.rpmPendahuluan += '\n4. ' + sub(MD.pembiasaan);
+      out.rpmMemahami += '\n' + sub(MD.memahami);
+      out.rpmMengaplikasi += '\n' + sub(MD.mengaplikasi);
+      out.rpmMerefleksi += '\n' + sub(MD.merefleksi);
+      out.rpmAsesProses += '\n' + sub(MD.asesProses);
+      out.rpmAsesAkhir = out.rpmAsesAkhir.replace(/^[^\n]*/, sub(MD.asesAkhir));
+      out._mapel = MD.nama;
+    }
     return out;
   }
 
@@ -1036,6 +1365,7 @@
     SINTAKS.forEach(function (s) { if (!sx && s.re.test(c.model || '')) sx = s; });
     var langkah = (sx ? sx.langkah : SINTAKS_UMUM).map(function (x) { return x.replace(/\{materi\}/g, M); });
     var L = langkah.length, res = [];
+    var MD = mdFor(c.mapel), subM = function (t) { return String(t).replace(/\{M\}/g, M); };
     var info = [];
     if (c.model) info.push('Model: ' + c.model);
     if (c.metode) info.push('Metode: ' + c.metode);
@@ -1044,6 +1374,11 @@
       var awal = Math.floor(i * L / n), akhir = Math.floor((i + 1) * L / n), pertama = i === 0, terakhir = i === n - 1;
       var langkahI = langkah.slice(awal, akhir);
       if (!langkahI.length) langkahI = ['Peserta didik melanjutkan dan mendalami kegiatan tentang ' + M + ' dengan bimbingan guru.'];
+      if (MD) {   // kegiatan khas mapel: Memahami di awal, Mengaplikasi di tengah, Merefleksi di akhir rangkaian pertemuan
+        var tahap = n === 1 ? [0, 1, 2] : (n === 2 ? (i === 0 ? [0] : [1, 2]) : (i === 0 ? [0] : (terakhir ? [2] : [1])));
+        var kunciT = ['memahami', 'mengaplikasi', 'merefleksi'];
+        tahap.forEach(function (f) { langkahI.push(subM(MD[kunciT[f]])); });
+      }
       var a = Math.floor(i * tp.length / n), b = Math.floor((i + 1) * tp.length / n), tpI = tp.slice(a, b);
       if (!tpI.length && tp.length) tpI = [tp[Math.min(i, tp.length - 1)]];
       var judul = n === 1 ? M : (pertama ? 'Pengenalan ' : (terakhir ? 'Penerapan dan penilaian ' : 'Pendalaman ')) + M;
@@ -1054,11 +1389,12 @@
         'Guru dan peserta didik melakukan refleksi pembelajaran.',
         terakhir ? 'Guru menyampaikan tindak lanjut pembelajaran.' : 'Guru menyampaikan rencana pembelajaran pertemuan berikutnya.',
         'Pembelajaran ditutup dengan doa dan salam.'];
+      if (MD) buka.splice(1, 0, subM(MD.pembiasaan));
       var ases = [];
       if (pertama) ases.push('Asesmen diagnostik: tanya jawab lisan di awal untuk memetakan pengetahuan awal peserta didik.');
-      ases.push('Asesmen formatif: observasi keaktifan dan kerja sama, penilaian LKPD, dan tanya jawab selama pembelajaran.');
+      ases.push(MD ? 'Asesmen formatif: ' + subM(MD.asesProses) : 'Asesmen formatif: observasi keaktifan dan kerja sama, penilaian LKPD, dan tanya jawab selama pembelajaran.');
       var asesTeks = bernomor(ases);
-      if (terakhir) asesTeks += '\n' + (ases.length + 1) + '. Asesmen sumatif: tes tertulis/lisan atau unjuk kerja pada akhir materi.\n\n' +
+      if (terakhir) asesTeks += '\n' + (ases.length + 1) + '. Asesmen sumatif: ' + (MD ? subM(MD.asesAkhir) : 'tes tertulis/lisan atau unjuk kerja pada akhir materi.') + '\n\n' +
         'Indikator ketercapaian:\n' + (tp.length ? bullets(tp) : '- Sesuaikan dengan tujuan pembelajaran') + '\n\n' +
         'Rubrik (contoh):\n4 - Sangat baik: memenuhi seluruh indikator dengan tepat dan mandiri\n3 - Baik: memenuhi sebagian besar indikator dengan sedikit bantuan\n' +
         '2 - Cukup: memenuhi sebagian indikator dengan bimbingan\n1 - Perlu bimbingan: belum memenuhi indikator';
@@ -1081,7 +1417,7 @@
     };
     if (!c.mapel || !c.materi) return toast('Isi Mata Pelajaran dan Materi terlebih dahulu.', true);
     var out = susunDraf(c), isi = 0, lewat = 0;
-    SECTIONS.forEach(function (s) {
+    SECTIONS.concat(RPM_FIELDS).forEach(function (s) {
       var el = $('mpf-' + s.k), teks = out[s.k] && out[s.k].trim();
       if (!el || !teks) return;   // cp & tujuan tidak dibuat di sini (dari Referensi Kurikulum / guru)
       var cur = el.value.trim();
@@ -1105,7 +1441,7 @@
     isi += pIsi ? 1 : 0;
     if (!isi) return toast('Semua bagian sudah Anda isi, jadi draf tidak mengubah apa pun.', false, 4000);
     toast('✨ Draf dibuat: ' + isi + ' bagian terisi' + (lewat ? ', ' + lewat + ' bagian yang sudah Anda isi tidak diubah' : '') +
-      '.' + (c.tp.length ? '' : ' Tujuan Pembelajaran masih kosong, isi dahulu agar draf lebih sesuai.') + ' Periksa dan sesuaikan.', false, 6000);
+      '.' + (c.tp.length ? '' : ' Tujuan Pembelajaran masih kosong, isi dahulu agar draf lebih sesuai.') + (out._mapel ? ' Isi RPM disesuaikan untuk mapel ' + out._mapel + '.' : '') + ' Periksa dan sesuaikan.', false, 6000);
   }
 
   /* ---------- aksi ---------- */
@@ -1117,6 +1453,7 @@
     tab = 'buat'; render(); loadRef(false); window.scrollTo(0, 0);
   }
   function showTab(id) {
+    if (id === 'rekap' && !canApprove()) return;
     if (id === 'buat' && tab !== 'buat') { editingKey = null; formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; pertSaran = PERT_DEFAULT; }
     if (id !== 'referensi') { refMode = 'list'; refEditKey = null; refParsed = null; }
     tab = id; render();
@@ -1161,9 +1498,11 @@
     // "draf" tanpa sepengetahuan Kepala Madrasah. Transaction membatalkan simpan kalau status di server sudah berbeda.
     var statusLokal = pers(lama);
     ref.transaction(function (cur) {
-      if (cur === null) return full;   // belum ada cache lokal: server akan mengulang dengan data aslinya
+      // cur === null = cache lokal kosong/basi: `full` hanya usulan; bila server berisi data lain, usulan ditolak dan fungsi
+      // ini dipanggil ulang dengan data asli (lalu pemeriksaan status di bawah berlaku).
+      if (cur === null) return full;
       var st = PERS[cur.persetujuan] ? cur.persetujuan : 'draf';
-      if (st !== statusLokal) return;  // status sudah berubah di server: batalkan
+      if (st !== statusLokal) return;  // undefined = abort -> committed=false
       return full;
     }, function (err, committed) {
       if (!err && !committed) {
@@ -1205,8 +1544,8 @@
     if (pers(m) !== 'disetujui') return '<br><br><br><b>' + esc(kepalaNama || '………………………') + '</b>';
     // Penandatangan = Kepala Madrasah (dari data madrasah), bukan siapa yang menekan tombol Setujui (bisa Admin).
     // Penyetuju sebenarnya dicatat di keterangan QR.
-    var kpNama = (typeof MADRASAH !== 'undefined' && MADRASAH.kepala_sekolah) || kepalaNama || m.persetujuanOleh || '';
-    var kpNip = (typeof MADRASAH !== 'undefined' && MADRASAH.nip_kepala_sekolah) || '';
+    var kpNama = madr().kepala_sekolah || kepalaNama || m.persetujuanOleh || '';
+    var kpNip = madr().nip_kepala_sekolah || '';
     var penyetuju = m.persetujuanRole === 'Admin'
       ? 'atas nama ' + (m.persetujuanOleh || '') + ' (diinput Admin)'
       : 'oleh ' + (m.persetujuanOleh || '') + (m.persetujuanRole ? ' (' + m.persetujuanRole + ')' : '');
@@ -1214,12 +1553,12 @@
       ? '<div style="min-height:19mm;">' + TTD.penanda('kepala', { jenis: 'Persetujuan Modul Pembelajaran', ket: [judulModul(m), m.guru, 'disetujui ' + tglIso(m.persetujuanAt) + (m.persetujuanOleh ? ' ' + penyetuju : '')].filter(Boolean).join(' | '), nama: kpNama, jabatan: 'Kepala Madrasah', nip: kpNip }, { mm: 17 }) + '</div>'
       : '';
     var img = '';
-    try { var b64 = (typeof MADRASAH !== 'undefined') ? (MADRASAH.ttdKepalaBase64 || '') : ''; if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
+    try { var b64 = madr().ttdKepalaBase64 || ''; if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(b64)) img = '<img src="' + b64 + '" alt="" style="height:56px;max-width:160px;object-fit:contain;">'; } catch (e) {}
     return '<div style="font-size:11px;color:#065f46;">Disetujui ' + esc(tglIso(m.persetujuanAt)) + '</div>' + (blokTtd || img || '<br><br><br>') + '<b>' + esc(kpNama) + '</b>' + (m.persetujuanRole === 'Admin' ? '<div style="font-size:10px;color:#555;">disetujui atas nama ' + esc(m.persetujuanOleh || '') + ', diinput Admin</div>' : '');
   }
   function docHtml(m) {
     var dpl = m.dpl || [], pc = m.pancaCinta || [];
-    var rows = [['Nama Sekolah', m.sekolah || MADRASAH.nama], ['Mata Pelajaran', m.mapel], ['Kelas / Fase', (m.kelas || '-') + (m.fase ? ' / Fase ' + m.fase : '')],
+    var rows = [['Nama Sekolah', m.sekolah || madr().nama], ['Mata Pelajaran', m.mapel], ['Kelas / Fase', (m.kelas || '-') + (m.fase ? ' / Fase ' + m.fase : '')],
       ['Semester', m.semester], ['Tahun Pelajaran', m.tahunAjaran], ['Nama Guru', m.guru], ['Materi', m.materi], ['Alokasi Waktu', m.alokasi],
       ['Model Pembelajaran', m.model], ['Metode', m.metode], ['Pendekatan', m.pendekatan], ['Kurikulum', m.kurikulumVersi], ['Peserta Didik', jumlahSiswa(m.kelas) + ' siswa']]
       .filter(function (r) { return r[1]; })
@@ -1229,33 +1568,116 @@
       if (adaPert && s.k === 'aktivitas') return pertDocHtml(m, i + 2);
       return '<h3>' + (i + 2) + '. ' + esc(s.t) + '</h3><div class="b">' + nl2br(m[s.k]) + '</div>';
     }).join('');
-    return '<div class="kop"><img src="logo/logo-lembaga.png" alt="" onerror="this.style.display=\'none\'"><div><div class="n">' + esc(MADRASAH.nama) + '</div>' +
-      '<div class="a">' + esc(MADRASAH.alamat || '') + '</div></div></div><h2>MODUL PEMBELAJARAN</h2>' +
+    return '<div class="kop"><img src="logo/logo-lembaga.png" alt="" onerror="this.style.display=\'none\'"><div><div class="n">' + esc(madr().nama) + '</div>' +
+      '<div class="a">' + esc(madr().alamat || '') + '</div></div></div><h2>MODUL PEMBELAJARAN</h2>' +
       '<h3>1. Identitas</h3><table>' + rows + '</table>' +
       (dpl.length ? '<h3>Dimensi Profil Lulusan</h3><div class="b">' + esc(dpl.join(', ')) + '</div>' : '') +
       (pc.length ? '<h3>Panca Cinta</h3><div class="b">' + esc(pc.join(', ')) + '</div>' : '') + body +
       '<div class="ttd"><div>Mengetahui,<br>Kepala Madrasah<br>' + ttdHtml(m) + '</div><div>Guru Mata Pelajaran<br><br><br><br><b>' + esc(m.guru || '') + '</b></div></div>';
   }
-  function cetak(m, pdf) {
+  function docRpmHtml(m) {
+    var L = rpmLengkap(m), dpl = m.dpl || [], pc = m.pancaCinta || [];
+    var rows = [['Nama Sekolah', m.sekolah || madr().nama], ['Mata Pelajaran', m.mapel], ['Kelas / Fase', (m.kelas || '-') + (m.fase ? ' / Fase ' + m.fase : '')],
+      ['Semester', m.semester], ['Tahun Pelajaran', m.tahunAjaran], ['Nama Guru', m.guru], ['Materi / Topik', m.materi], ['Alokasi Waktu', m.alokasi],
+      ['Peserta Didik', jumlahSiswa(m.kelas) + ' siswa']]
+      .filter(function (r) { return r[1]; })
+      .map(function (r) { return '<tr><td class="k">' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('');
+    var b = function (t, v) { return v ? '<div class="b" style="margin-bottom:6px;"><b>' + esc(t) + '</b><br>' + nl2br(v) + '</div>' : ''; };
+    var no = 0, bagian = function (judul, isi) { return isi ? '<h3>' + (++no) + '. ' + esc(judul) + '</h3>' + isi : ''; };
+    var pedagogis = m.rpmPedagogis || [m.model && 'Model: ' + m.model, m.metode && 'Metode: ' + m.metode, m.pendekatan && 'Pendekatan: ' + m.pendekatan].filter(Boolean).join('\n');
+
+    var ident = '<table>' + rows + '</table>' + (L ? b('Kesiapan Murid', m.rpmKesiapan) : '') +
+      (dpl.length ? b('Dimensi Profil Lulusan', dpl.join(', ')) : '') + (pc.length ? b('Topik Panca Cinta', pc.join(', ')) : '') +
+      b('Materi Integrasi KBC', m.rpmIntegrasiKbc);
+
+    var desain = (L ? b('Capaian Pembelajaran', m.cp) + b('Lintas Disiplin Ilmu', m.rpmLintas) : '') + b('Tujuan Pembelajaran', m.tujuan) +
+      (L ? b('Topik Pembelajaran', m.materi) : '') +
+      '<div style="margin:8px 0 4px;"><b>Kerangka Pembelajaran</b></div>' +
+      b('Praktik Pedagogis', pedagogis) + b('Lingkungan Pembelajaran', m.rpmLingkungan) +
+      (L ? b('Kemitraan Pembelajaran', m.rpmKemitraan) + b('Pemanfaatan Digital', m.rpmDigital) + b('Media Pembelajaran', m.media) + b('Sumber Belajar', m.sumber) : '');
+
+    var pl = pertSaved(m);
+    var pert = pl.length ? '<div style="margin:8px 0 4px;"><b>Rencana per Pertemuan</b></div>' + pl.map(function (p, i) {
+      var meta = [p.tanggal ? 'Tanggal: ' + p.tanggal : '', p.alokasi ? 'Alokasi: ' + p.alokasi : ''].filter(Boolean).join(' · ');
+      var bag = function (t, v) { return v ? '<div style="margin-top:6px;"><b>' + t + '</b><br>' + nl2br(v) + '</div>' : ''; };
+      return '<div class="b" style="margin-bottom:8px;page-break-inside:avoid;"><b>Pertemuan ' + (i + 1) + (p.topik ? ' — ' + esc(p.topik) : '') + '</b>' +
+        (meta ? '<div style="color:#555;font-size:12px;">' + esc(meta) + '</div>' : '') + bag('Tujuan', p.tujuan) + bag('Aktivitas Pembelajaran', p.aktivitas) + '</div>';
+    }).join('') : '';
+    var pengalaman = (L ? b('Pendahuluan', [m.pemantik ? 'Pertanyaan pemantik:\n' + m.pemantik : '', m.rpmPendahuluan].filter(Boolean).join('\n\n')) : '') +
+      b(L ? 'Inti — Memahami' : 'Memahami', m.rpmMemahami) + b(L ? 'Inti — Mengaplikasi' : 'Mengaplikasi', m.rpmMengaplikasi) +
+      b(L ? 'Inti — Merefleksi' : 'Merefleksi', m.rpmMerefleksi) + (L ? b('Penutup', m.rpmPenutup) : '') + pert;
+
+    var adaAses = m.rpmAsesAwal || m.rpmAsesProses || m.rpmAsesAkhir;
+    var asesmen = (adaAses ? b('Asesmen Awal', m.rpmAsesAwal) + b('Asesmen Proses', m.rpmAsesProses) + b('Asesmen Akhir', m.rpmAsesAkhir) : b('Asesmen', m.asesmen)) +
+      (L ? b('Rubrik dan Kriteria Penilaian', m.rpmRubrik) + b('KKTP (Kriteria Ketercapaian Tujuan Pembelajaran)', m.rpmKktp) : '');
+    var tindak = L ? b('Refleksi', m.refleksi) + b('Pengayaan', m.pengayaan) + b('Remedial', m.remedial) + b('Tugas', m.tugas) : '';
+
+    return '<div class="kop"><img src="logo/logo-lembaga.png" alt="" onerror="this.style.display=\'none\'"><div><div class="n">' + esc(madr().nama) + '</div>' +
+      '<div class="a">' + esc(madr().alamat || '') + '</div></div></div><h2>RENCANA PEMBELAJARAN MENDALAM (RPM)</h2>' +
+      '<div style="text-align:center;font-size:12px;color:#555;margin-top:-8px;">Pembelajaran Mendalam · Kurikulum Berbasis Cinta · Format ' + (L ? 'Lengkap' : 'Minimum') + '</div>' +
+      bagian('Identifikasi', ident) + bagian('Desain Pembelajaran', desain) + bagian('Pengalaman Belajar (berkesadaran, bermakna, menggembirakan)', pengalaman) +
+      bagian('Asesmen', asesmen) + bagian('Refleksi dan Tindak Lanjut', tindak) +
+      '<div class="ttd"><div>Mengetahui,<br>Kepala Madrasah<br>' + ttdHtml(m) + '</div><div>Guru Mata Pelajaran<br><br><br><br><b>' + esc(m.guru || '') + '</b></div></div>';
+  }
+  function cetak(m, pdf, rpm) { cetakDok((rpm ? 'RPM ' : 'Modul ') + judulModul(m), rpm ? docRpmHtml(m) : docHtml(m), pdf); }
+  function cetakDok(judul, isiDok, pdf) {
     var w = window.open('', '_blank', 'width=900,height=700');
     if (!w) return toast('Popup diblokir browser.', true);
     var css = 'body{font-family:Arial,sans-serif;padding:30px;color:#111;line-height:1.5;font-size:13px}h2{text-align:center;margin:14px 0}h3{margin:16px 0 4px;font-size:14px}' +
       'table{width:100%;border-collapse:collapse}td{border:1px solid #999;padding:5px 8px;vertical-align:top}td.k{width:32%;background:#f3f4f6;font-weight:600}' +
       '.kop{display:flex;align-items:center;gap:14px;border-bottom:3px double #333;padding-bottom:10px}.kop img{width:64px;height:64px;object-fit:contain}.kop .n{font-weight:700;font-size:16px}.kop .a{font-size:12px}' +
       '.b{border:1px solid #ddd;border-radius:6px;padding:8px 10px;white-space:normal}.ttd{display:flex;justify-content:space-between;margin-top:36px;text-align:center}' +
+      '.wm{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:60%;max-width:430px;opacity:.1;z-index:-1;pointer-events:none}' +
       '.tip{background:#fef3c7;border:1px solid #f59e0b;padding:8px 12px;border-radius:8px;margin-bottom:12px}@page{size:A4;margin:14mm}@media print{body{padding:0}.tip{display:none}}';
     var tip = pdf ? '<div class="tip">Untuk menyimpan sebagai PDF: pada dialog cetak, pilih tujuan <b>Simpan sebagai PDF</b>.</div>' : '';
-    var htmlModul = '<html><head><base href="' + esc(document.baseURI) + '"><title>Modul ' + esc(judulModul(m)) + '</title><style>' + css + '</style></head><body>' + tip + docHtml(m) + '</body></html>';
-    var tulisModul = function (h) { w.document.open(); w.document.write(h); w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 400); };
+    var htmlModul = '<html><head><base href="' + esc(document.baseURI) + '"><title>' + esc(judul) + '</title><style>' + css + '</style></head><body><img class="wm" src="logo/logo-lembaga.png" alt="" onerror="this.style.display=\'none\'">' + tip + isiDok + '</body></html>';
+    var tulisModul = function (h) { w.document.open(); w.document.write(h); w.document.close(); w.focus(); setTimeout(function () { if (!w.closed) w.print(); }, 400); };
     if (window.TTD && TTD.isiHtml && /\[\[TTD:/.test(htmlModul)) {
       w.document.write('<p style="font-family:Arial,sans-serif;padding:24px;">Menyiapkan dokumen…</p>');
       TTD.isiHtml(htmlModul).catch(function () { return htmlModul.replace(/\[\[TTD:[^\]]*\]\]/g, ''); }).then(tulisModul);
     } else tulisModul(htmlModul);
   }
 
+  // Cetak gabungan: semua modul yang lolos filter di tab Daftar Modul (tidak termasuk arsip), diurutkan kelas > mapel > materi.
+  function cetakGabungan() {
+    if (!canView()) return toast('Tidak diizinkan!', true);
+    var items = filtered().slice().sort(function (a, b) {
+      return (a.kelas + '|' + a.mapel + '|' + a.materi).localeCompare(b.kelas + '|' + b.mapel + '|' + b.materi);
+    });
+    if (!items.length) return toast('Tidak ada modul untuk dicetak. Periksa filter yang dipakai.', true);
+    if (items.length > 30 && !confirm('Akan mencetak ' + items.length + ' RPM sekaligus. Lanjutkan?')) return;
+    var STAT = { draf: 'Draf', diajukan: 'Menunggu persetujuan', disetujui: 'Disetujui', ditolak: 'Ditolak' };
+    var gabung = function (f) { return uniq(items.map(function (m) { return m[f]; })).join(', ') || '-'; };
+    var guruList = uniq(items.map(function (m) { return m.guru; }));
+    var fl = [filt.mapel && 'Mapel: ' + filt.mapel, filt.kelas && 'Kelas: ' + filt.kelas, filt.semester && 'Semester: ' + filt.semester, filt.pers && 'Status: ' + STAT[filt.pers], filt.q && 'Pencarian: ' + filt.q].filter(Boolean).join(' · ');
+    var info = [['Nama Guru', guruList.join(', ') || '-'], ['Tahun Pelajaran', gabung('tahunAjaran')], ['Semester', gabung('semester')], ['Jumlah RPM', items.length + ' modul'], ['Penyaring', fl]]
+      .filter(function (r) { return r[1]; })
+      .map(function (r) { return '<tr><td class="k">' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('');
+    var th = function (t, w) { return '<td class="k" style="width:' + (w || 'auto') + ';text-align:center;">' + t + '</td>'; };
+    var baris = items.map(function (m, i) {
+      return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td>' + esc(m.mapel) + '</td><td style="text-align:center;">' + esc(m.kelas) + '</td><td>' + esc(m.materi) + '</td>' +
+        '<td style="text-align:center;">' + (rpmLengkap(m) ? 'Lengkap' : 'Minimum') + '</td><td>' + STAT[pers(m)] + '</td></tr>';
+    }).join('');
+    var kpNama = madr().kepala_sekolah || kepalaNama || '………………………';
+    var kpNip = madr().nip_kepala_sekolah || '';
+    var sampul = '<div class="kop"><img src="logo/logo-lembaga.png" alt="" onerror="this.style.display=\'none\'"><div><div class="n">' + esc(madr().nama) + '</div>' +
+      '<div class="a">' + esc(madr().alamat || '') + '</div></div></div><h2>KUMPULAN RENCANA PEMBELAJARAN MENDALAM (RPM)</h2>' +
+      '<table>' + info + '</table><h3>Daftar Isi</h3>' +
+      '<table><tr>' + th('No', '6%') + th('Mata Pelajaran', '24%') + th('Kelas', '9%') + th('Materi') + th('Format', '12%') + th('Status', '17%') + '</tr>' + baris + '</table>' +
+      '<div class="ttd"><div>Mengetahui,<br>Kepala Madrasah<br><br><br><br><b>' + esc(kpNama) + '</b>' + (kpNip ? '<br>NIP. ' + esc(kpNip) : '') + '</div>' +
+      '<div>Guru Mata Pelajaran<br><br><br><br><b>' + (guruList.length === 1 ? esc(guruList[0]) : '(sesuai tiap RPM)') + '</b></div></div>' +
+      '<div style="font-size:11px;color:#555;margin-top:14px;">Tanda tangan dan pengesahan digital (bila ada) tercantum pada halaman masing-masing RPM.</div>';
+    var isi = sampul + items.map(function (m) { return '<div style="page-break-before:always;">' + docRpmHtml(m) + '</div>'; }).join('');
+    cetakDok('Kumpulan RPM ' + (guruList.length === 1 ? guruList[0] : madr().nama), isi, false);
+  }
+
   /* ---------- event ---------- */
   var Q_DELAY = 200, qTimer = null;
   function onInput(e) {
+    // <select> memicu 'input' lalu 'change' untuk satu pilihan; cukup tangani 'change' agar tidak diproses dua kali.
+    // Checkbox/radio juga memicu keduanya; di sini 'change' yang dipakai (nilai sudah final).
+    var tg = e.target, tipe = tg && String(tg.type || '').toLowerCase();
+    if (e.type === 'input' && tg && (tg.tagName === 'SELECT' || tipe === 'checkbox' || tipe === 'radio')) return;
     var id = e.target && e.target.id;
     if (id === 'mpfJadwal') { isiDariJadwal(e.target.value); return; }
     if (e.target && e.target.classList && Array.prototype.some.call(e.target.classList, function (c) { return c.indexOf('mpp-') === 0; })) { refreshAcc(); return; }
@@ -1266,7 +1688,7 @@
       // filt.q langsung diperbarui; hanya render daftar yang ditunda agar tidak berat saat mengetik.
       filt.q = e.target.value;
       clearTimeout(qTimer);
-      qTimer = setTimeout(function () { qTimer = null; renderList(); }, Q_DELAY);
+      qTimer = setTimeout(function () { qTimer = null; if (tab === 'rekap') renderRekapIsi(); else renderList(); }, Q_DELAY);
       return;
     }
     if (id === 'mpFPers') filt.pers = e.target.value;
@@ -1275,7 +1697,7 @@
     else if (id === 'mpFSem') filt.semester = e.target.value;
     else return;
     clearTimeout(qTimer); qTimer = null;
-    renderList();
+    if (tab === 'rekap') renderRekapIsi(); else renderList();
   }
   function onClick(e) {
     var b = e.target.closest && e.target.closest('[data-mp]'); if (!b || !root.contains(b)) return;
@@ -1310,14 +1732,18 @@
         pertRender(hasil); break;
       }
       case 'antrean': filt.pers = 'diajukan'; renderBody(); break;
+      case 'rekapguru': rekapOpen = (rekapOpen === key) ? '' : key; renderRekapIsi(); break;
+      case 'rekapantrean': filt.pers = 'diajukan'; showTab('daftar'); break;
+      case 'rekapcsv': rekapCsv(); break;
       case 'dup': duplikat(key); break;
       case 'simpan': simpan(); break;
       case 'batal': editingKey = null; tab = 'daftar'; render(); break;
-      case 'fav': if (m && canEdit(m)) write(key, { favorit: !m.favorit, updatedAt: new Date().toISOString() }, m.favorit ? 'Dihapus dari favorit' : '⭐ Ditambahkan ke favorit', renderList); break;
-      case 'arsip': if (m && canEdit(m)) write(key, { status: 'arsip', updatedAt: new Date().toISOString() }, '🗄️ Modul diarsipkan', function () { editingKey = null; if (tab === 'buat') tab = 'daftar'; render(); }); break;
-      case 'pulih': if (m && canEdit(m)) write(key, { status: 'aktif', updatedAt: new Date().toISOString() }, '♻️ Modul dipulihkan', renderList); break;
+      case 'fav': if (m && canEdit(m) && !terkunci(m)) write(key, { favorit: !m.favorit, updatedAt: new Date().toISOString() }, m.favorit ? 'Dihapus dari favorit' : '⭐ Ditambahkan ke favorit', renderList); break;
+      case 'arsip': if (m && canEdit(m) && !terkunci(m)) write(key, { status: 'arsip', updatedAt: new Date().toISOString() }, '🗄️ Modul diarsipkan', function () { editingKey = null; if (tab === 'buat') tab = 'daftar'; render(); }); break;
+      case 'pulih': if (m && canEdit(m) && !terkunci(m)) write(key, { status: 'aktif', updatedAt: new Date().toISOString() }, '♻️ Modul dipulihkan', renderList); break;
       case 'hapus':
         if (m && canEdit(m)) {
+          if (terkunci(m)) break;
           if (!isReallyOnline()) { toast('Perlu koneksi internet untuk menghapus.', true); break; }
           if (isBusy('hapusModul')) break;
           if (!doubleConfirm('Hapus modul ini secara permanen?')) break;
@@ -1330,6 +1756,11 @@
         } break;
       case 'cetak': if (m) cetak(m, false); break;
       case 'pdf': if (m) cetak(m, true); break;
+      case 'cetakrpm': if (m) cetak(m, false, true); break;
+      case 'cetakgab': cetakGabungan(); break;
+      case 'cetakrpmform':
+        var oR = collect(); if (!oR.mapel && !oR.materi) return toast('Isi modul terlebih dahulu.', true);
+        cetak(oR, false, true); break;
       case 'cetakform': case 'pdfform':
         var o = collect(); if (!o.mapel && !o.materi) return toast('Isi modul terlebih dahulu.', true);
         cetak(o, act === 'pdfform'); break;
@@ -1374,7 +1805,7 @@
     refs = []; refLoaded = false; refLoading = false; refErr = '';
     refMode = 'list'; refEditKey = null; refParsed = null; refPaste = '';
     formRef = null; lastFill = { cp: '', tp: '' }; lastDraft = {}; pertSaran = PERT_DEFAULT;
-    tab = 'daftar'; editingKey = null; komp = 'materiIsi';
+    tab = 'daftar'; editingKey = null; komp = 'materiIsi'; rekapOpen = '';
     filt = { q: '', mapel: '', kelas: '', semester: '', pers: '' };
     if (root) root.innerHTML = '';
   }
