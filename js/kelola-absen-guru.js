@@ -146,6 +146,7 @@
     function kagSimpan() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
       if (kagSaving) return;
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Simpan catatan absen butuh koneksi internet, coba lagi saat online.', true);
       const guru = kagGuruListForm().find(g => g.key === kagEl('kagGuru').value);
       const tanggal = kagEl('kagTanggal').value, jenis = kagEl('kagJenis').value, jam = kagEl('kagJam').value;
       const ket = kagEl('kagKet').value.trim(), alasan = kagEl('kagAlasan').value.trim();
@@ -177,7 +178,7 @@
         return Promise.race([((typeof window.kredAdminSiap === 'function') ? Promise.resolve(window.kredAdminSiap()).catch(() => true) : Promise.resolve(true)), new Promise(r => setTimeout(r, 8000))]).then(() => db.ref().update(updates)).then(() => true);
       }).then(ok => {
         if (!ok) return;
-        toast(oldKey ? '✅ Catatan absen diperbarui.' : '✅ Catatan absen ditambahkan.');
+        toastTersimpan(oldKey ? 'Catatan absen diperbarui' : 'Catatan absen ditambahkan');
         addLog(oldKey ? 'edit_absen_guru' : 'tambah_absen_guru', `${guru.name} - ${tanggal} - ${jenis}: ${alasan}`);
         kagTutup(); reloadDataset('teacherAttendance'); loadKelolaAbsenGuru();
       }).catch(e => toast('❌ ' + kagPesanGalat(e, 'Penyimpanan'), true, 8000))
@@ -335,7 +336,7 @@
       krgSaving = true; if (btn) btn.disabled = true;
       const op = adminSesi().then(() => (aksi === 'hapus' ? ref.remove() : ref.set({ tanggal, sholat, guruKey: guru.key, guruName: guru.name, aksi, alasan, oleh: currentUser.name, at: new Date().toISOString(), tahunAjaran: currentTahunAjaran })));   // Rules: honor_koreksi_sholat hanya bisa ditulis sesi Admin
       op.then(() => {
-        toast(`✅ Koreksi tersimpan. Dampak honor ${guru.name}: ${krgRupiah(h.rupiah)}`);
+        toastTersimpan(`Dampak honor ${guru.name}: ${krgRupiah(h.rupiah)}`);
         addLog('koreksi_honor_sholat', `${guru.name} | ${tanggal} | ${label}: ${aksi} | ${h.sekarang ? 'dihitung' : 'tidak dihitung'} → ${h.baru ? 'dihitung' : 'tidak dihitung'} | honor ${krgRupiah(h.rupiah)} | alasan: ${alasan}`);
         honorSholatInvalidate(); krgEl('krgAlasan').value = ''; krgPreview();
       }).catch(e => toast('❌ ' + kagPesanGalat(e, 'Penyimpanan'), true, 8000))
@@ -379,7 +380,7 @@
         return db.ref().update(updates).then(() => ({ h, lamaTxt, baruTxt }));
       }).then(res => {
         if (!res) return;
-        toast(`✅ Koreksi tersimpan. Dampak honor ${guru.name}: ${krgRupiah(res.h.rupiah)}`);
+        toastTersimpan(`Dampak honor ${guru.name}: ${krgRupiah(res.h.rupiah)}`);
         addLog('koreksi_religi_guru', `${guru.name} | ${tanggal} | ${label}: ${res.lamaTxt} → ${res.baruTxt} | honor ${krgRupiah(res.h.rupiah)}${res.h.duplikat ? ' | duplikat dibersihkan: ' + res.h.duplikat : ''} | alasan: ${alasan}`);
         krgCache = { key: '', records: null };
         krgEl('krgAlasan').value = '';

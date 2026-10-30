@@ -410,7 +410,7 @@ function kasSimpan() {
   const selesai = (err, pesanOk, aksiLog) => {
     clearBusy('kasSimpan', btn);
     if (err) return toast('Gagal: ' + (err.message || err), true);
-    toast(pesanOk + (buku !== kasBukuAktif ? ` (tercatat di ${KAS_NAMA_BUKU[buku]})` : '')); addLog(aksiLog, `${KAS_NAMA_BUKU[buku]} - ${jenis} - ${kategori} - ${kasRp(nominal)} - ${uraian}`);
+    toastTersimpan(buku !== kasBukuAktif ? `Tercatat di ${KAS_NAMA_BUKU[buku]}` : ''); addLog(aksiLog, `${KAS_NAMA_BUKU[buku]} - ${jenis} - ${kategori} - ${kasRp(nominal)} - ${uraian}`);
     kasSimpanJenisBawaan(jenis);
     kasResetForm();
     reloadDataset('kasUmum', () => renderKasUmum());
@@ -919,7 +919,7 @@ function setoranTenggatSimpan() {
     clearBusy('setoranTenggat', btn);
     if (err) return toast('Gagal: ' + (err.message || err), true);
     setoranTenggat = cfg;
-    toast('✅ Pengaturan setoran disimpan!'); addLog('ubah_tenggat_setoran', setoranPengaturanRingkas(cfg));
+    toastTersimpan(); addLog('ubah_tenggat_setoran', setoranPengaturanRingkas(cfg));
     const card = kasEl('setoranTenggatCard'); if (card) card.dataset.form = '';
     if (!setoranEditingKey) setoranTerapkanPenerima(true);
     setoranRender();
@@ -1191,7 +1191,7 @@ function setoranSimpan() {
   const selesai = (err, pesanOk, aksiLog) => {
     clearBusy('setoranSimpan', btn);
     if (err) return toast('Gagal: ' + (err.message || err), true);
-    toast(pesanOk); addLog(aksiLog, `${kelas} - ${sem} - ${dari} s.d. ${sampai} - setor ${kasRp(nominal)} (terkumpul ${kasRp(t.total)})`);
+    toastTersimpan(); addLog(aksiLog, `${kelas} - ${sem} - ${dari} s.d. ${sampai} - setor ${kasRp(nominal)} (terkumpul ${kasRp(t.total)})`);
     setoranMuat(() => { setoranResetForm(); setoranRender(); });
   };
   if (lama) {

@@ -76,7 +76,7 @@
       if (!guruValue) { db.ref('tahfidz_pic_v4/'+kelas).remove().then(()=>{ toast('Penanggung jawab dihapus'); v4LoadCore(); }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); }); return; }
       const guru = (allGuru||[]).find(g => (g.key||g.name)===guruValue); if (!guru) return;
       db.ref('tahfidz_pic_v4/'+kelas).set({ kelas, key: guru.key||guru.name, name: guru.name, updatedAt: new Date().toISOString(), updatedBy: currentUser.name }).then(() => {
-        toast('✅ Penanggung jawab tahfidz diperbarui'); v4LoadCore();
+        toastTersimpan('Penanggung jawab tahfidz'); v4LoadCore();
       }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
     }
     function v4RenderTahfidz(){
@@ -133,7 +133,7 @@
       const btnTahfidz = document.getElementById('btnV4Tahfidz_'+studentKey);
       try {
         setBusy('v4SaveTahfidzRow_'+studentKey, btnTahfidz);
-        db.ref('tahfidz_v4').push().set(data).then(() => { clearBusy('v4SaveTahfidzRow_'+studentKey, btnTahfidz); toast('✅ Capaian tahfidz disimpan'); v4LoadCore(); }).catch(err => { clearBusy('v4SaveTahfidzRow_'+studentKey, btnTahfidz); console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
+        db.ref('tahfidz_v4').push().set(data).then(() => { clearBusy('v4SaveTahfidzRow_'+studentKey, btnTahfidz); toastTersimpan('Capaian tahfidz'); v4LoadCore(); }).catch(err => { clearBusy('v4SaveTahfidzRow_'+studentKey, btnTahfidz); console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
       } catch (e) {
         clearBusy('v4SaveTahfidzRow_'+studentKey, btnTahfidz);
         console.error('[SI MAMBA] Gagal simpan:', e);
@@ -210,7 +210,7 @@
       if (!guruValue) { db.ref('pramuka_pic_v4/'+kelas).remove().then(() => { toast('Pembina Pramuka '+kelas+' dihapus'); delete V4.pramukaPic[kelas]; v4RenderPramuka(); }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); }); return; }
       const guru = (allGuru||[]).find(g => (g.key||g.name)===guruValue); if (!guru) return;
       const data = { kelas, key: guru.key||guru.name, name: guru.name, updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
-      db.ref('pramuka_pic_v4/'+kelas).set(data).then(() => { toast('✅ Pembina Pramuka '+kelas+' ditentukan: '+guru.name); addLog('tentukan_pembina_pramuka', kelas+' - '+guru.name); V4.pramukaPic[kelas]=data; v4RenderPramuka(); }).catch(err=>toast('Gagal: '+err.message,true));
+      db.ref('pramuka_pic_v4/'+kelas).set(data).then(() => { toastTersimpan('Pembina Pramuka '+kelas+': '+guru.name); addLog('tentukan_pembina_pramuka', kelas+' - '+guru.name); V4.pramukaPic[kelas]=data; v4RenderPramuka(); }).catch(err=>toast('Gagal: '+err.message,true));
     }
     let v4PramukaKelasSel = '';
     let v4PramukaOpenStudent = null;
@@ -274,7 +274,7 @@
       const data = { studentId: studentKey, studentName: student.name, kelas: student.kelas, tingkat, items, updatedBy: currentUser.name, guruKey: currentUser.key || null, updatedAt: new Date().toISOString() };
       try {
         db.ref('pramuka_sku_v4/'+studentKey).set(data).then(() => {
-          toast('✅ Checklist SKU '+student.name+' disimpan');
+          toastTersimpan('Checklist SKU '+student.name);
           const idx = (V4.pramukaSku||[]).findIndex(x=>x.studentId===studentKey);
           if (idx>=0) V4.pramukaSku[idx] = {...data, key:studentKey}; else V4.pramukaSku.push({...data, key:studentKey});
           v4RenderPramukaKelasPanel();
@@ -309,11 +309,11 @@
       if (!v4IsAdmin() && !v4IsHead()) return toast('Hanya Admin/Kepala Madrasah yang bisa menunjuk pengganti untuk guru lain! Kalau Anda sendiri ingin menggantikan, pakai opsi "Saya Gantikan Hari Ini".', true);
       const guru = (allGuru||[]).find(g => (g.key||g.name)===guruValue); if (!guru) return toast('Pilih guru pengganti dulu!', true);
       const tgl = v4Date();
-      db.ref(node+'/'+scopeKey+'_'+tgl).set({ scopeKey, tanggal: tgl, guruKey: guru.key||guru.name, guruName: guru.name, appointedBy: currentUser.name, appointedAt: new Date().toISOString() }).then(() => { toast('✅ '+guru.name+' ditunjuk sebagai pengganti hari ini'); onDone && onDone(); }).catch(err => toast('Gagal: '+err.message, true));
+      db.ref(node+'/'+scopeKey+'_'+tgl).set({ scopeKey, tanggal: tgl, guruKey: guru.key||guru.name, guruName: guru.name, appointedBy: currentUser.name, appointedAt: new Date().toISOString() }).then(() => { toastTersimpan(guru.name+' ditunjuk sebagai pengganti hari ini'); onDone && onDone(); }).catch(err => toast('Gagal: '+err.message, true));
     }
     function v4VolunteerSub(node, scopeKey, onDone){
       const tgl = v4Date();
-      db.ref(node+'/'+scopeKey+'_'+tgl).transaction(cur => { if (cur) return; return { scopeKey, tanggal: tgl, guruKey: currentUser.key||currentUser.name, guruName: currentUser.name, appointedBy: currentUser.name, appointedAt: new Date().toISOString(), volunteer: true }; }).then(result => { if (!result.committed) return toast('Sudah ada guru lain yang lebih dulu menjadi pengganti hari ini.', true); toast('✅ Anda tercatat sebagai pengganti hari ini'); onDone && onDone(); }).catch(err => toast('Gagal: '+(err.message||err), true));
+      db.ref(node+'/'+scopeKey+'_'+tgl).transaction(cur => { if (cur) return; return { scopeKey, tanggal: tgl, guruKey: currentUser.key||currentUser.name, guruName: currentUser.name, appointedBy: currentUser.name, appointedAt: new Date().toISOString(), volunteer: true }; }).then(result => { if (!result.committed) return toast('Sudah ada guru lain yang lebih dulu menjadi pengganti hari ini.', true); toastTersimpan('Anda tercatat sebagai pengganti hari ini'); onDone && onDone(); }).catch(err => toast('Gagal: '+(err.message||err), true));
     }
     function v4RemoveSub(node, scopeKey, store, onDone){
       const tgl = v4Date();
@@ -384,13 +384,17 @@
       if (!v4CanAdmin()) return toast('Hanya Admin!', true);
       const name = document.getElementById('ekskulName').value.trim();
       if (!name) return toast('Nama ekskul wajib diisi!', true);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Simpan ekskul butuh koneksi internet, coba lagi saat online.', true);
+      if (isBusy('v4SaveEkskulModal')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
       const honorEnabled = document.getElementById('ekskulHonor').checked;
       const mkTier = (label, descId, picId) => { const picKey = document.getElementById(picId).value; const guru = (allGuru||[]).find(g=>(g.key||g.name)===picKey); return { label, desc: document.getElementById(descId).value.trim(), picKey: picKey||'', picName: guru?guru.name:'' }; };
       const tiers = { rendah: mkTier('Kelas 1-3', 'ekskulRendahDesc', 'ekskulRendahPic'), tinggi: mkTier('Kelas 4-6', 'ekskulTinggiDesc', 'ekskulTinggiPic') };
+      // FIX: tombol Simpan dikunci selama menyimpan. Dulu ketukan ganda pada "Tambah Ekskul" membuat ekskul tercatat dobel (push() = key baru tiap kali).
+      const lepas = kunciSimpanModal('v4SaveEkskulModal', 'ekskulModal', 'v4SaveEkskulModal');
       if (v4EkskulEditKey) {
-        db.ref('extracurriculars_v4/'+v4EkskulEditKey).update({ name, honorEnabled, tiers }).then(()=>{ toast('✅ Ekskul diperbarui'); closeEkskulModal(); v4LoadCore(); }).catch(err=>toast('Gagal: '+err.message, true));
+        db.ref('extracurriculars_v4/'+v4EkskulEditKey).update({ name, honorEnabled, tiers }).then(()=>{ toastTersimpan(); closeEkskulModal(); v4LoadCore(); }).catch(err=>toast('Gagal: '+err.message, true)).finally(lepas);
       } else {
-        db.ref('extracurriculars_v4').push().set({ name, honorEnabled, active:true, tiers, createdAt:new Date().toISOString() }).then(()=>{ toast('✅ Ekskul ditambahkan'); closeEkskulModal(); v4LoadCore(); }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });
+        db.ref('extracurriculars_v4').push().set({ name, honorEnabled, active:true, tiers, createdAt:new Date().toISOString() }).then(()=>{ toastTersimpan(); closeEkskulModal(); v4LoadCore(); }).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); }).finally(lepas);
       }
     }
     function v4SaveEkskulAttendance(){
@@ -405,7 +409,7 @@
       const attRec = {ekskulId:ex.key,ekskulName:ex.name,studentId:st.key,studentName:st.name,kelas:st.kelas,status:document.getElementById('v4EkskulStatus').value,tanggal:tglSesi,recordedBy:currentUser.name,tahunAjaran:currentTahunAjaran};
       attRef.set(attRec).then(()=>{
         clearBusy('v4SaveEkskulAttendance', btnSaveEkskulAtt);
-        toast('✅ Absensi ekskul tersimpan');
+        toastTersimpan();
         // FIX: state lokal tidak ikut diperbarui -- V4.ekskulAttendance cuma diisi ulang oleh
         // v4LoadCore(), jadi ringkasan Ekskul di Preview Raport (v4HitungEkskulSiswa) baru memuat
         // absensi yang baru dicatat setelah reload halaman/data. Sekarang record baru langsung

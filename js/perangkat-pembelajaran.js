@@ -185,6 +185,8 @@
   const taText = () => (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) ? String(currentTahunAjaran) : '';
   const taSlug = () => slug(taText());
   const say = (m, err, ms) => { if (typeof toast === 'function') toast(m, !!err, ms); };
+  // Pesan seragam setelah simpan berhasil ("✅ Data tersimpan"); toastTersimpan() didefinisikan di app.js.
+  const sayTersimpan = (t) => { if (typeof toastTersimpan === 'function') toastTersimpan(t); else say('✅ Data tersimpan' + (t ? ' · ' + t : '')); };
   // Tanpa batas waktu, update()/set() Firebase menggantung bila sinyal buruk: kunci "sedang menyimpan" tidak pernah lepas dan tombol Simpan tampak mati.
   // Fungsi (bukan promise) dipakai supaya galat sinkron juga tertangkap dan kunci dilepas.
   const dgBatas = (f, ms) => new Promise((ok, gagal) => {
@@ -777,7 +779,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     items.forEach(x => { upd[x.id + '/docs/' + x.jk + '/setuju'] = { oleh: String(atasNama).slice(0, 100), peran: kepsek ? 'Kepala' : 'Admin', at: now }; });
     const mulai = () => tulis('perangkat_v4', upd, () => {
       items.forEach(x => { const d = (S.rows[x.id].docs = S.rows[x.id].docs || {}); d[x.jk] = d[x.jk] || {}; d[x.jk].setuju = upd[x.id + '/docs/' + x.jk + '/setuju']; });
-      say('✅ ' + items.length + ' dokumen disetujui');
+      sayTersimpan(items.length + ' dokumen disetujui');
     }, 'APPROVE_PERANGKAT_BULK', taSlug() + '_' + S.sem + '_' + (gk === '*' ? 'semua' : gk));
     mulai();
   }
@@ -956,7 +958,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     const upd = {}; upd[b + 'url'] = u; upd[b + 'status'] = st; upd[b + 'at'] = now; upd[b + 'by'] = myName();
     upd[b + 'app'] = null; upd[b + 'diajukan'] = null; upd[b + 'revisi'] = null; upd[b + 'revisiBy'] = null; upd[b + 'setuju'] = null; upd[b + 'dilihat'] = null; upd.updatedAt = now; // guru menyimpan ulang = catatan revisi dianggap ditindaklanjuti
     tulis('perangkat_v4/' + id, upd, () => {
-      rec.docs = rec.docs || {}; rec.docs[jk] = u ? { url: u, status: st, at: now, by: myName() } : { status: st, at: now, by: myName() }; rec.updatedAt = now; S.edit = null; say('✅ Tersimpan');
+      rec.docs = rec.docs || {}; rec.docs[jk] = u ? { url: u, status: st, at: now, by: myName() } : { status: st, at: now, by: myName() }; rec.updatedAt = now; S.edit = null; sayTersimpan();
     }, 'SAVE_PERANGKAT_DOC', id);
   }
   function appFinalSet(id, jk, batal) {
@@ -973,7 +975,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     tulis('perangkat_v4/' + id, upd, () => {
       rec.docs = rec.docs || {};
       if (batal) delete rec.docs[jk]; else rec.docs[jk] = perluSetuju(jk) ? { app: true, status: 'draf', diajukan: now, at: now, by: myName() } : { app: true, status: 'final', at: now, by: myName() };
-      rec.updatedAt = now; S.edit = null; say(batal ? (menunggu(x, jk, id) ? 'Pengajuan dibatalkan' : 'Status final dibatalkan') : (perluSetuju(jk) ? '✅ Diajukan, menunggu persetujuan Kepala' : '✅ Ditandai final (dokumen aplikasi)'));
+      rec.updatedAt = now; S.edit = null; say(batal ? (menunggu(x, jk, id) ? 'Pengajuan dibatalkan' : 'Status final dibatalkan') : (perluSetuju(jk) ? '✅ Data tersimpan · Diajukan, menunggu persetujuan Kepala' : '✅ Data tersimpan · Ditandai final (dokumen aplikasi)'));
     }, batal ? 'UNFINAL_PERANGKAT_APP' : 'FINAL_PERANGKAT_APP', id);
   }
   function ubahFolder(id) {
@@ -993,7 +995,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     tulis('perangkat_v4/' + id, upd, () => {
       if (u) rec.folderUrl = u; else delete rec.folderUrl;
       via.forEach(j => { if (!rec.docs || !rec.docs[j.k]) return; if (!u) delete rec.docs[j.k]; else { delete rec.docs[j.k].setuju; delete rec.docs[j.k].dilihat; } });
-      rec.updatedAt = now; say(u ? '✅ Tautan folder tersimpan' : 'Tautan folder dihapus');
+      rec.updatedAt = now; (u ? sayTersimpan('Tautan folder') : say('Tautan folder dihapus'));
     }, 'SAVE_PERANGKAT_FOLDER', id);
   }
   function hapusDoc(id, jk) {
@@ -1008,7 +1010,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     if (!x) { rec.docs = rec.docs || {}; x = rec.docs[jk] = {}; } // RPE otomatis: belum ada simpul data
     const t = ((document.getElementById('ppRevisi') || {}).value || '').trim().slice(0, 200), b = 'docs/' + jk + '/';
     const upd = {}; upd[b + 'revisi'] = t || null; upd[b + 'revisiBy'] = t ? myName() : null;
-    tulis('perangkat_v4/' + id, upd, () => { if (t) { x.revisi = t; x.revisiBy = myName(); } else { delete x.revisi; delete x.revisiBy; } S.edit = null; say('✅ Catatan tersimpan'); }, 'REVIEW_PERANGKAT_DOC', id);
+    tulis('perangkat_v4/' + id, upd, () => { if (t) { x.revisi = t; x.revisiBy = myName(); } else { delete x.revisi; delete x.revisiBy; } S.edit = null; sayTersimpan('Catatan'); }, 'REVIEW_PERANGKAT_DOC', id);
   }
   function setujuDoc(id, jk, cabut) {
     const rec = S.rows[id], j = JENIS.find(z => z.k === jk); if (!rec || !j || !j.setuju || !isAdm()) return;
@@ -1032,7 +1034,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     tulis('perangkat_v4/' + id, upd, () => {
       rec.docs = rec.docs || {}; rec.docs[jk] = rec.docs[jk] || {};
       if (cabut) delete rec.docs[jk].setuju; else rec.docs[jk].setuju = upd['docs/' + jk + '/setuju'];
-      say(cabut ? 'Persetujuan dicabut' : '✅ Dokumen disetujui');
+      (cabut ? say('Persetujuan dicabut') : sayTersimpan('Dokumen disetujui'));
     }, cabut ? 'REVOKE_PERANGKAT_DOC' : 'APPROVE_PERANGKAT_DOC', id);
   }
   function recBaru(mapel, kelas, jp) {
@@ -1063,7 +1065,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     const upd = {}; recs.forEach(r => { upd[idBaris(r.mapel, r.kelas)] = r; });
     siap().then(() => db.ref('perangkat_v4').update(upd)).then(() => {
       S.busy = false; Object.keys(upd).forEach(id => { S.rows[id] = upd[id]; audit('ADD_PERANGKAT_ROW', id); });
-      S.tambah = false; say(recs.length > 1 ? '✅ ' + recs.length + ' mapel ditambahkan' : '✅ Mapel ditambahkan'); render();
+      S.tambah = false; sayTersimpan(recs.length > 1 ? recs.length + ' mapel ditambahkan' : 'Mapel ditambahkan'); render();
     }).catch(e => { S.busy = false; say('❌ Gagal menambah: ' + ((e && e.message) || e), true); });
   }
   function hapusBaris(id) {
@@ -1079,7 +1081,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     if (!urlOk(url)) return say('Isi tautan yang valid, diawali https://', true);
     const rec = { judul: judul || 'Kaldik', url: url.trim(), at: new Date().toISOString(), by: myName() };
     // Ditulis per-field (bukan menimpa seluruh catatan) supaya tanggal tenggat yang tersimpan di catatan yang sama tidak ikut terhapus.
-    tulis('perangkat_kaldik_v4/' + taSlug() + '_' + S.sem, rec, () => { S.kaldik = Object.assign({}, S.kaldik || {}, rec); S.kaldikEdit = false; say('✅ Kaldik tersimpan'); }, 'SAVE_PERANGKAT_KALDIK', taSlug() + '_' + S.sem);
+    tulis('perangkat_kaldik_v4/' + taSlug() + '_' + S.sem, rec, () => { S.kaldik = Object.assign({}, S.kaldik || {}, rec); S.kaldikEdit = false; sayTersimpan('Kaldik'); }, 'SAVE_PERANGKAT_KALDIK', taSlug() + '_' + S.sem);
   }
   function hapusKaldik() {
     if (!isAdm() || !confirm('Hapus tautan Kaldik semester ini?')) return;
@@ -1121,7 +1123,7 @@ body.dark-mode .pp-wrap{background:#111827;border-color:#374151}body.dark-mode .
     const key = taSlug() + '_' + S.sem;
     tulis('perangkat_kaldik_v4/' + key, { tenggat: v }, () => {
       S.kaldik = Object.assign({}, S.kaldik || {}); if (v) S.kaldik.tenggat = v; else delete S.kaldik.tenggat;
-      S.tenggatEdit = false; say(v ? '✅ Tenggat tersimpan' : 'Tenggat dihapus');
+      S.tenggatEdit = false; (v ? sayTersimpan('Tenggat') : say('Tenggat dihapus'));
     }, 'SAVE_PERANGKAT_TENGGAT', key);
   }
 

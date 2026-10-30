@@ -82,7 +82,7 @@
 
   <!-- Menu Kas Madrasah (Kas Umum, Kas Infaq, Setoran Infaq) -- dimuat SEBELUM app.js supaya
        fungsinya (setupKasUmumPage, kasCanOpenMenu) sudah ada saat app.js berjalan. -->
-  <script defer src="js/kas.js?v=9"></script>
+  <script defer src="js/kas.js?v=10"></script>
 
   <!-- Menu Administrasi Ujian (Daftar Hadir, Tata Tertib, Denah, Berita Acara) -- juga dimuat SEBELUM app.js
        supaya setupAdministrasiUjianPage() & aujCanOpenMenu() sudah ada saat app.js berjalan. -->
@@ -93,7 +93,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=134"></script>
+  <script defer src="js/app.js?v=137"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=2"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -102,17 +102,17 @@
   <script defer src="js/sikap-buku.js?v=2"></script>
   <!-- Hasil pecahan app.js tahap 2 (Materi & Tugas, Kelola Absen Guru + Koreksi Honor Sholat, Jadwal Pelajaran, Rekap/Laporan PDF). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/materi-tugas.js?v=1"></script>
-  <script defer src="js/kelola-absen-guru.js?v=6"></script>
+  <script defer src="js/kelola-absen-guru.js?v=7"></script>
   <script defer src="js/jadwal.js?v=5"></script>
   <script defer src="js/laporan-rekap.js?v=2"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/honor-guru.js?v=26"></script>
+  <script defer src="js/honor-guru.js?v=27"></script>
   <script defer src="js/honor-kebersihan.js?v=3"></script>
   <!-- Hasil pecahan app.js tahap 4 (Event & Ujian; Absen Guru Admin + Pengingat). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/event-ujian.js?v=1"></script>
   <script defer src="js/pengingat-absen-guru.js?v=1"></script>
   <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=2"></script>
+  <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=5"></script>
   <script defer src="js/v4-pengaturan-notif-rapor.js?v=3"></script>
   <!-- Hasil pecahan app.js tahap 6 (Rekap Nilai; Kalender Akademik + "Hari Ini"; Saran & Kritik; akun Ortu sisi Admin). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/rekap-nilai.js?v=2"></script>
@@ -122,7 +122,7 @@
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=41"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
-  <script defer src="js/bacaan-shalat.js?v=4"></script>
+  <script defer src="js/bacaan-shalat.js?v=9"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
@@ -140,10 +140,10 @@
        Urutan WAJIB: data-pkg-mi.js dulu, lalu pkg.js; keduanya SESUDAH app.js & menu-hub.js. Butuh Firebase Rules pkg_v4_*. -->
   <script defer src="js/data-pkg-mi.js?v=1"></script>
   <!-- Pembaca data SI MAMBA (absensi guru, jurnal, nilai) untuk bukti otomatis PKG. Opsional tapi WAJIB sebelum pkg.js bila dipakai. -->
-  <script defer src="js/pkg-sumber.js?v=65"></script>
+  <script defer src="js/pkg-sumber.js?v=68"></script>
   <!-- Butir angket PKG (peserta didik / orang tua / sejawat) + rumus rekap; dipakai pkg.js dan angket.html. WAJIB sebelum pkg.js. -->
   <script defer src="js/data-pkg-angket.js?v=6"></script>
-  <script defer src="js/pkg.js?v=96"></script>
+  <script defer src="js/pkg.js?v=97"></script>
   <!-- Tab Analisis PKG (dasbor, RTL, perbandingan periode, ekspor Excel). WAJIB sesudah pkg.js. -->
   <script defer src="js/pkg-analisis.js?v=3"></script>
   <!-- Surat PKG (surat tugas penilai, pemberitahuan jadwal, berita acara; QR Kepala). WAJIB sesudah pkg.js dan ttd-digital.js. -->
@@ -167,7 +167,7 @@
   <script defer src="js/perangkat-kisi.js?v=12"></script>
   <script defer src="js/perangkat-soal.js?v=26"></script>
   <script defer src="js/perangkat-paket.js?v=2"></script>
-  <script defer src="js/perangkat-pembelajaran.js?v=25"></script>
+  <script defer src="js/perangkat-pembelajaran.js?v=26"></script>
   <script defer src="js/modul-ajar.js?v=16"></script>
   <script defer src="js/buku-tamu.js?v=5"></script>
 

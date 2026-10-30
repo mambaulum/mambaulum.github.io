@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.261';
+const APP_VERSION = 'v8.270';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -79,29 +79,29 @@ const PRECACHE_URLS = [
   './css/impersonate.css?v=3',            // gaya spanduk & modal impersonasi (samakan dengan ?v= di index.html)
   './js/logo-fallback.js',
   './js/offline-db.js',
-  './js/kas.js?v=9',
+  './js/kas.js?v=10',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=134',
+  './js/app.js?v=137',
   './js/portal-ortu.js?v=2',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=1',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=2',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/kelola-absen-guru.js?v=6',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/kelola-absen-guru.js?v=7',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=5',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/laporan-rekap.js?v=2',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-guru.js?v=26',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-guru.js?v=27',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-kebersihan.js?v=3',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
   './js/versi-app.js?v=2',                   // Penampil versi + Cek pembaruan (footer menu samping; berdiri sendiri)
   './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=1',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/v4-tahfidz-pramuka-ekskul.js?v=2',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/v4-tahfidz-pramuka-ekskul.js?v=5',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-pengaturan-notif-rapor.js?v=3',  // V4: tarif honor, pengaturan Absen QR, notifikasi, persetujuan, Rapor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/rekap-nilai.js?v=2',                // Rekap Nilai + ekspor PDF/Excel (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/kalender-akademik.js?v=1',          // Kalender Akademik/Nasional + panel "Hari Ini" (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/ortu-akun-admin.js?v=1',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/amalan-kegiatan.js?v=41',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
-  './js/bacaan-shalat.js?v=4',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
+  './js/bacaan-shalat.js?v=9',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=12',
@@ -109,9 +109,9 @@ const PRECACHE_URLS = [
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=7',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-pkg-mi.js?v=1',              // instrumen & rumus PKG Guru MI (dimuat SEBELUM pkg.js)
-  './js/pkg-sumber.js?v=65',               // pembaca absensi guru/jurnal/nilai/perangkat pembelajaran untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
+  './js/pkg-sumber.js?v=68',               // pembaca absensi guru/jurnal/nilai/perangkat pembelajaran untuk bukti otomatis PKG (dimuat SEBELUM pkg.js)
   './js/data-pkg-angket.js?v=6',          // butir & rumus angket PKG (dimuat SEBELUM pkg.js; juga dipakai angket.html)
-  './js/pkg.js?v=96',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
+  './js/pkg.js?v=97',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/pkg-surat.js?v=4',                // surat PKG berQR Kepala (dimuat SESUDAH pkg.js)
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
   './js/data-tp-mi.js?v=3',
@@ -128,7 +128,7 @@ const PRECACHE_URLS = [
   './js/perangkat-kisi.js?v=12',
   './js/perangkat-soal.js?v=26',
   './js/perangkat-paket.js?v=2',
-  './js/perangkat-pembelajaran.js?v=25',
+  './js/perangkat-pembelajaran.js?v=26',
   './js/modul-ajar.js?v=16',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',

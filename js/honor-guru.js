@@ -347,7 +347,11 @@
       if (!input) return toast('Kolom rate tidak ditemukan — muat ulang tab Tarif & Ekskul.', true);
       const rate = parseInt(input.value) || 0;
       if (rate < 0) return toast('Rate tidak valid!', true);
+      const kunciRate = 'simpanEkskulRate_' + key;   // FIX: cegah ketukan ganda saat menyimpan
+      if (isBusy(kunciRate)) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
+      setBusy(kunciRate);
       db.ref('ekskul_rates/' + key).set({ nama, rate, tahunAjaran: currentTahunAjaran, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
+        clearBusy(kunciRate);
         if (err) return toast('Gagal: ' + err.message, true);
         toast(`✅ Rate "${nama}" diperbarui ke Rp ${rate.toLocaleString()}/jam!`); addLog('ubah_rate_ekskul', nama + ': Rp ' + rate);
         reloadDataset('ekskulRates', () => { renderEkskulRateList(); renderHonor(); });
@@ -369,7 +373,11 @@
       if (!nama) return toast('Isi nama kegiatan!', true);
       if (rate <= 0) return toast('Isi rate lebih dari 0!', true);
       const key = namaKegiatanKey(nama);
+      if (isBusy('tambahEkskulRate')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);   // FIX: kunci tombol Tambah selama menyimpan
+      const btnTambahRate = document.querySelector('[onclick^="tambahEkskulRate("]');
+      setBusy('tambahEkskulRate', btnTambahRate);
       db.ref('ekskul_rates/' + key).set({ nama, rate, tahunAjaran: currentTahunAjaran, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
+        clearBusy('tambahEkskulRate', btnTambahRate);
         if (err) return toast('Gagal: ' + err.message, true);
         toast(`✅ Kegiatan "${nama}" ditambahkan dengan rate Rp ${rate.toLocaleString()}/jam!`); addLog('tambah_rate_ekskul', nama);
         document.getElementById('ekskulRateNamaBaru').value = ''; document.getElementById('ekskulRateNilaiBaru').value = '';
@@ -576,6 +584,7 @@
     }
     function tetapkanGuruTerajin() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
+      if (isBusy('tetapkanGuruTerajin')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
       if (!terajinJadwalSiap()) return toast('Jadwal belum terbaca — ranking belum akurat. Klik "Muat ulang jadwal" dulu.', true);
       const month = document.getElementById('honorMonth').value, year = document.getElementById('honorYear').value;
       const pilihan = document.getElementById('guruTerajinPilih').value;
@@ -590,7 +599,10 @@
       if (peringatan && !confirm('⏳ Ranking bulan ini belum final.\n\n' + peringatan + '\n\nTetap tetapkan ' + guru + ' sebagai Guru Terajin sekarang?')) return;
       const lama = allGuruTerajin[key];
       if (lama && !confirm(`Bulan ini sudah ada Guru Terajin: ${lama.guru} (Rp ${(lama.honor||0).toLocaleString('id-ID')}).\n\nGanti menjadi ${guru} (Rp ${honor.toLocaleString('id-ID')})?\n\nBonus ${lama.guru} di Honor & Slip bulan ini akan hilang.`)) return;
+      const btnTerajin = document.querySelector('[onclick^="tetapkanGuruTerajin("]');   // FIX: kunci tombol Tetapkan selama menyimpan
+      setBusy('tetapkanGuruTerajin', btnTerajin);
       db.ref('guru_terajin/' + key).set({ guru, guruKey, honor, tahunAjaran: currentTahunAjaran, ditetapkanOleh: currentUser.name, ditetapkanAt: new Date().toISOString() }, err => {
+        clearBusy('tetapkanGuruTerajin', btnTerajin);
         if (err) return toast('Gagal: ' + err.message, true);
         toast(`🏆 ${guru} ditetapkan sebagai Guru Terajin!`); addLog('tetapkan_guru_terajin', guru + ' - ' + key);
         document.getElementById('guruTerajinHonor').value = '';

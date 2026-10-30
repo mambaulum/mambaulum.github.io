@@ -321,6 +321,20 @@
       _busyLocks[key] = false;
       if (btn) { btn.disabled = false; btn.style.opacity = '1'; if (btn.dataset.origText) { btn.textContent = btn.dataset.origText; delete btn.dataset.origText; } }
     }
+    // Kunci tombol Simpan di jendela pop up (anti ketuk ganda). Mengembalikan fungsi `lepas` (aman dipanggil berkali-kali):
+    // panggil di SEMUA jalan keluar (sukses, gagal, galat). Cadangan: bila server belum menjawab dalam 20 dtk (sinyal lemah),
+    // tombol dilepas otomatis supaya tidak macet; pesan meminta Admin mengecek data dulu sebelum menyimpan ulang.
+    function kunciSimpanModal(key, modalId, namaFungsi) {
+      const btn = document.querySelector('#' + modalId + ' [onclick^="' + namaFungsi + '("]');
+      setBusy(key, btn);
+      if (btn) btn.textContent = '⏳ Menyimpan...';
+      let selesai = false;
+      const t = setTimeout(() => {
+        if (selesai) return; selesai = true; clearBusy(key, btn);
+        toast('⚠️ Server belum menjawab. Periksa sinyal, lalu cek dulu apakah data sudah tersimpan sebelum menyimpan ulang.', true, 7000);
+      }, 20000);
+      return function lepas() { if (selesai) return; selesai = true; clearTimeout(t); clearBusy(key, btn); };
+    }
     // ============================================================
     // TANGGAL LOKAL (WIB), BUKAN UTC
     // Bug lama: banyak tempat pakai `tglLokal()` untuk
@@ -987,7 +1001,7 @@
               event.target.disabled = false; event.target.value = '';
               if (err) return toast('Gagal simpan: ' + err.message, true);
               MADRASAH.ttdKepalaBase64 = base64; _ttdPromise = Promise.resolve(base64);
-              toast('✅ Tanda tangan Kepala Sekolah berhasil disimpan!');
+              toastTersimpan('Tanda tangan Kepala Sekolah');
               addLog('upload_ttd_kepala', MADRASAH.kepala_sekolah);
               renderTtdKepalaPreview();
             });
@@ -1324,6 +1338,11 @@
       clearTimeout(window.toastTimer);
       window.toastTimer = setTimeout(() => t.className = 'toast', duration);
     }
+
+    // Pesan seragam setelah tombol Simpan berhasil. Dipanggil HANYA pada cabang sukses (setelah server menerima data),
+    // sebelum jendela ditutup. `tambahan` (opsional) hanya untuk info yang memang perlu dibaca pengguna.
+    const PESAN_TERSIMPAN = '✅ Data tersimpan';
+    function toastTersimpan(tambahan) { toast(PESAN_TERSIMPAN + (tambahan ? ' · ' + tambahan : '')); }
 
     // FIX: dulu tanda tangan fungsinya (action, message) tapi HANYA `message` yang dipakai untuk
     // teks konfirmasi -- `action` sama sekali tidak disentuh di dalam fungsi. Semua pemanggil di
@@ -1859,7 +1878,7 @@
       tulisSettingsAdmin('school_settings', { jendelaAbsen: baru, jendelaAbsenUpdatedBy: currentUser.name, jendelaAbsenUpdatedAt: new Date().toISOString() }, err => {
         if (err) return toast('Gagal: ' + err.message, true);
         setJendelaAbsen(baru); simpanMirrorPengaturan(); updateLabelJamPulang(); renderJendelaAbsenEditor();
-        toast('✅ Jendela jam absen guru diperbarui!');
+        toastTersimpan();
         addLog('ubah_jendela_absen', JSON.stringify(baru));
       });
     }
@@ -1890,7 +1909,7 @@
         setKelasList(newList);
         refreshAllKelasDropdowns();
         renderKelasListEditor();
-        toast('✅ Daftar kelas berhasil diperbarui di seluruh aplikasi!');
+        toastTersimpan('Daftar kelas diperbarui');
         addLog('ubah_daftar_kelas', newList.join(', '));
       });
     }
@@ -1930,7 +1949,7 @@
       // disimpan lewat simpanProfilMadrasah() tidak ikut terhapus saat form ini disimpan terpisah.
       tulisSettingsAdmin('school_settings', { tahunAjaranAktif: tahunAjaranBaru, semesterAktif: semesterBaru, updatedBy: currentUser.name, updatedAt: new Date().toISOString() }, err => {
         if (err) return toast('Gagal: ' + err.message, true);
-        toast('✅ Tahun Ajaran & Semester berhasil disimpan!'); addLog('ubah_profil_sekolah', `${tahunAjaranBaru} - ${semesterBaru}`);
+        toastTersimpan(); addLog('ubah_profil_sekolah', `${tahunAjaranBaru} - ${semesterBaru}`);
       });
     }
     function simpanProfilMadrasah() {
@@ -1964,7 +1983,7 @@
         applyMadrasahProfileFromSnapshot(data);
         renderStrukturRingkasan();
         renderKopSuratPreview();
-        toast('✅ Identitas & struktur madrasah tersimpan! Kop surat otomatis ikut terbarui.');
+        toastTersimpan('Kop surat ikut terbarui');
         addLog('ubah_identitas_madrasah', data.namaMadrasah);
       });
     }
@@ -2059,6 +2078,7 @@
     function closeGantiPinModal() { document.getElementById('gantiPinModal').classList.remove('show'); }
     function saveGantiPin() {
       if (!currentUser) return toast('Login dulu!', true);
+      if (isBusy('saveGantiPin')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
       const pinLama = document.getElementById('oldPin').value.trim(), pinBaru = document.getElementById('newPin').value.trim(), pinKonfirmasi = document.getElementById('confirmPin').value.trim();
       if (!pinLama || !pinBaru || !pinKonfirmasi) return toast('Semua field wajib diisi!', true);
       if (!/^\d{6}$/.test(pinBaru)) return toast('PIN baru harus 6 digit!', true);
@@ -2067,12 +2087,13 @@
       if (!guru) return toast('Guru tidak ditemukan!', true);
       if (typeof kredVerifikasi !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
       // [KREDENSIAL v1] PIN lama diperiksa lewat indeks kredensial; hash tidak lagi ditulis ke data guru.
+      const lepas = kunciSimpanModal('saveGantiPin', 'gantiPinModal', 'saveGantiPin');   // FIX: kunci tombol Simpan (anti ketuk ganda)
       kredVerifikasi(guru, pinLama).then(h => {
         if (!h.ok) return toast('PIN lama salah!', true);
         return kredGantiPinSendiri(guru, pinLama, pinBaru, h).then(() => {
-          toast('✅ PIN berhasil diganti!'); addLog('ganti_pin', 'PIN diganti'); closeGantiPinModal(); reloadDataset('logs'); loadGuruListForLogin();
+          toastTersimpan('PIN berhasil diganti'); addLog('ganti_pin', 'PIN diganti'); closeGantiPinModal(); reloadDataset('logs'); loadGuruListForLogin();
         });
-      }).catch(err => toast('Gagal: ' + (err && err.message ? err.message : err), true));
+      }).catch(err => toast('Gagal: ' + (err && err.message ? err.message : err), true)).finally(lepas);
     }
 
     function resetPinGuru(key) {
@@ -2088,6 +2109,7 @@
     function closeResetPinModal() { document.getElementById('resetPinModal').classList.remove('show'); }
     function saveResetPin() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
+      if (isBusy('saveResetPin')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
       const key = document.getElementById('resetPinGuruKey').value;
       const guru = allGuru.find(g => g.key === key);
       if (!guru) return toast('Guru tidak ditemukan!', true);
@@ -2095,9 +2117,10 @@
       if (!/^\d{6}$/.test(pinBaru)) return toast('PIN harus 6 digit!', true);
       if (pinBaru !== pinKonfirmasi) return toast('Konfirmasi PIN baru tidak cocok!', true);
       if (typeof kredAdminSetPin !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
+      const lepas = kunciSimpanModal('saveResetPin', 'resetPinModal', 'saveResetPin');   // FIX: kunci tombol Reset PIN (anti ketuk ganda)
       kredAdminSetPin(key, pinBaru).then(() => {
-        toast('✅ PIN berhasil direset!'); addLog('reset_pin', `Reset PIN ${guru.name}`); closeResetPinModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList());
-      }).catch(err => toast('Gagal: ' + (err && err.message ? err.message : err), true));
+        toastTersimpan('PIN berhasil direset'); addLog('reset_pin', `Reset PIN ${guru.name}`); closeResetPinModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList());
+      }).catch(err => toast('Gagal: ' + (err && err.message ? err.message : err), true)).finally(lepas);
     }
 
     // ============================================================
@@ -2164,7 +2187,7 @@
       db.ref().update(updates, err => {
         clearBusy('tambahPengumuman', btnTambahPengumuman);
         if (err) toast('Gagal: ' + err.message, true);
-        else { toast('✅ Pengumuman ditambahkan!'); addLog('tambah_pengumuman', teks.substring(0,30)+(teks.length>30?'...':'')); document.getElementById('pengumumanInput').value = ''; loadPengumuman(); }
+        else { toastTersimpan(); addLog('tambah_pengumuman', teks.substring(0,30)+(teks.length>30?'...':'')); document.getElementById('pengumumanInput').value = ''; loadPengumuman(); }
       });
     }
     function hapusPengumuman(key) {
@@ -3289,7 +3312,7 @@
         if (mulai >= selesai) { toast(`Jam ke-${i}: mulai harus sebelum selesai!`, true); return; }
         newSettings[i] = { mulai, selesai, label: isEkstra ? 'Ekstrakurikuler' : 'Reguler', isEkstra };
       }
-      db.ref('jam_settings').set(newSettings, err => { if (err) toast('Gagal: '+err.message, true); else { toast('✅ Pengaturan jam disimpan!'); jamSettings = newSettings; renderJamSettings(); updateJamDisplay(); populateJournalJamOptions(); addLog('setting_jam','Jam pelajaran diubah'); } });
+      db.ref('jam_settings').set(newSettings, err => { if (err) toast('Gagal: '+err.message, true); else { toastTersimpan(); jamSettings = newSettings; renderJamSettings(); updateJamDisplay(); populateJournalJamOptions(); addLog('setting_jam','Jam pelajaran diubah'); } });
     }
     function resetJamDefault() { if (!isAdmin()) return toast('Hanya Admin!', true);
       db.ref('jam_settings').set(DEFAULT_JAM, err => { if (err) toast('Gagal: '+err.message, true); else { toast('✅ Reset ke default!'); jamSettings = JSON.parse(JSON.stringify(DEFAULT_JAM)); const jumlahInput = document.getElementById('jumlahJamPelajaran'); if (jumlahInput) jumlahInput.value = 4; renderJamSettings(); updateJamDisplay(); populateJournalJamOptions(); addLog('setting_jam','Reset jam default'); } });
@@ -4717,7 +4740,9 @@
     function closeEditSiswaModal() { document.getElementById('editSiswaModal').classList.remove('show'); editingSiswaKey = null; }
     function saveEditSiswa() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
+      if (isBusy('saveEditSiswa')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
       if (!editingSiswaKey) return toast('Error: tidak ada siswa yang diedit!', true);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Simpan data siswa butuh koneksi internet, coba lagi saat online.', true);
       const name = document.getElementById('editSiswaName').value.trim(), kelas = document.getElementById('editSiswaClass').value;
       if (!name) return toast('Nama wajib diisi!', true);
       const nominalKhususRaw = document.getElementById('editSiswaNominalKhusus').value.trim();
@@ -4732,10 +4757,12 @@
       // noWaKey = nomor WA yang sudah dinormalisasi (62xxxxxxxxxx) -- dipakai Portal Orang Tua untuk
       // mencari anak lewat query terindeks, bukan mengunduh seluruh node siswa. null kalau tak valid.
       const noWaKey = noWaOrtu ? (ortuWaKey(noWaOrtu) || null) : null;
+      const lepas = kunciSimpanModal('saveEditSiswa', 'editSiswaModal', 'saveEditSiswa');   // FIX: kunci tombol Simpan (anti ketuk ganda)
       tulisAdmin(null, null, () => { db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey }, err => {
+        lepas();
         if (err) toast('Gagal update: '+err.message, true);
-        else { toast('✅ Data siswa berhasil diupdate!'); addLog('edit_siswa', name + ' - ' + kelas); closeEditSiswaModal(); reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
-      }); });
+        else { toastTersimpan(); addLog('edit_siswa', name + ' - ' + kelas); closeEditSiswaModal(); reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
+      }); }, lepas);
     }
     // ============================================================
     // NOTIFIKASI WHATSAPP KE WALI MURID
@@ -4772,7 +4799,7 @@
       tulisAdmin('tambahSiswa', btn, () => {       db.ref('siswa').push().set({ name, kelas, guru: 'Admin', guruKey: currentUser.key || null, dibuat: new Date().toISOString() }, err => {
         clearBusy('tambahSiswa', btn);
         if (err) toast('Gagal: '+err.message, true);
-        else { toast('✅ Siswa ditambahkan!'); addLog('tambah_siswa', name + ' - ' + kelas); document.getElementById('studentName').value = ''; document.getElementById('filterKelasSiswa').value = ''; reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
+        else { toastTersimpan(); addLog('tambah_siswa', name + ' - ' + kelas); document.getElementById('studentName').value = ''; document.getElementById('filterKelasSiswa').value = ''; reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
       }); });
     }
     function bulkImportSiswa() {
@@ -5093,7 +5120,7 @@
       if (!bolehSetujuiPulangDuluan()) return toast('Hanya Kepala Madrasah/Admin!', true);
       db.ref('early_leave_requests/'+key).update({ status: 'approved', approvedBy: currentUser.name, approvedAt: new Date().toISOString() }, err => {
         if (err) toast('Gagal: '+err.message, true);
-        else { toast('✅ Catatan pulang duluan ditandai disetujui!'); addLog('setujui_pulang_duluan', key); reloadDataset('earlyLeave'); }
+        else { toastTersimpan('Pulang duluan disetujui'); addLog('setujui_pulang_duluan', key); reloadDataset('earlyLeave'); }
       });
     }
     function rejectEarlyLeave(key) {
@@ -5195,7 +5222,7 @@
             if (!isReallyOnline()) queueOfflineAttendance(Object.assign({ _fbKey: ref.key }, data));
             else toast('❌ Gagal: '+err.message, true);
           }
-          else { toast('✅ Absensi tersimpan!'); addLog('simpan_absensi', filterKelas + ' - ' + date); reloadDataset('attendance', () => { loadAttendance(); }); }
+          else { toastTersimpan(); addLog('simpan_absensi', filterKelas + ' - ' + date); reloadDataset('attendance', () => { loadAttendance(); }); }
         });
       }, err => {
         if (attSettled) return; attSettled = true; clearTimeout(attTimer);
@@ -5314,7 +5341,7 @@
           const idx = allAttendance.findIndex(a => a.tanggal === tanggal && a.kelas === kelas);
           const record = { key, tanggal, kelas, guru: data.guru, guruKey: data.guruKey, data: data.data, tahunAjaran: data.tahunAjaran, updatedAt: data.updatedAt, isiOlehGuruPengganti: true };
           if (idx >= 0) allAttendance[idx] = record; else allAttendance.push(record);
-          toast(`✅ Absensi kelas ${kelas} tersimpan! Silakan simpan jurnal lagi.`);
+          toastTersimpan(`Absensi kelas ${kelas}. Silakan simpan jurnal lagi.`);
           addLog('simpan_absensi', kelas + ' - ' + tanggal + ' (guru pengganti)');
           closeMewakiliAbsensiModal();
         });
@@ -5425,7 +5452,7 @@
       }).then(({ savedCount, conflictNames }) => {
         clearBusy('saveGrades', btnSave);
         if (conflictNames.length === 0) {
-          toast('✅ Nilai tersimpan!');
+          toastTersimpan();
         } else {
           let msg = `✅ ${savedCount} nilai tersimpan.`;
           msg += ` ⚠️ ${conflictNames.length} nilai (${conflictNames.join(', ')}) TIDAK disimpan karena sudah diubah guru lain terlebih dahulu -- silakan cek ulang & simpan lagi untuk siswa tersebut.`;
@@ -5878,7 +5905,7 @@
         db.ref('journal/'+editingJournalKey).update({ tanggal, jam_ke, subject, activity, kelas, type, mewakili: mewakili || null, mewakiliKey: window._journalMewakiliKey || null, updatedAt: new Date().toISOString() }, err => {
           clearBusy('saveJournal', btnSaveEdit);
           if (err) toast('Gagal update: '+err.message, true);
-          else { toast('✅ Jurnal berhasil diupdate!'); addLog('edit_jurnal', subject + ' - ' + kelas); cancelEditJournal(); reloadDataset('journal'); }
+          else { toastTersimpan(); addLog('edit_jurnal', subject + ' - ' + kelas); cancelEditJournal(); reloadDataset('journal'); }
         });
         return;
       }
@@ -5977,7 +6004,7 @@
             else toast('Gagal: '+err.message, true);
           }
           else {
-            toast('✅ Jurnal tersimpan!'); addLog('simpan_jurnal', subject + ' - ' + kelas + (mewakili ? ' (mewakili '+mewakili+')' : '') + (isManualOverride ? ' [MANUAL OVERRIDE oleh '+currentUser.name+']' : ''));
+            toastTersimpan(); addLog('simpan_jurnal', subject + ' - ' + kelas + (mewakili ? ' (mewakili '+mewakili+')' : '') + (isManualOverride ? ' [MANUAL OVERRIDE oleh '+currentUser.name+']' : ''));
             // Update cache lokal SEKARANG JUGA (bukan menunggu loadAllData() yang butuh waktu network) —
             // supaya kalau tombol Simpan diklik lagi dalam 1-2 detik berikutnya, cek bentrok jam yang sama
             // langsung mendeteksi jurnal yang baru saja tersimpan ini, bukan data lama.
@@ -6075,7 +6102,7 @@
       if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
       db.ref('journal/'+key).update({ status: 'approved', approvedBy: currentUser.name, approvedAt: new Date().toISOString() }, err => {
         if (err) toast('Gagal: '+err.message, true);
-        else { toast('✅ Jurnal susulan disetujui!'); addLog('setujui_jurnal_susulan', key); reloadDataset('journal'); }
+        else { toastTersimpan('Jurnal susulan disetujui'); addLog('setujui_jurnal_susulan', key); reloadDataset('journal'); }
       });
     }
     function rejectJournal(key) {
@@ -6709,7 +6736,7 @@
         clearBusy('submitIzinSakit', btn);
         if (err) return toast('Gagal: '+err.message, true);
         if (!committed) { toast('⚠️ Anda sudah punya catatan kehadiran hari ini (tercatat dari sesi lain).', true); reloadDataset('teacherAttendance', () => renderTeacherAttendance()); return; }
-        toast(`✅ Laporan ${type} berhasil dikirim.`);
+        toastTersimpan(`Laporan ${type} terkirim`);
         addLog('lapor_izin_sakit', type + (keterangan ? ' - ' + keterangan : ''));
         document.getElementById('izinSakitKeterangan').value = '';
         document.getElementById('izinSakitForm').style.display = 'none';
@@ -7136,7 +7163,7 @@
         return adminSesiSiap().then(() => db.ref('teacher_attendance').update(updates));
       }).then(() => {
         clearBusy('simpanKoreksiAbsenGuru', null);
-        toast(`✅ Koreksi absen ${jenis} untuk ${guru} tersimpan!`);
+        toastTersimpan(`Koreksi absen ${jenis} untuk ${guru}`);
         addLog('koreksi_absen_manual', `${guru} - ${tanggal} - ${jenis}: ${catatan}`);
         document.getElementById('koreksiAbsenCatatan').value = '';
         document.getElementById('koreksiAbsenJam').value = '';
@@ -7177,7 +7204,9 @@
     function closeEditGuruModal() { document.getElementById('editGuruModal').classList.remove('show'); editingGuruKey = null; }
     function saveEditGuru() {
       if (!isAdmin()) return toast('Hanya Admin!', true);
+      if (isBusy('saveEditGuru')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
       if (!editingGuruKey) return toast('Error: tidak ada guru yang diedit!', true);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Simpan data guru butuh koneksi internet, coba lagi saat online.', true);
       const name = document.getElementById('editGuruName').value.trim(), pin = document.getElementById('editGuruPin').value.trim();
       if (!name) return toast('Nama wajib!', true);
       let updateData = { name };
@@ -7204,13 +7233,16 @@
       if (noWaGuru && formatNomorWa(noWaGuru).length < 10) return toast('Nomor WhatsApp guru tidak valid!', true);
       updateData.noWa = noWaGuru || null;
       const guruKeyEdit = editingGuruKey;
+      if (pinBaruEdit && typeof kredAdminSetPin !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
+      // FIX: tombol Simpan dikunci selama menyimpan (dulu bisa diketuk berkali-kali dan jendela baru menutup setelah server menjawab).
+      const lepas = kunciSimpanModal('saveEditGuru', 'editGuruModal', 'saveEditGuru');
       const simpanDataGuru = () => tulisAdmin(null, null, () => { db.ref('guru/' + guruKeyEdit).update(updateData, err => {
+        lepas();
         if (err) toast('Gagal update: '+err.message, true);
-        else { toast('✅ Data guru diupdate!'); addLog('edit_guru', name); closeEditGuruModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList()); }
-      }); });
+        else { toastTersimpan(); addLog('edit_guru', name); closeEditGuruModal(); reloadDataset('logs'); loadGuruListForLogin(() => renderUserList()); }
+      }); }, lepas);
       if (pinBaruEdit) {
-        if (typeof kredAdminSetPin !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
-        kredAdminSetPin(guruKeyEdit, pinBaruEdit).then(simpanDataGuru).catch(err => toast('Gagal mengganti PIN: ' + (err && err.message ? err.message : err), true));
+        kredAdminSetPin(guruKeyEdit, pinBaruEdit).then(simpanDataGuru).catch(err => { lepas(); toast('Gagal mengganti PIN: ' + (err && err.message ? err.message : err), true); });
       } else simpanDataGuru();
     }
     // ============================================================
@@ -7486,7 +7518,7 @@
         clearBusy('tambahUser', btnTambahUser);
         if (err) toast('Gagal: ' + err.message, true);
         else {
-          toast('✅ Pengguna berhasil ditambahkan!');
+          toastTersimpan('Pengguna ditambahkan');
           addLog('tambah_user', `${name} - ${role}`);
           document.getElementById('userName').value = '';
           document.getElementById('userPin').value = '';
