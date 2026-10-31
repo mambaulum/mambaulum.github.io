@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.283';
+const APP_VERSION = 'v8.285';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -101,7 +101,7 @@ const PRECACHE_URLS = [
   './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/ortu-akun-admin.js?v=1',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/amalan-kegiatan.js?v=41',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
-  './js/bacaan-shalat.js?v=19',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
+  './js/bacaan-shalat.js?v=20',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=12',
@@ -127,9 +127,9 @@ const PRECACHE_URLS = [
   './js/data-kisi-resmi-mi.js?v=3',
   './js/perangkat-kisi.js?v=12',
   './js/perangkat-soal.js?v=26',
-  './js/perangkat-paket.js?v=3',
+  './js/perangkat-paket.js?v=4',
   './js/perangkat-pembelajaran.js?v=26',
-  './js/modul-ajar.js?v=22',
+  './js/modul-ajar.js?v=23',
   './js/buku-tamu.js?v=5',
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=13',

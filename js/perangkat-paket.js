@@ -38,7 +38,7 @@
   const KUNCI_SIMPAN = () => 'paket_perangkat_v1_' + myId();
 
   const Pk = { id: '', rec: null, sem: 'ganjil', ta: '', h: null, urut: [], cek: {}, opsi: { sampul: true, pemisah: true, pisah: false },
-    fase: 'pilih', info: '', hasil: [], gagal: [], grup: [] };
+    fase: 'pilih', info: '', hasil: [], gagal: [], grup: [], waSudah: false };
 
   // ---------- Dokumen: ekstrak, lingkupkan CSS, gabungkan ----------
   // Ambil semua blok @page (termasuk margin box bersarang seperti @bottom-left{...}) dengan menghitung kurung kurawal.
@@ -172,6 +172,47 @@ body{margin:0;font-family:"Times New Roman",Times,serif;color:#111}
   }
   function simpan() { try { localStorage.setItem(KUNCI_SIMPAN(), JSON.stringify({ urut: Pk.urut, cek: Pk.cek, opsi: Pk.opsi })); } catch (e) { /* penyimpanan penuh/dimatikan */ } }
 
+  // ---------- Peringatan modul belum disetujui + pengingat WA (pola sama dengan hub Perangkat: wa.me lewat kirimWA, Admin/Kepala) ----------
+  const isAdm = () => (typeof v4IsAdmin === 'function' && v4IsAdmin()) || (typeof v4IsHead === 'function' && v4IsHead());
+  const STATUS_MODUL = { draf: 'draf, belum diajukan', diajukan: 'menunggu persetujuan Kepala', ditolak: 'ditolak, perlu direvisi' };
+  const STATUS_WA = { draf: 'belum diajukan', ditolak: 'ditolak, mohon direvisi' };
+  function noWaGuru(key, nama) {
+    let arr = [];
+    try { arr = (typeof allGuru !== 'undefined' && allGuru) ? (Array.isArray(allGuru) ? allGuru : Object.values(allGuru)) : []; } catch (e) { arr = []; }
+    const g = arr.find(x => x && x.key === key) || arr.find(x => x && x.name === nama);
+    return g && g.noWa ? String(g.noWa) : '';
+  }
+  function waModul() {
+    const inf = infoMandiri(), r = Pk.rec || {};
+    if (!inf || !isAdm() || (r.guruKey && r.guruKey === myId())) return '';
+    if (inf.draf + inf.ditolak === 0) return '';   // sisanya menunggu Kepala, bukan menunggu guru
+    const no = noWaGuru(r.guruKey, r.guruName);
+    const aksi = no ? btn('wa-modul', Pk.waSudah ? '✓ Sudah dibuka · kirim lagi' : '💬 Ingatkan guru lewat WA', Pk.waSudah ? 'btn-soft' : 'btn-success')
+      : '<span style="color:#b45309;">No. WA guru belum diisi (lengkapi di Data Guru)</span>';
+    return `<div style="margin-top:8px;">${aksi}</div>`;
+  }
+  function pesanWaModul() {
+    const inf = infoMandiri(), r = Pk.rec || {}, l = inf.belum.filter(x => x.pers !== 'diajukan'), maks = 12;
+    const baris = l.slice(0, maks).map(x => '- ' + x.materi + ' (' + STATUS_WA[x.pers] + ')').join('\n') + (l.length > maks ? '\n- … dan ' + (l.length - maks) + ' modul lainnya' : '');
+    return 'Assalamu\'alaikum Bapak/Ibu ' + (r.guruName || r.guruKey || '') + ',\n\nPengingat dari Admin SI MAMBA.\nModul ajar ' + (r.mapel || '') + ' kelas ' + (r.kelas || '') + ' semester ' + SEM_LABEL[Pk.sem] + ' ' + Pk.ta +
+      ' yang belum diajukan ke Kepala Madrasah:\n' + baris + '\n\nMohon dilengkapi dan diajukan lewat menu Modul Pembelajaran. Jazakumullah khairan.';
+  }
+  function kirimWaModul() {
+    const inf = infoMandiri(), r = Pk.rec || {}; if (!inf) return;
+    const no = noWaGuru(r.guruKey, r.guruName);
+    if (!no) return say('No. WA guru belum diisi (lengkapi di Data Guru).', true);
+    if (typeof kirimWA !== 'function') return say('Fungsi WhatsApp belum tersedia.', true);
+    kirimWA(no, pesanWaModul()); Pk.waSudah = true; gambar();
+  }
+  // siap=false: di panel pilihan (hanya bila Modul dicentang); siap=true: di layar "Paket siap dicetak" (hanya bila Modul ikut).
+  function peringatanModul(siap) {
+    const inf = infoMandiri(); if (!inf || !inf.belum.length) return '';
+    if (siap ? !Pk.hasil.some(x => x.k === 'modul') : !(Pk.cek.modul && !alasanTidak(BY.modul))) return '';
+    const bd = inf.draf + inf.ditolak, rincian = [bd ? bd + ' belum diajukan atau ditolak' : '', inf.diajukan ? inf.diajukan + ' menunggu persetujuan Kepala' : ''].filter(Boolean).join(', ');
+    const daftar = inf.belum.slice(0, 5).map(x => '<li>' + esc(x.materi) + ' <span style="' + muted + '">(' + STATUS_MODUL[x.pers] + ')</span></li>').join('') + (inf.belum.length > 5 ? '<li>… dan ' + (inf.belum.length - 5) + ' lainnya</li>' : '');
+    return `<div style="padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;margin:10px 0;"><b>⚠️ ${inf.belum.length} dari ${inf.n} modul ajar belum disetujui Kepala</b> (${esc(rincian)}).<div style="margin-top:2px;">Blok pengesahan Kepala pada modul itu akan kosong di cetakan, jadi perlu tanda tangan basah. Untuk pengesahan digital (QR), ajukan dulu lewat menu Modul Pembelajaran.</div><ul style="margin:4px 0 0;padding-left:18px;">${daftar}</ul>${waModul()}</div>`;
+  }
+
   // ---------- Tampilan ----------
   function ov() {
     let el = document.getElementById('paketOverlay'); if (el) return el;
@@ -196,6 +237,7 @@ body{margin:0;font-family:"Times New Roman",Times,serif;color:#111}
 <div style="font-size:12px;margin-bottom:6px;">Centang bagian yang ikut dicetak, atur urutannya dengan tombol ▲▼. Bagian yang belum bisa dibuat tidak bisa dicentang.</div>
 ${Pk.urut.map(barisPilih).join('')}
 <div style="margin-top:10px;">${opsi('sampul', 'Sampul dan daftar isi di halaman pertama')}${opsi('pemisah', 'Halaman pemisah sebelum tiap bagian')}${opsi('pisah', 'Pisahkan cetakan menurut ukuran/orientasi kertas (pakai bila hasil satu dokumen tidak sesuai)')}</div>
+${peringatanModul(false)}
 <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">${btn('siapkan', 'Siapkan paket (' + jml + ' bagian)', 'btn-primary', jml ? '' : 'opacity:.5;pointer-events:none;')}${btn('tutup', 'Tutup')}</div>`;
   }
   function panelBangun() {
@@ -210,7 +252,7 @@ ${Pk.urut.map(barisPilih).join('')}
       : btn('cetak', '🖨 Cetak sekarang', 'btn-primary');
     const catatan = campur && !Pk.opsi.pisah ? `<div style="${muted}margin-top:6px;">Paket memuat ukuran/orientasi kertas berbeda. Di Chrome terbaru tiap bagian mengikuti ukurannya sendiri. Bila hasil cetak tidak sesuai, kembali dan centang "Pisahkan cetakan menurut ukuran/orientasi kertas".</div>` : '';
     return `<div style="font-weight:700;font-size:16px;">📦 Paket siap dicetak</div>${gagal}
-<ol style="font-size:13px;padding-left:20px;margin:8px 0;">${ringkas || '<li>(tidak ada bagian)</li>'}</ol>${catatan}
+<ol style="font-size:13px;padding-left:20px;margin:8px 0;">${ringkas || '<li>(tidak ada bagian)</li>'}</ol>${catatan}${peringatanModul(true)}
 <div style="${muted}margin-top:6px;">Di jendela cetak, pilih "Simpan sebagai PDF" bila ingin berkas PDF.</div>
 <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">${Pk.hasil.length ? cetak : ''}${btn('kembali', '← Ubah pilihan')}${btn('tutup', 'Tutup')}</div>`;
   }
@@ -263,6 +305,7 @@ ${Pk.urut.map(barisPilih).join('')}
       case 'naik': return geser(k, -1);
       case 'turun': return geser(k, 1);
       case 'siapkan': return siapkan();
+      case 'wa-modul': return kirimWaModul();
       case 'kembali': Pk.fase = 'pilih'; return gambar();
       case 'cetak': return cetak(Pk.hasil, Pk.opsi.sampul);
       case 'cetak-grup': { const g = Pk.grup[+k]; if (g) cetak(g.item, Pk.opsi.sampul && +k === 0); return; }
@@ -281,7 +324,7 @@ ${Pk.urut.map(barisPilih).join('')}
     if (!window.rpeUtil) return say('Modul RPE belum dimuat (js/perangkat-rpe.js harus dimuat lebih dulu).', true);
     if (!h || typeof h.genAda !== 'function') return say('Hub belum menyediakan data ketersediaan dokumen.', true);
     Pk.id = id; Pk.rec = rec; Pk.sem = sem === 'genap' ? 'genap' : 'ganjil'; Pk.ta = String(ta || ''); Pk.h = h;
-    Pk.fase = 'pilih'; Pk.hasil = []; Pk.gagal = []; Pk.grup = []; Pk.opsi = { sampul: true, pemisah: true, pisah: false };
+    Pk.fase = 'pilih'; Pk.hasil = []; Pk.gagal = []; Pk.grup = []; Pk.waSudah = false; Pk.opsi = { sampul: true, pemisah: true, pisah: false };
     muatSimpan(); gambar();
     // Muat daftar Modul Ajar di latar belakang supaya panel bisa menampilkan jumlah/status; gagal = tetap bisa dicoba saat Siapkan.
     if (typeof window.modulPaketMuat === 'function') {

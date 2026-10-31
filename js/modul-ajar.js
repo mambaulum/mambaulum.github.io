@@ -2216,8 +2216,8 @@
   // Ringkasan sinkron untuk panel pilihan paket; null bila daftar modul belum termuat.
   window.modulPaketInfo = function (id, rec, sem, ta) {
     if (!loaded) return null;
-    var l = paketCari(id, rec, sem, ta), o = { n: l.length, draf: 0, diajukan: 0, disetujui: 0, ditolak: 0 };
-    l.forEach(function (m) { o[pers(m)]++; });
+    var l = paketCari(id, rec, sem, ta), o = { n: l.length, draf: 0, diajukan: 0, disetujui: 0, ditolak: 0, belum: [] };
+    l.forEach(function (m) { var p = pers(m); o[p]++; if (p !== 'disetujui') o.belum.push({ materi: m.materi || '(tanpa materi)', pers: p }); });
     return o;
   };
   window.modulPaket = function (id, rec, sem, ta, jenis) {
