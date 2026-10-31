@@ -8,6 +8,12 @@
 // TETAP di app.js: rekapNilaiDataCache (state), calculateRapor(), renderGrades()/saveGrades() (Input Nilai).
 // ============================================================
 
+    // Tampilkan nilai apa adanya; hanya yang KOSONG ditulis "-". Nilai 0 asli tetap tampil "0"
+    // (sebelumnya `x || '-'` membuat nilai 0 ikut tampil "-").
+    function fmtNilai(v) {
+      return (v === undefined || v === null || String(v).trim() === '') ? '-' : v;
+    }
+
     // [Dipindah ke js/honor-guru.js] honorSholat* (hitung honor sholat dari check-in).
 
 
@@ -153,7 +159,7 @@
       thead.innerHTML = `<tr><th style="text-align:center;">No</th><th style="text-align:left;">Mata Pelajaran</th><th style="text-align:center;">NH1</th><th style="text-align:center;">NH2</th><th style="text-align:center;">NH3</th><th style="text-align:center;">MID</th><th style="text-align:center;">PAS</th><th style="text-align:center;font-weight:700;">Rapor</th></tr>`;
       let bodyHtml = '', totalRapor = 0, countRapor = 0;
       grades.forEach((g, idx) => {
-        const data = g.data || {}, h1 = data.h1 || '-', h2 = data.h2 || '-', h3 = data.h3 || '-', mid = data.mid || '-', pas = data.pas || '-', rapor = calculateRapor(data);
+        const data = g.data || {}, h1 = fmtNilai(data.h1), h2 = fmtNilai(data.h2), h3 = fmtNilai(data.h3), mid = fmtNilai(data.mid), pas = fmtNilai(data.pas), rapor = calculateRapor(data);
         const color = rapor >= 75 ? 'nilai-hadir' : (rapor < 60 ? 'nilai-rendah' : '');
         bodyHtml += `<tr class="rekap-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;font-weight:600;">${escapeHtml(g.subject)}</td><td>${h1}</td><td>${h2}</td><td>${h3}</td><td>${mid}</td><td>${pas}</td><td class="${color}" style="font-weight:700;">${rapor}</td></tr>`;
         totalRapor += rapor; countRapor++;
@@ -214,7 +220,7 @@
       } else {
         const data = rekapNilaiDataCache; if (!data || !data.grades) return toast('Tidak ada data untuk diekspor.', true);
         head = ['No', 'Mata Pelajaran', 'NH1', 'NH2', 'NH3', 'MID', 'PAS', 'Rapor'];
-        data.grades.forEach((g, idx) => { const d = g.data || {}; rows.push([idx+1, g.subject, d.h1 || '-', d.h2 || '-', d.h3 || '-', d.mid || '-', d.pas || '-', calculateRapor(d)]); });
+        data.grades.forEach((g, idx) => { const d = g.data || {}; rows.push([idx+1, g.subject, fmtNilai(d.h1), fmtNilai(d.h2), fmtNilai(d.h3), fmtNilai(d.mid), fmtNilai(d.pas), calculateRapor(d)]); });
       }
       if (rows.length === 0) return toast('Tidak ada data untuk diekspor.', true);
       doc.autoTable({ startY: 48, head: [head], body: rows, theme: 'striped', styles: { fontSize: 9 }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 10, fontStyle: 'bold' }, didParseCell: function(data) { if (data.section === 'body' && data.column.index > 1 && typeof data.cell.raw === 'number') { if (data.cell.raw < 60) data.cell.styles.textColor = [220,38,38]; else if (data.cell.raw >= 75) data.cell.styles.textColor = [5,150,105]; } if (data.section === 'body' && data.row.index === rows.length - 1 && data.cell.raw === 'Rata-rata Kelas') { data.cell.styles.fillColor = [254,243,199]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 } });
@@ -241,7 +247,7 @@
       } else {
         const d = rekapNilaiDataCache; if (!d || !d.grades) return toast('Tidak ada data untuk diekspor.', true);
         headers = ['No', 'Mata Pelajaran', 'NH1', 'NH2', 'NH3', 'MID', 'PAS', 'Rapor']; data.push(headers);
-        d.grades.forEach((g, idx) => { const dg = g.data || {}; data.push([idx+1, g.subject, dg.h1 || '-', dg.h2 || '-', dg.h3 || '-', dg.mid || '-', dg.pas || '-', calculateRapor(dg)]); });
+        d.grades.forEach((g, idx) => { const dg = g.data || {}; data.push([idx+1, g.subject, fmtNilai(dg.h1), fmtNilai(dg.h2), fmtNilai(dg.h3), fmtNilai(dg.mid), fmtNilai(dg.pas), calculateRapor(dg)]); });
       }
       const wb = XLSX.utils.book_new();
       const colWidths = []; data[0].forEach((_, i) => { let maxLen = 10; data.forEach(row => { if (row[i] !== undefined && row[i] !== null) { const len = String(row[i]).length; if (len > maxLen) maxLen = len; } }); colWidths.push({ wch: Math.min(maxLen + 3, 30) }); });

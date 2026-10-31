@@ -2599,7 +2599,7 @@
       const persenSiswa = totalSiswaTercatat > 0 ? Math.round((totalHadirSiswa / totalSiswaTercatat) * 100) : 0;
       // Rata-rata nilai rapor -- digabung semua mapel & semester tahun ajaran berjalan, sekadar
       // indikator cepat di dashboard (bukan pengganti tampilan detail per-mapel yang sudah ada).
-      const raporValues = allGrades.map(g => calculateRapor(g.data || {})).filter(v => v > 0);
+      const raporValues = allGrades.filter(g => mapelDiizinkanNilai(g.kelas || ((allSiswa.find(x => x.key === g.siswaKey) || {}).kelas), g.subject)).map(g => calculateRapor(g.data || {})).filter(v => v > 0);
       const rataNilai = raporValues.length ? Math.round(raporValues.reduce((a,b)=>a+b,0) / raporValues.length) : 0;
       const infaqMingguIni = allInfaqSiswa.filter(it => it.minggu === isoMingguKey()).reduce((s,it)=>s+(it.nominal||0), 0);
       const kartu = [
@@ -2624,7 +2624,7 @@
       const kelasUnik = [...new Set(allSiswa.map(s => s.kelas))].filter(Boolean).sort();
       const barPalette = ['#f59e0b','#fbbf24','#fcd34d','#d97706','#b45309','#92400e','#f97316','#ea580c','#c2410c','#78350f'];
       const dataValues = kelasUnik.map(k => {
-        const nilaiKelas = allGrades.filter(g => g.kelas === k).map(g => calculateRapor(g.data || {})).filter(v => v > 0);
+        const nilaiKelas = allGrades.filter(g => g.kelas === k && mapelDiizinkanNilai(k, g.subject)).map(g => calculateRapor(g.data || {})).filter(v => v > 0);
         return nilaiKelas.length ? Math.round(nilaiKelas.reduce((a,b)=>a+b,0) / nilaiKelas.length) : 0;
       });
       dashboardNilaiChartInstance = v4RenderChart(dashboardNilaiChartInstance, ctx, {
@@ -5359,11 +5359,16 @@
     function renderGrades(kelasList) {
       const container = document.getElementById('gradesContainer');
       if (!kelasList || kelasList.length === 0) { container.innerHTML = '<p class="text-muted" style="text-align:center;padding:12px;">Silakan pilih kelas.</p>'; return; }
-      const siswa = allSiswa.filter(s => kelasList.includes(s.kelas));
+      if (!kelasList.some(kelasDiizinkanNilai)) { container.innerHTML = '<p class="text-muted" style="text-align:center;padding:12px;">⛔ Anda tidak punya akses ke nilai kelas ini.</p>'; return; }
+      if (!terapkanMapelGuru(kelasList[0])) { container.innerHTML = `<p class="text-muted" style="text-align:center;padding:12px;">Belum ada mata pelajaran Anda di Jadwal untuk kelas ${escapeHtml(kelasList[0])}. Hubungi Admin untuk melengkapi Jadwal.</p>`; return; }
+      const siswa = allSiswa.filter(s => kelasList.includes(s.kelas) && kelasDiizinkanNilai(s.kelas));
       if (siswa.length === 0) { container.innerHTML = `<p class="text-muted" style="text-align:center;padding:12px;">Tidak ada siswa di kelas ${escapeHtml(kelasList.join(', '))}.</p>`; return; }
       const subject = document.getElementById('gradeSubject').value, semester = document.getElementById('gradeSemester').value;
       const filteredGrades = allGrades.filter(g => g.subject === subject && g.semester === semester);
-      let html = `<div style="overflow-x:auto;"><table><thead><tr><th>Nama</th><th>NH1</th><th>NH2</th><th>NH3</th><th>MID</th><th>PAS</th><th>Rapor</th></tr></thead><tbody>`;
+      const bolehBukaKunci = kelasList.some(bolehBukaKunciNilai);
+      const catatanKunci = (canEdit() && !isKepsek())
+        ? `<p class="text-muted" style="font-size:.85rem;margin:0 0 8px;">🔒 Nilai yang sudah tersimpan terkunci. Isi kolom berikutnya secara bertahap (NH1 → NH2 → NH3 → MID → PAS).${bolehBukaKunci ? ' Anda dapat mengoreksi nilai terkunci di kelas ini (Admin/Wali Kelas); setiap koreksi dicatat di log.' : ' Untuk koreksi, hubungi Wali Kelas atau Admin.'}</p>` : '';
+      let html = catatanKunci + `<div style="overflow-x:auto;"><table><thead><tr><th>Nama</th><th>NH1</th><th>NH2</th><th>NH3</th><th>MID</th><th>PAS</th><th>Rapor</th></tr></thead><tbody>`;
       siswa.forEach(s => {
         const grade = filteredGrades.find(g => g.siswaKey === s.key) || {};
         const data = grade.data || {};
@@ -5376,16 +5381,147 @@
         const gradeKey = grade.key || '';
         const gradeVersion = grade.version || 0;
         const disabled = canEdit() && !isKepsek() ? '' : 'disabled';
+        const bolehBukaS = bolehBukaKunciNilai(s.kelas);
         html += `<tr><td style="font-weight:600;">${escapeHtml(s.name)}</td>`;
         ['h1','h2','h3','mid','pas'].forEach(key => {
-          html += `<td><input class="field grade-input" type="number" min="0" max="100" step="any" inputmode="decimal" style="width:70px;padding:4px 8px;" data-siswa="${s.key}" data-key="${key}" data-gradekey="${escapeHtml(gradeKey)}" data-version="${gradeVersion}" value="${escapeHtml(data[key]||'')}" ${disabled}></td>`;
+          const terisi = nilaiTerkunci(data[key]);
+          const kunci = terisi && !bolehBukaS;
+          const attrDis = disabled || (kunci ? 'disabled' : '');
+          const gaya = kunci ? 'background:#f3f4f6;color:#6b7280;' : (terisi && bolehBukaS ? 'border-color:#d97706;' : '');
+          const judul = kunci ? 'Terkunci. Hubungi Admin untuk koreksi.' : (terisi && bolehBukaS ? 'Nilai terkunci: koreksi Anda akan dicatat di log.' : '');
+          html += `<td style="white-space:nowrap;"><input class="field grade-input" type="number" min="0" max="100" step="any" inputmode="decimal" style="width:70px;padding:4px 8px;${gaya}" title="${judul}" data-siswa="${s.key}" data-key="${key}" data-gradekey="${escapeHtml(gradeKey)}" data-version="${gradeVersion}" data-terkunci="${terisi ? '1' : ''}" data-lama="${escapeHtml(nilaiTampilInput(data[key]))}" value="${escapeHtml(nilaiTampilInput(data[key]))}" ${attrDis}>${kunci ? '<span title="Terkunci" style="font-size:.75rem;margin-left:2px;">🔒</span>' : ''}</td>`;
         });
         const rapor = calculateRapor(data);
         html += `<td style="font-weight:700;color:#059669;">${rapor}</td></tr>`;
       });
       html += '</tbody></table></div>';
       if (canEdit() && !isKepsek()) { html += `<button id="btnSaveGrades" class="btn btn-success" style="margin-top:12px;" onclick="saveGrades()">💾 Simpan Nilai</button>`; }
+      if (typeof isAdmin === 'function' && isAdmin()) { html += `<button class="btn" style="margin-top:12px;margin-left:8px;" onclick="cekDataNilaiLama()">🔎 Cek Data Nilai Lama</button>`; }
       container.innerHTML = html;
+    }
+    // Nilai dianggap "sudah terisi & terkunci" bila angka valid 0-100. Teks tak valid / di luar rentang
+    // (data lama bermasalah) TIDAK dikunci, supaya guru masih bisa mengisinya ulang dengan benar.
+    function nilaiTerkunci(v) {
+      const n = nilaiAngka(v);
+      return n !== null && n >= 0 && n <= 100;
+    }
+    // Kebijakan akses nilai per kelas.
+    // - Lihat/isi: Admin & Kepsek semua kelas; Guru/Wali hanya kelas yang diajar ATAU diwali-i (loaderScopeKelas()).
+    // - Buka kunci / koreksi nilai terkunci: Admin (semua kelas) dan Wali Kelas (hanya KELAS YANG DIA WALI-I).
+    function kelasDiizinkanNilai(kelas) {
+      if (isAdmin() || isKepsek()) return true;
+      return loaderScopeKelas().includes(kelas);
+    }
+    function bolehBukaKunciNilai(kelas) {
+      if (isAdmin()) return true;
+      return !!(typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned() && currentUser.waliKelasOf === kelas);
+    }
+    // Kebijakan MAPEL per guru (sumber: Jadwal -> kelas + mapel yang tercatat untuk guru itu).
+    // - Admin & Kepsek: semua mapel. Wali Kelas: semua mapel di KELAS YANG DIA WALI-I.
+    // - Guru lain / Wali Kelas di kelas ajar non-walinya: hanya mapel yang ada di Jadwal-nya untuk kelas tsb.
+    // Mengembalikan null (= semua mapel) atau Set nama mapel ternormalisasi.
+    function normMapel(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+    function mapelGuruUntukKelas(kelas) {
+      if (isAdmin() || isKepsek()) return null;
+      if (typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned() && currentUser.waliKelasOf === kelas) return null;
+      const saya = j => j.guruKey ? j.guruKey === currentUser.key : samaNamaGuru(j.guru, currentUser.name);
+      const set = new Set();
+      (allJadwal || []).forEach(j => { if (j && j.kelas === kelas && j.mapel && saya(j)) set.add(normMapel(j.mapel)); });
+      return set;
+    }
+    function mapelDiizinkanNilai(kelas, subject) {
+      const boleh = mapelGuruUntukKelas(kelas);
+      return boleh === null || boleh.has(normMapel(subject));
+    }
+    // Daftar mapel lengkap (HTML asli <select id="gradeSubject">) disimpan sekali sebelum disaring.
+    function daftarMapelNilaiAsli() {
+      const sel = document.getElementById('gradeSubject');
+      if (!sel) return '';
+      if (window._gradeSubjectAsli === undefined) window._gradeSubjectAsli = sel.innerHTML;
+      return window._gradeSubjectAsli;
+    }
+    // Saring pilihan mapel sesuai Jadwal guru untuk kelas ini. false = tidak ada mapel yang boleh.
+    function terapkanMapelGuru(kelas) {
+      const sel = document.getElementById('gradeSubject');
+      if (!sel) return true;
+      const asli = daftarMapelNilaiAsli();
+      const prev = sel.value;
+      const boleh = mapelGuruUntukKelas(kelas);
+      sel.innerHTML = asli;
+      if (boleh !== null) {
+        Array.from(sel.querySelectorAll('option')).forEach(o => { if (!boleh.has(normMapel(o.value))) o.remove(); });
+        Array.from(sel.querySelectorAll('optgroup')).forEach(g => { if (!g.querySelector('option')) g.remove(); });
+      }
+      const ada = Array.from(sel.options).map(o => o.value);
+      if (ada.length === 0) return false;
+      sel.value = ada.includes(prev) ? prev : ada[0];
+      return true;
+    }
+    // Isi kotak angka dari data lama: "85,5" -> "85.5"; teks tak valid -> kosong (dilaporkan oleh cekDataNilaiLama).
+    function nilaiTampilInput(v) {
+      const n = nilaiAngka(v);
+      return n === null ? '' : String(n);
+    }
+    // Pindai nilai bermasalah. Murni (tanpa DOM) supaya mudah diuji.
+    // Jenis: 'koma' (85,5 - masih terbaca benar), 'bukan_angka' (abc), 'di_luar_rentang' (<0 atau >100).
+    function pindaiNilaiBermasalah(grades) {
+      const hasil = [];
+      (grades || []).forEach(g => {
+        const d = g && g.data ? g.data : {};
+        ['h1','h2','h3','mid','pas'].forEach(f => {
+          const raw = d[f];
+          if (raw === undefined || raw === null || String(raw).trim() === '') return;
+          const t = String(raw).trim();
+          const n = nilaiAngka(t);
+          let jenis = '';
+          if (n === null) jenis = 'bukan_angka';
+          else if (n < 0 || n > 100) jenis = 'di_luar_rentang';
+          else if (t.indexOf(',') >= 0) jenis = 'koma';
+          if (jenis) hasil.push({ siswa: g.siswaName || g.siswaKey || '-', kelas: g.kelas || '-', subject: g.subject || '-', semester: g.semester || '-', field: f.toUpperCase(), nilai: t, jenis });
+        });
+      });
+      return hasil;
+    }
+    function cekDataNilaiLama() {
+      const hasil = pindaiNilaiBermasalah(allGrades);
+      const label = { koma: 'Koma desimal (terbaca benar)', bukan_angka: 'Bukan angka (dihitung 0)', di_luar_rentang: 'Di luar 0-100' };
+      const hitung = { koma: 0, bukan_angka: 0, di_luar_rentang: 0 };
+      hasil.forEach(h => hitung[h.jenis]++);
+      let html = `<h3 style="margin:0 0 8px;">Cek Data Nilai Lama (TA ${escapeHtml(String(currentTahunAjaran || ''))})</h3>`;
+      html += `<p style="margin:0 0 8px;">${allGrades.length} catatan nilai diperiksa.</p>`;
+      if (hasil.length === 0) {
+        html += '<p style="color:#059669;font-weight:600;">✅ Tidak ada nilai bermasalah.</p>';
+      } else {
+        html += `<p>Ditemukan <b>${hasil.length}</b> nilai bermasalah: ${hitung.koma} koma, ${hitung.bukan_angka} bukan angka, ${hitung.di_luar_rentang} di luar 0-100.</p>`;
+        html += '<p style="font-size:.85rem;">Koma otomatis tampil sebagai titik di kotak nilai. Dua jenis lainnya perlu diisi ulang oleh guru yang bersangkutan, lalu Simpan.</p>';
+        html += '<div style="overflow:auto;max-height:50vh;"><table><thead><tr><th>Siswa</th><th>Kelas</th><th>Mapel</th><th>Smt</th><th>Kolom</th><th>Isi</th><th>Masalah</th></tr></thead><tbody>';
+        hasil.slice(0, 300).forEach(h => {
+          html += `<tr><td>${escapeHtml(h.siswa)}</td><td>${escapeHtml(h.kelas)}</td><td>${escapeHtml(h.subject)}</td><td>${escapeHtml(h.semester)}</td><td>${h.field}</td><td>${escapeHtml(h.nilai)}</td><td>${label[h.jenis]}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        if (hasil.length > 300) html += `<p style="font-size:.85rem;">Menampilkan 300 baris pertama dari ${hasil.length}.</p>`;
+      }
+      // Kecocokan nama mapel di Jadwal dengan daftar mapel Input Nilai (penting: pembatasan mapel guru memakai Jadwal).
+      try {
+        const tmp = document.createElement('select'); tmp.innerHTML = daftarMapelNilaiAsli();
+        const std = new Set(Array.from(tmp.options).map(o => normMapel(o.value)));
+        const tdkCocok = {};
+        (allJadwal || []).forEach(j => { if (j && j.mapel && !std.has(normMapel(j.mapel))) { const k = String(j.mapel).trim(); (tdkCocok[k] = tdkCocok[k] || new Set()).add(j.guru || '-'); } });
+        const nama = Object.keys(tdkCocok);
+        html += '<hr style="margin:12px 0;"><h3 style="margin:0 0 8px;">Mapel di Jadwal vs daftar mapel Nilai</h3>';
+        if (nama.length === 0) html += '<p style="color:#059669;font-weight:600;">✅ Semua mapel di Jadwal cocok dengan daftar mapel Input Nilai.</p>';
+        else {
+          html += '<p style="font-size:.85rem;">Mapel berikut ada di Jadwal tetapi TIDAK ada di daftar mapel Input Nilai, sehingga guru terkait tidak bisa memilihnya. Samakan penulisannya di Jadwal:</p><ul>';
+          nama.slice(0, 40).forEach(n => { html += `<li><b>${escapeHtml(n)}</b> - ${escapeHtml(Array.from(tdkCocok[n]).join(', '))}</li>`; });
+          html += '</ul>';
+        }
+      } catch (e) { console.warn('[SI MAMBA] cek mapel Jadwal gagal:', e); }
+      const lama = document.getElementById('cekNilaiLamaOverlay'); if (lama) lama.remove();
+      const ov = document.createElement('div');
+      ov.id = 'cekNilaiLamaOverlay';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:12px;';
+      ov.innerHTML = `<div style="background:#fff;color:#111;border-radius:12px;padding:16px;max-width:760px;width:100%;max-height:90vh;overflow:auto;">${html}<button class="btn" style="margin-top:12px;" onclick="document.getElementById('cekNilaiLamaOverlay').remove()">Tutup</button></div>`;
+      document.body.appendChild(ov);
     }
     // Ubah isi kotak nilai jadi angka; kosong / bukan angka -> null. Koma desimal ("85,5") diterima.
     function nilaiAngka(v) {
@@ -5410,8 +5546,10 @@
       const subject = document.getElementById('gradeSubject').value, semester = document.getElementById('gradeSemester').value;
       const inputs = document.querySelectorAll('.grade-input');
       const gradeMap = {};
+      const koreksiDisimpan = [];
       // Validasi: nilai harus angka 0-100 (kosong boleh).
       for (const inp of inputs) {
+        if (inp.validity && inp.validity.badInput) { inp.focus(); return toast('⚠️ Nilai harus angka 0-100. Periksa kotak yang diberi fokus.', true, 5000); }
         const raw = String(inp.value || '').trim();
         if (raw === '') continue;
         const n = nilaiAngka(raw);
@@ -5424,11 +5562,41 @@
       // itu persis versi data yang guru lihat/edit sekarang di layar (baseline).
       inputs.forEach(inp => {
         const key = inp.dataset.siswa;
-        if (!gradeMap[key]) gradeMap[key] = { data: {}, gradeKey: inp.dataset.gradekey || '', baseVersion: parseInt(inp.dataset.version, 10) || 0 };
+        if (!gradeMap[key]) gradeMap[key] = { data: {}, koreksi: [], gradeKey: inp.dataset.gradekey || '', baseVersion: parseInt(inp.dataset.version, 10) || 0 };
         gradeMap[key].data[inp.dataset.key] = inp.value;
+        // Catat perubahan pada kolom yang tadinya terkunci (hanya mungkin dilakukan Admin; kotak guru disabled).
+        if (inp.dataset.terkunci === '1' && nilaiAngka(inp.dataset.lama) !== nilaiAngka(inp.value)) {
+          gradeMap[key].koreksi.push({ field: inp.dataset.key.toUpperCase(), lama: inp.dataset.lama, baru: String(inp.value || '').trim() === '' ? '(kosong)' : inp.value });
+        }
+      });
+      // Batasi ke kelas yang diizinkan (jaga-jaga bila DOM diutak-atik / kelas tidak termasuk scope).
+      let ditolakScope = 0;
+      Object.keys(gradeMap).forEach(k => {
+        const sw = allSiswa.find(x => x.key === k);
+        if (!sw || !kelasDiizinkanNilai(sw.kelas) || !mapelDiizinkanNilai(sw.kelas, subject)) { delete gradeMap[k]; ditolakScope++; }
+      });
+      if (ditolakScope > 0 && Object.keys(gradeMap).length === 0) return toast('⛔ Anda tidak punya akses menyimpan nilai kelas/mapel ini (sesuai Jadwal).', true);
+      // Jangan membuat record baru untuk siswa yang SEMUA kotaknya masih kosong (sebelumnya tiap Simpan
+      // membuat record kosong untuk seluruh siswa di kelas). Record yang sudah ada tetap disimpan,
+      // supaya guru masih bisa mengosongkan nilai.
+      Object.keys(gradeMap).forEach(k => {
+        const g = gradeMap[k];
+        if (!g.gradeKey && Object.values(g.data).every(v => String(v || '').trim() === '')) delete gradeMap[k];
       });
       let total = Object.keys(gradeMap).length;
-      if (total === 0) return toast('Tidak ada data.', true);
+      if (total === 0) return toast('Belum ada nilai yang diisi.', true);
+      // Konfirmasi koreksi nilai terkunci (hanya mungkin muncul bila kotaknya terbuka: Admin / Wali Kelas kelasnya).
+      {
+        const baris = [];
+        Object.keys(gradeMap).forEach(k => {
+          const sw = allSiswa.find(x => x.key === k);
+          (gradeMap[k].koreksi || []).forEach(c => baris.push(`${sw ? sw.name : k} - ${c.field}: ${c.lama} → ${c.baru}`));
+        });
+        if (baris.length > 0) {
+          const tampil = baris.slice(0, 15).join('\n') + (baris.length > 15 ? `\n... dan ${baris.length - 15} lainnya` : '');
+          if (!window.confirm(`Anda akan MENGUBAH ${baris.length} nilai yang sudah terkunci:\n\n${tampil}\n\nPerubahan dicatat di log. Lanjutkan?`)) return;
+        }
+      }
       const btnSave = document.getElementById('btnSaveGrades');
       setBusy('saveGrades', btnSave);
       if (btnSave) btnSave.textContent = '⏳ Menyimpan...';
@@ -5454,6 +5622,12 @@
         results.forEach(({ e, cur }) => {
           if (e.gradeKey) {
             if (cur === null || (cur.version || 0) !== e.baseVersion) { conflictNames.push(e.siswaName); return; }
+            // Penjaga sisi aplikasi: selain Admin, kolom yang SUDAH terisi di server tidak boleh berubah.
+            if (!bolehBukaKunciNilai(e.siswa ? e.siswa.kelas : '')) {
+              ['h1','h2','h3','mid','pas'].forEach(f => { if (cur.data && nilaiTerkunci(cur.data[f])) e.data[f] = cur.data[f]; });
+            } else {
+              (e.koreksi || []).forEach(c => koreksiDisimpan.push({ ...c, siswaName: e.siswaName }));
+            }
             const p = 'grades/' + e.gradeKey + '/';
             updates[p + 'data'] = e.data;
             updates[p + 'guru'] = currentUser.name;
@@ -5481,6 +5655,7 @@
           toast(msg, true, 8000);
         }
         if (savedCount > 0) addLog('simpan_nilai', subject + ' - ' + semester);
+        koreksiDisimpan.forEach(c => addLog('koreksi_nilai', `${subject} ${semester} | ${c.siswaName} ${c.field}: ${c.lama} → ${c.baru}`));
         reloadDataset('grades');
       }).catch(err => {
         clearBusy('saveGrades', btnSave);
