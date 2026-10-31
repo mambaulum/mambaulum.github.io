@@ -5378,7 +5378,7 @@
         const disabled = canEdit() && !isKepsek() ? '' : 'disabled';
         html += `<tr><td style="font-weight:600;">${escapeHtml(s.name)}</td>`;
         ['h1','h2','h3','mid','pas'].forEach(key => {
-          html += `<td><input class="field grade-input" style="width:60px;padding:4px 8px;" data-siswa="${s.key}" data-key="${key}" data-gradekey="${escapeHtml(gradeKey)}" data-version="${gradeVersion}" value="${escapeHtml(data[key]||'')}" ${disabled}></td>`;
+          html += `<td><input class="field grade-input" type="number" min="0" max="100" step="any" inputmode="decimal" style="width:70px;padding:4px 8px;" data-siswa="${s.key}" data-key="${key}" data-gradekey="${escapeHtml(gradeKey)}" data-version="${gradeVersion}" value="${escapeHtml(data[key]||'')}" ${disabled}></td>`;
         });
         const rapor = calculateRapor(data);
         html += `<td style="font-weight:700;color:#059669;">${rapor}</td></tr>`;
@@ -5387,9 +5387,21 @@
       if (canEdit() && !isKepsek()) { html += `<button id="btnSaveGrades" class="btn btn-success" style="margin-top:12px;" onclick="saveGrades()">💾 Simpan Nilai</button>`; }
       container.innerHTML = html;
     }
+    // Ubah isi kotak nilai jadi angka; kosong / bukan angka -> null. Koma desimal ("85,5") diterima.
+    function nilaiAngka(v) {
+      if (v === undefined || v === null) return null;
+      const t = String(v).trim().replace(',', '.');
+      if (t === '') return null;
+      const n = Number(t);
+      return isFinite(n) ? n : null;
+    }
+    // NH yang KOSONG dilewati dari rata-rata (dibagi jumlah NH yang terisi), bukan dihitung 0.
+    // MID/PAS kosong tetap dihitung 0 (komponen wajib; rapor memang belum lengkap sampai diisi).
     function calculateRapor(data) {
-      const h1 = Number(data.h1)||0, h2 = Number(data.h2)||0, h3 = Number(data.h3)||0, mid = Number(data.mid)||0, pas = Number(data.pas)||0;
-      const daily = (h1+h2+h3)/3;
+      data = data || {};
+      const nh = [data.h1, data.h2, data.h3].map(nilaiAngka).filter(n => n !== null);
+      const daily = nh.length ? nh.reduce((a, b) => a + b, 0) / nh.length : 0;
+      const mid = nilaiAngka(data.mid) || 0, pas = nilaiAngka(data.pas) || 0;
       return Math.round(daily*0.4 + mid*0.3 + pas*0.3);
     }
     function saveGrades() {
@@ -5398,6 +5410,16 @@
       const subject = document.getElementById('gradeSubject').value, semester = document.getElementById('gradeSemester').value;
       const inputs = document.querySelectorAll('.grade-input');
       const gradeMap = {};
+      // Validasi: nilai harus angka 0-100 (kosong boleh).
+      for (const inp of inputs) {
+        const raw = String(inp.value || '').trim();
+        if (raw === '') continue;
+        const n = nilaiAngka(raw);
+        if (n === null || n < 0 || n > 100) {
+          inp.focus();
+          return toast('⚠️ Nilai harus angka 0-100. Periksa kotak yang diberi fokus.', true, 5000);
+        }
+      }
       // gradeKey & version diambil dari data-attribute yang di-render di renderGrades() --
       // itu persis versi data yang guru lihat/edit sekarang di layar (baseline).
       inputs.forEach(inp => {
