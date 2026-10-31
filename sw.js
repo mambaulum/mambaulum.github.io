@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.286';
+const APP_VERSION = 'v8.287';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,7 +81,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=10',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=138',
+  './js/app.js?v=139',
   './js/portal-ortu.js?v=2',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=1',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=2',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
