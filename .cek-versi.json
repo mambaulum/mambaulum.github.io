@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.287",
-  "disimpan": "2026-10-31T03:44:03.436Z",
+  "appVersion": "v8.289",
+  "disimpan": "2026-10-31T11:56:16.864Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=139",
-      "hash": "b19237e44f0914a152187fd33daadcb74787eb69"
+      "v": "v=141",
+      "hash": "dacf5289b9a81afabd119739b5dd380ee33c3464"
     },
     "js/portal-ortu.js": {
       "v": "v=2",
@@ -115,8 +115,8 @@
       "hash": "fe2ad1cedb534b6a1676a0ef69974601349bfd80"
     },
     "js/rekap-nilai.js": {
-      "v": "v=3",
-      "hash": "80f0658d6f221db813b76b96d0fa001710570973"
+      "v": "v=4",
+      "hash": "a34b5314e611b95f785960e9ef6ba876bd72face"
     },
     "js/kalender-akademik.js": {
       "v": "v=1",
