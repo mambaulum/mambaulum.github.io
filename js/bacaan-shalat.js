@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/bacaan-shalat.js (v16: sesi tulis untuk Rules via bsSiapTulis; v3 + Pengingat WA + PJ per kelas oleh Admin, tab Pengingat, target per kelas & otomatis)
+   SI MAMBA - js/bacaan-shalat.js (v3 + Pengingat WA + PJ per kelas oleh Admin, tab Pengingat, target per kelas & otomatis)
    Menu "Bacaan Sholat" -- hafalan bacaan sholat + amalan harian di rumah + gamifikasi.
 
    TIGA AKSES:
@@ -180,14 +180,6 @@ function bsKelasPilihan() {
 }
 function bsGuruKey() { return (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : ''; }
 function bsGuruNama() { return (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : ''; }
-// v16: Rules bs_setoran / bs_target / bs_pj_kelas meminta bukti sesi (Admin -> sesi_admin, Guru -> sesi_guru) SEBELUM menulis.
-// Sama dengan pola siapTulis di app.js. Galat ditampilkan apa adanya (pesan jelas dari kredensial.js), bukan PERMISSION_DENIED samar.
-function bsSiapTulis() {
-  try {
-    const f = bsIsAdmin() ? window.kredAdminSiap : window.kredGuruSiap;
-    return Promise.resolve(typeof f === 'function' ? f() : true);
-  } catch (e) { return Promise.reject(e); }
-}
 
 // ============================================================
 // GAMIFIKASI -- dihitung ulang dari data (tidak disimpan)
@@ -593,8 +585,18 @@ function bsPjKelasHtml() {
   const peringatanLama = (admin && lama.length) ? `<div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;margin-bottom:10px;font-size:13px;">⚠️ Ada ${lama.length} target lama berlaku "Semua kelas". Target seperti ini sudah tidak dipakai lagi. <button class="btn btn-danger" style="margin-left:6px;padding:4px 10px;font-size:12px;" onclick="bsHapusTargetLama()">🧹 Hapus target lama</button></div>` : '';
   const semuaOto = (admin && tanpa.length > 1) ? `<button class="btn btn-soft" style="padding:5px 10px;font-size:12px;margin-bottom:8px;" onclick="bsBuatTargetOtomatis('')">⚡ Buat otomatis untuk ${tanpa.length} kelas yang belum punya target</button>` : '';
   return `${peringatanLama}<div class="v4-card" style="margin-bottom:14px;"><h4>👤 Penanggung Jawab Bacaan Sholat per Kelas</h4>
-    <div class="v4-muted" style="margin-bottom:8px;">${admin ? 'Admin menentukan satu guru penanggung jawab untuk tiap kelas. Guru ini yang diingatkan lewat WhatsApp di tab 📲 Pengingat.' : 'Penanggung jawab ditentukan oleh Admin.'}</div>
+    <div class="v4-muted" style="margin-bottom:8px;">${admin ? 'Admin menentukan satu guru penanggung jawab untuk tiap kelas. Guru ini menerima notifikasi di aplikasi saat ditetapkan, dan diingatkan lewat WhatsApp di tab 📲 Pengingat.' : 'Penanggung jawab ditentukan oleh Admin.'}</div>
     ${semuaOto}<div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Penanggung Jawab</th><th>Target</th></tr></thead><tbody>${baris}</tbody></table></div></div>`;
+}
+// Notifikasi ke guru yang ditetapkan (atau dilepas) sebagai PJ. Gagal kirim tidak menggagalkan penetapan.
+function bsNotifPj(kelas, baru, lama) {
+  if (typeof v4Notify !== 'function') return;
+  const nk = bsNamaKelas(kelas), kirim = (judul, isi, key) => { try { const p = v4Notify(judul, isi, 'INFO', key); if (p && p.catch) p.catch(() => {}); } catch (e) { /* abaikan */ } };
+  if (baru && (!lama || lama.key !== baru.key)) {
+    const tindak = bsHariIni() < BS_PJ_AKSES_MULAI ? ' Menu Bacaan Sholat aktif untuk Anda mulai ' + bsFmtTgl(BS_PJ_AKSES_MULAI) + '.' : ' Buka menu Bacaan Sholat untuk menilai setoran dan mengelola target kelas ini.';
+    kirim('Anda ditetapkan sebagai PJ Bacaan Sholat', 'Anda menjadi penanggung jawab Bacaan Sholat ' + nk + '.' + tindak, baru.key);
+  }
+  if (lama && (!baru || lama.key !== baru.key)) kirim('Penanggung jawab Bacaan Sholat berubah', 'Anda tidak lagi menjadi penanggung jawab Bacaan Sholat ' + nk + '.', lama.key);
 }
 function bsSetPjKelas(kelas, guruValue) {
   if (!bsIsAdmin()) return toast('Hanya Admin!', true);
@@ -602,15 +604,16 @@ function bsSetPjKelas(kelas, guruValue) {
   const gl = (typeof allGuru !== 'undefined' && Array.isArray(allGuru)) ? allGuru : [];
   const ref = db.ref('bs_pj_kelas/' + kelas);
   bsState.pjKelas = bsState.pjKelas || {};
+  const pjLama = (bsPjMap && bsPjMap[kelas]) ? Object.assign({}, bsPjMap[kelas]) : null;
   if (!guruValue) {
-    bsSiapTulis().then(() => ref.remove()).then(() => { bsPjSimpanLokal(kelas, null); toast('Penanggung jawab dihapus'); bsRender(); })
+    ref.remove().then(() => { bsPjSimpanLokal(kelas, null); bsNotifPj(kelas, null, pjLama); toast('Penanggung jawab dihapus'); bsRender(); })
       .catch(err => toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true));
     return;
   }
   const g = gl.find(x => x && (x.key || x.name) === guruValue); if (!g) return;
   const rec = { kelas, key: g.key || g.name, name: g.name, updatedAt: new Date().toISOString(), updatedBy: bsGuruNama() };
-  bsSiapTulis().then(() => ref.set(rec)).then(() => {
-    bsPjSimpanLokal(kelas, rec);
+  ref.set(rec).then(() => {
+    bsPjSimpanLokal(kelas, rec); bsNotifPj(kelas, rec, pjLama);
     if (typeof v4Audit === 'function') v4Audit('BS_SET_PJ_KELAS', 'BACAAN_SHALAT', kelas, null, { kelas, pj: g.name });
     toast('✅ Penanggung jawab ' + bsNamaKelas(kelas) + ' tersimpan.'); bsRender();
   }).catch(err => toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true));
@@ -635,7 +638,7 @@ function bsBuatTargetOtomatis(kelas) {
     const rec = { nama, jenis: 'mingguan', tanggal: tgl, kelas: k, urutan: i + 1, aktif: true, tahunAjaran: bsTA(), dibuat: now, dibuatOleh: bsGuruNama() };
     payload[id] = rec; baru.push(Object.assign({ key: id }, rec));
   }));
-  bsSiapTulis().then(() => db.ref('bs_target').update(payload)).then(() => {
+  db.ref('bs_target').update(payload).then(() => {
     bsState.targets = (bsState.targets || []).concat(baru);
     if (typeof v4Audit === 'function') v4Audit('BS_TARGET_OTOMATIS', 'BACAAN_SHALAT', null, null, { kelas: daftar.join(', '), jumlah: baru.length });
     toast('✅ ' + baru.length + ' target dibuat untuk ' + daftar.length + ' kelas.'); bsRender();
@@ -653,7 +656,7 @@ function bsHapusTargetLama() {
   Promise.all(lama.map(t => db.ref('bs_setoran').orderByChild('targetId').equalTo(t.key).limitToFirst(1).once('value').then(snap => ({ t, ada: snap.exists() })))).then(hasil => {
     const payload = {}; let dihapus = 0, dinonaktif = 0;
     hasil.forEach(h => { if (h.ada) { if (h.t.aktif !== false) { payload[h.t.key + '/aktif'] = false; payload[h.t.key + '/updatedAt'] = new Date().toISOString(); } dinonaktif++; } else { payload[h.t.key] = null; dihapus++; } });
-    return bsSiapTulis().then(() => db.ref('bs_target').update(payload)).then(() => {
+    return db.ref('bs_target').update(payload).then(() => {
       bsState.targets = (bsState.targets || []).filter(t => !hasil.some(h => !h.ada && h.t.key === t.key));
       hasil.filter(h => h.ada).forEach(h => { const t = bsState.targets.find(x => x.key === h.t.key); if (t) t.aktif = false; });
       if (typeof v4Audit === 'function') v4Audit('BS_HAPUS_TARGET_LAMA', 'BACAAN_SHALAT', null, null, { dihapus, dinonaktif });
@@ -742,7 +745,7 @@ function bsSimpanTarget() {
   if (edit) {
     rec = Object.assign({}, edit, data); if (teks) rec.teks = teks; else delete rec.teks;
     const dataUbah = Object.assign({}, data, { teks: teks || null });
-    janji = bsSiapTulis().then(() => db.ref('bs_target/' + edit.key).update(dataUbah));
+    janji = db.ref('bs_target/' + edit.key).update(dataUbah);
   } else {
     const updates = {};
     kelasPilih.forEach(k => {   // satu target per kelas yang dicentang (tidak ada lagi target "semua kelas" untuk target baru)
@@ -751,7 +754,7 @@ function bsSimpanTarget() {
       if (teks) d.teks = teks;
       updates[key] = d; recsBaru.push(Object.assign({ key }, d));
     });
-    rec = recsBaru[0]; janji = bsSiapTulis().then(() => db.ref('bs_target').update(updates));
+    rec = recsBaru[0]; janji = db.ref('bs_target').update(updates);
   }
   janji.then(() => {
     clearBusy('bsSimpanTarget', bsEl('bsBtnSimpanTarget'));
@@ -766,7 +769,7 @@ function bsToggleAktif(id) {
   if (!bsOnline()) return toast('📡 Sedang offline.', true);
   const baru = t.aktif === false, kunci = 'aktif_' + id;
   if (!bsKunciMulai(kunci)) return;
-  bsSiapTulis().then(() => db.ref('bs_target/' + id).update({ aktif: baru, updatedAt: new Date().toISOString() }))
+  db.ref('bs_target/' + id).update({ aktif: baru, updatedAt: new Date().toISOString() })
     .then(() => { t.aktif = baru; toast(baru ? '▶️ Target diaktifkan.' : '⏸️ Target dinonaktifkan (data penilaian tetap tersimpan).'); bsRender(); })
     .catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
     .then(() => bsKunciSelesai(kunci));
@@ -781,7 +784,7 @@ function bsHapusTarget(id) {
     if (snap.exists()) return toast('⚠️ Target ini sudah punya penilaian siswa, jadi tidak bisa dihapus. Gunakan ⏸️ Nonaktifkan.', true);
     const ok = typeof doubleConfirm === 'function' ? doubleConfirm('Hapus target "' + t.nama + '"?') : confirm('Hapus target "' + t.nama + '"?');
     if (!ok) return;
-    return bsSiapTulis().then(() => db.ref('bs_target/' + id).remove()).then(() => {
+    return db.ref('bs_target/' + id).remove().then(() => {
       bsState.targets = bsState.targets.filter(x => x.key !== id);
       if (typeof v4Audit === 'function') v4Audit('BS_HAPUS_TARGET', 'BACAAN_SHALAT', id, { nama: t.nama }, null);
       toast('✅ Target dihapus.'); bsRender();
@@ -908,8 +911,7 @@ function bsSimpanNilai() {
   const batasMundur = bsTambahHari(bsHariIni(), -BS_HARI_NILAI_MUNDUR);
   const barisTglBaru = dirty.filter(d => { const l = saved[bsKunciSetoran(d.targetId, d.siswaKey)]; return !(l && l.status === d.status); });
   if (barisTglBaru.length && tgl < batasMundur) return toast('⚠️ Tanggal penilaian paling jauh ' + BS_HARI_NILAI_MUNDUR + ' hari ke belakang (mulai ' + bsFmtTgl(batasMundur) + ').', true);
-  const sebelumMulai = barisTglBaru.find(d => { const t = (bsState.targets || []).find(x => x.key === d.targetId), aw = bsAwalTarget(t); return aw && tgl < aw; });
-  if (sebelumMulai) { const t = (bsState.targets || []).find(x => x.key === sebelumMulai.targetId); return toast('⚠️ Tanggal penilaian tidak boleh sebelum target "' + (t ? t.nama : '') + '" dimulai (' + bsFmtTgl(bsAwalTarget(t)) + ').', true); }
+  // Penilaian lebih awal dari tanggal mulai target BOLEH (setoran dini); hanya dibatasi 14 hari ke belakang dan tidak di masa depan.
   const turunLulus = dirty.filter(d => { const l = saved[bsKunciSetoran(d.targetId, d.siswaKey)]; return l && l.status === 'Lulus' && d.status !== 'Lulus'; });
   if (turunLulus.length) {
     const msg = 'Ubah status LULUS menjadi ' + (turunLulus.length === 1 ? turunLulus[0].status : 'status lain') + ' untuk: ' + turunLulus.slice(0, 5).map(d => d.siswaNama).join(', ') + (turunLulus.length > 5 ? ', dst' : '') + '? Poin dan lencana siswa ikut berubah.';
@@ -932,7 +934,7 @@ function bsSimpanNilai() {
     const cat = (d.catatan || '').trim(); if (cat) rec.catatan = cat.slice(0, 300);
     records[key] = rec; lokal[key] = Object.assign({ key }, rec);
   });
-  bsSiapTulis().then(() => db.ref('bs_setoran').update(records)).then(() => {
+  db.ref('bs_setoran').update(records).then(() => {
     clearBusy('bsSimpanNilai', bsEl('bsBtnSimpanNilai'));
     Object.keys(lokal).forEach(key => { bsState.setoran[k][key] = lokal[key]; delete bsState.draft[key]; });
     if (typeof v4Audit === 'function') v4Audit('BS_NILAI_SETORAN', 'BACAAN_SHALAT', k, null, { kelas: k, jumlah: dirty.length, tanggal: tgl });
@@ -977,7 +979,8 @@ function bsBodyRekap() {
   const sw = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
     <button class="btn ${mode === 'kelas' ? 'btn-primary' : 'btn-soft'}" style="padding:7px 14px;" onclick="bsPilihModeRekap('kelas')">🏫 Per Kelas</button>
     <button class="btn ${mode === 'semua' ? 'btn-primary' : 'btn-soft'}" style="padding:7px 14px;" onclick="bsPilihModeRekap('semua')">🌐 Semua Kelas</button>
-    <button class="btn btn-soft" style="padding:7px 14px;margin-left:auto;" onclick="bsRekapUnduh()">📥 Unduh CSV</button></div>`;
+    <button class="btn btn-soft" style="padding:7px 14px;margin-left:auto;" onclick="bsRekapPdf()">📄 Unduh PDF</button>
+    <button class="btn btn-soft" style="padding:7px 14px;" onclick="bsRekapUnduh()">📥 CSV</button></div>`;
   return sw + (mode === 'semua' ? bsRekapSemua() : bsRekapKelas());
 }
 function bsRekapKelas() {
@@ -1038,6 +1041,94 @@ function bsRekapSemua() {
       <p class="text-muted" style="font-size:11px;margin-bottom:8px;">Lulus &amp; Remedial dihitung per sel (siswa × target aktif). Ketuk nama kelas untuk melihat rincian per siswa.</p>
       <div style="font-size:11px;margin-bottom:8px;" class="text-muted"><span style="color:#059669;">■</span> Lulus &nbsp;<span style="color:#d97706;">■</span> Remedial &nbsp;<span style="color:#9ca3af;">■</span> Belum Setor</div>
       <div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Siswa</th><th>Target</th><th>Lulus</th><th>Remedial</th><th>%</th><th>Progres</th></tr></thead><tbody>${baris}</tbody></table></div></div>`;
+}
+function bsRekapPdf() {
+  const mode = bsState.rekapMode === 'semua' ? 'semua' : 'kelas';
+  let data;
+  if (mode === 'semua') {
+    data = bsKelasPilihan().map(k => ({ k, R: bsHitungRekapKelas(k) }));
+    if (!data.length || data.some(d => !d.R)) return toast('⏳ Data belum lengkap, tunggu sampai semua kelas selesai dimuat.', true);
+  } else {
+    data = bsState.kelas ? bsHitungRekapKelas(bsState.kelas) : null;
+    if (!data) return toast('⏳ Data belum siap.', true);
+  }
+  if (typeof ensureLib !== 'function') return toast('Fitur PDF belum tersedia di versi ini.', true);
+  if (!bsOnline() && !(window.jspdf && window.jspdf.jsPDF)) return toast('📡 Butuh jaringan untuk memuat pustaka PDF (sekali saja).', true);
+  if (!bsKunciMulai('pdf')) return;
+  toast('⏳ Menyiapkan PDF...');
+  const safe = f => { try { return f(); } catch (e) { return Promise.resolve(null); } };
+  Promise.all([ensureLib('pdf'), safe(() => v4LoadLogoForPdf()), safe(() => v4LoadTtdKepalaForPdf())]).then(r => {
+    const logo = r[1] || null, ttd = r[2] || null;
+    const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight(), m = 15;
+    let y = (typeof v4KopMadrasahPdf === 'function') ? v4KopMadrasahPdf(doc, pw, logo, m) + 7 : 20;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+    doc.text(mode === 'semua' ? 'REKAP BACAAN SHOLAT - SEMUA KELAS' : 'REKAP BACAAN SHOLAT - ' + String(bsNamaKelas(data.k)).toUpperCase(), pw / 2, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text('Tahun Ajaran ' + bsTA() + '  |  Dicetak ' + bsFmtTgl(bsHariIni()), pw / 2, y + 5, { align: 'center' });
+    y += 9;
+    const kepala = (typeof MADRASAH !== 'undefined' && MADRASAH) ? MADRASAH : {};
+    const warnaSel = d => {
+      if (d.section !== 'body') return;
+      const t = String(d.cell.raw == null ? '' : d.cell.raw);
+      if (/^L(\s|$)/.test(t)) { d.cell.styles.fillColor = [220, 252, 231]; d.cell.styles.textColor = [4, 120, 87]; d.cell.styles.fontStyle = 'bold'; }
+      else if (/^R$/.test(t)) { d.cell.styles.fillColor = [254, 243, 199]; d.cell.styles.textColor = [180, 83, 9]; d.cell.styles.fontStyle = 'bold'; }
+    };
+    let ketY;
+    if (mode === 'kelas') {
+      const R = data, nT = R.targets.length;
+      const head = [['No', 'Nama Siswa'].concat(R.targets.map((t, i) => String(t.urutan || i + 1)), ['Lulus', '%'])];
+      const body = R.perSiswa.map((p, i) => [String(i + 1), p.s.name].concat(R.targets.map(t => {
+        const x = R.setoran[bsKunciSetoran(t.key, p.s.key)];
+        return !x ? '-' : x.status === 'Lulus' ? 'L' + (x.nilai != null ? ' ' + x.nilai : '') : x.status === 'Remedial' ? 'R' : '-';
+      }), [p.l + '/' + nT, (nT ? Math.round(p.l / nT * 100) : 0) + '%']));
+      const foot = [['', 'Lulus per target'].concat(R.targets.map(t => String(R.siswa.filter(s => { const x = R.setoran[bsKunciSetoran(t.key, s.key)]; return x && x.status === 'Lulus'; }).length)), ['', ''])];
+      doc.autoTable({ startY: y, head, body, foot, theme: 'grid', margin: { left: m, right: m },
+        styles: { fontSize: 8, cellPadding: 1.1, halign: 'center', lineColor: [200, 200, 200], lineWidth: 0.1 },
+        headStyles: { fillColor: [31, 41, 55], textColor: 255 }, footStyles: { fillColor: [243, 244, 246], textColor: 20, fontStyle: 'bold' },
+        columnStyles: { 1: { halign: 'left', cellWidth: 52 } }, didParseCell: warnaSel });
+      ketY = doc.lastAutoTable.finalY + 5;
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      const ket = 'Keterangan: L = Lulus (angka = nilai), R = Remedial, - = belum setor.  Ketuntasan kelas: ' + R.persen + '% (' + R.l + ' lulus, ' + R.r + ' remedial, ' + R.b + ' belum setor).';
+      const daftarT = 'Target: ' + R.targets.map((t, i) => (t.urutan || i + 1) + '. ' + t.nama).join('; ');
+      const barisKet = doc.splitTextToSize(ket, pw - 2 * m).concat(doc.splitTextToSize(daftarT, pw - 2 * m));
+      if (ketY + barisKet.length * 4 > ph - 12) { doc.addPage(); ketY = 18; }   // keterangan satu blok, tidak terpecah antar halaman
+      barisKet.forEach(l => { doc.text(l, m, ketY); ketY += 4; });
+    } else {
+      const head = [['No', 'Kelas', 'Siswa', 'Target', 'Lulus', 'Remedial', 'Belum Setor', 'Ketuntasan']];
+      let S = 0, L = 0, Rm = 0, B = 0, T = 0;
+      const body = data.map(({ k, R }, i) => { S += R.siswa.length; L += R.l; Rm += R.r; B += R.b; T += R.total;
+        return [String(i + 1), bsNamaKelas(k), String(R.siswa.length), String(R.targets.length), String(R.l), String(R.r), String(R.b), R.targets.length ? R.persen + '%' : '-']; });
+      const foot = [['', 'Total', String(S), '', String(L), String(Rm), String(B), (T ? Math.round(L / T * 100) : 0) + '%']];
+      doc.autoTable({ startY: y, head, body, foot, theme: 'grid', margin: { left: m, right: m },
+        styles: { fontSize: 9, cellPadding: 1.8, halign: 'center', lineColor: [200, 200, 200], lineWidth: 0.1 },
+        headStyles: { fillColor: [31, 41, 55], textColor: 255 }, footStyles: { fillColor: [243, 244, 246], textColor: 20, fontStyle: 'bold' },
+        columnStyles: { 1: { halign: 'left' } } });
+      ketY = doc.lastAutoTable.finalY + 5;
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      doc.text('Lulus, Remedial, dan Belum Setor dihitung per sel (siswa x target aktif). Siswa nonaktif tidak dihitung.', m, ketY); ketY += 4;
+    }
+    // Tanda tangan: PJ/wali kelas di kiri (mode per kelas), Kepala Madrasah di kanan.
+    let ty = ketY + 6;
+    if (ty > ph - 48) { doc.addPage(); ty = 22; }
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    const xKanan = pw - m - 60, xKiri = m + 15;
+    doc.text('Mengetahui,', xKanan + 30, ty, { align: 'center' }); doc.text('Kepala Madrasah', xKanan + 30, ty + 5, { align: 'center' });
+    if (ttd) { try { doc.addImage(ttd, /^data:image\/jpe?g/i.test(ttd) ? 'JPEG' : 'PNG', xKanan + 10, ty + 7, 40, 18, undefined, 'FAST'); } catch (e) { /* tanpa tanda tangan */ } }
+    doc.setFont('helvetica', 'bold'); doc.text(String(kepala.kepala_sekolah || '........................'), xKanan + 30, ty + 30, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); if (kepala.nip_kepala_sekolah) doc.text('NIP. ' + kepala.nip_kepala_sekolah, xKanan + 30, ty + 35, { align: 'center' });
+    if (mode === 'kelas') {
+      const pj = (bsPjMap && bsPjMap[data.k] && bsPjMap[data.k].name) || '';
+      doc.text('Penanggung Jawab Bacaan Sholat', xKiri + 30, ty + 5, { align: 'center' });
+      doc.setFont('helvetica', 'bold'); doc.text(pj || '........................', xKiri + 30, ty + 30, { align: 'center' });
+    }
+    const n = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120); doc.text('Halaman ' + i + ' / ' + n, pw - m, ph - 6, { align: 'right' }); doc.setTextColor(0); }
+    const nama = 'rekap-bacaan-sholat-' + (mode === 'semua' ? 'semua-kelas' : String(data.k).replace(/[^A-Za-z0-9]+/g, '-')) + '-' + bsHariIni() + '.pdf';
+    doc.save(nama);
+    toast('✅ PDF rekap diunduh.');
+  }).catch(e => toast('❌ Gagal membuat PDF: ' + ((e && e.message) || e), true))
+    .then(() => bsKunciSelesai('pdf'));
 }
 function bsCsvSel(v) { v = v == null ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function bsRekapUnduh() {
