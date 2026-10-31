@@ -110,7 +110,7 @@
       thead.innerHTML = headerHtml;
       let bodyHtml = '', totalNilaiPerMapel = {}, jumlahSiswa = 0;
       siswa.forEach((s, idx) => {
-        const nilai = nilaiMap[s.key] || {}; let totalSiswa = 0, countSiswa = 0; let rowHtml = `<tr class="siswa-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;">${escapeHtml(s.name)}</td>`;
+        const nilai = nilaiMap[s.key] || {}; let totalSiswa = 0, countSiswa = 0; let rowHtml = `<tr class="rekap-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;">${escapeHtml(s.name)}</td>`;
         subjects.forEach(sub => {
           const n = nilai[sub];
           if (n !== undefined && n !== null && n !== '') {
@@ -155,7 +155,7 @@
       grades.forEach((g, idx) => {
         const data = g.data || {}, h1 = data.h1 || '-', h2 = data.h2 || '-', h3 = data.h3 || '-', mid = data.mid || '-', pas = data.pas || '-', rapor = calculateRapor(data);
         const color = rapor >= 75 ? 'nilai-hadir' : (rapor < 60 ? 'nilai-rendah' : '');
-        bodyHtml += `<tr class="siswa-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;font-weight:600;">${escapeHtml(g.subject)}</td><td>${h1}</td><td>${h2}</td><td>${h3}</td><td>${mid}</td><td>${pas}</td><td class="${color}" style="font-weight:700;">${rapor}</td></tr>`;
+        bodyHtml += `<tr class="rekap-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;font-weight:600;">${escapeHtml(g.subject)}</td><td>${h1}</td><td>${h2}</td><td>${h3}</td><td>${mid}</td><td>${pas}</td><td class="${color}" style="font-weight:700;">${rapor}</td></tr>`;
         totalRapor += rapor; countRapor++;
       });
       tbody.innerHTML = bodyHtml;

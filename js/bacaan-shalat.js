@@ -1323,7 +1323,7 @@ function bsRekapPdf() {
   if (!bsKunciMulai('pdf')) return;
   toast('⏳ Menyiapkan PDF...');
   const safe = f => { try { return f(); } catch (e) { return Promise.resolve(null); } };
-  Promise.all([ensureLib('pdf'), safe(() => v4LoadLogoForPdf()), safe(() => v4LoadTtdKepalaForPdf())]).then(r => {
+  Promise.all([ensureLib('pdf'), safe(() => v4LoadLogoForPdf()), safe(() => v4LoadTtdKepalaForPdf())]).then(async r => {
     const logo = r[1] || null, ttd = r[2] || null;
     const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight(), m = 15;
@@ -1379,10 +1379,22 @@ function bsRekapPdf() {
     if (ty > ph - 48) { doc.addPage(); ty = 22; }
     doc.setFontSize(10); doc.setFont('helvetica', 'normal');
     const xKanan = pw - m - 60, xKiri = m + 15;
-    doc.text('Mengetahui,', xKanan + 30, ty, { align: 'center' }); doc.text('Kepala Madrasah', xKanan + 30, ty + 5, { align: 'center' });
-    if (ttd) { try { doc.addImage(ttd, /^data:image\/jpe?g/i.test(ttd) ? 'JPEG' : 'PNG', xKanan + 10, ty + 7, 40, 18, undefined, 'FAST'); } catch (e) { /* tanpa tanda tangan */ } }
-    doc.setFont('helvetica', 'bold'); doc.text(String(kepala.kepala_sekolah || '........................'), xKanan + 30, ty + 30, { align: 'center' });
-    doc.setFont('helvetica', 'normal'); if (kepala.nip_kepala_sekolah) doc.text('NIP. ' + kepala.nip_kepala_sekolah, xKanan + 30, ty + 35, { align: 'center' });
+    const adaTtd = !!(window.TTD && typeof window.TTD.blokPdf === 'function');
+    if (adaTtd) {
+      // Sama dengan cetakan lain: blok Kepala mengikuti mode Profil Sekolah (QR / gambar / keduanya). Kode QR dicatat di ttd_qr
+      // beserta jenis dokumen & pencetaknya, jadi bisa diverifikasi lewat ?verifikasi=KODE.
+      const ketDok = (mode === 'semua' ? 'Semua kelas' : bsNamaKelas(data.k)) + ' | Tahun Ajaran ' + bsTA() + ' | Dicetak ' + bsFmtTgl(bsHariIni());
+      doc.__ttdJudul = 'Rekap Bacaan Sholat'; doc.__ttdInfo = ketDok;
+      try {
+        await window.TTD.blokPdf(doc, { role: 'kepala', x: xKanan + 30, y: ty, atas: 'Mengetahui,', meta: { jenis: 'Rekap Bacaan Sholat', ket: ketDok } });
+      } catch (e) { console.error('[Bacaan Sholat] Gagal menempel tanda tangan Kepala:', e); toast('⚠️ Tanda tangan Kepala gagal ditempel pada PDF.', true); }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(0);
+    } else {
+      doc.text('Mengetahui,', xKanan + 30, ty, { align: 'center' }); doc.text('Kepala Madrasah', xKanan + 30, ty + 5, { align: 'center' });
+      if (ttd) { try { doc.addImage(ttd, /^data:image\/jpe?g/i.test(ttd) ? 'JPEG' : 'PNG', xKanan + 10, ty + 7, 40, 18, undefined, 'FAST'); } catch (e) { /* tanpa tanda tangan */ } }
+      doc.setFont('helvetica', 'bold'); doc.text(String(kepala.kepala_sekolah || '........................'), xKanan + 30, ty + 30, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); if (kepala.nip_kepala_sekolah) doc.text('NIP. ' + kepala.nip_kepala_sekolah, xKanan + 30, ty + 35, { align: 'center' });
+    }
     if (mode === 'kelas') {
       const pj = (bsPjMap && bsPjMap[data.k] && bsPjMap[data.k].name) || '';
       doc.text('Penanggung Jawab Bacaan Sholat', xKiri + 30, ty + 5, { align: 'center' });
