@@ -93,9 +93,9 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=141"></script>
+  <script defer src="js/app.js?v=146"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=2"></script>
+  <script defer src="js/portal-ortu.js?v=4"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -104,7 +104,7 @@
   <script defer src="js/materi-tugas.js?v=1"></script>
   <script defer src="js/kelola-absen-guru.js?v=7"></script>
   <script defer src="js/jadwal.js?v=5"></script>
-  <script defer src="js/laporan-rekap.js?v=2"></script>
+  <script defer src="js/laporan-rekap.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/honor-guru.js?v=27"></script>
   <script defer src="js/honor-kebersihan.js?v=3"></script>
@@ -113,9 +113,9 @@
   <script defer src="js/pengingat-absen-guru.js?v=1"></script>
   <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=5"></script>
-  <script defer src="js/v4-pengaturan-notif-rapor.js?v=3"></script>
+  <script defer src="js/v4-pengaturan-notif-rapor.js?v=9"></script>
   <!-- Hasil pecahan app.js tahap 6 (Rekap Nilai; Kalender Akademik + "Hari Ini"; Saran & Kritik; akun Ortu sisi Admin). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/rekap-nilai.js?v=4"></script>
+  <script defer src="js/rekap-nilai.js?v=8"></script>
   <script defer src="js/kalender-akademik.js?v=1"></script>
   <script defer src="js/saran-kritik.js?v=1"></script>
   <script defer src="js/ortu-akun-admin.js?v=1"></script>
@@ -777,6 +777,8 @@
   #page-sikap-siswa th,#page-sikap-siswa td{padding:6px 6px !important;white-space:normal !important;}
   #page-sikap-siswa > .card h3{margin-bottom:6px !important;}
 }
+  /* Nilai rapor sementara: abu-abu, lebih terang di mode gelap */
+  :root{--rapor-sementara:#6b7280;}body.dark-mode{--rapor-sementara:#9ca3af;}
 </style>
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">🧑‍🎓 Manajemen Siswa</h3>
