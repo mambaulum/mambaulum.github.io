@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.289",
-  "disimpan": "2026-10-31T11:56:16.864Z",
+  "appVersion": "v8.290",
+  "disimpan": "2026-10-31T13:09:19.037Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,12 +59,12 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=141",
-      "hash": "dacf5289b9a81afabd119739b5dd380ee33c3464"
+      "v": "v=146",
+      "hash": "3a990d5e03aba1d7f0dd611c2a5c726ad092a09d"
     },
     "js/portal-ortu.js": {
-      "v": "v=2",
-      "hash": "48a9737cd38edc368d929d31aec5da10c8593798"
+      "v": "v=4",
+      "hash": "2e76f255013270ffa2b5f3e9387637b0cd81a594"
     },
     "js/infaq.js": {
       "v": "v=1",
@@ -87,8 +87,8 @@
       "hash": "572d47cf399fdd7bf04eda0ceabef46857b71486"
     },
     "js/laporan-rekap.js": {
-      "v": "v=2",
-      "hash": "03c2c7e6153a1d0f7a158e6ced225112b4f03d3f"
+      "v": "v=4",
+      "hash": "f9c46bde31fa3ad9d85d371013bebe9b12ec7a1f"
     },
     "js/honor-guru.js": {
       "v": "v=27",
@@ -111,12 +111,12 @@
       "hash": "6a1d49ad1764ffcb57791a1c06132cc26ee3636f"
     },
     "js/v4-pengaturan-notif-rapor.js": {
-      "v": "v=3",
-      "hash": "fe2ad1cedb534b6a1676a0ef69974601349bfd80"
+      "v": "v=9",
+      "hash": "a28ce831afe0286707f4a3ca4c64fbf4c42d827c"
     },
     "js/rekap-nilai.js": {
-      "v": "v=4",
-      "hash": "a34b5314e611b95f785960e9ef6ba876bd72face"
+      "v": "v=8",
+      "hash": "81d3ef94985b8a826c6b60b3a8208330fee1c8ef"
     },
     "js/kalender-akademik.js": {
       "v": "v=1",
