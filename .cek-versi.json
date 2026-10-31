@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.285",
-  "disimpan": "2026-10-31T01:56:20.649Z",
+  "appVersion": "v8.286",
+  "disimpan": "2026-10-31T02:36:43.787Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -115,8 +115,8 @@
       "hash": "fe2ad1cedb534b6a1676a0ef69974601349bfd80"
     },
     "js/rekap-nilai.js": {
-      "v": "v=2",
-      "hash": "75e50170acdf716a717a40d939597d3ed1514caf"
+      "v": "v=3",
+      "hash": "80f0658d6f221db813b76b96d0fa001710570973"
     },
     "js/kalender-akademik.js": {
       "v": "v=1",
@@ -135,8 +135,8 @@
       "hash": "01cf4e9d995c986db82b039eb96ffa2d185645d7"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=20",
-      "hash": "a64e952db813ff001ab4b8f74941d240471b54a7"
+      "v": "v=21",
+      "hash": "f91bed2f4e4025850d7f98122f68aa32860eaf95"
     },
     "js/kredensial.js": {
       "v": "v=8",
