@@ -387,30 +387,34 @@
       });
       html += `<th>Rata-rata</th></tr></thead><tbody>`;
 
-      let totalNilaiMap = {};
+      let totalNilaiMap = {}, adaSemLaporan = false;
       siswa.forEach((s, idx) => {
         const gradeData = grades.filter(g => g.siswaKey === s.key);
-        const nilaiMap = {};
+        const nilaiMap = {}, semMap = {};
         gradeData.forEach(g => {
-          if (g.data) nilaiMap[g.subject] = calculateRapor(g.data);
+          if (g.data) { const st = statusRapor(g.data); if (st.nilai !== null) { nilaiMap[g.subject] = st.nilai; if (!st.final) semMap[g.subject] = true; } }
         });
-        let totalSiswa = 0, countSiswa = 0;
+        let totalSiswa = 0, countSiswa = 0, adaSemSiswa = false;
         html += `<tr><td>${idx + 1}</td><td>${escapeHtml(s.name)}</td>`;
         subjects.forEach(sub => {
           const n = nilaiMap[sub];
           if (n !== undefined) {
-            html += `<td>${n}</td>`;
+            html += semMap[sub] ? `<td>${raporSementaraHtml(n)}</td>` : `<td>${n}</td>`;
             totalSiswa += n;
             countSiswa++;
-            if (!totalNilaiMap[sub]) totalNilaiMap[sub] = { total: 0, count: 0 };
+            if (semMap[sub]) { adaSemSiswa = true; adaSemLaporan = true; }
+            if (!totalNilaiMap[sub]) totalNilaiMap[sub] = { total: 0, count: 0, sem: false };
             totalNilaiMap[sub].total += n;
             totalNilaiMap[sub].count++;
+            if (semMap[sub]) totalNilaiMap[sub].sem = true;
           } else {
             html += `<td class="text-muted">-</td>`;
           }
         });
         const rata = countSiswa > 0 ? Math.round(totalSiswa / countSiswa) : '-';
-        html += `<td style="font-weight:700;${rata !== '-' && rata >= 75 ? 'color:#059669;' : rata !== '-' && rata < 60 ? 'color:#dc2626;' : ''}">${rata}</td></tr>`;
+        html += rata !== '-' && adaSemSiswa
+          ? `<td style="font-weight:700;">${raporSementaraHtml(rata)}</td></tr>`
+          : `<td style="font-weight:700;${rata !== '-' && rata >= 75 ? 'color:#059669;' : rata !== '-' && rata < 60 ? 'color:#dc2626;' : ''}">${rata}</td></tr>`;
       });
 
       html += `</tbody><tfoot><tr style="font-weight:700;background:#fef3c7;"><td colspan="2">Rata-rata Kelas</td>`;
@@ -419,7 +423,7 @@
         const data = totalNilaiMap[sub];
         if (data && data.count > 0) {
           const rata = Math.round(data.total / data.count);
-          html += `<td>${rata}</td>`;
+          html += data.sem ? `<td>${raporSementaraHtml(rata)}</td>` : `<td>${rata}</td>`;
           totalRataKelas += rata;
           countRataKelas++;
         } else {
@@ -427,7 +431,8 @@
         }
       });
       const rataKelas = countRataKelas > 0 ? Math.round(totalRataKelas / countRataKelas) : '-';
-      html += `<td style="color:#059669;">${rataKelas}</td></tr></tfoot></table>
+      html += (rataKelas !== '-' && adaSemLaporan ? `<td>${raporSementaraHtml(rataKelas)}</td>` : `<td style="color:#059669;">${rataKelas}</td>`) + `</tr></tfoot></table>
+        ${adaSemLaporan ? '<div style="margin-top:8px;font-size:10px;color:#6b7280;font-style:italic;">Catatan: nilai berlabel sementara belum final (menunggu NH, MID, atau PAS); rata-rata yang memuatnya juga sementara.</div>' : ''}
         <div class="text-muted" style="margin-top:16px;font-size:10px;text-align:right;">
           Dicetak: ${new Date().toLocaleString()}
         </div>

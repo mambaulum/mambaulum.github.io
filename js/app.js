@@ -2599,7 +2599,8 @@
       const persenSiswa = totalSiswaTercatat > 0 ? Math.round((totalHadirSiswa / totalSiswaTercatat) * 100) : 0;
       // Rata-rata nilai rapor -- digabung semua mapel & semester tahun ajaran berjalan, sekadar
       // indikator cepat di dashboard (bukan pengganti tampilan detail per-mapel yang sudah ada).
-      const raporValues = allGrades.filter(g => mapelDiizinkanNilai(g.kelas || ((allSiswa.find(x => x.key === g.siswaKey) || {}).kelas), g.subject)).map(g => calculateRapor(g.data || {})).filter(v => v > 0);
+      // Hanya nilai FINAL (minimal satu NH, MID, dan PAS terisi) yang dihitung; nilai sementara tidak menurunkan/menaikkan rata-rata.
+      const raporValues = allGrades.filter(g => mapelDiizinkanNilai(g.kelas || ((allSiswa.find(x => x.key === g.siswaKey) || {}).kelas), g.subject)).map(g => statusRapor(g.data || {})).filter(st => st.final && st.nilai > 0).map(st => st.nilai);
       const rataNilai = raporValues.length ? Math.round(raporValues.reduce((a,b)=>a+b,0) / raporValues.length) : 0;
       const infaqMingguIni = allInfaqSiswa.filter(it => it.minggu === isoMingguKey()).reduce((s,it)=>s+(it.nominal||0), 0);
       const kartu = [
@@ -2624,7 +2625,7 @@
       const kelasUnik = [...new Set(allSiswa.map(s => s.kelas))].filter(Boolean).sort();
       const barPalette = ['#f59e0b','#fbbf24','#fcd34d','#d97706','#b45309','#92400e','#f97316','#ea580c','#c2410c','#78350f'];
       const dataValues = kelasUnik.map(k => {
-        const nilaiKelas = allGrades.filter(g => g.kelas === k && mapelDiizinkanNilai(k, g.subject)).map(g => calculateRapor(g.data || {})).filter(v => v > 0);
+        const nilaiKelas = allGrades.filter(g => g.kelas === k && mapelDiizinkanNilai(k, g.subject)).map(g => statusRapor(g.data || {})).filter(st => st.final && st.nilai > 0).map(st => st.nilai);
         return nilaiKelas.length ? Math.round(nilaiKelas.reduce((a,b)=>a+b,0) / nilaiKelas.length) : 0;
       });
       dashboardNilaiChartInstance = v4RenderChart(dashboardNilaiChartInstance, ctx, {
@@ -5391,13 +5392,24 @@
           const judul = kunci ? 'Terkunci. Hubungi Admin untuk koreksi.' : (terisi && bolehBukaS ? 'Nilai terkunci: koreksi Anda akan dicatat di log.' : '');
           html += `<td style="white-space:nowrap;"><input class="field grade-input" type="number" min="0" max="100" step="any" inputmode="decimal" style="width:70px;padding:4px 8px;${gaya}" title="${judul}" data-siswa="${s.key}" data-key="${key}" data-gradekey="${escapeHtml(gradeKey)}" data-version="${gradeVersion}" data-terkunci="${terisi ? '1' : ''}" data-lama="${escapeHtml(nilaiTampilInput(data[key]))}" value="${escapeHtml(nilaiTampilInput(data[key]))}" ${attrDis}>${kunci ? '<span title="Terkunci" style="font-size:.75rem;margin-left:2px;">🔒</span>' : ''}</td>`;
         });
-        const rapor = calculateRapor(data);
-        html += `<td style="font-weight:700;color:#059669;">${rapor}</td></tr>`;
+        const st = statusRapor(data);
+        html += st.nilai === null
+          ? `<td class="text-muted">-</td></tr>`
+          : (st.final ? `<td style="font-weight:700;color:#059669;">${st.nilai}</td></tr>` : `<td>${raporSementaraHtml(st.nilai)}</td></tr>`);
       });
       html += '</tbody></table></div>';
       if (canEdit() && !isKepsek()) { html += `<button id="btnSaveGrades" class="btn btn-success" style="margin-top:12px;" onclick="saveGrades()">💾 Simpan Nilai</button>`; }
       if (typeof isAdmin === 'function' && isAdmin()) { html += `<button class="btn" style="margin-top:12px;margin-left:8px;" onclick="cekDataNilaiLama()">🔎 Cek Data Nilai Lama</button>`; }
       container.innerHTML = html;
+      // Tandai & nonaktifkan siswa yang raportnya sudah difinalisasi (asinkron; gagal baca = tampilan biasa, simpan tetap dicek ulang).
+      raporTerkunciSet().then(set => {
+        container.querySelectorAll('.grade-input').forEach(inp => {
+          if (!set.has(raporKunciKey(inp.dataset.siswa, currentTahunAjaran, semester))) return;
+          inp.disabled = true; inp.style.background = '#f3f4f6'; inp.title = 'Raport sudah difinalisasi. Ajukan koreksi lewat menu Raport.';
+          const td = inp.closest('tr') && inp.closest('tr').firstElementChild;
+          if (td && !td.querySelector('.lbl-raport-kunci')) td.insertAdjacentHTML('beforeend', ' <small class="lbl-raport-kunci" style="color:#6b7280;font-weight:400;">🔒 raport final</small>');
+        });
+      }).catch(() => {});
     }
     // Nilai dianggap "sudah terisi & terkunci" bila angka valid 0-100. Teks tak valid / di luar rentang
     // (data lama bermasalah) TIDAK dikunci, supaya guru masih bisa mengisinya ulang dengan benar.
@@ -5540,7 +5552,60 @@
       const mid = nilaiAngka(data.mid) || 0, pas = nilaiAngka(data.pas) || 0;
       return Math.round(daily*0.4 + mid*0.3 + pas*0.3);
     }
+    // STATUS RAPOR: "final" kalau minimal SATU NH, MID, dan PAS sudah terisi (angkanya sama persis dengan calculateRapor).
+    // Selama NH (minimal satu), MID, atau PAS belum lengkap, angkanya "sementara": rata-rata berbobot dari komponen yang SUDAH ADA
+    // (NH 40%, MID 30%, PAS 30%; bobot dinormalkan ke komponen terisi), mis. NH saja -> rata-rata NH.
+    // Return { nilai: angka|null, final: bool }. nilai null = belum ada komponen sama sekali.
+    function statusRapor(data) {
+      data = data || {};
+      const nh = [data.h1, data.h2, data.h3].map(nilaiAngka).filter(n => n !== null);
+      const mid = nilaiAngka(data.mid), pas = nilaiAngka(data.pas);
+      if (nh.length > 0 && mid !== null && pas !== null) return { nilai: calculateRapor(data), final: true };
+      let jumlah = 0, bobot = 0;
+      if (nh.length) { jumlah += (nh.reduce((a, b) => a + b, 0) / nh.length) * 0.4; bobot += 0.4; }
+      if (mid !== null) { jumlah += mid * 0.3; bobot += 0.3; }
+      if (pas !== null) { jumlah += pas * 0.3; bobot += 0.3; }
+      return bobot > 0 ? { nilai: Math.round(jumlah / bobot), final: false } : { nilai: null, final: false };
+    }
+    // Tampilan sel Rapor. Sementara = abu-abu + label "sementara", TANPA warna merah/hijau.
+    // Final = tampilan lama (hijau >=75, merah <60 hanya dipakai pemanggil lewat kelasWarna).
+    function raporSementaraHtml(nilai) {
+      return `<span style="color:var(--rapor-sementara,#6b7280);font-weight:600;">${nilai}</span> <small style="color:var(--rapor-sementara,#6b7280);font-style:italic;font-weight:400;white-space:nowrap;">sementara</small>`;
+    }
+    // KUNCI RAPORT: finalisasi menulis node ringan report_locks_v4/<kunci> (status LOCKED). Selama LOCKED, nilai siswa itu
+    // di semester tsb tidak bisa disimpan lewat Input Nilai & raport tidak bisa difinalisasi ulang. Persetujuan
+    // "Ajukan Koreksi" mengubah status jadi UNLOCKED. Kunci disanitasi karena key Firebase tidak boleh memuat . # $ [ ] /
+    function raporKunciKey(siswaKey, tahun, semester) {
+      return (String(siswaKey) + '__' + String(tahun || '') + '__' + String(semester || '')).replace(/[.#$\[\]\/\s]/g, '_');
+    }
+    // Promise<Set kunci LOCKED>. Cache 15 dtk; paksa=true selalu baca ulang. Gagal/timeout 8 dtk -> reject.
+    function raporTerkunciSet(paksa) {
+      const c = window._raporKunciCache;
+      if (!paksa && c && Date.now() - c.t < 15000) return Promise.resolve(c.set);
+      const baca = db.ref('report_locks_v4').once('value').then(snap => {
+        const set = new Set();
+        snap.forEach(ch => { const v = ch.val(); if (v && v.status === 'LOCKED') set.add(ch.key); });
+        window._raporKunciCache = { t: Date.now(), set };
+        return set;
+      });
+      const batas = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
+      return Promise.race([baca, batas]);
+    }
+    // Pembungkus: cek dulu raport mana yang sudah difinalisasi (LOCKED); siswa tsb dilewati saat simpan.
     function saveGrades() {
+      if (!canEdit() || isKepsek()) return toast('Tidak bisa menyimpan!', true);
+      if (isBusy('saveGrades')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 2000);
+      const sem = document.getElementById('gradeSemester').value;
+      const keys = [...new Set(Array.from(document.querySelectorAll('.grade-input')).map(i => i.dataset.siswa))];
+      raporTerkunciSet(true).then(set => {
+        const kunciKeys = keys.filter(k => set.has(raporKunciKey(k, currentTahunAjaran, sem)));
+        window._nilaiTerkunciRaport = new Set(kunciKeys);
+        if (kunciKeys.length && kunciKeys.length === keys.length) return toast('🔒 Raport semua siswa di daftar ini sudah difinalisasi. Ajukan koreksi lewat menu Raport.', true, 6000);
+        if (kunciKeys.length) toast(`🔒 ${kunciKeys.length} siswa dilewati (raport sudah difinalisasi).`, false, 5000);
+        saveGradesInti();
+      }, () => toast('⚠️ Gagal memeriksa status raport. Periksa koneksi lalu coba lagi.', true, 5000));
+    }
+    function saveGradesInti() {
       if (!canEdit() || isKepsek()) return toast('Tidak bisa menyimpan!', true);
       if (isBusy('saveGrades')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 2000);
       const subject = document.getElementById('gradeSubject').value, semester = document.getElementById('gradeSemester').value;
@@ -5569,6 +5634,8 @@
           gradeMap[key].koreksi.push({ field: inp.dataset.key.toUpperCase(), lama: inp.dataset.lama, baru: String(inp.value || '').trim() === '' ? '(kosong)' : inp.value });
         }
       });
+      // Siswa yang raportnya sudah difinalisasi (LOCKED) tidak ikut disimpan.
+      { const lewati = window._nilaiTerkunciRaport; if (lewati && lewati.size) Object.keys(gradeMap).forEach(k => { if (lewati.has(k)) delete gradeMap[k]; }); window._nilaiTerkunciRaport = null; }
       // Batasi ke kelas yang diizinkan (jaga-jaga bila DOM diutak-atik / kelas tidak termasuk scope).
       let ditolakScope = 0;
       Object.keys(gradeMap).forEach(k => {

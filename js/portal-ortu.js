@@ -421,7 +421,9 @@
             if (st === 'H') hadir++; else if (st === 'S') sakit++; else if (st === 'I') izin++; else if (st === 'A') alfa++;
           }
         });
-        const nilaiRows = grades.map(g => `<tr><td>${escapeHtml(g.subject||'-')}</td><td>${escapeHtml(g.semester||'-')}</td><td style="text-align:right;font-weight:700;">${calculateRapor(g.data||{})}</td></tr>`).join('');
+        // Nilai belum lengkap (NH, MID, atau PAS belum lengkap) tampil abu-abu berlabel "sementara", bukan angka rendah biasa.
+        const nilaiRows = grades.map(g => { const st = statusRapor(g.data || {}); const sel = st.nilai === null ? '-' : (st.final ? st.nilai : raporSementaraHtml(st.nilai)); return `<tr><td>${escapeHtml(g.subject||'-')}</td><td>${escapeHtml(g.semester||'-')}</td><td style="text-align:right;font-weight:700;">${sel}</td></tr>`; }).join('')
+          + (grades.some(g => { const st = statusRapor(g.data || {}); return st.nilai !== null && !st.final; }) ? `<tr><td colspan="3" style="font-size:11px;color:#6b7280;font-style:italic;">Nilai berlabel sementara belum final. Angka menjadi final setelah minimal satu NH, MID, dan PAS terisi.</td></tr>` : '');
         const totalPelanggaran = sikap.filter(d=>d.jenis==='pelanggaran').reduce((s,d)=>s+(d.poin||0),0);
         const totalPrestasi = sikap.filter(d=>d.jenis==='prestasi').reduce((s,d)=>s+(d.poin||0),0);
         const netSikap = totalPrestasi - totalPelanggaran;

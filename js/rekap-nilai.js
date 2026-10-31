@@ -94,6 +94,12 @@
     // ============================================================
     // REKAP NILAI
     // ============================================================
+    // Record nilai yang SEMUA kolomnya kosong (dulu terbentuk otomatis setiap guru menekan Simpan untuk seluruh siswa)
+    // dianggap "belum ada nilai": tidak ditampilkan sebagai 0 dan tidak ikut dihitung.
+    function rekapAdaIsi(data) {
+      if (!data) return false;
+      return ['h1','h2','h3','mid','pas'].some(f => data[f] !== undefined && data[f] !== null && String(data[f]).trim() !== '');
+    }
     function renderRekapNilai() {
       const view = document.getElementById('rekapNilaiView').value, kelas = document.getElementById('rekapNilaiKelas').value, semester = document.getElementById('rekapNilaiSemester').value, siswaKey = document.getElementById('rekapNilaiSiswa').value;
       document.getElementById('rekapNilaiSiswaContainer').style.display = view === 'siswa' ? 'block' : 'none';
@@ -104,43 +110,52 @@
       const thead = document.getElementById('rekapNilaiHead'), tbody = document.getElementById('rekapNilaiBody'), tfoot = document.getElementById('rekapNilaiFoot'), info = document.getElementById('rekapNilaiInfo');
       const siswa = allSiswa.filter(s => s.kelas === kelas);
       if (siswa.length === 0) { thead.innerHTML = `<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px;">Tidak ada siswa di kelas ${escapeHtml(kelas)}.</td></tr>`; tbody.innerHTML = ''; tfoot.innerHTML = ''; info.textContent = ''; return; }
-      const grades = allGrades.filter(g => g.kelas === kelas && g.semester === semester);
+      const grades = allGrades.filter(g => g.kelas === kelas && g.semester === semester && rekapAdaIsi(g.data));
       const subjects = [...new Set(grades.map(g => g.subject))].sort();
       if (subjects.length === 0) { thead.innerHTML = `<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px;">Belum ada nilai untuk kelas ${escapeHtml(kelas)} semester ${escapeHtml(semester)}.</td></tr>`; tbody.innerHTML = ''; tfoot.innerHTML = ''; info.textContent = ''; return; }
-      const nilaiMap = {};
-      grades.forEach(g => { if (!nilaiMap[g.siswaKey]) nilaiMap[g.siswaKey] = {}; if (g.data) nilaiMap[g.siswaKey][g.subject] = calculateRapor(g.data); });
-      rekapNilaiDataCache = { siswa, subjects, nilaiMap, semester, kelas };
+      const nilaiMap = {}, sementaraMap = {};
+      grades.forEach(g => {
+        if (!nilaiMap[g.siswaKey]) { nilaiMap[g.siswaKey] = {}; sementaraMap[g.siswaKey] = {}; }
+        if (g.data) {
+          const st = statusRapor(g.data);
+          if (st.nilai !== null) { nilaiMap[g.siswaKey][g.subject] = st.nilai; if (!st.final) sementaraMap[g.siswaKey][g.subject] = true; }
+        }
+      });
+      rekapNilaiDataCache = { siswa, subjects, nilaiMap, sementaraMap, semester, kelas };
       let headerHtml = `<tr><th style="text-align:center;width:30px;">No</th><th style="text-align:left;min-width:120px;">Nama Siswa</th>`;
       subjects.forEach(sub => { headerHtml += `<th style="text-align:center;min-width:60px;">${escapeHtml(sub)}</th>`; });
       headerHtml += `<th style="text-align:center;min-width:70px;">Rata-rata</th></tr>`;
       thead.innerHTML = headerHtml;
       let bodyHtml = '', totalNilaiPerMapel = {}, jumlahSiswa = 0;
       siswa.forEach((s, idx) => {
-        const nilai = nilaiMap[s.key] || {}; let totalSiswa = 0, countSiswa = 0; let rowHtml = `<tr class="rekap-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;">${escapeHtml(s.name)}</td>`;
+        const nilai = nilaiMap[s.key] || {}; let totalSiswa = 0, countSiswa = 0, adaSemSiswa = false; let rowHtml = `<tr class="rekap-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;">${escapeHtml(s.name)}</td>`;
         subjects.forEach(sub => {
           const n = nilai[sub];
           if (n !== undefined && n !== null && n !== '') {
-            const num = Number(n); const color = num >= 75 ? 'nilai-hadir' : (num < 60 ? 'nilai-rendah' : '');
-            rowHtml += `<td class="${color}">${num}</td>`; totalSiswa += num; countSiswa++;
-            if (!totalNilaiPerMapel[sub]) totalNilaiPerMapel[sub] = { total: 0, count: 0 };
-            totalNilaiPerMapel[sub].total += num; totalNilaiPerMapel[sub].count += 1;
+            const num = Number(n); const sem = !!(sementaraMap[s.key] && sementaraMap[s.key][sub]);
+            const color = sem ? '' : (num >= 75 ? 'nilai-hadir' : (num < 60 ? 'nilai-rendah' : ''));
+            rowHtml += sem ? `<td>${raporSementaraHtml(num)}</td>` : `<td class="${color}">${num}</td>`; totalSiswa += num; countSiswa++; if (sem) adaSemSiswa = true;
+            if (!totalNilaiPerMapel[sub]) totalNilaiPerMapel[sub] = { total: 0, count: 0, sem: false };
+            totalNilaiPerMapel[sub].total += num; totalNilaiPerMapel[sub].count += 1; if (sem) totalNilaiPerMapel[sub].sem = true;
           } else rowHtml += `<td class="text-muted">-</td>`;
         });
         const rataSiswa = countSiswa > 0 ? (totalSiswa / countSiswa) : 0;
-        const colorRata = rataSiswa >= 75 ? 'nilai-hadir' : (rataSiswa < 60 ? 'nilai-rendah' : '');
-        rowHtml += `<td class="${colorRata}" style="font-weight:700;">${rataSiswa > 0 ? Math.round(rataSiswa) : '-'}</td></tr>`;
+        const colorRata = adaSemSiswa ? '' : (rataSiswa >= 75 ? 'nilai-hadir' : (rataSiswa < 60 ? 'nilai-rendah' : ''));
+        rowHtml += rataSiswa > 0 && adaSemSiswa
+          ? `<td style="font-weight:700;">${raporSementaraHtml(Math.round(rataSiswa))}</td></tr>`
+          : `<td class="${colorRata}" style="font-weight:700;">${rataSiswa > 0 ? Math.round(rataSiswa) : '-'}</td></tr>`;
         bodyHtml += rowHtml; jumlahSiswa++;
       });
       tbody.innerHTML = bodyHtml;
       let footHtml = `<tr class="rata-rata-row"><td colspan="2" style="text-align:right;font-weight:700;">Rata-rata Kelas</td>`;
-      let totalRataKelas = 0, countRataKelas = 0;
+      let totalRataKelas = 0, countRataKelas = 0, adaSemKelas = false;
       subjects.forEach(sub => {
         const data = totalNilaiPerMapel[sub];
-        if (data && data.count > 0) { const rata = Math.round(data.total / data.count); footHtml += `<td style="font-weight:700;">${rata}</td>`; totalRataKelas += rata; countRataKelas++; }
+        if (data && data.count > 0) { const rata = Math.round(data.total / data.count); footHtml += data.sem ? `<td style="font-weight:700;">${raporSementaraHtml(rata)}</td>` : `<td style="font-weight:700;">${rata}</td>`; totalRataKelas += rata; countRataKelas++; if (data.sem) adaSemKelas = true; }
         else footHtml += `<td class="text-muted">-</td>`;
       });
       const rataKelas = countRataKelas > 0 ? Math.round(totalRataKelas / countRataKelas) : 0;
-      footHtml += `<td style="font-weight:700;color:#059669;">${rataKelas > 0 ? rataKelas : '-'}</td></tr>`;
+      footHtml += rataKelas > 0 && adaSemKelas ? `<td style="font-weight:700;">${raporSementaraHtml(rataKelas)}</td></tr>` : `<td style="font-weight:700;color:#059669;">${rataKelas > 0 ? rataKelas : '-'}</td></tr>`;
       tfoot.innerHTML = footHtml;
       info.textContent = `📊 ${jumlahSiswa} siswa, ${subjects.length} mata pelajaran | Semester ${semester}`;
     }
@@ -154,20 +169,23 @@
       if (!siswaKey) { thead.innerHTML = `<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px;">Pilih siswa untuk melihat rekap nilai.</td></tr>`; tbody.innerHTML = ''; tfoot.innerHTML = ''; info.textContent = ''; return; }
       const siswa = allSiswa.find(s => s.key === siswaKey);
       if (!siswa) { thead.innerHTML = `<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px;">Siswa tidak ditemukan.</td></tr>`; tbody.innerHTML = ''; tfoot.innerHTML = ''; info.textContent = ''; return; }
-      const grades = allGrades.filter(g => g.siswaKey === siswaKey && g.semester === semester);
+      const grades = allGrades.filter(g => g.siswaKey === siswaKey && g.semester === semester && rekapAdaIsi(g.data));
       if (grades.length === 0) { thead.innerHTML = `<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px;">Belum ada nilai untuk ${escapeHtml(siswa.name)} semester ${semester}.</td></tr>`; tbody.innerHTML = ''; tfoot.innerHTML = ''; info.textContent = ''; return; }
       thead.innerHTML = `<tr><th style="text-align:center;">No</th><th style="text-align:left;">Mata Pelajaran</th><th style="text-align:center;">NH1</th><th style="text-align:center;">NH2</th><th style="text-align:center;">NH3</th><th style="text-align:center;">MID</th><th style="text-align:center;">PAS</th><th style="text-align:center;font-weight:700;">Rapor</th></tr>`;
-      let bodyHtml = '', totalRapor = 0, countRapor = 0;
+      let bodyHtml = '', totalRapor = 0, countRapor = 0, adaSementara = false;
       grades.forEach((g, idx) => {
-        const data = g.data || {}, h1 = fmtNilai(data.h1), h2 = fmtNilai(data.h2), h3 = fmtNilai(data.h3), mid = fmtNilai(data.mid), pas = fmtNilai(data.pas), rapor = calculateRapor(data);
-        const color = rapor >= 75 ? 'nilai-hadir' : (rapor < 60 ? 'nilai-rendah' : '');
-        bodyHtml += `<tr class="rekap-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;font-weight:600;">${escapeHtml(g.subject)}</td><td>${h1}</td><td>${h2}</td><td>${h3}</td><td>${mid}</td><td>${pas}</td><td class="${color}" style="font-weight:700;">${rapor}</td></tr>`;
-        totalRapor += rapor; countRapor++;
+        const data = g.data || {}, h1 = fmtNilai(data.h1), h2 = fmtNilai(data.h2), h3 = fmtNilai(data.h3), mid = fmtNilai(data.mid), pas = fmtNilai(data.pas), st = statusRapor(data), rapor = st.nilai;
+        const color = st.final ? (rapor >= 75 ? 'nilai-hadir' : (rapor < 60 ? 'nilai-rendah' : '')) : '';
+        const selRapor = rapor === null ? `<td class="text-muted">-</td>` : (st.final ? `<td class="${color}" style="font-weight:700;">${rapor}</td>` : `<td style="font-weight:700;">${raporSementaraHtml(rapor)}</td>`);
+        bodyHtml += `<tr class="rekap-row"><td style="text-align:center;">${idx + 1}</td><td style="text-align:left;font-weight:600;">${escapeHtml(g.subject)}</td><td>${h1}</td><td>${h2}</td><td>${h3}</td><td>${mid}</td><td>${pas}</td>${selRapor}</tr>`;
+        if (rapor !== null) { totalRapor += rapor; countRapor++; if (!st.final) adaSementara = true; }
       });
       tbody.innerHTML = bodyHtml;
       const rataSiswa = countRapor > 0 ? Math.round(totalRapor / countRapor) : 0;
-      const colorRata = rataSiswa >= 75 ? 'nilai-hadir' : (rataSiswa < 60 ? 'nilai-rendah' : '');
-      tfoot.innerHTML = `<tr class="rata-rata-row"><td colspan="7" style="text-align:right;font-weight:700;">Rata-rata Seluruh Mapel</td><td style="font-weight:700;color:#059669;" class="${colorRata}">${rataSiswa}</td></tr>`;
+      const colorRata = adaSementara ? '' : (rataSiswa >= 75 ? 'nilai-hadir' : (rataSiswa < 60 ? 'nilai-rendah' : ''));
+      tfoot.innerHTML = adaSementara
+        ? `<tr class="rata-rata-row"><td colspan="7" style="text-align:right;font-weight:700;">Rata-rata Seluruh Mapel</td><td style="font-weight:700;">${raporSementaraHtml(rataSiswa)}</td></tr>`
+        : `<tr class="rata-rata-row"><td colspan="7" style="text-align:right;font-weight:700;">Rata-rata Seluruh Mapel</td><td style="font-weight:700;color:#059669;" class="${colorRata}">${rataSiswa}</td></tr>`;
       rekapNilaiDataCache = { siswa, grades, semester, mode: 'siswa' };
       info.textContent = `👤 ${siswa.name} | ${grades.length} mata pelajaran | Semester ${semester}`;
     }
@@ -209,7 +227,7 @@
         head = ['No', 'Nama Siswa', ...data.subjects, 'Rata-rata'];
         data.siswa.forEach((s, idx) => {
           const nilai = data.nilaiMap[s.key] || {}; const row = [idx+1, s.name]; let total = 0, count = 0;
-          data.subjects.forEach(sub => { const n = nilai[sub]; if (n !== undefined && n !== null && n !== '') { row.push(Number(n)); total += Number(n); count++; } else row.push('-'); });
+          data.subjects.forEach(sub => { const n = nilai[sub]; if (n !== undefined && n !== null && n !== '') { const sem = data.sementaraMap && data.sementaraMap[s.key] && data.sementaraMap[s.key][sub]; row.push(sem ? `${Number(n)} (sementara)` : Number(n)); total += Number(n); count++; } else row.push('-'); });
           const rata = count > 0 ? Math.round(total / count) : '-'; row.push(rata); rows.push(row);
         });
         if (rows.length > 0) {
@@ -220,10 +238,12 @@
       } else {
         const data = rekapNilaiDataCache; if (!data || !data.grades) return toast('Tidak ada data untuk diekspor.', true);
         head = ['No', 'Mata Pelajaran', 'NH1', 'NH2', 'NH3', 'MID', 'PAS', 'Rapor'];
-        data.grades.forEach((g, idx) => { const d = g.data || {}; rows.push([idx+1, g.subject, fmtNilai(d.h1), fmtNilai(d.h2), fmtNilai(d.h3), fmtNilai(d.mid), fmtNilai(d.pas), calculateRapor(d)]); });
+        data.grades.forEach((g, idx) => { const d = g.data || {}; const st = statusRapor(d); rows.push([idx+1, g.subject, fmtNilai(d.h1), fmtNilai(d.h2), fmtNilai(d.h3), fmtNilai(d.mid), fmtNilai(d.pas), st.nilai === null ? '-' : (st.final ? st.nilai : `${st.nilai} (sementara)`)]); });
       }
       if (rows.length === 0) return toast('Tidak ada data untuk diekspor.', true);
       doc.autoTable({ startY: 48, head: [head], body: rows, theme: 'striped', styles: { fontSize: 9 }, headStyles: { fillColor: [37,99,235], textColor: [255,255,255], fontSize: 10, fontStyle: 'bold' }, didParseCell: function(data) { if (data.section === 'body' && data.column.index > 1 && typeof data.cell.raw === 'number') { if (data.cell.raw < 60) data.cell.styles.textColor = [220,38,38]; else if (data.cell.raw >= 75) data.cell.styles.textColor = [5,150,105]; } if (data.section === 'body' && data.row.index === rows.length - 1 && data.cell.raw === 'Rata-rata Kelas') { data.cell.styles.fillColor = [254,243,199]; data.cell.styles.fontStyle = 'bold'; } }, margin: { left: 15, right: 15 } });
+      const adaSemPdf = view === 'kelas' ? Object.values(rekapNilaiDataCache.sementaraMap || {}).some(m => Object.keys(m).length) : rows.some(rw => String(rw[7]).includes('sementara'));
+      if (adaSemPdf) { doc.setFontSize(9); doc.setTextColor(107,114,128); doc.text('Catatan: nilai berlabel (sementara) belum final (menunggu NH, MID, atau PAS); rata-rata yang memuatnya juga sementara.', 15, (doc.lastAutoTable ? doc.lastAutoTable.finalY : 48) + 8); doc.setTextColor(0,0,0); }
       doc.save(namaSiswa ? `Rekap_Nilai_${namaFileAman(namaSiswa)}_${kelas}_${semester}.pdf` : `Rekap_Nilai_${kelas}_${semester}.pdf`);
       toast('📥 Rekap nilai berhasil diunduh!'); addLog('export_rekap_nilai', namaSiswa ? `${namaSiswa} - ${kelas} - ${semester}` : `${kelas} - ${semester}`);
     }
@@ -238,7 +258,7 @@
         headers = ['No', 'Nama Siswa', ...d.subjects, 'Rata-rata']; data.push(headers);
         d.siswa.forEach((s, idx) => {
           const nilai = d.nilaiMap[s.key] || {}; const row = [idx+1, s.name]; let total = 0, count = 0;
-          d.subjects.forEach(sub => { const n = nilai[sub]; if (n !== undefined && n !== null && n !== '') { row.push(Number(n)); total += Number(n); count++; } else row.push('-'); });
+          d.subjects.forEach(sub => { const n = nilai[sub]; if (n !== undefined && n !== null && n !== '') { const sem = d.sementaraMap && d.sementaraMap[s.key] && d.sementaraMap[s.key][sub]; row.push(sem ? `${Number(n)} (sementara)` : Number(n)); total += Number(n); count++; } else row.push('-'); });
           const rata = count > 0 ? Math.round(total / count) : '-'; row.push(rata); data.push(row);
         });
         if (data.length > 1) {
@@ -247,10 +267,12 @@
       } else {
         const d = rekapNilaiDataCache; if (!d || !d.grades) return toast('Tidak ada data untuk diekspor.', true);
         headers = ['No', 'Mata Pelajaran', 'NH1', 'NH2', 'NH3', 'MID', 'PAS', 'Rapor']; data.push(headers);
-        d.grades.forEach((g, idx) => { const dg = g.data || {}; data.push([idx+1, g.subject, fmtNilai(dg.h1), fmtNilai(dg.h2), fmtNilai(dg.h3), fmtNilai(dg.mid), fmtNilai(dg.pas), calculateRapor(dg)]); });
+        d.grades.forEach((g, idx) => { const dg = g.data || {}; const st = statusRapor(dg); data.push([idx+1, g.subject, fmtNilai(dg.h1), fmtNilai(dg.h2), fmtNilai(dg.h3), fmtNilai(dg.mid), fmtNilai(dg.pas), st.nilai === null ? '-' : (st.final ? st.nilai : `${st.nilai} (sementara)`)]); });
       }
       const wb = XLSX.utils.book_new();
       const colWidths = []; data[0].forEach((_, i) => { let maxLen = 10; data.forEach(row => { if (row[i] !== undefined && row[i] !== null) { const len = String(row[i]).length; if (len > maxLen) maxLen = len; } }); colWidths.push({ wch: Math.min(maxLen + 3, 30) }); });
+      const adaSemXls = view === 'kelas' ? Object.values((rekapNilaiDataCache && rekapNilaiDataCache.sementaraMap) || {}).some(m => Object.keys(m).length) : data.some(rw => String(rw[7]).includes('sementara'));
+      if (adaSemXls) data.push([], ['Catatan: nilai berlabel (sementara) belum final (menunggu NH, MID, atau PAS); rata-rata yang memuatnya juga sementara.']);
       // Mode per siswa: baris identitas di atas tabel (lebar kolom dihitung SEBELUM baris ini ditambah, supaya kolom "No" tidak melebar).
       if (namaSiswa) data.unshift(['Nama Siswa', namaSiswa], ['Kelas', kelas], ['Semester', semester], []);
       const ws = XLSX.utils.aoa_to_sheet(data); ws['!cols'] = colWidths;
