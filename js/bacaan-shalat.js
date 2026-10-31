@@ -392,7 +392,7 @@ function bsRender() {
   root.innerHTML = `
     ${bsState.err ? `<div style="padding:10px;margin-bottom:10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;">⚠️ ${bsEsc(bsState.err)} <button class="btn btn-soft" style="padding:3px 10px;font-size:12px;margin-left:6px;" onclick="bsSegarkan()">🔄 Coba lagi</button></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
-      <div style="min-width:150px;${(bsState.tab === 'rekap' && bsState.rekapMode === 'semua') ? 'display:none;' : ''}"><label class="label">Kelas</label>
+      <div style="min-width:150px;${((bsState.tab === 'rekap' && bsState.rekapMode === 'semua') || bsState.tab === 'ingatkan') ? 'display:none;' : ''}"><label class="label">Kelas</label>
         <select class="field" onchange="bsPilihKelas(this.value)">${opsiKelas || '<option value="">(tidak ada kelas)</option>'}</select></div>
       <button class="btn btn-soft" style="padding:8px 12px;" onclick="bsSegarkan()">🔄 Segarkan</button>
     </div>
@@ -423,14 +423,24 @@ function bsWaTandai(id) {
 function bsWaSudah(id) { return !!bsWaBacaTanda()[id]; }
 function bsWaPesanPetugas() { return 'Assalamualaikum {nama}.\nPengingat dari {madrasah}: Bapak/Ibu penanggung jawab agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon agenda disiapkan dan setoran siswa dinilai tepat waktu. Terima kasih. 🙏'; }
 function bsWaPesanWali() { return 'Assalamualaikum Bapak/Ibu wali murid {siswa}.\nPengingat dari {madrasah}: agenda Bacaan Sholat "{bacaan}" ({waktu}) untuk {kelas}.\nMohon ananda dibantu berlatih dan didampingi di rumah. Penanggung jawab: {pj}. Terima kasih. 🙏'; }
+// Pengingat dikelompokkan PER PEKAN (mingguan) / per tanggal (harian), lalu menampilkan SEMUA kelas sekaligus.
+function bsWaGrupKey(t) { return t.jenis === 'mingguan' ? 'M|' + bsAwalTarget(t) : 'H|' + t.tanggal; }
+function bsWaDaftarPekan(aktif) {
+  const m = new Map();
+  (aktif || []).forEach(t => {
+    const key = bsWaGrupKey(t);
+    if (!m.has(key)) m.set(key, { key, awal: bsAwalTarget(t) || t.tanggal || '', label: bsLabelTarget(t), targets: [] });
+    m.get(key).targets.push(t);
+  });
+  return [...m.values()].sort((a, b) => String(a.awal).localeCompare(String(b.awal)));
+}
 function bsWaState(targets) {
-  if (!bsState.wa) bsState.wa = { targetId: '', kelas: '', pesanPetugas: bsWaPesanPetugas(), pesanWali: bsWaPesanWali(), buka: true };
-  const w = bsState.wa, aktif = (targets || []).filter(t => t.aktif !== false);
-  if (!aktif.find(t => t.key === w.targetId)) {
-    // Default: target aktif terdekat dari hari ini (yang belum lewat lebih dari 7 hari), kalau tak ada ambil yang terakhir.
-    const h = bsHariIni(), urut = aktif.slice().sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)));
-    const t = urut.find(x => bsSelisihHari(x.tanggal, h) <= 7) || urut[urut.length - 1];
-    w.targetId = t ? t.key : '';
+  if (!bsState.wa) bsState.wa = { pekan: '', kelasWali: '', pesanPetugas: bsWaPesanPetugas(), pesanWali: bsWaPesanWali() };
+  const w = bsState.wa, grup = bsWaDaftarPekan((targets || []).filter(t => t.aktif !== false));
+  if (!grup.find(g => g.key === w.pekan)) {
+    // Default: pekan terdekat dari hari ini (yang belum lewat lebih dari 7 hari); kalau tak ada, pekan terakhir.
+    const h = bsHariIni(), g = grup.find(x => bsSelisihHari(x.awal, h) <= 7) || grup[grup.length - 1];
+    w.pekan = g ? g.key : '';
   }
   return w;
 }
@@ -465,7 +475,7 @@ function bsWaWali(kelas) {
   const arr = bsSiswaKelas(kelas) || (typeof allSiswa !== 'undefined' ? allSiswa.filter(s => s.kelas === kelas) : null);
   if (!arr) return null;
   const perNomor = new Map(), tanpa = [];
-  arr.filter(s => s && s.aktif !== false).forEach(s => {
+  bsFilterAktif(arr).forEach(s => {
     const k = (typeof ortuWaKey === 'function') ? ortuWaKey(s.noWaOrtu) : null;
     if (!k) { tanpa.push(s.name); return; }
     if (!perNomor.has(k)) perNomor.set(k, { nomor: k, siswa: [] });
@@ -475,90 +485,121 @@ function bsWaWali(kelas) {
 }
 function bsWaPanelHtml(targets) {
   if (!(bsIsAdmin() || bsIsHead())) return '';
-  const aktif = (targets || []).filter(t => t.aktif !== false).sort(bsBandingTarget);
-  const w = bsWaState(targets);
+  const aktif = (targets || []).filter(t => t.aktif !== false);
   if (!aktif.length) return '';
-  const t = aktif.find(x => x.key === w.targetId) || aktif[0];
-  const kelas = bsWaKelasTarget(t, w);
-  const waktu = bsLabelTarget(t);
-  const opsiT = aktif.map(x => `<option value="${bsEsc(x.key)}" ${x.key === t.key ? 'selected' : ''}>${bsEsc(x.nama)} — ${bsEsc(x.kelas === '*' ? 'Semua kelas' : x.kelas)} — ${bsEsc(bsLabelTarget(x))}</option>`).join('');
-  const petugas = bsWaPetugas(t, kelas);
-  const pjTeks = petugas.map(p => p.nama).join(', ') || '-';
-  const wali = kelas ? bsWaWali(kelas) : { daftar: [], tanpa: [] };
-  if (kelas && !wali && typeof v4FetchSiswaByKelas === 'function') v4FetchSiswaByKelas(kelas, () => { if (bsState.tab === 'ingatkan') bsRender(); });
-  bsState.waList = { petugas, wali: wali ? wali.daftar : [], t: t.key, kelas, waktu, pjTeks };
-  const tandaOk = id => bsWaSudah(id) ? '<span class="bs-wa-st" style="color:#059669;font-weight:600;font-size:12px;">✓ sudah dibuka</span>' : '<span class="bs-wa-st text-muted" style="font-size:12px;">belum</span>';
-  const barisPetugas = petugas.map((p, i) => {
-    const id = 'P|' + t.key + '|' + p.key;
-    return `<div id="bsWaRow_P${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
-      <div style="min-width:0;"><strong>${bsEsc(p.nama)}</strong> <span class="text-muted" style="font-size:11px;">${bsEsc(p.peran)}</span>${p.noWa ? '' : '<div style="color:#dc2626;font-size:11px;">Nomor WA belum diisi di data guru</div>'}</div>
-      <div style="display:flex;align-items:center;gap:8px;">${tandaOk(id)}<button class="btn btn-success" style="padding:5px 10px;font-size:12px;" ${p.noWa ? '' : 'disabled'} onclick="bsWaKirimPetugas(${i})">📲 WhatsApp</button></div></div>`;
-  }).join('') || '<p class="text-muted" style="font-size:12px;">Belum ada wali kelas/pembuat target yang terdata sebagai penanggung jawab.</p>';
+  const w = bsWaState(targets), grup = bsWaDaftarPekan(aktif), g = grup.find(x => x.key === w.pekan) || grup[0];
+  // Satu baris per kelas untuk pekan terpilih.
+  const rows = bsKelasPilihan().map(k => {
+    const ts = g.targets.filter(t => t.kelas === k || t.kelas === '*').sort(bsBandingTarget);
+    const petugas = bsWaPetugas(ts.length ? Object.assign({}, ts[0], { kelas: k }) : { kelas: k }, k);
+    return { k, ts, petugas, bacaan: ts.map(t => t.nama).join(', ') };
+  });
+  const adaTarget = rows.filter(r => r.ts.length);
+  // Daftar penerima PJ yang bisa dikirimi (urut sesuai tampilan).
+  const listP = [];
+  adaTarget.forEach(r => r.petugas.forEach(p => listP.push({ nama: p.nama, noWa: p.noWa, peran: p.peran, kelas: r.k, bacaan: r.bacaan, pjTeks: r.petugas.map(x => x.nama).join(', ') || '-', id: 'P|' + g.key + '|' + r.k + '|' + p.key })));
+  // Wali murid: satu kelas dipilih (hanya kelas yang punya target pekan itu).
+  if (!adaTarget.find(r => r.k === w.kelasWali)) w.kelasWali = adaTarget.length ? ((adaTarget.find(r => r.k === bsState.kelas) || adaTarget[0]).k) : '';
+  const rw = adaTarget.find(r => r.k === w.kelasWali) || null;
+  const wali = rw ? bsWaWali(rw.k) : null;
+  if (rw && !wali && typeof v4FetchSiswaByKelas === 'function') v4FetchSiswaByKelas(rw.k, () => { if (bsState.tab === 'ingatkan') bsRender(); });
+  const daftarWali = wali ? wali.daftar.map(d => Object.assign({ id: 'W|' + g.key + '|' + rw.k + '|' + d.nomor }, d)) : [];
+  bsState.waList = { pekan: g.key, label: g.label, petugas: listP, wali: daftarWali, waliKelas: rw ? rw.k : '', waliBacaan: rw ? rw.bacaan : '', waliPj: rw ? (rw.petugas.map(x => x.nama).join(', ') || '-') : '-' };
+  const sudah = id => bsWaSudah(id);
+  const tandaOk = id => sudah(id) ? '<span class="bs-wa-st" style="color:#059669;font-weight:600;font-size:12px;">✓ sudah dibuka</span>' : '<span class="bs-wa-st text-muted" style="font-size:12px;">belum dibuka</span>';
+  const opsiPekan = grup.map(x => `<option value="${bsEsc(x.key)}" ${x.key === g.key ? 'selected' : ''}>${bsEsc(x.label)}</option>`).join('');
+  // ----- ringkasan -----
+  const nPjResmi = adaTarget.filter(r => r.petugas.length && /^PJ/.test(r.petugas[0].peran)).length;
+  const sisaP = listP.filter(x => x.noWa && !sudah(x.id)).length;
+  const ringkas = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 2px;">
+      <span style="background:#ecfdf5;color:#047857;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;">${adaTarget.length} dari ${rows.length} kelas punya target</span>
+      <span style="background:${nPjResmi === adaTarget.length ? '#ecfdf5' : '#fffbeb'};color:${nPjResmi === adaTarget.length ? '#047857' : '#b45309'};border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;">${nPjResmi} kelas punya PJ resmi</span></div>`;
+  // ----- bagian PJ: semua kelas -----
+  const barisP = rows.map(r => {
+    if (!r.ts.length) return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;"><strong style="min-width:70px;">${bsEsc(bsNamaKelas(r.k))}</strong><span class="text-muted" style="font-size:12px;">Belum ada target di pekan ini. Buat di tab 🎯 Target.</span></div>`;
+    if (!r.petugas.length) return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;"><strong style="min-width:70px;">${bsEsc(bsNamaKelas(r.k))}</strong><span style="font-size:12px;">${bsEsc(r.bacaan)}</span><span style="color:#dc2626;font-size:12px;">⚠️ Belum ada PJ. Tetapkan di tab 🎯 Target.</span></div>`;
+    return r.petugas.map(p => {
+      const i = listP.findIndex(x => x.id === 'P|' + g.key + '|' + r.k + '|' + (p.key));
+      const id = listP[i].id, resmi = /^PJ/.test(p.peran);
+      return `<div id="bsWaRow_P${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
+        <div style="min-width:0;flex:1 1 220px;"><div><strong>${bsEsc(bsNamaKelas(r.k))}</strong> <span class="text-muted" style="font-size:12px;">· ${bsEsc(r.bacaan)}</span></div>
+          <div style="font-size:13px;margin-top:2px;">👤 ${bsEsc(p.nama)} ${resmi ? '' : `<span style="color:#b45309;font-size:11px;">(${bsEsc(p.peran)}; PJ belum ditetapkan)</span>`}</div>
+          ${p.noWa ? '' : '<div style="color:#dc2626;font-size:11px;margin-top:2px;">Nomor WA belum diisi di data guru</div>'}</div>
+        <div style="display:flex;align-items:center;gap:8px;">${tandaOk(id)}<button class="btn btn-success" style="padding:5px 10px;font-size:12px;" ${p.noWa ? '' : 'disabled'} onclick="bsWaKirimPetugas(${i})">📲 WhatsApp</button></div></div>`;
+    }).join('');
+  }).join('');
+  // ----- bagian wali murid: satu kelas -----
   let blokWali;
-  if (t.kelas === '*') {
-    const pil = bsKelasPilihan().map(k => `<option value="${bsEsc(k)}" ${k === kelas ? 'selected' : ''}>${bsEsc(bsNamaKelas(k))}</option>`).join('');
-    var pilKelasWa = `<div style="margin-bottom:8px;max-width:220px;"><label class="label">Kelas wali murid</label><select class="field" onchange="bsWaPilihKelas(this.value)">${pil}</select></div>`;
-  } else var pilKelasWa = '';
-  if (!kelas) blokWali = '<p class="text-muted" style="font-size:12px;">Pilih kelas dulu.</p>';
+  if (!rw) blokWali = '<p class="text-muted" style="font-size:12px;">Belum ada kelas yang punya target di pekan ini.</p>';
   else if (!wali) blokWali = '<p class="text-muted" style="font-size:12px;">⏳ Memuat daftar siswa...</p>';
   else {
-    const belum = wali.daftar.filter(d => !bsWaSudah('W|' + t.key + '|' + d.nomor)).length;
-    const baris = wali.daftar.map((d, i) => {
-      const id = 'W|' + t.key + '|' + d.nomor;
-      return `<div id="bsWaRow_W${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
+    const belum = daftarWali.filter(d => !sudah(d.id)).length;
+    const baris = daftarWali.map((d, i) => `<div id="bsWaRow_W${i}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
         <div style="min-width:0;font-size:13px;">${bsEsc(d.siswa.join(', '))}<div class="text-muted" style="font-size:11px;">+${bsEsc(d.nomor)}</div></div>
-        <div style="display:flex;align-items:center;gap:8px;">${tandaOk(id)}<button class="btn btn-soft" style="padding:5px 10px;font-size:12px;" onclick="bsWaKirimWali(${i})">📲 WhatsApp</button></div></div>`;
-    }).join('');
-    blokWali = `${pilKelasWa}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-        <span style="font-size:12px;">${wali.daftar.length} nomor wali · <strong id="bsWaSisa">${belum}</strong> belum dibuka</span>
-        <button class="btn btn-success" style="padding:6px 12px;font-size:12px;" onclick="bsWaBerikutnya()" ${belum ? '' : 'disabled'}>▶ Buka yang berikutnya</button></div>
+        <div style="display:flex;align-items:center;gap:8px;">${tandaOk(d.id)}<button class="btn btn-soft" style="padding:5px 10px;font-size:12px;" onclick="bsWaKirimWali(${i})">📲 WhatsApp</button></div></div>`).join('');
+    blokWali = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+        <span style="font-size:12px;">${daftarWali.length} nomor wali · <strong id="bsWaSisa">${belum}</strong> belum dibuka</span>
+        <button class="btn btn-success" style="padding:6px 12px;font-size:12px;" onclick="bsWaBerikutnya()">▶ Buka yang berikutnya</button></div>
       <div style="max-height:300px;overflow-y:auto;">${baris || '<p class="text-muted" style="font-size:12px;">Belum ada siswa dengan nomor WA wali.</p>'}</div>
       ${wali.tanpa.length ? `<p style="font-size:12px;color:#b45309;margin-top:8px;">⚠️ Nomor WA wali belum diisi (${wali.tanpa.length}): ${bsEsc(wali.tanpa.slice(0, 8).join(', '))}${wali.tanpa.length > 8 ? ', dst' : ''}. Isi lewat Edit Siswa.</p>` : ''}`;
   }
-  return `<details class="card" style="margin-bottom:14px;border:1px solid #e5e7eb;" ${w.buka ? 'open' : ''} ontoggle="if(bsState.wa)bsState.wa.buka=this.open">
-    <summary style="cursor:pointer;font-weight:700;">📲 Ingatkan lewat WhatsApp (petugas &amp; wali murid)</summary>
-    <p class="text-muted" style="font-size:12px;margin:8px 0;">WhatsApp terbuka dengan nomor &amp; pesan sudah terisi; Anda tinggal menekan Kirim di WhatsApp. Penanda "sudah dibuka" hanya catatan di perangkat ini.</p>
-    <div style="margin-bottom:8px;"><label class="label">Agenda / target bacaan</label><select class="field" onchange="bsWaPilihTarget(this.value)">${opsiT}</select>
-      <div class="text-muted" style="font-size:11px;margin-top:2px;">${bsEsc(waktu)} · Penanggung jawab: ${bsEsc(pjTeks)}</div></div>
-    <p style="font-weight:600;margin:10px 0 4px;">👤 Petugas / penanggung jawab</p>${barisPetugas}
-    <label class="label" style="margin-top:8px;">Pesan untuk petugas (boleh diubah)</label>
-    <textarea class="field" rows="4" oninput="bsState.wa.pesanPetugas=this.value">${bsEsc(w.pesanPetugas)}</textarea>
-    <p style="font-weight:600;margin:14px 0 4px;">👪 Wali murid ${kelas ? '— ' + bsEsc(bsNamaKelas(kelas)) : ''}</p>${blokWali}
-    <label class="label" style="margin-top:8px;">Pesan untuk wali murid (boleh diubah)</label>
-    <textarea class="field" rows="4" oninput="bsState.wa.pesanWali=this.value">${bsEsc(w.pesanWali)}</textarea>
-    <p class="text-muted" style="font-size:11px;margin-top:4px;">Isian otomatis: {nama} {siswa} {bacaan} {waktu} {kelas} {pj} {madrasah}. <a href="#" onclick="bsWaResetPesan();return false;">Kembalikan pesan awal</a></p>
-  </details>`;
+  const pilKelas = adaTarget.map(r => `<option value="${bsEsc(r.k)}" ${rw && r.k === rw.k ? 'selected' : ''}>${bsEsc(bsNamaKelas(r.k))}</option>`).join('');
+  const judul = (n, t) => `<div style="display:flex;align-items:center;gap:8px;margin:16px 0 6px;"><span style="background:#047857;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none;">${n}</span><strong>${t}</strong></div>`;
+  return `<div class="card" style="margin-bottom:14px;border:1px solid #e5e7eb;">
+    <p style="font-size:13px;margin-bottom:4px;"><strong>📲 Pengingat WhatsApp.</strong> <span class="text-muted">Pilih pekan, lalu ketuk tombol WhatsApp pada tiap penerima. WhatsApp terbuka dengan nomor dan pesan sudah terisi, Anda tinggal menekan Kirim. Tanda "sudah dibuka" hanya catatan di perangkat ini.</span></p>
+    ${judul(1, 'Pilih pekan / agenda')}
+    <select class="field" style="max-width:420px;" onchange="bsWaPilihPekan(this.value)">${opsiPekan}</select>${ringkas}
+    ${judul(2, 'Ingatkan penanggung jawab (semua kelas)')}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+      <span style="font-size:12px;"><strong id="bsWaSisaP">${sisaP}</strong> PJ belum dibuka</span>
+      <button class="btn btn-success" style="padding:6px 12px;font-size:12px;" onclick="bsWaBerikutnyaPetugas()">▶ Buka PJ berikutnya</button></div>
+    <div>${barisP}</div>
+    ${judul(3, 'Ingatkan wali murid (per kelas)')}
+    <div style="margin-bottom:8px;max-width:260px;"><label class="label">Kelas wali murid</label><select class="field" onchange="bsWaPilihKelas(this.value)" ${adaTarget.length ? '' : 'disabled'}>${pilKelas}</select></div>
+    ${blokWali}
+    <details style="margin-top:14px;"><summary style="cursor:pointer;font-weight:600;font-size:13px;">✏️ Ubah isi pesan (opsional)</summary>
+      <label class="label" style="margin-top:8px;">Pesan untuk penanggung jawab</label>
+      <textarea class="field" rows="4" oninput="bsState.wa.pesanPetugas=this.value">${bsEsc(w.pesanPetugas)}</textarea>
+      <label class="label" style="margin-top:8px;">Pesan untuk wali murid</label>
+      <textarea class="field" rows="4" oninput="bsState.wa.pesanWali=this.value">${bsEsc(w.pesanWali)}</textarea>
+      <p class="text-muted" style="font-size:11px;margin-top:4px;">Isian otomatis: {nama} {siswa} {bacaan} {waktu} {kelas} {pj} {madrasah}. <a href="#" onclick="bsWaResetPesan();return false;">Kembalikan pesan awal</a></p>
+    </details></div>`;
 }
-function bsWaPilihTarget(id) { if (bsState.wa) { bsState.wa.targetId = id; bsState.wa.buka = true; } bsRender(); }
-function bsWaPilihKelas(k) { if (bsState.wa) { bsState.wa.kelas = k; bsState.wa.buka = true; } bsRender(); }
-function bsWaResetPesan() { if (bsState.wa) { bsState.wa.pesanPetugas = bsWaPesanPetugas(); bsState.wa.pesanWali = bsWaPesanWali(); bsState.wa.buka = true; } bsRender(); }
-function bsWaTargetKini() { return (bsState.targets || []).find(x => bsState.waList && x.key === bsState.waList.t); }
+function bsWaPilihPekan(key) { if (bsState.wa) bsState.wa.pekan = key; bsRender(); }
+function bsWaPilihKelas(k) { if (bsState.wa) bsState.wa.kelasWali = k; bsRender(); }
+function bsWaResetPesan() { if (bsState.wa) { bsState.wa.pesanPetugas = bsWaPesanPetugas(); bsState.wa.pesanWali = bsWaPesanWali(); } bsRender(); }
 function bsWaTandaiBaris(rowId, id) {
   bsWaTandai(id);
   const el = bsEl(rowId), st = el && el.querySelector('.bs-wa-st');
   if (st) { st.className = 'bs-wa-st'; st.style.cssText = 'color:#059669;font-weight:600;font-size:12px;'; st.textContent = '✓ sudah dibuka'; }
-  const ls = bsState.waList || { wali: [] }, sisa = bsEl('bsWaSisa');
-  if (sisa) sisa.textContent = ls.wali.filter(d => !bsWaSudah('W|' + ls.t + '|' + d.nomor)).length;
+  const ls = bsState.waList || { petugas: [], wali: [] }, sp = bsEl('bsWaSisaP'), sw = bsEl('bsWaSisa');
+  if (sp) sp.textContent = ls.petugas.filter(x => x.noWa && !bsWaSudah(x.id)).length;
+  if (sw) sw.textContent = ls.wali.filter(d => !bsWaSudah(d.id)).length;
 }
 function bsWaKirimPetugas(i) {
   if (!(bsIsAdmin() || bsIsHead())) return;
-  const ls = bsState.waList || {}, p = (ls.petugas || [])[i], t = bsWaTargetKini();
-  if (!p || !t || typeof kirimWA !== 'function') return;
-  const pesan = bsWaIsi(bsState.wa.pesanPetugas, { nama: p.nama, bacaan: t.nama, waktu: ls.waktu, kelas: t.kelas === '*' ? 'semua kelas' : bsNamaKelas(t.kelas), pj: ls.pjTeks, madrasah: bsWaMadrasah() });
-  kirimWA(p.noWa, pesan);
-  bsWaTandaiBaris('bsWaRow_P' + i, 'P|' + t.key + '|' + p.key);
+  const ls = bsState.waList || {}, p = (ls.petugas || [])[i];
+  if (!p || !p.noWa || typeof kirimWA !== 'function') return;
+  kirimWA(p.noWa, bsWaIsi(bsState.wa.pesanPetugas, { nama: p.nama, bacaan: p.bacaan, waktu: ls.label, kelas: bsNamaKelas(p.kelas), pj: p.pjTeks, madrasah: bsWaMadrasah() }));
+  bsWaTandaiBaris('bsWaRow_P' + i, p.id);
+}
+function bsWaBerikutnyaPetugas() {
+  const ls = bsState.waList || { petugas: [] };
+  const i = ls.petugas.findIndex(x => x.noWa && !bsWaSudah(x.id));
+  if (i < 0) return toast('Semua PJ sudah dibuka untuk pekan ini.', false, 2000);
+  bsWaKirimPetugas(i);
+  const el = bsEl('bsWaRow_P' + i); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
 }
 function bsWaKirimWali(i) {
   if (!(bsIsAdmin() || bsIsHead())) return;
-  const ls = bsState.waList || {}, d = (ls.wali || [])[i], t = bsWaTargetKini();
-  if (!d || !t || typeof kirimWA !== 'function') return;
-  const pesan = bsWaIsi(bsState.wa.pesanWali, { siswa: d.siswa.join(' & '), nama: d.siswa.join(' & '), bacaan: t.nama, waktu: ls.waktu, kelas: bsNamaKelas(ls.kelas), pj: ls.pjTeks, madrasah: bsWaMadrasah() });
-  kirimWA(d.nomor, pesan);
-  bsWaTandaiBaris('bsWaRow_W' + i, 'W|' + t.key + '|' + d.nomor);
+  const ls = bsState.waList || {}, d = (ls.wali || [])[i];
+  if (!d || typeof kirimWA !== 'function') return;
+  kirimWA(d.nomor, bsWaIsi(bsState.wa.pesanWali, { siswa: d.siswa.join(' & '), nama: d.siswa.join(' & '), bacaan: ls.waliBacaan, waktu: ls.label, kelas: bsNamaKelas(ls.waliKelas), pj: ls.waliPj, madrasah: bsWaMadrasah() }));
+  bsWaTandaiBaris('bsWaRow_W' + i, d.id);
 }
 function bsWaBerikutnya() {
   const ls = bsState.waList || { wali: [] };
-  const i = ls.wali.findIndex(d => !bsWaSudah('W|' + ls.t + '|' + d.nomor));
+  const i = ls.wali.findIndex(d => !bsWaSudah(d.id));
   if (i < 0) return toast('Semua wali murid di kelas ini sudah dibuka.', false, 2000);
   bsWaKirimWali(i);
   const el = bsEl('bsWaRow_W' + i); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
@@ -948,7 +989,13 @@ function bsSimpanNilai() {
 // ---------- Tab REKAP (per kelas / semua kelas) ----------
 function bsPilihModeRekap(m) { bsState.rekapMode = m; bsRender(); bsPastikanDataKelas(); }
 function bsRekapBukaKelas(k) { bsState.kelas = k; bsState.rekapMode = 'kelas'; bsRender(); bsPastikanDataKelas(); }
-function bsSiswaAktif(k) { const a = bsSiswaKelas(k); return a ? a.filter(s => s && s.aktif !== false) : null; }
+// Pengaman ganda: selain bidang 'aktif' pada data kelas, siswa yang tercatat nonaktif di allSiswaSemua (app.js) juga dibuang.
+function bsNonaktifSet() {
+  const semua = (typeof allSiswaSemua !== 'undefined' && Array.isArray(allSiswaSemua)) ? allSiswaSemua : [];
+  return new Set(semua.filter(x => x && x.aktif === false).map(x => x.key));
+}
+function bsFilterAktif(arr) { const non = bsNonaktifSet(); return (arr || []).filter(x => x && x.aktif !== false && !non.has(x.key)); }
+function bsSiswaAktif(k) { const a = bsSiswaKelas(k); return a ? bsFilterAktif(a) : null; }
 function bsPromiseSiswa(k) {
   const perlu = typeof v4PanelSiswaCache !== 'undefined' && !v4PanelSiswaCache[k] && typeof v4FetchSiswaByKelas === 'function';
   return perlu ? new Promise(res => { let sel = false; const fin = () => { if (!sel) { sel = true; res(); } }; try { v4FetchSiswaByKelas(k, fin); } catch (e) { fin(); } setTimeout(fin, 15000); }) : Promise.resolve();
