@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.282",
-  "disimpan": "2026-10-31T01:02:48.996Z",
+  "appVersion": "v8.283",
+  "disimpan": "2026-10-31T01:13:11.312Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -243,16 +243,16 @@
       "hash": "f8f09367fead30a4d89126c0b13cc8efa8481db8"
     },
     "js/perangkat-paket.js": {
-      "v": "v=2",
-      "hash": "e356a41ec4785be45ab33d61f484f9b5379ad133"
+      "v": "v=3",
+      "hash": "0e8c76d4bd7dd4a9bd69caf36345a081f1822605"
     },
     "js/perangkat-pembelajaran.js": {
       "v": "v=26",
       "hash": "9b5a54d38fc87fb6db5b15b3c3e2c6c1a53a2fc1"
     },
     "js/modul-ajar.js": {
-      "v": "v=19",
-      "hash": "d73122dbb0b06ae0520646fe6a0e6144b50f5a54"
+      "v": "v=22",
+      "hash": "68dc832ab381b5948325d9372079a11edad1834f"
     },
     "js/buku-tamu.js": {
       "v": "v=5",
