@@ -7,6 +7,8 @@
  * Kontrak tiap pembuat bagian: window.xxxPaket(id, rec, sem, ta[, jenis]) -> Promise<{html, nama}>
  *   rpePaket, atpPaket(..,'atp'|'tp'), protaPaket(..,'prota'|'promes'), kisiPaket, soalPaket(..,'kartu'|'naskah'|'kunci'|'telaah').
  *   html = dokumen lengkap (<style> + <body>, @page-nya sendiri). Menolak dengan Error(alasan) bila belum bisa dibuat.
+ *   modulPaket(id, rec, sem, ta) -> semua Modul Ajar (RPM) mapel+kelas+semester itu (modul-ajar.js). Bagian 'mandiri': datanya dari modul_ajar, bukan dari dokumen hub,
+ *   jadi ketersediaannya TIDAK ditanyakan ke hub (genAda/perluSetuju); modulPaketInfo() memberi ringkasan setelah daftar modul termuat.
  * Penanda tanda tangan [[TTD:...]] dibiarkan; semuanya diproses sekali oleh rpeUtil.keluarkan() saat dicetak.
  * Cetak paket hanya lewat jendela cetak/PDF (bukan Word): satu berkas Word tidak bisa memuat ukuran halaman berbeda.
  */
@@ -25,6 +27,7 @@
     { k: 'tp', n: 'TP (Tujuan Pembelajaran)', jk: 'tp', fn: 'atpPaket', a: ['tp'] },
     { k: 'prota', n: 'Prota (Program Tahunan)', jk: 'prota', fn: 'protaPaket', a: ['prota'] },
     { k: 'promes', n: 'Promes (Program Semester)', jk: 'promes', fn: 'protaPaket', a: ['promes'] },
+    { k: 'modul', n: 'Modul Ajar (RPM)', jk: 'modul', fn: 'modulPaket', a: [], mandiri: true },
     { k: 'kisi', n: 'Kisi-kisi Soal', jk: 'kisi', fn: 'kisiPaket', a: [] },
     { k: 'kartu', n: 'Kartu Soal', jk: 'kartu', fn: 'soalPaket', a: ['kartu'] },
     { k: 'naskah', n: 'Naskah Soal', jk: 'kartu', fn: 'soalPaket', a: ['naskah'] },
@@ -99,7 +102,7 @@ body{margin:0;font-family:"Times New Roman",Times,serif;color:#111}
   function susun(daftar, denganSampul, semuaDaftar) {
     const r = Pk.rec || {}, tgl = (R().fmtTgl ? R().fmtTgl(new Date()) : new Date().toLocaleDateString('id-ID'));
     const ex = daftar.map(x => Object.assign({ b: x }, ekstrak(x.html)));
-    const madrasah = (ex.find(e => e.madrasah) || {}).madrasah || 'MADRASAH';
+    const madrasah = (ex.find(e => e.madrasah) || {}).madrasah || (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) || 'MADRASAH';
     const semuaSoal = ex.every(e => /^(kartu|naskah|kunci|telaah)$/.test(e.b.k));
     let css = CSS_DASAR + '\n@page psampul{size:A4 portrait;margin:20mm}\n', isi = '';
     if (denganSampul) {
@@ -131,7 +134,13 @@ body{margin:0;font-family:"Times New Roman",Times,serif;color:#111}
 
   // ---------- Ketersediaan, status, simpanan ----------
   const R = () => window.rpeUtil;
+  const infoMandiri = () => (typeof window.modulPaketInfo === 'function' ? window.modulPaketInfo(Pk.id, Pk.rec, Pk.sem, Pk.ta) : null);
   function alasanTidak(b) {
+    if (b.mandiri) {   // tidak lewat hub; daftar modul dimuat sendiri oleh modul-ajar.js
+      if (typeof window[b.fn] !== 'function') return 'Modul Ajar belum dimuat';
+      const inf = infoMandiri();
+      return inf && inf.n === 0 ? 'Belum ada modul ajar untuk mapel, kelas, dan semester ini' : '';
+    }
     if (!Pk.h.genAda(b.jk, Pk.id)) {
       const x = ((Pk.rec && Pk.rec.docs) || {})[b.jk];
       if (b.jk === 'rpe') return 'Kalender efektif atau JP per pekan belum lengkap';
@@ -141,6 +150,11 @@ body{margin:0;font-family:"Times New Roman",Times,serif;color:#111}
     return '';
   }
   function statusBagian(b) {
+    if (b.mandiri) {
+      const inf = infoMandiri(); if (!inf) return '';
+      const sisa = inf.n - inf.disetujui;
+      return inf.n + ' modul · ' + (sisa ? '<span style="color:#b45309;">' + inf.disetujui + ' disetujui Kepala, ' + sisa + ' belum (blok Kepala kosong, tanda tangan basah)</span>' : '<span style="color:#15803d;">✅ semuanya disetujui Kepala (QR tercetak)</span>');
+    }
     if (b.jk === 'rpe' || !Pk.h.perluSetuju(b.jk)) return '';
     const x = ((Pk.rec && Pk.rec.docs) || {})[b.jk];
     if (x && x.setuju) return '<span style="color:#15803d;">✅ Disetujui Kepala (QR tercetak)</span>';
@@ -151,7 +165,7 @@ body{margin:0;font-family:"Times New Roman",Times,serif;color:#111}
     Pk.urut = BAGIAN.map(b => b.k); Pk.cek = {}; BAGIAN.forEach(b => { Pk.cek[b.k] = !b.rahasia; });
     try {
       const o = JSON.parse(localStorage.getItem(KUNCI_SIMPAN()) || 'null'); if (!o) return;
-      if (Array.isArray(o.urut)) { const ok = o.urut.filter(k => BY[k]); BAGIAN.forEach(b => { if (ok.indexOf(b.k) < 0) ok.push(b.k); }); Pk.urut = ok; }
+      if (Array.isArray(o.urut)) { const ok = o.urut.filter(k => BY[k]); BAGIAN.forEach((b, i) => { if (ok.indexOf(b.k) < 0) ok.splice((i ? ok.indexOf(BAGIAN[i - 1].k) : -1) + 1, 0, b.k); }); Pk.urut = ok; }
       if (o.cek) Object.keys(o.cek).forEach(k => { if (BY[k]) Pk.cek[k] = !!o.cek[k]; });
       if (o.opsi) ['sampul', 'pemisah', 'pisah'].forEach(k => { if (typeof o.opsi[k] === 'boolean') Pk.opsi[k] = o.opsi[k]; });
     } catch (e) { /* abaikan simpanan rusak */ }
@@ -269,6 +283,11 @@ ${Pk.urut.map(barisPilih).join('')}
     Pk.id = id; Pk.rec = rec; Pk.sem = sem === 'genap' ? 'genap' : 'ganjil'; Pk.ta = String(ta || ''); Pk.h = h;
     Pk.fase = 'pilih'; Pk.hasil = []; Pk.gagal = []; Pk.grup = []; Pk.opsi = { sampul: true, pemisah: true, pisah: false };
     muatSimpan(); gambar();
+    // Muat daftar Modul Ajar di latar belakang supaya panel bisa menampilkan jumlah/status; gagal = tetap bisa dicoba saat Siapkan.
+    if (typeof window.modulPaketMuat === 'function') {
+      const sesi = Pk.id + '|' + Pk.sem + '|' + Pk.ta;
+      window.modulPaketMuat().then(() => { if (document.getElementById('paketOverlay') && Pk.fase === 'pilih' && sesi === Pk.id + '|' + Pk.sem + '|' + Pk.ta) gambar(); }).catch(() => { /* diam */ });
+    }
   };
   window.paketUtil = { ekstrak: ekstrak, scopeCss: scopeCss, BAGIAN: BAGIAN };
 })();

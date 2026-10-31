@@ -2157,6 +2157,85 @@
     cetakDok('Kumpulan RPM ' + (guruList.length === 1 ? guruList[0] : madr().nama), isi, false);
   }
 
+  /* ---------- Cetak Paket Perangkat (dipanggil js/perangkat-paket.js) ----------
+     Kontrak bagian paket: window.modulPaket(id, rec, sem, ta[, jenis]) -> Promise<{html, nama}>; menolak dengan Error(alasan) bila belum bisa dibuat.
+     Isi = SEMUA modul (bukan arsip) milik guru pada mapel + kelas + semester + tahun pelajaran yang sama dengan rec dari hub Perangkat,
+     diurutkan menurut materi, tiap modul mulai di halaman baru. Format RPM (sama dengan "Cetak gabungan"); jenis 'modul' = format modul lama.
+     Pengesahan Kepala memakai penanda [[TTD:...]] seperti cetakan biasa; semuanya diproses sekali oleh rpeUtil.keluarkan() saat paket dicetak.
+     Watermark logo tidak disertakan (position:fixed akan berulang di semua halaman paket); kop tetap memuat logo. */
+  function paketSlug(s) {
+    var R = window.rpeUtil;
+    return (R && typeof R.slug === 'function') ? R.slug(s) : String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+  function paketSem(m) { return String(m && m.semester).toLowerCase() === 'genap' ? 'genap' : 'ganjil'; }
+  function paketAtpId(m) {   // sama dengan id dokumen ATP/TP di hub: tahun_guru_mapel_kelas
+    if (!m || !m.tahunAjaran || !m.mapel || !m.kelas) return '';
+    var uid = m.ownerKey || m.ownerName; if (!uid) return '';
+    return [paketSlug(m.tahunAjaran), paketSlug(uid), paketSlug(m.mapel), paketSlug(m.kelas)].join('_');
+  }
+  function paketMilik(m, id, rec) {
+    if (id && paketAtpId(m) === id) return true;          // id hub = tahun_guru_mapel_kelas, sama dengan id ATP/TP
+    var g = normNama(rec && rec.guruName);
+    if (g) return normNama(m.ownerName) === g || normNama(m.guru) === g;
+    return isOwner(m);
+  }
+  function paketCari(id, rec, sem, ta) {
+    if (!rec) return [];
+    var s = String(sem).toLowerCase() === 'genap' ? 'genap' : 'ganjil', t = ta ? paketSlug(ta) : '';
+    var mp = normNama(rec.mapel), kl = String(rec.kelas == null ? '' : rec.kelas).trim();
+    return data.filter(function (m) {
+      return m && m.status !== 'arsip' && paketSem(m) === s && normNama(m.mapel) === mp && String(m.kelas == null ? '' : m.kelas).trim() === kl &&
+        (!t || paketSlug(m.tahunAjaran) === t) && paketMilik(m, id, rec);
+    }).sort(function (a, b) {
+      return String(a.materi || '').localeCompare(String(b.materi || ''), 'id', { numeric: true }) || String(a.key || '').localeCompare(String(b.key || ''));
+    });
+  }
+  // Menunggu daftar modul siap tanpa pernah menggantung: load() diam-diam berhenti bila sedang berjalan / sesi diganti.
+  function paketMuat() {
+    if (!canView()) return Promise.reject(new Error('Modul Ajar hanya untuk guru, admin, dan kepala madrasah.'));
+    return new Promise(function (resolve, reject) {
+      var sudah = false, jam = setTimeout(function () { akhir(new Error('Memuat daftar modul terlalu lama. Coba lagi.')); }, 15000);
+      function akhir(err) { if (sudah) return; sudah = true; clearTimeout(jam); if (err) reject(err); else resolve(); }
+      function cek() { if (loaded) akhir(); else akhir(new Error(loadErr || 'Daftar modul belum bisa dimuat. Periksa koneksi internet.')); }
+      function tunggu() { if (sudah) return; if (loading) setTimeout(tunggu, 200); else cek(); }
+      if (loaded) return akhir();
+      if (loading) return tunggu();
+      load(false, cek);
+    });
+  }
+  var PAKET_CSS = 'body{font-family:Arial,sans-serif;color:#111;line-height:1.5;font-size:13px}h2{text-align:center;margin:14px 0}h3{margin:16px 0 4px;font-size:14px}' +
+    'table{width:100%;border-collapse:collapse}td{border:1px solid #999;padding:5px 8px;vertical-align:top}td.k{width:32%;background:#f3f4f6;font-weight:600}' +
+    '.kop{display:flex;align-items:center;gap:14px;border-bottom:3px double #333;padding-bottom:10px}.kop img{width:64px;height:64px;object-fit:contain}.kop .n{font-weight:700;font-size:16px}.kop .a{font-size:12px}' +
+    '.b{border:1px solid #ddd;border-radius:6px;padding:8px 10px;white-space:normal}.ttd{display:flex;justify-content:space-between;margin-top:36px;text-align:center;page-break-inside:avoid}' +
+    '@page{size:A4 portrait;margin:14mm}';
+  function paketLogo(h) {   // jendela cetak paket belum tentu punya <base>; jadikan alamat logo absolut
+    var abs = ''; try { abs = new URL('logo/logo-lembaga.png', document.baseURI).href; } catch (e) {}
+    return abs ? h.replace(/src="logo\/logo-lembaga\.png"/g, 'src="' + esc(abs) + '"') : h;
+  }
+  window.modulPaketMuat = function () { return paketMuat(); };
+  // Ringkasan sinkron untuk panel pilihan paket; null bila daftar modul belum termuat.
+  window.modulPaketInfo = function (id, rec, sem, ta) {
+    if (!loaded) return null;
+    var l = paketCari(id, rec, sem, ta), o = { n: l.length, draf: 0, diajukan: 0, disetujui: 0, ditolak: 0 };
+    l.forEach(function (m) { o[pers(m)]++; });
+    return o;
+  };
+  window.modulPaket = function (id, rec, sem, ta, jenis) {
+    return paketMuat().then(function () {
+      var list = paketCari(id, rec, sem, ta), semLabel = String(sem).toLowerCase() === 'genap' ? 'Genap' : 'Ganjil';
+      if (!list.length) throw new Error('Belum ada modul ajar (selain arsip) untuk ' + ((rec && rec.mapel) || '-') + ' kelas ' + ((rec && rec.kelas) || '-') + ' semester ' + semLabel + (ta ? ' ' + ta : '') + '.');
+      var buat = jenis === 'modul' ? docHtml : docRpmHtml;
+      var isi = list.map(function (m, i) {
+        return '<div' + (i ? ' style="page-break-before:always;break-before:page;"' : '') + '>' + buat(m) + '</div>';
+      }).join('');
+      var nama = 'Modul Ajar ' + ((rec && rec.mapel) || '') + ' Kelas ' + ((rec && rec.kelas) || '') + ' Semester ' + semLabel;
+      return {
+        html: '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>' + esc(nama) + '</title><style>' + PAKET_CSS + '</style></head><body>' + paketLogo(isi) + '</body></html>',
+        nama: nama
+      };
+    });
+  };
+
   /* ---------- event ---------- */
   var Q_DELAY = 200, qTimer = null;
   function onInput(e) {
