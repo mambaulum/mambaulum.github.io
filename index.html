@@ -30,10 +30,17 @@
       } catch (e) { /* sessionStorage diblokir: tampil sebagai web biasa */ }
     })();
   </script>
+  <!-- Tangkap event pemasangan PWA sedini mungkin: skrip js/*.js bersifat defer, jadi event ini bisa terlanjur terjadi
+       sebelum listener di app.js / mode-ortu.js terpasang (akibatnya tombol Pasang tidak pernah muncul). -->
+  <script>
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__simambaBIP = e; });
+    window.addEventListener('appinstalled', function () { window.__simambaBIP = null; });
+  </script>
   <style>
     /* Mode Wali Murid: sembunyikan pilihan & login guru/staf. Login staf tetap dilindungi PIN + Rules Firebase. */
-    html.mode-ortu #loginChooser, html.mode-ortu #loginPage { display: none !important; }
-    html.mode-ortu #portalOrtuLogin a[onclick="kembaliKeChooser()"] { display: none; }
+    /* Tampilan sama dengan aplikasi guru (beranda pilihan login -> form); bedanya hanya pilihan loginnya: tombol Guru/Staff disembunyikan. */
+    html.mode-ortu #loginPage { display: none !important; }
+    html.mode-ortu #loginChooser .auth-choice button[onclick="pilihLoginGuru()"] { display: none; }
   </style>
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-v2-180x180.png" />
   <link rel="apple-touch-icon" sizes="152x152" href="icons/apple-touch-icon-v2-180x180.png" />
@@ -116,10 +123,10 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=146"></script>
+  <script defer src="js/app.js?v=148"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=6"></script>
-  <script defer src="js/mode-ortu.js?v=1"></script>
+  <script defer src="js/mode-ortu.js?v=5"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -917,6 +924,16 @@
            Penghubung seperti sebelumnya)
       ============================================================ -->
       <div id="page-info-ortu" class="page-content hidden">
+        <div class="card" id="ortuBagikanCard" style="margin-bottom:12px;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📲 Aplikasi Wali Murid</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Kirim tautan pemasangan ke orang tua (satu per satu atau ke grup wali kelas). Pesannya sudah memuat cara memasang dan pengingat agar dibuka di Chrome, bukan di dalam WhatsApp.</p>
+          <div id="ortuTautanTeks" style="font-size:12px;word-break:break-all;background:#f3f4f6;border-radius:8px;padding:8px 10px;margin-bottom:10px;color:#374151;"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-success" onclick="ortuBagikanWA()">💬 Bagikan lewat WhatsApp</button>
+            <button type="button" class="btn btn-soft" onclick="ortuSalinTautan(false)">📋 Salin tautan</button>
+            <button type="button" class="btn btn-soft" onclick="ortuSalinTautan(true)">📋 Salin pesan lengkap</button>
+          </div>
+        </div>
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📣 Info ke Ortu</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Catatan buku penghubung &amp; pelanggaran yang belum dikirim ke WhatsApp orang tua. Klik "Kirim WA" untuk mengirim -- otomatis hilang dari daftar ini setelah dikirim.</p>
@@ -2434,12 +2451,13 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
   ============================================================ -->
   <div id="portalOrtuLogin" class="auth-page" style="display:none;">
     <div class="auth-card">
-      <div class="auth-head auth-head-ortu">
+      <div class="auth-back"><a href="javascript:void(0)" onclick="kembaliKeChooser()">← Kembali</a></div>
+      <div class="auth-head">
         <div class="auth-logo-wrap">
           <img class="auth-logo" src="logo/logo-lembaga.png" alt="Logo MI Mambaul Ulum" onerror="v4LogoFallback(this)">
         </div>
-        <h1 class="auth-title">Portal Orang Tua</h1>
-        <p class="auth-sub">MI Mambaul Ulum — Cek data anak Anda</p>
+        <h1 class="auth-title">SI MAMBA</h1>
+        <p class="auth-sub">MI Mambaul Ulum · Portal Orang Tua</p>
       </div>
       <div style="margin-bottom:12px;"><label class="label">No. WhatsApp Orang Tua/Wali</label><input id="portalOrtuNoWa" class="field" placeholder="Contoh: 081234567890" inputmode="numeric" autocomplete="tel"></div>
       <div id="portalOrtuFormMasuk">
@@ -2462,7 +2480,6 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
       <div id="portalOrtuError" style="margin-top:10px;font-size:12px;color:#dc2626;text-align:center;"></div>
       <div style="text-align:center;margin-top:16px;font-size:11px;color:#9ca3af;">
         <p>Nomor WA belum terdaftar atau lupa PIN? Hubungi wali kelas/Admin madrasah.</p>
-        <a href="javascript:void(0)" onclick="kembaliKeChooser()" style="color:#6b7280;">← Kembali ke menu awal</a>
       </div>
     </div>
   </div>
