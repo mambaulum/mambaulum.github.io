@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.291",
-  "disimpan": "2026-11-01T05:09:32.769Z",
+  "appVersion": "v8.295",
+  "disimpan": "2026-11-01T07:08:19.748Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,16 +59,16 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=146",
-      "hash": "3a990d5e03aba1d7f0dd611c2a5c726ad092a09d"
+      "v": "v=148",
+      "hash": "fb1c92f14516ca010054f59ad3a6632d5a67284d"
     },
     "js/portal-ortu.js": {
       "v": "v=6",
       "hash": "4a764fbe25e5d4a77ea9d4dfa287adb1bc8ad9a4"
     },
     "js/mode-ortu.js": {
-      "v": "v=1",
-      "hash": "a312c79b663cb34f1e27b25443a2c4b135231992"
+      "v": "v=5",
+      "hash": "f7e6c1ac25c818842ba069c81011053679491757"
     },
     "js/infaq.js": {
       "v": "v=1",
