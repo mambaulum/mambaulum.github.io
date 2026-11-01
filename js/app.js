@@ -1163,6 +1163,11 @@
       ya.focus();
     }
 
+    // Event bisa terlanjur terjadi sebelum file ini dimuat (script defer): ambil yang sudah ditangkap skrip di <head> index.html.
+    if (!deferredPrompt && window.__simambaBIP) {
+      deferredPrompt = window.__simambaBIP;
+      const _ib = document.getElementById('installBtn'); if (_ib) _ib.style.display = 'inline-flex';
+    }
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
@@ -1176,13 +1181,15 @@
     });
 
     function installApp() {
+      if (!deferredPrompt && window.__simambaBIP) deferredPrompt = window.__simambaBIP;
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choice) => {
           if (choice.outcome === 'accepted') { toast('✅ Aplikasi berhasil diinstall!'); addLog('pwa_install', 'Aplikasi diinstall'); }
           else toast('⏳ Install dibatalkan');
-          deferredPrompt = null;
+          deferredPrompt = null; window.__simambaBIP = null;
           document.getElementById('installBtn').style.display = 'none';
+          if (choice.outcome === 'accepted') document.querySelectorAll('.po-pasang').forEach(k => k.remove());
         });
       } else {
         toast('📱 Buka Chrome/Safari dan pilih "Add to Home Screen"', false, 4000);
