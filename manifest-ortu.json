@@ -1,0 +1,17 @@
+{
+  "id": "./?app=ortu",
+  "name": "SI MAMBA Wali Murid",
+  "short_name": "SI MAMBA Wali",
+  "description": "Pantau kehadiran, nilai, tugas, dan infaq murid MI Mambaul Ulum.",
+  "lang": "id",
+  "start_url": "./?app=ortu",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#006b4f",
+  "icons": [
+    { "src": "icons/icon-v2-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-v2-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

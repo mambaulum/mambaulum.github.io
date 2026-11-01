@@ -12,6 +12,29 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SI MAMBA" />
+  <!-- MODE WALI MURID: dibuka lewat ?app=ortu (start_url manifest-ortu.json). Penanda disimpan di sessionStorage (per jendela,
+       tidak bocor ke aplikasi guru yang terpasang di perangkat yang sama). ?app=staf menghapus penanda. Skrip ini sengaja
+       sinkron & di <head> supaya manifest, judul, dan kelas html.mode-ortu sudah benar sebelum halaman tergambar. -->
+  <script>
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search).get('app');
+        if (q === 'ortu') sessionStorage.setItem('simamba_mode', 'ortu'); else if (q === 'staf') sessionStorage.removeItem('simamba_mode');
+        if (sessionStorage.getItem('simamba_mode') === 'ortu') {
+          window.SIMAMBA_MODE_ORTU = true;
+          document.documentElement.className += ' mode-ortu';
+          var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', 'manifest-ortu.json');
+          var at = document.querySelector('meta[name="apple-mobile-web-app-title"]'); if (at) at.setAttribute('content', 'SI MAMBA Wali');
+          document.title = 'SI MAMBA Wali Murid';
+        }
+      } catch (e) { /* sessionStorage diblokir: tampil sebagai web biasa */ }
+    })();
+  </script>
+  <style>
+    /* Mode Wali Murid: sembunyikan pilihan & login guru/staf. Login staf tetap dilindungi PIN + Rules Firebase. */
+    html.mode-ortu #loginChooser, html.mode-ortu #loginPage { display: none !important; }
+    html.mode-ortu #portalOrtuLogin a[onclick="kembaliKeChooser()"] { display: none; }
+  </style>
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-v2-180x180.png" />
   <link rel="apple-touch-icon" sizes="152x152" href="icons/apple-touch-icon-v2-180x180.png" />
   <link rel="apple-touch-icon" sizes="167x167" href="icons/apple-touch-icon-v2-180x180.png" />
@@ -95,7 +118,8 @@
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
   <script defer src="js/app.js?v=146"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=5"></script>
+  <script defer src="js/portal-ortu.js?v=6"></script>
+  <script defer src="js/mode-ortu.js?v=1"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -122,7 +146,7 @@
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=41"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
-  <script defer src="js/bacaan-shalat.js?v=22"></script>
+  <script defer src="js/bacaan-shalat.js?v=23"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
@@ -2445,7 +2469,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
   <div id="portalOrtuDashboard" style="display:none;min-height:100vh;background:#f9fafb;padding:16px;">
     <div style="max-width:600px;margin:0 auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px;flex-wrap:wrap;">
-        <h2 style="font-size:18px;font-weight:800;">👨‍👩‍👧 Data Ananda</h2>
+        <h2 style="font-size:18px;font-weight:800;">👨‍👩‍👧 Data Murid</h2>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="toggleGantiPinOrtu()">🔑 Ganti PIN</button>
           <button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="tutupPortalOrtu()">✕ Keluar</button>
