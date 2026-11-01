@@ -355,15 +355,18 @@
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');
       content.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">⏳ Memuat data...</p>';
-      const now = new Date();
-      const monthStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+      const monthStr = tglLokal().slice(0, 7);   // YYYY-MM menurut WIB, sama dengan format tanggal absensi
+      const prevDate = new Date(parseInt(monthStr.slice(0, 4), 10), parseInt(monthStr.slice(5, 7), 10) - 2, 1);
+      const prevMonthStr = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
+      const NAMA_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const labelBulan = ym => NAMA_BULAN_ID[parseInt(ym.slice(5, 7), 10) - 1] + ' ' + ym.slice(0, 4);
       Promise.all([
         db.ref('grades').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
         db.ref('kedisiplinan_siswa').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
         db.ref('iuran_siswa').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
         db.ref('buku_penghubung').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
-        // Hanya absensi BULAN INI (dulu seluruh riwayat kelas, semua tahun). Filter kelas dilakukan di bawah.
-        db.ref('attendance').orderByChild('tanggal').startAt(monthStr + '-01').endAt(monthStr + '-31').once('value'),
+        // Hanya absensi BULAN INI + BULAN LALU (cadangan saat awal bulan belum ada absensi; dulu seluruh riwayat kelas, semua tahun). Filter kelas dilakukan di bawah.
+        db.ref('attendance').orderByChild('tanggal').startAt(prevMonthStr + '-01').endAt(monthStr + '-31').once('value'),
         db.ref('materi_belajar').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
         db.ref('tugas').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
         db.ref('tugas_submission').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
@@ -417,14 +420,22 @@
         agendaList.sort((a,b) => COLLATOR_ID.compare((a.tanggal||''), b.tanggal||''));
         agendaList = agendaList.slice(0, 8);
         const agendaRows = agendaList.map(a => `<div style="padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">${iconJenisAgenda[a.jenis]||'📌'} <strong>${escapeHtml(a.judul)}</strong> <span class="text-muted" style="font-size:11px;">— ${escapeHtml(a.tanggal)}${a.keterangan ? ' — ' + escapeHtml(a.keterangan) : ''}</span></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada agenda mendatang.</p>';
-        let hadir=0, sakit=0, izin=0, alfa=0;
+        const rekapAbsen = {}; rekapAbsen[monthStr] = { H: 0, S: 0, I: 0, A: 0 }; rekapAbsen[prevMonthStr] = { H: 0, S: 0, I: 0, A: 0 };
         absenSnap.forEach(c => {
           const rec = c.val();
-          if (rec.kelas === siswa.kelas && rec.tanggal && rec.tanggal.startsWith(monthStr) && rec.data && rec.data[siswa.key] && sesuaiTahunAjaran(rec)) {
+          const bln = rec && rec.tanggal ? String(rec.tanggal).slice(0, 7) : '';
+          if (rekapAbsen[bln] && rec.kelas === siswa.kelas && rec.data && rec.data[siswa.key] && sesuaiTahunAjaran(rec)) {
             const st = rec.data[siswa.key];
-            if (st === 'H') hadir++; else if (st === 'S') sakit++; else if (st === 'I') izin++; else if (st === 'A') alfa++;
+            if (rekapAbsen[bln][st] !== undefined) rekapAbsen[bln][st]++;
           }
         });
+        const jumlahAbsen = r => r.H + r.S + r.I + r.A;
+        // Awal bulan (mis. tanggal 1 / hari libur) sering belum ada absensi: kalau begitu tampilkan bulan lalu supaya tidak 0 semua.
+        const pakaiBulanLalu = jumlahAbsen(rekapAbsen[monthStr]) === 0 && jumlahAbsen(rekapAbsen[prevMonthStr]) > 0;
+        const bulanTampil = pakaiBulanLalu ? prevMonthStr : monthStr;
+        const hadir = rekapAbsen[bulanTampil].H, sakit = rekapAbsen[bulanTampil].S, izin = rekapAbsen[bulanTampil].I, alfa = rekapAbsen[bulanTampil].A;
+        const catatanAbsen = pakaiBulanLalu ? 'Absensi bulan ini belum tercatat, ditampilkan bulan lalu.'
+          : (jumlahAbsen(rekapAbsen[monthStr]) === 0 ? 'Belum ada absensi tercatat bulan ini.' : '');
         // Nilai belum lengkap (NH, MID, atau PAS belum lengkap) tampil abu-abu berlabel "sementara", bukan angka rendah biasa.
         const nilaiRows = grades.map(g => { const st = statusRapor(g.data || {}); const sel = st.nilai === null ? '-' : (st.final ? st.nilai : raporSementaraHtml(st.nilai)); return `<tr><td>${escapeHtml(g.subject||'-')}</td><td>${escapeHtml(g.semester||'-')}</td><td style="text-align:right;font-weight:700;">${sel}</td></tr>`; }).join('')
           + (grades.some(g => { const st = statusRapor(g.data || {}); return st.nilai !== null && !st.final; }) ? `<tr><td colspan="3" style="font-size:11px;color:#6b7280;font-style:italic;">Nilai berlabel sementara belum final. Angka menjadi final setelah minimal satu NH, MID, dan PAS terisi.</td></tr>` : '');
@@ -458,22 +469,25 @@
         const nilaiTabelHtml = grades.length
           ? `<table class="po-nilai"><colgroup><col style="width:54%"><col style="width:22%"><col style="width:24%"></colgroup><thead><tr><th>Mapel</th><th>Semester</th><th style="text-align:right;">Nilai</th></tr></thead><tbody>${nilaiRows}</tbody></table>`
           : '<p class="text-muted" style="font-size:13px;">Belum ada nilai tercatat.</p>';
-        content.innerHTML = `${PO_ACC_CSS}
-          <div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:12px;">
-            <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" width="44" height="44" style="width:44px;height:44px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
-            <div style="min-width:0;">
-              <p class="text-muted" style="font-size:11px;margin:0;">${escapeHtml(MADRASAH.nama || '')}</p>
-              <p style="font-size:16px;font-weight:700;margin:0;">${escapeHtml(siswa.name)}</p>
-              <p class="text-muted" style="font-size:13px;margin:0;">Kelas ${escapeHtml(siswa.kelas)}</p>
+        content.innerHTML = `
+          <div class="card" id="poKopKehadiran" style="margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" width="44" height="44" style="width:44px;height:44px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
+              <div style="min-width:0;">
+                <p class="text-muted" style="font-size:11px;margin:0;">${escapeHtml(MADRASAH.nama || '')}</p>
+                <p style="font-size:16px;font-weight:700;margin:0;">${escapeHtml(siswa.name)}</p>
+                <p class="text-muted" style="font-size:13px;margin:0;">${/^kelas\b/i.test(String(siswa.kelas || '')) ? escapeHtml(siswa.kelas) : 'Kelas ' + escapeHtml(siswa.kelas)}</p>
+              </div>
             </div>
-          </div>
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">📅 Kehadiran Bulan Ini</p>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
-              <div><div style="font-size:20px;font-weight:800;color:#059669;">${hadir}</div><div class="text-muted" style="font-size:11px;">Hadir</div></div>
-              <div><div style="font-size:20px;font-weight:800;color:#d97706;">${sakit}</div><div class="text-muted" style="font-size:11px;">Sakit</div></div>
-              <div><div style="font-size:20px;font-weight:800;color:#2563eb;">${izin}</div><div class="text-muted" style="font-size:11px;">Izin</div></div>
-              <div><div style="font-size:20px;font-weight:800;color:#dc2626;">${alfa}</div><div class="text-muted" style="font-size:11px;">Alfa</div></div>
+            <div style="border-top:1px solid #f1f5f9;margin-top:12px;padding-top:10px;">
+              <p style="font-weight:700;font-size:13px;margin:0 0 6px;">📅 Kehadiran Bulan Ini <span class="text-muted" style="font-weight:400;font-size:11px;">· ${escapeHtml(labelBulan(bulanTampil))}</span></p>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+                <div><div style="font-size:20px;font-weight:800;color:#059669;">${hadir}</div><div class="text-muted" style="font-size:11px;">Hadir</div></div>
+                <div><div style="font-size:20px;font-weight:800;color:#d97706;">${sakit}</div><div class="text-muted" style="font-size:11px;">Sakit</div></div>
+                <div><div style="font-size:20px;font-weight:800;color:#2563eb;">${izin}</div><div class="text-muted" style="font-size:11px;">Izin</div></div>
+                <div><div style="font-size:20px;font-weight:800;color:#dc2626;">${alfa}</div><div class="text-muted" style="font-size:11px;">Alfa</div></div>
+              </div>
+              ${catatanAbsen ? `<p class="text-muted" style="font-size:11px;font-style:italic;margin:8px 0 0;text-align:center;">${catatanAbsen}</p>` : ''}
             </div>
           </div>
           ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
@@ -496,6 +510,7 @@
             <div id="saranKritikStatus" style="margin-top:8px;font-size:12px;"></div>
             </div>
           </details>
+          ${PO_ACC_CSS}
         `;
         try { if (typeof bsOrtuRender === 'function') bsOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Bacaan Shalat (Portal Ortu) gagal dirender:', e); }
       }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${err.message}</p>`; });

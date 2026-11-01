@@ -1537,7 +1537,7 @@ function bsOrtuRender(siswa) {
   const lama = bsEl('bsOrtuBox'); if (lama) lama.remove();
   try { bsAnakTutup(); } catch (e) { /* tidak ada overlay */ }
   const box = document.createElement('div'); box.id = 'bsOrtuBox';
-  const pertama = content.firstElementChild;
+  const pertama = bsEl('poKopKehadiran') || content.firstElementChild;   // kartu kop + kehadiran di Portal Ortu
   if (pertama && pertama.nextSibling) content.insertBefore(box, pertama.nextSibling); else content.appendChild(box);
   bsOrtuMuat(siswa);
 }
