@@ -1525,6 +1525,10 @@ function bsGrafikIndividu(k, targets, siswa) {
 // ============================================================
 // 2) AKSES ORANG TUA (disambung dari renderPortalOrtuDashboard di app.js)
 // ============================================================
+// Status buka/tutup kartu lipat di Portal Ortu. Disimpan terpisah karena bsOrtuGambar() menggambar ulang seluruh kotak
+// setiap kali orang tua mencentang amalan; tanpa ini kartu akan menutup sendiri setelah tiap ketukan.
+const bsOrtuBuka = { amalan: false, progres: false, daftar: false };
+function bsOrtuBukaSet(k, v) { bsOrtuBuka[k] = !!v; }
 let bsOrtu = { token: 0, siswa: null, targets: [], semua: [], setoran: {}, amalan: {}, tgl: '', err: '' };
 
 function bsOrtuRender(siswa) {
@@ -1596,19 +1600,23 @@ function bsOrtuGambar() {
           <p style="font-size:13px;margin-top:2px;">${game.level.e} Level ${game.level.no} · <strong>${bsEsc(game.level.nama)}</strong> · ⭐ ${game.poin} poin</p></div>
         <button class="btn btn-primary" style="padding:8px 14px;" onclick="bsAnakBuka()">👧 Mode Anak</button>
       </div></div>
-    <div class="card" style="margin-bottom:12px;">
-      <p style="font-weight:700;margin-bottom:6px;">🏡 Amalan Harian di Rumah</p>
+    <details class="card po-acc" style="margin-bottom:12px;"${bsOrtuBuka.amalan ? ' open' : ''} ontoggle="bsOrtuBukaSet('amalan',this.open)">
+      <summary><span>🏡 Amalan Harian di Rumah</span><span class="po-badge${nCek === BS_AMALAN.length ? ' ok' : ''}">${nCek}/${BS_AMALAN.length} terisi</span></summary>
+      <div class="po-acc-body">
       <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Centang amalan yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis. Bisa mengisi hari ini sampai ${BS_HARI_ISI_MUNDUR} hari ke belakang.</p>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${tglOps}</div>
       <p style="font-size:13px;margin-bottom:8px;"><strong>${nCek}</strong> dari ${BS_AMALAN.length} amalan terisi untuk ${bsEsc(bsFmtTgl(o.tgl))} ${game.rentetanLimaWaktu >= 2 ? ' · 🔥 ' + game.rentetanLimaWaktu + ' hari sholat 5 waktu lengkap berturut-turut' : ''}</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;">${cek}</div>
-    </div>
-    <div class="card" style="margin-bottom:12px;">
-      <p style="font-weight:700;margin-bottom:6px;">📿 Progres Setoran Bacaan Sholat</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px;">${cek}</div>
+      </div>
+    </details>
+    <details class="card po-acc" style="margin-bottom:12px;"${bsOrtuBuka.progres ? ' open' : ''} ontoggle="bsOrtuBukaSet('progres',this.open)">
+      <summary><span>📿 Progres Setoran Bacaan Sholat</span>${o.targets.length ? `<span class="po-badge${game.lulus === game.nTarget && game.nTarget ? ' ok' : ''}">${game.lulus}/${game.nTarget} lulus</span>` : ''}</summary>
+      <div class="po-acc-body">
       ${o.targets.length ? `<p style="font-size:13px;margin-bottom:6px;">${game.lulus} dari ${game.nTarget} target lulus (${persen}%)</p>${bsBarProgres(persen)}
         ${berikut ? `<p style="font-size:13px;margin:10px 0 4px;">🎯 Target berikutnya: <strong>${bsEsc(berikut.nama)}</strong> <span class="text-muted" style="font-size:11px;">(${bsEsc(bsLabelTarget(berikut))})</span></p>` : '<p style="font-size:13px;margin:10px 0 4px;color:#059669;font-weight:700;">🎉 Semua target bacaan sudah lulus!</p>'}
-        <div style="margin-top:6px;">${baris}</div>` : '<p class="text-muted" style="font-size:13px;">Guru belum membuat target bacaan sholat untuk kelas ini.</p>'}
-    </div>`;
+        <details style="margin-top:6px;"${bsOrtuBuka.daftar ? ' open' : ''} ontoggle="bsOrtuBukaSet('daftar',this.open)"><summary style="cursor:pointer;font-size:13px;font-weight:600;">📋 Lihat semua target (${o.targets.length})</summary>${baris}</details>` : '<p class="text-muted" style="font-size:13px;">Guru belum membuat target bacaan sholat untuk kelas ini.</p>'}
+      </div>
+    </details>`;
 }
 function bsOrtuPilihTgl(tg) { bsOrtu.tgl = tg; bsOrtuGambar(); }
 function bsOrtuToggle(kode) {

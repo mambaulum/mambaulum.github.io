@@ -290,6 +290,13 @@
     // perlu Rules baru. Tunggakan = minggu tahun ajaran aktif (dari 1 Juli sampai minggu LALU) yang belum tercatat
     // lunas, di luar minggu yang seluruh hari sekolahnya (Sen-Sab) tercatat libur di kalender akademik.
     // Nominal tunggakan memakai nominal siswa saat ini, jadi sifatnya perkiraan.
+    // Kartu lipat (accordion) supaya halaman tidak terlalu panjang di HP: judul + lencana ringkas selalu terlihat,
+    // isi baru terbuka saat diketuk. `badge` & `isi` sudah berupa HTML (escape dilakukan pemanggil).
+    function poAcc(judul, badge, isi, buka) {
+      return `<details class="card po-acc" style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${judul}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
+    }
+    const poBadge = (teks, kelas) => `<span class="po-badge${kelas ? ' ' + kelas : ''}">${teks}</span>`;
+    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}</style>`;
     function portalOrtuInfaqHtml(siswa, iuran, kalenderSnap) {
       const bln = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
       const tglPendek = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.getDate() + ' ' + bln[d.getMonth()] + ' ' + d.getFullYear() : '-'; };
@@ -342,11 +349,8 @@
       const blokRiwayat = riwayat.length
         ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">📜 Riwayat pembayaran (${riwayat.length})</summary><div style="max-height:260px;overflow-y:auto;">${barisRiwayat}</div></details>`
         : '<p class="text-muted" style="font-size:13px;margin-top:6px;">Belum ada pembayaran tercatat di tahun ajaran ini.</p>';
-      return `<div class="card" style="margin-bottom:12px;">
-          <p style="font-weight:700;margin-bottom:8px;">💵 Infaq · TA ${escapeHtml(currentTahunAjaran)}</p>
-          ${statusIni}${ringkas}${blokTunggak}${blokRiwayat}
-          <p class="text-muted" style="font-size:11px;margin-top:8px;">Berdasarkan catatan petugas infaq kelas. Minggu libur pada kalender akademik dan minggu berjalan tidak dihitung; nominal tunggakan adalah perkiraan. Bila ada selisih dengan catatan Bapak/Ibu, mohon hubungi wali kelas.</p>
-        </div>`;
+      return poAcc(`💵 Infaq · TA ${escapeHtml(currentTahunAjaran)}`, gratis ? poBadge('Bebas', 'ok') : (belum.length ? poBadge(belum.length + ' mgg belum', 'bad') : poBadge('Lancar', 'ok')), `${statusIni}${ringkas}${blokTunggak}${blokRiwayat}
+          <p class="text-muted" style="font-size:11px;margin-top:8px;">Berdasarkan catatan petugas infaq kelas. Minggu libur pada kalender akademik dan minggu berjalan tidak dihitung; nominal tunggakan adalah perkiraan. Bila ada selisih dengan catatan Bapak/Ibu, mohon hubungi wali kelas.</p>`, false);
     }
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');
@@ -449,7 +453,12 @@
             <button class="btn btn-success" style="font-size:12px;padding:6px 12px;" onclick="kumpulTugasOrtu('${t.key}','${siswa.key}','${escapeJs(siswa.name)}','${escapeJs(siswa.kelas)}')">📤 Kumpulkan Tugas</button>
           </div>`;
         }).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada tugas untuk kelas ini.</p>';
-        content.innerHTML = `
+        const belumTugas = tugasList.filter(t => !submissionMap[t.key]).length;
+        const nSementara = grades.filter(g => { const st = statusRapor(g.data || {}); return st.nilai !== null && !st.final; }).length;
+        const nilaiTabelHtml = grades.length
+          ? `<table class="po-nilai"><colgroup><col style="width:54%"><col style="width:22%"><col style="width:24%"></colgroup><thead><tr><th>Mapel</th><th>Semester</th><th style="text-align:right;">Nilai</th></tr></thead><tbody>${nilaiRows}</tbody></table>`
+          : '<p class="text-muted" style="font-size:13px;">Belum ada nilai tercatat.</p>';
+        content.innerHTML = `${PO_ACC_CSS}
           <div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:12px;">
             <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" width="44" height="44" style="width:44px;height:44px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
             <div style="min-width:0;">
@@ -467,38 +476,17 @@
               <div><div style="font-size:20px;font-weight:800;color:#dc2626;">${alfa}</div><div class="text-muted" style="font-size:11px;">Alfa</div></div>
             </div>
           </div>
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">📆 Agenda Terdekat</p>
-            ${agendaRows}
-          </div>
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">📘 Hasil Belajar Hari Ini</p>
-            ${journalRows}
-          </div>
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">📚 Materi Belajar Terbaru</p>
-            ${materiRows}
-          </div>
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">📝 Tugas</p>
-            ${tugasRows}
-          </div>
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">📝 Nilai Terakhir</p>
-            ${grades.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>Mapel</th><th>Semester</th><th>Nilai</th></tr></thead><tbody>${nilaiRows}</tbody></table></div>` : '<p class="text-muted" style="font-size:13px;">Belum ada nilai tercatat.</p>'}
-          </div>
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">🌟 Sikap &amp; Kedisiplinan</p>
-            <p style="font-size:13px;margin-bottom:6px;">Net Poin: <strong style="color:${netSikap>=0?'#059669':'#dc2626'};">${netSikap>=0?'+':''}${netSikap}</strong> (⚠️ ${totalPelanggaran} / 🌟 ${totalPrestasi})</p>
-            ${sikapRows}
-          </div>
+          ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
+          ${poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false)}
+          ${poAcc('📆 Agenda Terdekat', agendaList.length ? poBadge(agendaList.length + ' agenda') : poBadge('Kosong'), agendaRows, false)}
+          ${poAcc('📘 Hasil Belajar Hari Ini', journalHariIni.length ? poBadge(journalHariIni.length + ' jam') : poBadge('Kosong'), journalRows, false)}
+          ${poAcc('📚 Materi Belajar Terbaru', materi.length ? poBadge(Math.min(materi.length, 5) + ' materi') : poBadge('Kosong'), materiRows, false)}
+          ${poAcc('🌟 Sikap &amp; Kedisiplinan', poBadge((netSikap >= 0 ? '+' : '') + netSikap + ' poin', netSikap < 0 ? 'bad' : (netSikap > 0 ? 'ok' : '')), `<p style="font-size:13px;margin-bottom:6px;">Net Poin: <strong style="color:${netSikap>=0?'#059669':'#dc2626'};">${netSikap>=0?'+':''}${netSikap}</strong> (⚠️ ${totalPelanggaran} / 🌟 ${totalPrestasi})</p>${sikapRows}`, false)}
           ${infaqCardHtml}
-          <div class="card" style="margin-bottom:12px;">
-            <p style="font-weight:700;margin-bottom:8px;">📖 Buku Penghubung Terbaru</p>
-            ${bukuRows}
-          </div>
-          <div class="card">
-            <p style="font-weight:700;margin-bottom:8px;">💬 Saran &amp; Kritik untuk Madrasah</p>
+          ${poAcc('📖 Buku Penghubung Terbaru', buku.length ? poBadge(Math.min(buku.length, 5) + ' catatan') : poBadge('Kosong'), bukuRows, false)}
+          <details class="card po-acc">
+            <summary><span>💬 Saran &amp; Kritik untuk Madrasah</span></summary>
+            <div class="po-acc-body">
             <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Masukan Bapak/Ibu membantu madrasah menjadi lebih baik. Bisa dikirim dengan nama, atau anonim kalau memang lebih nyaman.</p>
             <textarea id="saranKritikTeks" class="field" rows="3" placeholder="Tulis saran atau kritik di sini..."></textarea>
             <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0;cursor:pointer;">
@@ -506,7 +494,8 @@
             </label>
             <button class="btn btn-primary" id="btnKirimSaranKritik" style="font-size:12px;padding:7px 14px;" onclick="kirimSaranKritik('${siswa.key}','${escapeJs(siswa.name)}','${escapeJs(siswa.kelas)}')">📤 Kirim ke Madrasah</button>
             <div id="saranKritikStatus" style="margin-top:8px;font-size:12px;"></div>
-          </div>
+            </div>
+          </details>
         `;
         try { if (typeof bsOrtuRender === 'function') bsOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Bacaan Shalat (Portal Ortu) gagal dirender:', e); }
       }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${err.message}</p>`; });
