@@ -444,6 +444,14 @@
         const netSikap = totalPrestasi - totalPelanggaran;
         const sikapRows = [...sikap].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(d => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;"><span style="color:${d.jenis==='prestasi'?'#059669':'#dc2626'};font-weight:600;">${d.jenis==='prestasi'?'🌟':'⚠️'} ${escapeHtml(d.kategori||'-')}</span> <span class="text-muted">(${d.poin||0} poin) — ${escapeHtml(d.tanggal||'-')}</span></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada catatan.</p>';
         const iuranMingguIni = iuran.find(it => it.minggu === isoMingguKey());
+        // Diagnosis infaq: bandingkan jumlah catatan mentah milik anak ini dengan yang lolos filter tahun ajaran.
+        // Hanya ke Console (tidak ditampilkan ke orang tua). Buka Console HP/Chrome desktop untuk melihatnya.
+        try {
+          const mentah = iuranSnap.numChildren(), ditolak = [];
+          iuranSnap.forEach(c => { const it = c.val(); if (!sesuaiTahunAjaran(it)) ditolak.push((c.key || '?') + ' [TA: ' + (it && it.tahunAjaran ? it.tahunAjaran : 'kosong') + ']'); });
+          console.info('[SI MAMBA] Infaq portal: anak=' + siswa.key + ' (' + (siswa.name || '-') + '), catatan di database=' + mentah + ', tampil=' + iuran.length + ', TA aktif=' + currentTahunAjaran);
+          if (ditolak.length) console.warn('[SI MAMBA] Infaq portal: ' + ditolak.length + ' catatan tidak tampil karena tahun ajaran tidak cocok:', ditolak.slice(0, 10));
+        } catch (e) { /* diagnosis opsional */ }
         const infaqCardHtml = portalOrtuInfaqHtml(siswa, iuran, kalenderSnap);
         const bukuRows = [...buku].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(b => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;"><div class="text-muted" style="font-size:12px;">${escapeHtml(b.tanggal||'-')}</div><div style="font-size:13px;">${escapeHtml(b.catatan||'-')}</div></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada catatan dari guru.</p>';
         const materiRows = [...materi].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(m => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;"><div style="font-size:13px;font-weight:600;">${escapeHtml(m.judul)} <span class="text-muted" style="font-weight:400;font-size:11px;">— ${escapeHtml(m.mapel||'-')} — ${escapeHtml(m.tanggal||'-')}</span></div><div class="text-muted" style="font-size:12px;margin-top:2px;">${escapeHtml(m.isi)}</div>${m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;">🔗 Buka Link</a>` : ''}</div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada materi dibagikan.</p>';
@@ -498,6 +506,8 @@
           ${poAcc('🌟 Sikap &amp; Kedisiplinan', poBadge((netSikap >= 0 ? '+' : '') + netSikap + ' poin', netSikap < 0 ? 'bad' : (netSikap > 0 ? 'ok' : '')), `<p style="font-size:13px;margin-bottom:6px;">Net Poin: <strong style="color:${netSikap>=0?'#059669':'#dc2626'};">${netSikap>=0?'+':''}${netSikap}</strong> (⚠️ ${totalPelanggaran} / 🌟 ${totalPrestasi})</p>${sikapRows}`, false)}
           ${infaqCardHtml}
           ${poAcc('📖 Buku Penghubung Terbaru', buku.length ? poBadge(Math.min(buku.length, 5) + ' catatan') : poBadge('Kosong'), bukuRows, false)}
+          <div id="angketOrtuSlot"></div>
+          <div id="angketSiswaSlot"></div>
           <details class="card po-acc">
             <summary><span>💬 Saran &amp; Kritik untuk Madrasah</span></summary>
             <div class="po-acc-body">
@@ -513,8 +523,48 @@
           ${PO_ACC_CSS}
         `;
         try { if (typeof bsOrtuRender === 'function') bsOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Bacaan Shalat (Portal Ortu) gagal dirender:', e); }
+        try { angketOrtuMuat(siswa); angketSiswaMuat(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Kurikulum (Portal Ortu) gagal dimuat:', e); }
       }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${err.message}</p>`; });
     }
+    // ---------- Angket Kurikulum untuk orang tua (modul: js/angket-kurikulum.js) ----------
+    // Kartu hanya muncul kalau Admin/Kepala sudah MEMBUKA angket (tombol ON). Satu isian per orang tua
+    // (bukan per anak) per periode. Kunci data = hash dari No. WA, jadi No. WA tidak terbaca di database
+    // dan isian anonim benar-benar tidak bisa ditelusuri ke orang tua tertentu.
+    function angketOrtuKunci(waKey) {
+      const t = String(waKey || '');
+      let a = 2166136261, b = 5381;
+      for (let i = 0; i < t.length; i++) { a ^= t.charCodeAt(i); a = Math.imul(a, 16777619) >>> 0; b = (Math.imul(b, 33) + t.charCodeAt(i)) >>> 0; }
+      return 'o' + a.toString(36) + b.toString(36);
+    }
+    // Satu fungsi untuk dua kartu: jenis 'ortu' (satu isian per orang tua) dan 'siswa' (satu isian per anak,
+    // diisi anak dengan didampingi orang tua). Kunci siswa = hash dari kunci siswa, jadi tidak bisa ditelusuri.
+    function angketPortalMuat(jenis, siswa) {
+      const ortu = jenis === 'ortu';
+      const slotId = ortu ? 'angketOrtuSlot' : 'angketSiswaSlot';
+      if (!document.getElementById(slotId) || typeof AngketKurikulum === 'undefined') return;
+      const kunci = angketOrtuKunci(ortu ? portalOrtuWaKey : 'siswa:' + siswa.key);
+      const accId = ortu ? 'angketOrtuAcc' : 'angketSiswaAcc', wadahId = ortu ? 'angketOrtuWadah' : 'angketSiswaWadah';
+      AngketKurikulum.cekAktif().then(st => {
+        if (!st.aktif || !document.getElementById(slotId)) return;
+        return db.ref('angket_kurikulum/' + st.periode + '/' + jenis + '/' + kunci).once('value').then(x => x.exists(), () => false).then(sudah => {
+          const slot2 = document.getElementById(slotId); if (!slot2) return;
+          const judul = ortu ? '📝 Angket Orang Tua' : '🧒 Angket Peserta Didik · ' + escapeHtml(siswa.name || '-');
+          const pengantar = ortu
+            ? 'Angket tentang pembelajaran di madrasah ini. Sekitar 5–10 menit. Tidak ada jawaban benar atau salah, dan jawaban hanya dipakai untuk perbaikan.'
+            : 'Untuk Ananda. Mohon <b>didampingi</b>: bacakan tiap pernyataan, lalu biarkan Ananda memilih jawabannya sendiri sesuai yang ia alami di kelas. Bukan ujian, tidak memengaruhi nilai.';
+          slot2.innerHTML = `<details class="card po-acc" id="${accId}" style="margin-bottom:12px;"><summary><span>${judul}</span>${sudah ? poBadge('Sudah diisi', 'ok') : poBadge('Mohon diisi', 'warn')}</summary>
+            <div class="po-acc-body"><p class="text-muted" style="font-size:12px;margin-bottom:8px;">${pengantar}</p><div id="${wadahId}"></div></div></details>`;
+          const acc = document.getElementById(accId); let dimuat = false;
+          acc.addEventListener('toggle', () => {
+            if (!acc.open || dimuat) return; dimuat = true;
+            const nama = ortu ? 'Wali dari ' + (siswa.name || '-') + ' (' + (siswa.kelas || '-') + ')' : (siswa.name || '-') + ' (' + (siswa.kelas || '-') + ')';
+            AngketKurikulum.renderForm(wadahId, jenis, { kunci, nama }, { izinAnonim: true });
+          });
+        });
+      }).catch(() => {});
+    }
+    function angketOrtuMuat(siswa) { angketPortalMuat('ortu', siswa); }
+    function angketSiswaMuat(siswa) { angketPortalMuat('siswa', siswa); }
     // Saran & Kritik dari Portal Orang Tua -- disimpan terpisah dari data siswa lain (tidak ikut
     // di-load lagi ke portal setelah kirim, sekali kirim langsung selesai) supaya orang tua tidak
     // bisa lihat balik kiriman orang lain. Opsi anonim: siswaKey/siswaNama/kelas cuma diisi kalau

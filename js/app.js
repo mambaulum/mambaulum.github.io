@@ -1189,7 +1189,7 @@
           else toast('⏳ Install dibatalkan');
           deferredPrompt = null; window.__simambaBIP = null;
           document.getElementById('installBtn').style.display = 'none';
-          if (choice.outcome === 'accepted') document.querySelectorAll('.po-pasang').forEach(k => k.remove());
+          if (choice.outcome === 'accepted') { window.__simambaTerpasang = true; document.querySelectorAll('.po-pasang').forEach(k => k.remove()); }
         });
       } else {
         toast('📱 Buka Chrome/Safari dan pilih "Add to Home Screen"', false, 4000);
@@ -2609,7 +2609,7 @@
       // Hanya nilai FINAL (minimal satu NH, MID, dan PAS terisi) yang dihitung; nilai sementara tidak menurunkan/menaikkan rata-rata.
       const raporValues = allGrades.filter(g => mapelDiizinkanNilai(g.kelas || ((allSiswa.find(x => x.key === g.siswaKey) || {}).kelas), g.subject)).map(g => statusRapor(g.data || {})).filter(st => st.final && st.nilai > 0).map(st => st.nilai);
       const rataNilai = raporValues.length ? Math.round(raporValues.reduce((a,b)=>a+b,0) / raporValues.length) : 0;
-      const infaqMingguIni = allInfaqSiswa.filter(it => it.minggu === isoMingguKey()).reduce((s,it)=>s+(it.nominal||0), 0);
+      const infaqMingguIni = allInfaqSiswa.filter(it => it.minggu === isoMingguKey()).reduce((s,it)=>s+iuranNominalCatatan(it), 0);
       const kartu = [
         { label: 'Total Siswa', value: allSiswa.length, warna: '#2563eb' },
         { label: 'Total Guru', value: totalGuru, warna: '#7c3aed' },
@@ -2641,6 +2641,16 @@
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100, ticks: { color: textColor }, grid: { color: gridColor } }, x: { ticks: { color: textColor }, grid: { color: gridColor } } } }
       });
     }
+    // Nominal 1 catatan iuran untuk penjumlahan: pakai nominal tercatat; kalau kosong (lunas tanpa nominal) pakai
+    // nominal siswa itu (khusus/standar) -- sama dengan perlakuan Portal Orang Tua. Dulu `it.nominal||0` membuat
+    // catatan tanpa nominal terhitung 0, sehingga kartu & grafik Infaq di Dashboard tampak 0 padahal sudah lunas.
+    function iuranNominalCatatan(it) {
+      const n = iuranAngka(it && it.nominal);
+      if (n !== null) return n;
+      const s = allSiswa.find(x => x.key === (it && it.siswaKey));
+      const nom = iuranNominalSiswa(s || {});
+      return nom === null ? 0 : nom;
+    }
     function renderDashboardInfaqChart() {
       const ctx = document.getElementById('dashboardInfaqChart');
       if (!ctx) return;
@@ -2657,7 +2667,7 @@
         const { senin } = mingguKeTanggal(key);
         mingguInfo.push({ label: `${senin.getDate()} ${nbSingkat[senin.getMonth()]}`, mingguKey: key });
       }
-      const dataValues = mingguInfo.map(b => allInfaqSiswa.filter(it => it.minggu === b.mingguKey).reduce((s,it)=>s+(it.nominal||0), 0));
+      const dataValues = mingguInfo.map(b => allInfaqSiswa.filter(it => it.minggu === b.mingguKey).reduce((s,it)=>s+iuranNominalCatatan(it), 0));
       dashboardInfaqChartInstance = v4RenderChart(dashboardInfaqChartInstance, ctx, {
         type: 'line',
         data: { labels: mingguInfo.map(b=>b.label), datasets: [{ label: 'Total Infaq', data: dataValues, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', borderWidth: 3, fill: true, tension: 0.3, pointBackgroundColor: '#dc2626', pointRadius: 4 }] },
@@ -3200,7 +3210,7 @@
       document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
       const bottomItem = document.querySelector(`.bottom-nav-item[data-bottom-page="${page}"]`);
       if (bottomItem) bottomItem.classList.add('active');
-      const titleMap = { 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Sholat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Madrasah', rekap:'Ringkasan Sekolah', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan Resmi', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Infaq', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
+      const titleMap = { 'angket-kurikulum':'Angket Kurikulum', 'profile-v4':'Profil Saya', 'activities-v4':'Amalan Yaumiyah', 'tahfidz-v4':'Tahfidz', 'bacaan-shalat':'Bacaan Sholat', 'ekskul-v4':'Ekstrakurikuler', 'pramuka-v4':'Pramuka (SKU)', 'approval-v4':'Approval', 'notifications-v4':'Notifikasi', 'tasks-v4':'Task Center', 'raport-v4':'Raport', dashboard:'Dashboard', students:'Data Siswa', attendance:'Absensi', grades:'Nilai', journal:'Jurnal Mengajar', 'teacher-attendance':'Absen Guru', religi:'Absen Religi Saya', events:'Lembur & Rapat', ujian:'Honor Ujian', 'profil-sekolah':'Profil Madrasah', rekap:'Ringkasan Sekolah', 'rekap-nilai':'Rekap Nilai', honor:'Honor', surat:'Surat & Ijin', jadwal:'Jadwal', promotion:'Kenaikan Kelas', 'setting-jam':'Setting Jam', admin:'Admin', laporan:'Laporan Resmi', 'user-management':'Manajemen User', 'honor-slip':'Slip Honor Saya', 'infaq-madrasah':'Infaq', 'kas-umum':'Kas Madrasah', 'sikap-siswa':'Sikap Siswa', 'buku-penghubung':'Buku Penghubung', 'materi-belajar':'Materi Belajar', 'tugas-siswa':'Tugas Siswa', 'kalender-akademik':'Kalender Akademik', 'saran-kritik':'Saran & Kritik', 'kelola-absen-guru':'Kelola Absen Guru', 'administrasi-ujian':'Administrasi Ujian' };
       document.getElementById('pageTitle').innerHTML = titleMap[page] || 'Dashboard';
       if (window.innerWidth <= 768) { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
       flushRenderTertunda(page); // render yang ditunda saat halaman ini tersembunyi (lihat renderAll)
@@ -3237,6 +3247,7 @@
       if (page === 'tugas-siswa') { ensureLazyDatasets(LAZY_PAGE_DATASETS['tugas-siswa'], () => { setupTugasPage(); }); }
       if (page === 'kalender-akademik') { ensureLazyDatasets(LAZY_PAGE_DATASETS['kalender-akademik'], () => { setupKalenderAkademikPage(); }); }
       if (page === 'saran-kritik') { setupSaranKritikPage(); }
+      if (page === 'angket-kurikulum') { if (typeof setupAngketKurikulumPage === 'function') setupAngketKurikulumPage(); else komponenBelumTermuat('Angket Kurikulum'); }
       if (page === 'administrasi-ujian') { if (typeof setupAdministrasiUjianPage === 'function') setupAdministrasiUjianPage(); }
       if (page === 'bacaan-shalat') { if (typeof setupBacaanShalatPage === 'function') setupBacaanShalatPage(); }
       finishRouteProgress();
@@ -3670,6 +3681,7 @@
       if (typeof updateSaranKritikNotifDot === 'function') { try { updateSaranKritikNotifDot(); } catch (e) {} }
       if (typeof updateInfaqNotifDot === 'function') { try { updateInfaqNotifDot(); } catch (e) {} }
       if (typeof updateInfoOrtuNotifDot === 'function') { try { updateInfoOrtuNotifDot(); } catch (e) {} }
+      if (typeof updateAngketKurikulumNotifDot === 'function') { try { updateAngketKurikulumNotifDot(); } catch (e) {} }
       checkPengumumanNotif();
       lastCoreRenderTs = Date.now();
     }
@@ -7817,6 +7829,7 @@
     // tombol yang tidak relevan/tidak bisa dipakai (mis. Admin tidak punya Absen Guru sendiri).
     function renderDashboardQuickActions() {
       const box = document.getElementById('dashQuickActions'); if (!box || !currentUser) return;
+      if (typeof updateAngketKurikulumNotifDot === 'function') { try { updateAngketKurikulumNotifDot(); } catch (e) {} }
       const items = [];
       if (isTeacher() || isWaliKelas()) {
         items.push({ icon:'📷', label:'Absen QR', primary:true, onclick:'quickShortcutAbsenQr()' });
@@ -8120,7 +8133,7 @@
         'profile-v4':true,'dashboard':true,'teacher-attendance':v4IsTeacher(),'journal':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'grades':v4IsTeacher(),'attendance':v4IsTeacher()||v4IsAdmin(),'jadwal':v4CanClass(),'students':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'activities-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'tahfidz-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ekskul-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'pramuka-v4':v4IsAdmin()||v4IsHead()||v4PramukaMyKelas().length>0,
         'events':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ujian':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'administrasi-ujian':(typeof aujCanOpenMenu === 'function' ? aujCanOpenMenu() : false),'bacaan-shalat':(typeof bsCanOpenMenu === 'function' ? bsCanOpenMenu() : false),
-        'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':(infaqCanAccess()||isKepsek()),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
+        'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':(infaqCanAccess()||isKepsek()),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'angket-kurikulum':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'laporan':v4CanHead(),'surat':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),'notifications-v4':true,'tasks-v4':true,'user-management':v4IsAdmin(),'kelola-absen-guru':v4IsAdmin()||v4IsHead(),'admin':v4IsAdmin(),'profil-sekolah':v4IsAdmin(),'rekap-nilai':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'promotion':v4IsAdmin(),'setting-jam':v4IsAdmin(),'rekap':v4CanHead(),'rekap-jurnal':v4CanHead(),'religi':v4IsTeacher()
       };
