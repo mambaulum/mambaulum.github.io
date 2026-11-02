@@ -40,7 +40,7 @@
     /* Mode Wali Murid: sembunyikan pilihan & login guru/staf. Login staf tetap dilindungi PIN + Rules Firebase. */
     /* Tampilan sama dengan aplikasi guru (beranda pilihan login -> form); bedanya hanya pilihan loginnya: tombol Guru/Staff disembunyikan. */
     html.mode-ortu #loginPage { display: none !important; }
-    html.mode-ortu #loginChooser .auth-choice button[onclick="pilihLoginGuru()"] { display: none; }
+    html.mode-ortu #loginChooser [data-login="guru"] { display: none; }
   </style>
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-v2-180x180.png" />
   <link rel="apple-touch-icon" sizes="152x152" href="icons/apple-touch-icon-v2-180x180.png" />
@@ -123,10 +123,10 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=148"></script>
+  <script defer src="js/app.js?v=152"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=6"></script>
-  <script defer src="js/mode-ortu.js?v=5"></script>
+  <script defer src="js/portal-ortu.js?v=9"></script>
+  <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -149,6 +149,8 @@
   <script defer src="js/rekap-nilai.js?v=8"></script>
   <script defer src="js/kalender-akademik.js?v=1"></script>
   <script defer src="js/saran-kritik.js?v=1"></script>
+  <!-- Angket Kurikulum (Pembelajaran Mendalam & Kurikulum Berbasis Cinta). WAJIB sesudah app.js. -->
+  <script defer src="js/angket-kurikulum.js?v=5"></script>
   <script defer src="js/ortu-akun-admin.js?v=1"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=41"></script>
@@ -379,6 +381,7 @@
         <div class="menu-item" data-page="tasks-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tasks-v4"/></svg></span> Task Center</div>
         <div class="menu-item" data-page="approval-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-approval-v4"/></svg></span> Approval</div>
         <div class="menu-item notif-badge" data-page="saran-kritik"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-saran-kritik"/></svg></span> Saran &amp; Kritik <span class="badge-dot" id="saranKritikNotifDot"></span></div>
+        <div class="menu-item notif-badge" data-page="angket-kurikulum"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Angket Kurikulum <span class="badge-dot" id="angketNotifDot"></span></div>
 
         <div class="menu-group collapsed" data-group="akademik-v4">
           <div class="menu-group-header" onclick="toggleMenuGroup('akademik-v4')">Pembelajaran <span class="chevron">▲</span></div>
@@ -554,6 +557,7 @@
           </div>
 
           <!-- PINTASAN CEPAT -->
+          <div id="angketDashCard"></div>
           <div class="dash-quick-actions" id="dashQuickActions"></div>
 
           <!-- STATUS BAR - 2 item tampil (Status Jurnal, Absen Guru); Jam & Hari disembunyikan, id-nya tetap utk app.js -->
@@ -924,14 +928,14 @@
            Penghubung seperti sebelumnya)
       ============================================================ -->
       <div id="page-info-ortu" class="page-content hidden">
-        <div class="card" id="ortuBagikanCard" style="margin-bottom:12px;">
-          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📲 Aplikasi Wali Murid</h3>
-          <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Kirim tautan pemasangan ke orang tua (satu per satu atau ke grup wali kelas). Pesannya sudah memuat cara memasang dan pengingat agar dibuka di Chrome, bukan di dalam WhatsApp.</p>
-          <div id="ortuTautanTeks" style="font-size:12px;word-break:break-all;background:#f3f4f6;border-radius:8px;padding:8px 10px;margin-bottom:10px;color:#374151;"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button type="button" class="btn btn-success" onclick="ortuBagikanWA()">💬 Bagikan lewat WhatsApp</button>
-            <button type="button" class="btn btn-soft" onclick="ortuSalinTautan(false)">📋 Salin tautan</button>
-            <button type="button" class="btn btn-soft" onclick="ortuSalinTautan(true)">📋 Salin pesan lengkap</button>
+        <div class="card ortu-bagikan" id="ortuBagikanCard">
+          <h3 class="ortu-bagikan-judul">📲 Aplikasi Wali Murid</h3>
+          <p class="ortu-bagikan-ket">Kirim tautan pemasangan ke orang tua (satu per satu atau ke grup wali kelas). Pesannya sudah memuat cara memasang dan pengingat agar dibuka di Chrome, bukan di dalam WhatsApp.</p>
+          <div id="ortuTautanTeks" class="ortu-bagikan-tautan"></div>
+          <div class="ortu-bagikan-aksi">
+            <button type="button" class="btn btn-success" data-ortu-aksi="wa">💬 Bagikan lewat WhatsApp</button>
+            <button type="button" class="btn btn-soft" data-ortu-aksi="salin-tautan">📋 Salin tautan</button>
+            <button type="button" class="btn btn-soft" data-ortu-aksi="salin-pesan">📋 Salin pesan lengkap</button>
           </div>
         </div>
         <div class="card">
@@ -2153,6 +2157,11 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
         </div>
       </div>
 
+      <!-- ============================================================
+           PAGE: ANGKET KURIKULUM (diisi oleh js/angket-kurikulum.js)
+      ============================================================ -->
+      <div id="page-angket-kurikulum" class="page-content hidden"></div>
+
       <!-- TASKS -->
       <div id="page-tasks-v4" class="page-content hidden">
         <div class="card">
@@ -2391,12 +2400,12 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
 
     <div class="auth-card auth-choice">
       <p class="auth-choice-title">Masuk sebagai:</p>
-      <button class="btn btn-primary" onclick="pilihLoginGuru()">
+      <button class="btn btn-primary" data-login="guru" onclick="pilihLoginGuru()">
         <span class="choice-ico" aria-hidden="true">👨‍🏫</span>
         <span class="choice-txt"><span class="choice-main">Guru / Staff Madrasah</span><span class="choice-sub">Masuk dengan PIN</span></span>
         <span class="choice-arrow" aria-hidden="true">›</span>
       </button>
-      <button class="btn btn-soft" onclick="pilihLoginOrtu()">
+      <button class="btn btn-soft" data-login="ortu" onclick="pilihLoginOrtu()">
         <span class="choice-ico" aria-hidden="true">👨‍👩‍👧</span>
         <span class="choice-txt"><span class="choice-main">Orang Tua / Wali Murid</span><span class="choice-sub">Pantau kehadiran &amp; nilai anak</span></span>
         <span class="choice-arrow" aria-hidden="true">›</span>
