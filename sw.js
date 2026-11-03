@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.307';
+const APP_VERSION = 'v8.312';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -102,7 +102,7 @@ const PRECACHE_URLS = [
   './js/kalender-akademik.js?v=1',          // Kalender Akademik/Nasional + panel "Hari Ini" (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/riwayat-login-ortu.js?v=1',          // Riwayat Login Orang Tua, kartu di halaman Admin (dimuat SESUDAH app.js)
-  './js/angket.js?v=3',                    // Angket gabungan: Kurikulum + Profil Lulusan (dimuat SESUDAH app.js & portal-ortu.js)
+  './js/angket.js?v=8',                    // Angket gabungan: Kurikulum + Profil Lulusan (dimuat SESUDAH app.js & portal-ortu.js)
   './js/ortu-akun-admin.js?v=1',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/amalan-kegiatan.js?v=41',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=23',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
