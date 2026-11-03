@@ -101,9 +101,39 @@
         return cur;
       }).then(res => {
         const v = res.snapshot.val() || {};
+        ortuCatatRiwayatLogin(waKey, 'pin', 'gagal', null, (v.kunciSampai && v.kunciSampai > Date.now()) ? 'PIN salah, akun terkunci' : 'PIN salah');
         if (v.kunciSampai && v.kunciSampai > Date.now()) return { tampil: `PIN salah terlalu sering. Akun dikunci sampai pukul ${ortuTampilJam(v.kunciSampai)}.` };
         return { tampil: `PIN salah. Sisa percobaan: ${Math.max(0, ORTU_MAX_GAGAL - (v.gagal || 0))}.` };
       }).catch(() => ({ tampil: 'PIN salah.' }));
+    }
+    // ---------- Riwayat login orang tua -> node ortu_login_log (dibaca Admin: js/riwayat-login-ortu.js) ----------
+    // Dicatat: login berhasil (cara: pin / pertama / otomatis) dan PIN salah (termasuk yang memicu kunci akun).
+    // Tidak menyimpan PIN. Gagal menulis TIDAK mengganggu login (semua dibungkus try/catch).
+    function ortuPerangkatRingkas() {
+      const ua = navigator.userAgent || '';
+      if (/Android/i.test(ua)) return 'Android';
+      if (/iPhone|iPad|iPod/i.test(ua)) return 'iPhone/iPad';
+      if (/Windows/i.test(ua)) return 'Windows';
+      if (/Macintosh|Mac OS/i.test(ua)) return 'Mac';
+      if (/Linux/i.test(ua)) return 'Linux';
+      return 'Lainnya';
+    }
+    function ortuCatatRiwayatLogin(waKey, cara, hasil, anak, detail) {
+      try {
+        if (!waKey || typeof db === 'undefined') return;
+        if (cara === 'otomatis' && hasil === 'berhasil') {   // masuk otomatis terjadi tiap aplikasi dibuka: catat paling sering 1x/30 menit per nomor di perangkat ini
+          const kunci = 'simambaOrtuLogTs_' + waKey, now = Date.now();
+          try { if (now - (+localStorage.getItem(kunci) || 0) < 30 * 60000) return; localStorage.setItem(kunci, String(now)); } catch (e) {}
+        }
+        const daftar = Array.isArray(anak) ? anak : [];
+        const entri = { wa: String(waKey), cara: String(cara), hasil: String(hasil), perangkat: ortuPerangkatRingkas(), waktu: new Date().toISOString() };
+        const nama = daftar.map(a => a && a.name).filter(Boolean).join(', ').slice(0, 120);
+        const kelas = Array.from(new Set(daftar.map(a => a && a.kelas).filter(Boolean))).join(', ').slice(0, 40);
+        if (nama) entri.anak = nama;
+        if (kelas) entri.kelas = kelas;
+        if (detail) entri.detail = String(detail).slice(0, 80);
+        db.ref('ortu_login_log').push().set(entri, err => { if (err) console.warn('[SI MAMBA] Riwayat login ortu gagal disimpan (tidak fatal):', err.message || err); });
+      } catch (e) { console.warn('[SI MAMBA] Riwayat login ortu gagal (tidak fatal):', e); }
     }
     function loginPortalOrtu() {
       const errEl = ortuEl('portalOrtuError');
@@ -123,7 +153,7 @@
         return ortuCariAnak(waKey).then(anak => {
           if (!anak.length) throw { tampil: 'Nomor ini tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
           ortuIngatSetelahMasuk(waKey, pin, 'ortuIngatPerangkat');
-          bukaDashboardPortalOrtu(waKey, anak);
+          bukaDashboardPortalOrtu(waKey, anak, 'pin');
         });
       }).catch(e => { errEl.textContent = ortuPesanError(e); })
         .finally(() => { portalOrtuBusy = false; });
@@ -145,7 +175,7 @@
         return db.ref('ortu_akun/' + waKey).transaction(cur => cur ? undefined : { pin: hash, v: 1, dibuat: sekarang, terakhirLogin: sekarang }).then(res => {
           if (!res.committed) throw { tampil: 'PIN untuk nomor ini sudah pernah dibuat. Silakan masuk dengan PIN Anda. Lupa PIN? Hubungi Admin untuk reset.' };
           ortuIngatSetelahMasuk(waKey, pin1, 'ortuIngatPerangkatBuat');
-          bukaDashboardPortalOrtu(waKey, anak);
+          bukaDashboardPortalOrtu(waKey, anak, 'pertama');
         });
       }).catch(e => { errEl.textContent = ortuPesanError(e); })
         .finally(() => { portalOrtuBusy = false; });
@@ -197,7 +227,7 @@
         return db.ref('ortu_akun/' + waKey).transaction(cur => cur ? undefined : { pin: hash, v: 1, dibuat: sekarang, terakhirLogin: sekarang, otomatis: true }).then(res => {
           if (!res.committed) throw { tampil: 'Nomor ini sudah punya PIN. Silakan masuk dengan PIN Anda. Lupa PIN? Hubungi Admin untuk reset.' };
           const tersimpan = ortuPerangkatSimpan(waKey, pin, true);
-          bukaDashboardPortalOrtu(waKey, anak);
+          bukaDashboardPortalOrtu(waKey, anak, 'pertama');
           ortuTampilPinOtomatis(pin, tersimpan);
         });
       }).catch(e => { errEl.textContent = ortuPesanError(e); })
@@ -231,13 +261,14 @@
         db.ref('ortu_akun/' + p.wa).update({ gagal: 0, kunciSampai: null, terakhirLogin: new Date().toISOString() }).catch(() => {});
         return ortuCariAnak(p.wa).then(anak => {
           if (!anak.length) throw { tampil: 'Nomor ini tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
-          bukaDashboardPortalOrtu(p.wa, anak);
+          bukaDashboardPortalOrtu(p.wa, anak, 'otomatis');
         });
       }).catch(e => { errEl.textContent = ortuPesanError(e); })
         .finally(() => { portalOrtuBusy = false; });
     }
-    function bukaDashboardPortalOrtu(waKey, anak) {
+    function bukaDashboardPortalOrtu(waKey, anak, cara) {
       portalOrtuWaKey = waKey; portalOrtuAnak = anak;
+      ortuCatatRiwayatLogin(waKey, cara || 'pin', 'berhasil', anak);
       ortuEl('portalOrtuError').textContent = '';
       ['portalOrtuPin', 'portalOrtuPinBaru', 'portalOrtuPinBaru2'].forEach(id => { ortuEl(id).value = ''; });
       ortuEl('portalOrtuLogin').style.display = 'none';
@@ -523,10 +554,11 @@
           ${PO_ACC_CSS}
         `;
         try { if (typeof bsOrtuRender === 'function') bsOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Bacaan Shalat (Portal Ortu) gagal dirender:', e); }
+        try { if (typeof angketProfilOrtuRender === 'function') angketProfilOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Profil Lulusan (Portal Ortu) gagal dirender:', e); }
         try { angketOrtuMuat(siswa); angketSiswaMuat(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Kurikulum (Portal Ortu) gagal dimuat:', e); }
       }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${err.message}</p>`; });
     }
-    // ---------- Angket Kurikulum untuk orang tua (modul: js/angket-kurikulum.js) ----------
+    // ---------- Angket Kurikulum untuk orang tua (modul: js/angket.js) ----------
     // Kartu hanya muncul kalau Admin/Kepala sudah MEMBUKA angket (tombol ON). Satu isian per orang tua
     // (bukan per anak) per periode. Kunci data = hash dari No. WA, jadi No. WA tidak terbaca di database
     // dan isian anonim benar-benar tidak bisa ditelusuri ke orang tua tertentu.
