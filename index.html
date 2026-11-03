@@ -125,7 +125,7 @@
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
   <script defer src="js/app.js?v=154"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=12"></script>
+  <script defer src="js/portal-ortu.js?v=13"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
@@ -157,7 +157,7 @@
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=41"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
-  <script defer src="js/bacaan-shalat.js?v=28"></script>
+  <script defer src="js/bacaan-shalat.js?v=31"></script>
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
@@ -2513,7 +2513,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
     </div>
   </div>
   <div id="portalOrtuDashboard" style="display:none;min-height:100vh;background:#f9fafb;padding:16px;">
-    <div style="max-width:600px;margin:0 auto;">
+    <div style="max-width:980px;margin:0 auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px;flex-wrap:wrap;">
         <h2 style="font-size:18px;font-weight:800;">👨‍👩‍👧 Data Murid</h2>
         <div style="display:flex;gap:6px;">
