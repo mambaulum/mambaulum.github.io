@@ -123,9 +123,9 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=152"></script>
+  <script defer src="js/app.js?v=154"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=9"></script>
+  <script defer src="js/portal-ortu.js?v=11"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
@@ -149,8 +149,10 @@
   <script defer src="js/rekap-nilai.js?v=8"></script>
   <script defer src="js/kalender-akademik.js?v=1"></script>
   <script defer src="js/saran-kritik.js?v=1"></script>
-  <!-- Angket Kurikulum (Pembelajaran Mendalam & Kurikulum Berbasis Cinta). WAJIB sesudah app.js. -->
-  <script defer src="js/angket-kurikulum.js?v=5"></script>
+  <!-- Angket (gabungan: Angket Kurikulum + Angket Profil Lulusan). WAJIB sesudah app.js dan portal-ortu.js. -->
+  <script defer src="js/angket.js?v=3"></script>
+  <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
+  <script defer src="js/riwayat-login-ortu.js?v=1"></script>
   <script defer src="js/ortu-akun-admin.js?v=1"></script>
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=41"></script>
@@ -381,7 +383,7 @@
         <div class="menu-item" data-page="tasks-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tasks-v4"/></svg></span> Task Center</div>
         <div class="menu-item" data-page="approval-v4"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-approval-v4"/></svg></span> Approval</div>
         <div class="menu-item notif-badge" data-page="saran-kritik"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-saran-kritik"/></svg></span> Saran &amp; Kritik <span class="badge-dot" id="saranKritikNotifDot"></span></div>
-        <div class="menu-item notif-badge" data-page="angket-kurikulum"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Angket Kurikulum <span class="badge-dot" id="angketNotifDot"></span></div>
+        <div class="menu-item notif-badge" data-page="angket"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-materi-belajar"/></svg></span> Angket <span class="badge-dot" id="angketNotifDot"></span></div>
 
         <div class="menu-group collapsed" data-group="akademik-v4">
           <div class="menu-group-header" onclick="toggleMenuGroup('akademik-v4')">Pembelajaran <span class="chevron">▲</span></div>
@@ -1818,6 +1820,20 @@
           <div id="ortuAkunList" style="max-height:340px;overflow-y:auto;"></div>
         </div>
 
+        <div class="card" id="riwayatLoginOrtuCard" style="display:none;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🕘 Riwayat Login Orang Tua</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Catatan setiap masuk ke Portal Orang Tua, berhasil maupun gagal (300 terbaru). Nomor WA disamarkan. Masuk otomatis dari perangkat yang diingat dicatat paling sering sekali per 30 menit.</p>
+          <div id="rloRingkas" style="font-size:13px;margin-bottom:10px;"></div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+            <input id="rloCari" class="field" style="flex:1;min-width:160px;" placeholder="Cari nama anak / kelas / 4 digit akhir nomor...">
+            <select id="rloFilter" class="field" style="width:auto;"><option value="">Semua</option><option value="berhasil">✅ Berhasil</option><option value="gagal">❌ Gagal</option></select>
+            <button class="btn btn-soft" id="rloMuat" type="button">🔄 Muat Ulang</button>
+            <button class="btn btn-soft" id="rloCsv" type="button">⬇️ CSV</button>
+            <button class="btn btn-soft" id="rloBersih" type="button">🧹 Hapus &gt; 90 hari</button>
+          </div>
+          <div id="rloList" style="max-height:360px;overflow-y:auto;"></div>
+        </div>
+
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">⚙️ Admin</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Untuk tambah/edit/hapus data guru & pengguna, buka menu <strong>🔐 User & Permission</strong>.</p>
@@ -2158,9 +2174,13 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
       </div>
 
       <!-- ============================================================
-           PAGE: ANGKET KURIKULUM (diisi oleh js/angket-kurikulum.js)
+           PAGE: ANGKET (diisi oleh js/angket.js): tab Kurikulum | Profil Lulusan
       ============================================================ -->
-      <div id="page-angket-kurikulum" class="page-content hidden"></div>
+      <div id="page-angket" class="page-content hidden">
+        <div id="angketTabBar" class="akq-tabs hidden" style="margin-bottom:12px;"></div>
+        <div id="angketKurikulumArea"></div>
+        <div id="angketProfilArea" class="hidden"></div>
+      </div>
 
       <!-- TASKS -->
       <div id="page-tasks-v4" class="page-content hidden">
