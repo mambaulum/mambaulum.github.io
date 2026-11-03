@@ -323,11 +323,56 @@
     // Nominal tunggakan memakai nominal siswa saat ini, jadi sifatnya perkiraan.
     // Kartu lipat (accordion) supaya halaman tidak terlalu panjang di HP: judul + lencana ringkas selalu terlihat,
     // isi baru terbuka saat diketuk. `badge` & `isi` sudah berupa HTML (escape dilakukan pemanggil).
-    function poAcc(judul, badge, isi, buka) {
-      return `<details class="card po-acc" style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${judul}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
+    function poAcc(judul, badge, isi, buka, id) {
+      return `<details class="card po-acc"${id ? ' id="' + id + '"' : ''} style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${judul}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
     }
     const poBadge = (teks, kelas) => `<span class="po-badge${kelas ? ' ' + kelas : ''}">${teks}</span>`;
-    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}</style>`;
+    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;min-height:84px;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:1/-1}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:20px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}</style>`;
+    // ---------- Ringkasan satu layar (kartu #poRingkas, tepat di bawah kop anak) ----------
+    // Kotak Kehadiran, Nilai, Infaq dihitung di sini. Kotak Amalan & Hafalan diisi js/bacaan-shalat.js lewat poIsiUbin()
+    // begitu datanya selesai dimuat. Mengetuk kotak membuka bagian rinciannya dan menggulir ke sana.
+    let portalOrtuInfaqRingkas = null;   // diisi portalOrtuInfaqHtml() setiap dashboard digambar
+    function poBukaBagian(id) {
+      const el = document.getElementById(id); if (!el) return;
+      if (el.tagName === 'DETAILS') el.open = true;
+      else if (/^bsLp_/.test(id) && typeof bsLipatToggle === 'function' && typeof bsLipatBuka !== 'undefined' && bsLipatBuka[id.slice(5)] !== true) bsLipatToggle(id.slice(5));
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { el.scrollIntoView(); }
+    }
+    // Semua teks yang dikirim ke poIsiUbin sudah berupa HTML aman (escape dilakukan pemanggil).
+    function poIsiUbin(idEl, utama, warna, sub, extra) {
+      const b = document.getElementById(idEl); if (!b) return;
+      const u = b.querySelector('.po-ub-u'), t = b.querySelector('.po-ub-s'), x = b.querySelector('.po-ub-x');
+      if (u) { u.innerHTML = utama; u.style.color = warna || ''; }
+      if (t) t.innerHTML = sub || '';
+      if (x) x.innerHTML = extra || '';
+    }
+    function poUbin(idEl, tujuan, judul, utama, warna, sub, penuh) {
+      return `<button type="button" id="${idEl}" class="po-ub${penuh ? ' po-ub-penuh' : ''}" onclick="poBukaBagian('${tujuan}')"><span class="po-ub-j">${judul}</span><span class="po-ub-u" style="color:${warna}">${utama}</span><span class="po-ub-s">${sub}</span>${penuh ? '<span class="po-ub-x"></span>' : ''}</button>`;
+    }
+    function poRingkasInfaq() {
+      const r = portalOrtuInfaqRingkas; if (!r) return { utama: '-', warna: '#6b7280', sub: 'Belum ada data' };
+      if (r.gratis) return { utama: 'Bebas', warna: '#059669', sub: 'Dibebaskan dari iuran' };
+      if (r.belum > 0) return { utama: r.belum + ' mgg belum', warna: '#dc2626', sub: r.perkiraan !== null && r.perkiraan !== undefined ? 'Perkiraan ' + escapeHtml(iuranRp(r.perkiraan)) : 'Belum tercatat lunas' };
+      if (r.lunasIni) return { utama: 'Lancar', warna: '#059669', sub: 'Lunas minggu ini' };
+      return { utama: 'Belum lunas', warna: '#d97706', sub: 'Minggu ini belum tercatat' };
+    }
+    function poRingkasHtml(o) {
+      const persen = o.totalAbsen > 0 ? Math.round(o.hadir / o.totalAbsen * 100) : null;
+      const wHadir = persen === null ? '#6b7280' : persen >= 90 ? '#059669' : persen >= 75 ? '#d97706' : '#dc2626';
+      const rata = o.rataNilai;
+      const wNilai = rata === null ? '#6b7280' : o.nilaiSementara ? '#6b7280' : rata >= 75 ? '#059669' : rata < 60 ? '#dc2626' : '#d97706';
+      const fmt = n => (Math.round(n * 10) / 10).toString().replace('.', ',');
+      const inf = poRingkasInfaq();
+      return `<div class="card" id="poRingkas" style="margin-bottom:12px;">
+        <p style="font-weight:700;font-size:13px;margin:0 0 8px;">📊 Ringkasan Ananda <span class="text-muted" style="font-weight:400;font-size:11px;">· ketuk kotak untuk rincian</span></p>
+        <div class="po-rk-grid">
+          ${poUbin('poRingkasHadir', 'poKopKehadiran', '📅 Kehadiran', persen === null ? '-' : persen + '%', wHadir, persen === null ? 'Belum ada absensi' : escapeHtml(o.labelBulan) + ' · ' + o.hadir + ' hadir')}
+          ${poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : escapeHtml(o.labelSemester) + ' · ' + o.nMapel + ' mapel' + (o.nilaiSementara ? ' · sementara' : ''))}
+          ${poUbin('poRingkasInfaq', 'poAccInfaq', '💵 Infaq', inf.utama, inf.warna, inf.sub)}
+          ${poUbin('poRingkasAmalan', 'bsLp_amalan', '🏡 Amalan hari ini', '⏳', '#6b7280', 'Memuat...')}
+          ${poUbin('poRingkasHafalan', 'bsLp_setoran', '📿 Hafalan bacaan sholat', '⏳', '#6b7280', 'Memuat...', true)}
+        </div></div>`;
+    }
     function portalOrtuInfaqHtml(siswa, iuran, kalenderSnap) {
       const bln = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
       const tglPendek = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.getDate() + ' ' + bln[d.getMonth()] + ' ' + d.getFullYear() : '-'; };
@@ -380,8 +425,9 @@
       const blokRiwayat = riwayat.length
         ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">📜 Riwayat pembayaran (${riwayat.length})</summary><div style="max-height:260px;overflow-y:auto;">${barisRiwayat}</div></details>`
         : '<p class="text-muted" style="font-size:13px;margin-top:6px;">Belum ada pembayaran tercatat di tahun ajaran ini.</p>';
+      portalOrtuInfaqRingkas = { gratis, lunasIni: !!lunasMap[mingguIni], belum: belum.length, perkiraan: perkiraanTunggak };
       return poAcc(`💵 Infaq · TA ${escapeHtml(currentTahunAjaran)}`, gratis ? poBadge('Bebas', 'ok') : (belum.length ? poBadge(belum.length + ' mgg belum', 'bad') : poBadge('Lancar', 'ok')), `${statusIni}${ringkas}${blokTunggak}${blokRiwayat}
-          <p class="text-muted" style="font-size:11px;margin-top:8px;">Berdasarkan catatan petugas infaq kelas. Minggu libur pada kalender akademik dan minggu berjalan tidak dihitung; nominal tunggakan adalah perkiraan. Bila ada selisih dengan catatan Bapak/Ibu, mohon hubungi wali kelas.</p>`, false);
+          <p class="text-muted" style="font-size:11px;margin-top:8px;">Berdasarkan catatan petugas infaq kelas. Minggu libur pada kalender akademik dan minggu berjalan tidak dihitung; nominal tunggakan adalah perkiraan. Bila ada selisih dengan catatan Bapak/Ibu, mohon hubungi wali kelas.</p>`, false, 'poAccInfaq');
     }
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');
@@ -508,6 +554,18 @@
         const nilaiTabelHtml = grades.length
           ? `<table class="po-nilai"><colgroup><col style="width:54%"><col style="width:22%"><col style="width:24%"></colgroup><thead><tr><th>Mapel</th><th>Semester</th><th style="text-align:right;">Nilai</th></tr></thead><tbody>${nilaiRows}</tbody></table>`
           : '<p class="text-muted" style="font-size:13px;">Belum ada nilai tercatat.</p>';
+        // Ringkasan satu layar: nilai = rata-rata semester aktif (hanya yang final bila ada; bila belum ada yang final, rata-rata sementara).
+        const semAktif = (typeof currentSemesterAktif !== 'undefined' && currentSemesterAktif) ? currentSemesterAktif : '';
+        let gSem = grades.filter(g => semAktif && g.semester === semAktif);
+        const pakaiSem = gSem.length > 0; if (!pakaiSem) gSem = grades;
+        const stSem = gSem.map(g => statusRapor(g.data || {})).filter(st => st.nilai !== null);
+        const stFinal = stSem.filter(st => st.final);
+        const dasarNilai = stFinal.length ? stFinal : stSem;
+        const ringkasHtml = poRingkasHtml({
+          hadir, totalAbsen: jumlahAbsen(rekapAbsen[bulanTampil]), labelBulan: labelBulan(bulanTampil),
+          rataNilai: dasarNilai.length ? dasarNilai.reduce((a, st) => a + st.nilai, 0) / dasarNilai.length : null,
+          nMapel: dasarNilai.length, nilaiSementara: stFinal.length === 0, labelSemester: pakaiSem ? 'Semester ' + semAktif : 'TA ' + currentTahunAjaran
+        });
         content.innerHTML = `
           <div class="card" id="poKopKehadiran" style="margin-bottom:12px;">
             <div style="display:flex;align-items:center;gap:12px;">
@@ -529,8 +587,9 @@
               ${catatanAbsen ? `<p class="text-muted" style="font-size:11px;font-style:italic;margin:8px 0 0;text-align:center;">${catatanAbsen}</p>` : ''}
             </div>
           </div>
+          ${ringkasHtml}
           ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
-          ${poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false)}
+          ${poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false, 'poAccNilai')}
           ${poAcc('📆 Agenda Terdekat', agendaList.length ? poBadge(agendaList.length + ' agenda') : poBadge('Kosong'), agendaRows, false)}
           ${poAcc('📘 Hasil Belajar Hari Ini', journalHariIni.length ? poBadge(journalHariIni.length + ' jam') : poBadge('Kosong'), journalRows, false)}
           ${poAcc('📚 Materi Belajar Terbaru', materi.length ? poBadge(Math.min(materi.length, 5) + ' materi') : poBadge('Kosong'), materiRows, false)}
