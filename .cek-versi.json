@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.322",
-  "disimpan": "2026-11-03T07:27:25.966Z",
+  "appVersion": "v8.326",
+  "disimpan": "2026-11-03T07:57:15.028Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -63,8 +63,8 @@
       "hash": "b535651d49931efe668008d41464a238f9f815bf"
     },
     "js/portal-ortu.js": {
-      "v": "v=12",
-      "hash": "af9500269300ba0cd9d6b02cdfcea368171aff77"
+      "v": "v=13",
+      "hash": "32ca046fe93d676763c690bce74024816ad6a9e7"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -147,8 +147,8 @@
       "hash": "01cf4e9d995c986db82b039eb96ffa2d185645d7"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=28",
-      "hash": "8dd76e03b7480af02d392a7286f28a21a133dde9"
+      "v": "v=31",
+      "hash": "20baf6ca333183f7cbfb76dee4f0c4aaed596251"
     },
     "js/kredensial.js": {
       "v": "v=8",
