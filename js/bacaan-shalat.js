@@ -18,7 +18,9 @@
    DATA FIREBASE (aturan ada di rule.txt):
    - bs_target/{id}                  : target bacaan (nama, jenis, tanggal, kelas | '*', urutan, teks?, aktif)
    - bs_setoran/{targetId}_{siswaKey}: SATU catatan terbaru per siswa per target (status, nilai, catatan, percobaan)
-   - bs_amalan_rumah/{siswaKey}_{tgl}: checklist harian dari orang tua (items: {subuh:true, ...})
+   - bs_amalan_rumah/{siswaKey}_{tgl}: checklist harian dari orang tua (items: {subuh:true, ...}; berhalangan: true/false = hari itu
+                                       berhalangan sholat (mis. haid): sholat 5 waktu tidak dihitung, tidak memutus rentetan;
+                                       sakit: true/false = hari sakit: seluruh hari tidak dihitung di persen & tidak memutus rentetan; tanpa alasan tersimpan)
    SEMANTIK "percobaan" (bs_setoran.percobaan): mulai 1. Naik +1 HANYA bila catatan sebelumnya Remedial lalu siswa
    diuji ulang (status baru Lulus/Remedial). Tidak naik untuk: simpan ulang status sama (hanya nilai/catatan berubah),
    "Belum Setor" -> apa pun, dan koreksi salah klik (Lulus -> Remedial). Percobaan=1 + Lulus = bonus "lulus pertama".
@@ -65,6 +67,12 @@ const BS_KEB7 = [
 ];
 const bsKebNilai = (a, it) => { it = it || {}; return a.fn ? a.fn(it) : it[a.k] === true; };
 const bsKebJumlah = it => BS_KEB7.filter(a => bsKebNilai(a, it)).length;
+// Hari "berhalangan": 5 sholat wajib (dan turunannya, Beribadah) dikeluarkan dari pembagi supaya persen tidak turun.
+function bsHitungHari(it, uzur) {
+  it = it || {};
+  const lama = BS_AMALAN.filter(a => !(uzur && a.wajib)), keb = BS_KEB7.filter(a => !(uzur && a.k === '_ibadah'));
+  return { lamaC: lama.filter(a => it[a.k] === true).length, lamaN: lama.length, kebC: keb.filter(a => bsKebNilai(a, it)).length, kebN: keb.length };
+}
 const BS_LEVEL = [
   { min: 0,    nama: 'Pemula',          e: '🌱' },
   { min: 400,   nama: 'Rajin',           e: '🌟' },
@@ -219,8 +227,8 @@ function bsLevelDari(poin) {
 // semuaTarget (opsional): termasuk target nonaktif, supaya poin & lencana tidak turun saat target dinonaktifkan.
 function bsHitungGame(targets, setoranByTarget, amalanList, hariIni, semuaTarget) {
   hariIni = hariIni || bsHariIni();
-  const harian = {};
-  (amalanList || []).forEach(r => { if (r && r.tanggal) harian[r.tanggal] = r.items || {}; });
+  const harian = {}, uzurH = {}, sakitH = {};   // uzurH: berhalangan sholat; sakitH: hari sakit (keduanya tidak memutus rentetan & tidak menambah hitungan)
+  (amalanList || []).forEach(r => { if (r && r.tanggal) { harian[r.tanggal] = r.items || {}; uzurH[r.tanggal] = r.berhalangan === true; sakitH[r.tanggal] = r.sakit === true; } });
   const tanggals = Object.keys(harian).sort();
   let poin = 0;
   tanggals.forEach(tg => BS_AMALAN.forEach(a => { if (harian[tg][a.k] === true) poin += a.poin; }));
@@ -235,9 +243,10 @@ function bsHitungGame(targets, setoranByTarget, amalanList, hariIni, semuaTarget
     }
   });
   // Rentetan hari berturut-turut terpanjang yang memenuhi syarat (hari tanpa isian = putus)
-  const rentetan = pred => {
+  const rentetan = (pred, jembatan) => {
     let best = 0, cur = 0, prev = null;
     tanggals.forEach(tg => {
+      if (sakitH[tg] || (jembatan && uzurH[tg])) { prev = tg; return; }
       if (!pred(harian[tg])) { cur = 0; prev = null; return; }
       cur = (prev && bsSelisihHari(prev, tg) === 1) ? cur + 1 : 1;
       prev = tg; if (cur > best) best = cur;
@@ -247,13 +256,14 @@ function bsHitungGame(targets, setoranByTarget, amalanList, hariIni, semuaTarget
   const semuaWajib = it => BS_AMALAN.filter(a => a.wajib).every(a => it[a.k] === true);
   // Rentetan yang masih berjalan sampai hari ini (atau kemarin, kalau hari ini belum diisi)
   let berjalan = 0;
-  { let tg = (harian[hariIni] && semuaWajib(harian[hariIni])) ? hariIni : bsTambahHari(hariIni, -1);
-    while (harian[tg] && semuaWajib(harian[tg])) { berjalan++; tg = bsTambahHari(tg, -1); } }
+  { const baik = t => harian[t] && (uzurH[t] || sakitH[t] || semuaWajib(harian[t]));
+    let tg = baik(hariIni) ? hariIni : bsTambahHari(hariIni, -1);
+    while (baik(tg)) { if (!uzurH[tg] && !sakitH[tg]) berjalan++; tg = bsTambahHari(tg, -1); } }
   const badges = [];
   const tambah = (id, e, n, d, now, need) => badges.push({ id, e, n, d, now, need, got: now >= need });
   BS_AMALAN.filter(a => a.wajib).forEach(a =>
-    tambah('shalat_' + a.k, '⭐', 'Bintang Sholat ' + a.nama, 'Sholat ' + a.nama + ' ' + BS_STREAK_BINTANG + ' hari berturut-turut', rentetan(it => it[a.k] === true), BS_STREAK_BINTANG));
-  tambah('lima_waktu', '🌈', 'Pejuang Lima Waktu', 'Sholat 5 waktu lengkap 5 hari berturut-turut', rentetan(semuaWajib), 5);
+    tambah('shalat_' + a.k, '⭐', 'Bintang Sholat ' + a.nama, 'Sholat ' + a.nama + ' ' + BS_STREAK_BINTANG + ' hari berturut-turut', rentetan(it => it[a.k] === true, true), BS_STREAK_BINTANG));
+  tambah('lima_waktu', '🌈', 'Pejuang Lima Waktu', 'Sholat 5 waktu lengkap 5 hari berturut-turut', rentetan(semuaWajib, true), 5);
   tambah('mengaji', '📖', 'Sahabat Al-Qur\'an', 'Mengaji ' + BS_STREAK_BINTANG + ' hari berturut-turut', rentetan(it => it.mengaji === true), BS_STREAK_BINTANG);
   tambah('rajin', '📅', 'Anak Rajin', 'Checklist amalan terisi 30 hari', tanggals.filter(tg => BS_AMALAN.some(a => harian[tg][a.k] === true)).length, 30);
   tambah('lulus_1', '🎯', 'Langkah Pertama', 'Lulus 1 target bacaan', lulusSemua, 1);
@@ -1472,22 +1482,25 @@ function bsMuatAmalanIndividu() {
 // "Hari terisi" tiap kelompok = hari yang punya minimal satu kunci kelompok itu (true/false). Hari yang hanya berisi kelompok lain
 // tidak dihitung, jadi data lama (sebelum 7 Kebiasaan) tidak terbaca 0%. Persen = jumlah centang / (hari terisi x jumlah butir).
 function bsRingkasPekan(amalanList) {
-  const per = {};   // pekanKey -> { lama:{hari,centang,lengkap5}, keb:{hari,centang} }
+  const per = {};   // pekanKey -> { lama:{hari,centang,butir,lengkap5}, keb:{hari,centang,butir} }
   (amalanList || []).forEach(r => {
     if (!r || !r.tanggal) return;
-    const it = r.items || {}, w = bsMingguKey(r.tanggal);
-    const x = per[w] || (per[w] = { lama: { hari: 0, centang: 0, lengkap5: 0 }, keb: { hari: 0, centang: 0 } });
-    if (BS_AMALAN.some(a => typeof it[a.k] === 'boolean')) {
-      x.lama.hari++; x.lama.centang += BS_AMALAN.filter(a => it[a.k] === true).length;
-      if (BS_AMALAN.filter(a => a.wajib).every(a => it[a.k] === true)) x.lama.lengkap5++;
+    const it = r.items || {}, w = bsMingguKey(r.tanggal), uz = r.berhalangan === true;
+    const x = per[w] || (per[w] = { lama: { hari: 0, centang: 0, butir: 0, lengkap5: 0, sakit: 0 }, keb: { hari: 0, centang: 0, butir: 0, sakit: 0 } });
+    if (r.sakit === true) { x.lama.sakit++; x.keb.sakit++; return; }   // hari sakit: tidak masuk persen
+    const h = bsHitungHari(it, uz);
+    if (uz || BS_AMALAN.some(a => typeof it[a.k] === 'boolean')) {
+      x.lama.hari++; x.lama.centang += h.lamaC; x.lama.butir += h.lamaN;
+      if (!uz && BS_AMALAN.filter(a => a.wajib).every(a => it[a.k] === true)) x.lama.lengkap5++;
     }
-    if (BS_KEBIASAAN.some(a => typeof it[a.k] === 'boolean')) {
-      x.keb.hari++; x.keb.centang += bsKebJumlah(it);
+    if (uz || BS_KEBIASAAN.some(a => typeof it[a.k] === 'boolean')) {
+      x.keb.hari++; x.keb.centang += h.kebC; x.keb.butir += h.kebN;
     }
   });
   return per;
 }
-function bsPersenRingkas(g, nButir) { return g && g.hari ? Math.round(g.centang / (g.hari * nButir) * 100) : null; }
+function bsHariSel(g, per7) { return g && g.hari ? g.hari + (per7 ? ' / 7' : '') : (g && g.sakit ? '🤒 ' + g.sakit + ' sakit' : '-'); }
+function bsPersenRingkas(g, nButir) { return g && g.hari ? Math.round(g.centang / (g.butir || g.hari * nButir) * 100) : null; }
 function bsDaftarPekanAmalan(n) {   // n pekan terakhir (pekan ini dulu), tanpa kunci ganda
   const h = bsHariIni(), out = [], seen = {};
   for (let i = 0; i < n * 2 && out.length < n; i++) {
@@ -1504,9 +1517,9 @@ function bsKartuRekapMingguan(amalan) {
   const per = bsRingkasPekan(amalan), pekan = bsDaftarPekanAmalan(8);
   const tbl = (judul, warna, kepala, isiBaris) => `<p style="font-weight:700;font-size:13px;margin:10px 0 6px;">${judul}</p><div style="overflow-x:auto;"><table><thead><tr><th>Pekan</th>${kepala}</tr></thead><tbody>${isiBaris}</tbody></table></div>`;
   const barisLama = pekan.map(w => { const g = (per[w.key] || {}).lama;
-    return `<tr><td style="white-space:nowrap;">${bsEsc(w.label)}</td><td style="text-align:center;">${g && g.hari ? g.hari + ' / 7' : '-'}</td><td>${bsSelPersen(bsPersenRingkas(g, BS_AMALAN.length), '#2563eb')}</td><td style="text-align:center;">${g && g.hari ? g.lengkap5 : '-'}</td></tr>`; }).join('');
+    return `<tr><td style="white-space:nowrap;">${bsEsc(w.label)}</td><td style="text-align:center;">${bsHariSel(g, true)}</td><td>${bsSelPersen(bsPersenRingkas(g, BS_AMALAN.length), '#2563eb')}</td><td style="text-align:center;">${g && g.hari ? g.lengkap5 : '-'}</td></tr>`; }).join('');
   const barisKeb = pekan.map(w => { const g = (per[w.key] || {}).keb;
-    return `<tr><td style="white-space:nowrap;">${bsEsc(w.label)}</td><td style="text-align:center;">${g && g.hari ? g.hari + ' / 7' : '-'}</td><td>${bsSelPersen(bsPersenRingkas(g, BS_KEB7.length), '#d97706')}</td></tr>`; }).join('');
+    return `<tr><td style="white-space:nowrap;">${bsEsc(w.label)}</td><td style="text-align:center;">${bsHariSel(g, true)}</td><td>${bsSelPersen(bsPersenRingkas(g, BS_KEB7.length), '#d97706')}</td></tr>`; }).join('');
   return `<div class="card" style="border:1px solid #e5e7eb;margin-bottom:12px;"><p style="font-weight:700;margin-bottom:2px;">📆 Rekap mingguan amalan di rumah</p>
     <p class="text-muted" style="font-size:11px;margin-bottom:4px;">8 pekan terakhir (Senin–Minggu). Persen = jumlah centang dibanding hari yang terisi orang tua. Dua kelompok dihitung terpisah.</p>
     ${tbl('🏡 Amalan (8 butir)', '#2563eb', '<th>Hari terisi</th><th>Rata-rata centang</th><th title="Hari sholat 5 waktu lengkap">5 waktu lengkap</th>', barisLama)}
@@ -1539,11 +1552,11 @@ function bsGrafikAmalanKelas(k, siswa) {
   }
   const baris = siswa.map(x => ({ x, g: (bsRingkasPekan(bsState.amalanSiswa[x.key])[sel.key] || {}) }));
   const jum = (arr, f) => arr.reduce((t, r) => t + f(r), 0);
-  const rata = (arr, pick, nButir) => { const hari = jum(arr, r => (pick(r) || { hari: 0 }).hari); return hari ? Math.round(jum(arr, r => (pick(r) || { centang: 0 }).centang) / (hari * nButir) * 100) : null; };
+  const rata = (arr, pick, nButir) => { const hari = jum(arr, r => (pick(r) || { hari: 0 }).hari), butir = jum(arr, r => (pick(r) || { hari: 0, butir: 0 }).butir) || hari * nButir; return hari ? Math.round(jum(arr, r => (pick(r) || { centang: 0 }).centang) / butir * 100) : null; };
   const pLama = r => r.g.lama, pKeb = r => r.g.keb;
   const tr = baris.map(r => `<tr><td><a href="javascript:void(0)" onclick="bsPilihModeGrafik('individu');bsPilihSiswaGrafik('${bsEscJs(r.x.key)}')" style="color:#2563eb;text-decoration:none;">${bsEsc(r.x.name)}</a></td>
-      <td style="text-align:center;background:#eff6ff;">${r.g.lama && r.g.lama.hari ? r.g.lama.hari : '-'}</td><td style="background:#eff6ff;">${bsSelPersen(bsPersenRingkas(r.g.lama, BS_AMALAN.length), '#2563eb')}</td><td style="text-align:center;background:#eff6ff;">${r.g.lama && r.g.lama.hari ? r.g.lama.lengkap5 : '-'}</td>
-      <td style="text-align:center;background:#fffbeb;">${r.g.keb && r.g.keb.hari ? r.g.keb.hari : '-'}</td><td style="background:#fffbeb;">${bsSelPersen(bsPersenRingkas(r.g.keb, BS_KEB7.length), '#d97706')}</td></tr>`).join('');
+      <td style="text-align:center;background:#eff6ff;">${bsHariSel(r.g.lama, false)}</td><td style="background:#eff6ff;">${bsSelPersen(bsPersenRingkas(r.g.lama, BS_AMALAN.length), '#2563eb')}</td><td style="text-align:center;background:#eff6ff;">${r.g.lama && r.g.lama.hari ? r.g.lama.lengkap5 : '-'}</td>
+      <td style="text-align:center;background:#fffbeb;">${bsHariSel(r.g.keb, false)}</td><td style="background:#fffbeb;">${bsSelPersen(bsPersenRingkas(r.g.keb, BS_KEB7.length), '#d97706')}</td></tr>`).join('');
   const nIsiLama = baris.filter(r => r.g.lama && r.g.lama.hari).length, nIsiKeb = baris.filter(r => r.g.keb && r.g.keb.hari).length;
   const ringkas = `<tr style="font-weight:700;"><td>Rata-rata kelas</td><td style="text-align:center;background:#eff6ff;" colspan="1">${nIsiLama}/${siswa.length} siswa</td><td style="background:#eff6ff;">${bsSelPersen(rata(baris, pLama, BS_AMALAN.length), '#2563eb')}</td><td style="background:#eff6ff;"></td><td style="text-align:center;background:#fffbeb;">${nIsiKeb}/${siswa.length} siswa</td><td style="background:#fffbeb;">${bsSelPersen(rata(baris, pKeb, BS_KEB7.length), '#d97706')}</td></tr>`;
   return kepala + `<div class="card" style="border:1px solid #e5e7eb;"><p style="font-weight:700;margin-bottom:2px;">🏡 Amalan di rumah · ${bsEsc(bsNamaKelas(k))} · ${bsEsc(sel.label)}</p>
@@ -1608,7 +1621,7 @@ function bsHtmlRingkasPekanAnak(amalanList) {
 // Tanpa API/server & tanpa data baru di Firebase: tombol membuka wa.me; penanda "sudah dibuka" hanya di perangkat ini.
 function bsAmalanWaPesanDefault() { return 'Assalamualaikum Bapak/Ibu wali murid {siswa}.\nPengingat dari {madrasah}: checklist amalan harian di rumah untuk {siswa} ({kelas}) belum terisi pada {waktu}.\nMohon dibantu mengisi lewat Portal Orang Tua. Orang tua bisa mengisi hari ini sampai 2 hari ke belakang. Terima kasih. 🙏'; }
 function bsAmalanBelumIsi(amalanList, tgMulai, tgAkhir) {
-  return !(amalanList || []).some(r => r && r.tanggal && r.tanggal >= tgMulai && r.tanggal <= tgAkhir && BS_SEMUA_ITEM.some(a => typeof (r.items || {})[a.k] === 'boolean'));
+  return !(amalanList || []).some(r => r && r.tanggal && r.tanggal >= tgMulai && r.tanggal <= tgAkhir && (r.berhalangan === true || r.sakit === true || BS_SEMUA_ITEM.some(a => typeof (r.items || {})[a.k] === 'boolean')));
 }
 function bsAmalanWaHtml(k, siswa) {
   const h = bsHariIni(), awal = bsTambahHari(h, -BS_HARI_ISI_MUNDUR);
@@ -1730,7 +1743,7 @@ function bsGrafikIndividu(k, targets, siswa) {
 // ============================================================
 // 2) AKSES ORANG TUA (disambung dari renderPortalOrtuDashboard di app.js)
 // ============================================================
-let bsOrtu = { token: 0, siswa: null, targets: [], semua: [], setoran: {}, amalan: {}, tgl: '', err: '' };
+let bsOrtu = { token: 0, siswa: null, targets: [], semua: [], setoran: {}, amalan: {}, uzur: {}, sakit: {}, tgl: '', err: '' };
 
 function bsOrtuRender(siswa) {
   const content = bsEl('portalOrtuContent');
@@ -1764,8 +1777,8 @@ function bsOrtuMuat(siswa) {
     const targets = [], semua = []; ts.forEach(c => { const v = c.val() || {}; if (v.kelas === '*' || v.kelas === siswa.kelas) { v.key = c.key; semua.push(v); if (v.aktif !== false) targets.push(v); } });
     targets.sort(bsBandingTarget);
     const setoran = {}; ss.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === ta && v.targetId) setoran[v.targetId] = v; });
-    const amalan = {}; as.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === ta && v.siswaKey === siswa.key && v.tanggal) amalan[v.tanggal] = v.items || {}; });
-    bsOrtu = { token: my, siswa, targets, semua, setoran, amalan, tgl: bsHariIni(), err: '' };
+    const amalan = {}, uzur = {}, sakit = {}; as.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === ta && v.siswaKey === siswa.key && v.tanggal) { amalan[v.tanggal] = v.items || {}; if (v.berhalangan === true) uzur[v.tanggal] = true; if (v.sakit === true) sakit[v.tanggal] = true; } });
+    bsOrtu = { token: my, siswa, targets, semua, setoran, amalan, uzur, sakit, tgl: bsHariIni(), err: '' };
     bsOrtuGambar();
   }).catch(err => {
     clearTimeout(lambat);
@@ -1778,15 +1791,15 @@ function bsOrtuMuat(siswa) {
 // Isi dua kotak Ringkasan (Amalan hari ini & Hafalan) di dashboard Portal Orang Tua; kotaknya dibuat js/portal-ortu.js.
 function bsRingkasKePortal(game, o, h) {
   if (typeof poIsiUbin !== 'function') return;
-  const ada = !!o.amalan[h], it = o.amalan[h] || {}, n = BS_AMALAN.filter(a => it[a.k] === true).length;
-  poIsiUbin('poRingkasAmalan', n + ' / ' + BS_AMALAN.length, !ada ? '#6b7280' : n === BS_AMALAN.length ? '#059669' : '#d97706',
-    !ada ? 'Belum diisi hari ini' : (game.rentetanLimaWaktu >= 2 ? '🔥 ' + game.rentetanLimaWaktu + ' hari sholat lengkap' : bsKebJumlah(it) + ' dari ' + BS_KEB7.length + ' kebiasaan'));
+  const ada = !!o.amalan[h], it = o.amalan[h] || {}, uz = (o.uzur || {})[h] === true, sk = (o.sakit || {})[h] === true, hh = bsHitungHari(it, uz), n = hh.lamaC, tot = hh.lamaN;
+  poIsiUbin('poRingkasAmalan', n + ' / ' + tot, !ada ? '#6b7280' : n === tot ? '#059669' : '#d97706',
+    uz ? '🌿 Berhalangan sholat hari ini' : sk ? '🤒 Hari sakit (tidak dihitung)' : !ada ? 'Belum diisi hari ini' : (game.rentetanLimaWaktu >= 2 ? '🔥 ' + game.rentetanLimaWaktu + ' hari sholat lengkap' : bsKebJumlah(it) + ' dari ' + BS_KEB7.length + ' kebiasaan'));
   if (!o.targets.length) { poIsiUbin('poRingkasHafalan', 'Belum ada target', '#6b7280', 'Guru belum membuat target bacaan', ''); return; }
   const persen = game.nTarget ? Math.round(game.lulus / game.nTarget * 100) : 0, berikut = bsOrtuTargetBerikut();
   poIsiUbin('poRingkasHafalan', game.lulus + ' dari ' + game.nTarget + ' lulus', persen >= 100 ? '#059669' : '#2563eb',
     persen + '% · ' + (berikut ? 'berikutnya: ' + bsEsc(berikut.nama) : 'semua target lulus 🎉'), bsBarProgres(persen));
 }
-function bsOrtuDaftarAmalan() { return Object.keys(bsOrtu.amalan).map(tg => ({ tanggal: tg, items: bsOrtu.amalan[tg] })); }
+function bsOrtuDaftarAmalan() { return Object.keys(bsOrtu.amalan).map(tg => ({ tanggal: tg, items: bsOrtu.amalan[tg], berhalangan: (bsOrtu.uzur || {})[tg] === true, sakit: (bsOrtu.sakit || {})[tg] === true })); }
 function bsOrtuTargetBerikut() { return bsOrtu.targets.find(t => !(bsOrtu.setoran[t.key] && bsOrtu.setoran[t.key].status === 'Lulus')) || null; }
 function bsTglBolehIsi(tgl) { const h = bsHariIni(); return tgl <= h && bsSelisihHari(tgl, h) <= BS_HARI_ISI_MUNDUR; }
 function bsOrtuGambar() {
@@ -1795,15 +1808,22 @@ function bsOrtuGambar() {
   const game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h, o.semua);
   try { bsRingkasKePortal(game, o, h); } catch (e) { console.warn('[SI MAMBA] Ringkasan portal gagal:', e); }
   const tglOps = [0, 1, 2].map(n => { const tg = bsTambahHari(h, -n); return `<button class="btn ${o.tgl === tg ? 'btn-primary' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="bsOrtuPilihTgl('${tg}')">${n === 0 ? 'Hari ini' : n === 1 ? 'Kemarin' : '2 hari lalu'}</button>`; }).join('');
+  if (bsLipatBuka.amalan === undefined) bsLipatBuka.amalan = true;   // kartu isian langsung terbuka supaya orang tua tidak perlu mengetuk dulu
+  if (bsLipatBuka.keb === undefined) bsLipatBuka.keb = true;
   const items = o.amalan[o.tgl] || {};
-  const nCek = BS_AMALAN.filter(a => items[a.k] === true).length;
-  const nKeb = bsKebJumlah(items);
-  const tombol = a => { const on = items[a.k] === true;
-    return `<button onclick="bsOrtuToggle('${a.k}')" style="display:flex;align-items:center;gap:8px;text-align:left;padding:10px 12px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid ${on ? '#059669' : '#d1d5db'};background:${on ? '#d1fae5' : '#fff'};color:#111827;">
-      <span style="font-size:20px;">${a.e}</span><span style="flex:1;">${bsEsc(a.t)}</span><span style="font-size:18px;">${on ? '✅' : '⬜'}</span></button>`; };
-  const ubin = a => { const on = bsKebNilai(a, items);
-    return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;font-size:13px;font-weight:600;border:2px dashed ${on ? '#059669' : '#d1d5db'};background:${on ? '#ecfdf5' : '#f9fafb'};color:#111827;">
-      <span style="font-size:20px;">${a.e}</span><span style="flex:1;"><span style="display:block;">${bsEsc(a.t)}</span><span class="text-muted" style="display:block;font-size:11px;font-weight:400;">${bsEsc(a.oto)}</span></span><span style="font-size:18px;">${on ? '✅' : '⬜'}</span></div>`; };
+  const uzur = (o.uzur || {})[o.tgl] === true, sakit = (o.sakit || {})[o.tgl] === true, hh = bsHitungHari(items, uzur);
+  const nCek = hh.lamaC, nKeb = hh.kebC;
+  const tileLibur = (a, teks) => `<div style="display:flex;align-items:center;gap:6px;min-height:48px;padding:6px 10px;border-radius:12px;font-size:13px;font-weight:600;line-height:1.2;border:2px dashed #99f6e4;background:#f0fdfa;color:#6b7280;"><span style="font-size:20px;opacity:.55;">${a.e}</span><span style="flex:1;min-width:0;">${bsEsc(a.t)}<span style="display:block;font-size:10.5px;font-weight:400;">${teks}</span></span><span style="font-size:16px;">🌿</span></div>`;
+  const tombol = a => { if (uzur && a.wajib) return tileLibur(a, 'Berhalangan'); const on = items[a.k] === true;
+    return `<button type="button" onclick="bsOrtuToggle('${a.k}')" aria-pressed="${on}" style="display:flex;align-items:center;gap:6px;text-align:left;min-height:48px;padding:6px 10px;border-radius:12px;font:inherit;font-size:13px;font-weight:600;line-height:1.2;cursor:pointer;border:2px solid ${on ? '#059669' : '#d1d5db'};background:${on ? '#d1fae5' : '#fff'};color:#111827;-webkit-tap-highlight-color:transparent;">
+      <span style="font-size:20px;">${a.e}</span><span style="flex:1;min-width:0;">${bsEsc(a.t)}</span><span style="font-size:16px;">${on ? '✅' : '⬜'}</span></button>`; };
+  const ubin = a => { if (uzur && a.k === '_ibadah') return tileLibur(a, 'Berhalangan sholat'); const on = bsKebNilai(a, items);
+    return `<div style="display:flex;align-items:center;gap:6px;min-height:48px;padding:6px 10px;border-radius:12px;font-size:13px;font-weight:600;line-height:1.2;border:2px dashed ${on ? '#059669' : '#d1d5db'};background:${on ? '#ecfdf5' : '#f9fafb'};color:#111827;">
+      <span style="font-size:20px;">${a.e}</span><span style="flex:1;min-width:0;"><span style="display:block;">${bsEsc(a.t)}</span><span class="text-muted" style="display:block;font-size:10.5px;font-weight:400;">${bsEsc(a.oto)}</span></span><span style="font-size:16px;">${on ? '✅' : '⬜'}</span></div>`; };
+  const limaLengkap = BS_AMALAN.filter(a => a.wajib).every(a => items[a.k] === true);
+  const tombolUzur = `<button type="button" onclick="bsOrtuBerhalangan()" aria-pressed="${uzur}" style="display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin-top:8px;padding:6px 10px;border-radius:12px;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;border:2px solid ${uzur ? '#0d9488' : '#d1d5db'};background:${uzur ? '#ccfbf1' : '#fff'};color:#111827;-webkit-tap-highlight-color:transparent;"><span style="font-size:18px;">🌿</span><span style="flex:1;min-width:0;">Berhalangan sholat pada tanggal ini<span class="text-muted" style="display:block;font-size:11px;font-weight:400;">Khusus haid atau kondisi lain yang membuat tidak boleh sholat. Yang sakit atau bepergian tetap sholat dengan keringanan, centang saja.</span></span><span style="font-size:16px;">${uzur ? '✅' : '⬜'}</span></button>`;
+  const tombolSakit = `<button type="button" onclick="bsOrtuSakit()" aria-pressed="${sakit}" style="display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin-top:8px;padding:6px 10px;border-radius:12px;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;border:2px solid ${sakit ? '#d97706' : '#d1d5db'};background:${sakit ? '#fef3c7' : '#fff'};color:#111827;-webkit-tap-highlight-color:transparent;"><span style="font-size:18px;">🤒</span><span style="flex:1;min-width:0;">Anak sakit pada tanggal ini<span class="text-muted" style="display:block;font-size:11px;font-weight:400;">Seluruh hari tidak dihitung di persen dan tidak memutus rentetan. Yang sudah dicentang tetap dapat poin.</span></span><span style="font-size:16px;">${sakit ? '✅' : '⬜'}</span></button>`;
+  const tombolLima = `<button type="button" class="btn ${limaLengkap ? 'btn-soft' : 'btn-primary'}" style="width:100%;margin-bottom:8px;padding:9px 12px;font-size:13px;"${limaLengkap ? ' disabled' : ''} onclick="bsOrtuCentangLima()">${limaLengkap ? '✅ Sholat 5 waktu lengkap' : '☑️ Sholat 5 waktu semuanya sudah (sekali ketuk)'}</button>`;
   const cek = BS_AMALAN.map(tombol).join(''), cekKeb = BS_KEB7.map(a => a.fn ? ubin(a) : tombol(a)).join('');
   const berikut = bsOrtuTargetBerikut();
   const baris = o.targets.map(t => { const x = o.setoran[t.key], st = x ? x.status : 'Belum Setor';
@@ -1825,12 +1845,13 @@ function bsOrtuGambar() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;">${tglOps}</div>
       <p class="text-muted" style="font-size:12px;margin-top:6px;">${bsEsc(bsFmtTgl(o.tgl))}${rentetan}</p>
     </div>
-    ${bsLipat('amalan', 'rumah', '#2563eb', 'Amalan Harian di Rumah', nCek + ' dari ' + BS_AMALAN.length + ' amalan terisi', `
-      <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Centang amalan yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis. Bisa mengisi hari ini sampai ${BS_HARI_ISI_MUNDUR} hari ke belakang.</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;">${cek}</div>`)}
-    ${bsLipat('keb', 'bintang', '#d97706', '7 Kebiasaan Anak Hebat', nKeb + ' dari ' + BS_KEB7.length + ' kebiasaan terisi', `
-      <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Beribadah dan Bermasyarakat terisi otomatis dari Amalan Harian (sholat 5 waktu lengkap dan Membantu Orang Tua); sisanya dicentang di sini. Tidak memengaruhi poin dan lencana.</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;">${cekKeb}</div>`)}
+    ${bsLipat('amalan', 'rumah', '#2563eb', 'Amalan Harian di Rumah', nCek + ' dari ' + hh.lamaN + ' amalan terisi' + (uzur ? ' · berhalangan sholat' : '') + (sakit ? ' · hari sakit' : ''), `
+      <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Ketuk yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis.</p>
+      ${uzur ? '' : tombolLima}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${cek}</div>${tombolUzur}${tombolSakit}`)}
+    ${bsLipat('keb', 'bintang', '#d97706', '7 Kebiasaan Anak Hebat', nKeb + ' dari ' + hh.kebN + ' kebiasaan terisi', `
+      <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Yang bergaris putus terisi otomatis dari Amalan Harian; sisanya ketuk di sini. Tidak memengaruhi poin dan lencana.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${cekKeb}</div>`)}
     ${bsHtmlRingkasPekanOrtu(bsOrtuDaftarAmalan())}
     ${bsLipat('setoran', 'buku', '#059669', 'Progres Setoran Bacaan Sholat', o.targets.length ? game.lulus + ' dari ' + game.nTarget + ' target lulus (' + persen + '%)' : 'Belum ada target dari guru', `
       ${o.targets.length ? `${bsBarProgres(persen)}
@@ -1843,6 +1864,7 @@ function bsOrtuToggle(kode) {
   const tg = o.tgl || bsHariIni();
   if (!bsTglBolehIsi(tg)) return toast('⚠️ Hanya bisa mengisi hari ini sampai ' + BS_HARI_ISI_MUNDUR + ' hari ke belakang.', true);
   if (!bsOnline()) return toast('📡 Sedang offline. Checklist butuh koneksi internet.', true);
+  if ((o.uzur || {})[tg] === true && BS_AMALAN.some(a => a.k === kode && a.wajib)) return toast('🌿 Tanggal ini ditandai berhalangan sholat. Matikan dulu tandanya kalau mau mencentang sholat.', true);
   const pKey = tg + '|' + kode;
   if (!bsKunciMulai('toggle_' + pKey)) return;   // item yang sama masih menyimpan: abaikan ketukan ganda
   const sebelum = Object.assign({}, o.amalan[tg] || {});
@@ -1862,6 +1884,55 @@ function bsOrtuToggle(kode) {
   });
 }
 
+// Tandai / batalkan "berhalangan sholat" atau "hari sakit" untuk tanggal terpilih (satu bidang boolean di catatan hari itu; alasan TIDAK disimpan).
+function bsOrtuBerhalangan() { bsOrtuTandaiHari('berhalangan', 'uzur'); }
+function bsOrtuSakit() { bsOrtuTandaiHari('sakit', 'sakit'); }
+function bsOrtuTandaiHari(bidang, kunciState) {
+  const o = bsOrtu, s = o.siswa; if (!s) return;
+  const tg = o.tgl || bsHariIni();
+  if (!bsTglBolehIsi(tg)) return toast('⚠️ Hanya bisa mengisi hari ini sampai ' + BS_HARI_ISI_MUNDUR + ' hari ke belakang.', true);
+  if (!bsOnline()) return toast('📡 Sedang offline. Checklist butuh koneksi internet.', true);
+  const pKey = tg + '|' + bidang;
+  if (!bsKunciMulai('toggle_' + pKey)) return;
+  if (!o[kunciState]) o[kunciState] = {};
+  const sebelum = o[kunciState][tg] === true, baru = !sebelum, adaCatatan = Object.prototype.hasOwnProperty.call(o.amalan, tg);
+  o[kunciState][tg] = baru; if (!adaCatatan) o.amalan[tg] = {};
+  bsOrtuGambar();
+  const upd = { siswaKey: s.key, siswaNama: s.name || '', kelas: s.kelas || '', tanggal: tg, diisiOleh: 'ortu', tahunAjaran: bsTA(), updatedAt: new Date().toISOString() };
+  upd[bidang] = baru;
+  const token = o.token;
+  db.ref('bs_amalan_rumah/' + s.key + '_' + tg).update(upd).then(() => bsKunciSelesai('toggle_' + pKey)).catch(err => {
+    bsKunciSelesai('toggle_' + pKey);
+    if (bsOrtu.token !== token) return;
+    bsOrtu[kunciState][tg] = sebelum; if (!adaCatatan) delete bsOrtu.amalan[tg];
+    bsOrtuGambar(); toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true);
+  });
+}
+// Satu ketukan: centang 5 sholat wajib sekaligus (satu tulisan multi-path, item lain tidak tersentuh).
+function bsOrtuCentangLima() {
+  const o = bsOrtu, s = o.siswa; if (!s) return;
+  const tg = o.tgl || bsHariIni();
+  if (!bsTglBolehIsi(tg)) return toast('⚠️ Hanya bisa mengisi hari ini sampai ' + BS_HARI_ISI_MUNDUR + ' hari ke belakang.', true);
+  if (!bsOnline()) return toast('📡 Sedang offline. Checklist butuh koneksi internet.', true);
+  if ((o.uzur || {})[tg] === true) return toast('🌿 Tanggal ini ditandai berhalangan sholat.', true);
+  const pKey = tg + '|lima';
+  if (!bsKunciMulai('toggle_' + pKey)) return;
+  const kodes = BS_AMALAN.filter(a => a.wajib).map(a => a.k);
+  const sebelum = Object.assign({}, o.amalan[tg] || {});
+  const items = {}; BS_SEMUA_ITEM.forEach(a => { items[a.k] = sebelum[a.k] === true; });
+  kodes.forEach(k => { items[k] = true; });
+  o.amalan[tg] = items; bsOrtuGambar();
+  const upd = { siswaKey: s.key, siswaNama: s.name || '', kelas: s.kelas || '', tanggal: tg, diisiOleh: 'ortu', tahunAjaran: bsTA(), updatedAt: new Date().toISOString() };
+  kodes.forEach(k => { upd['items/' + k] = true; });
+  const token = o.token;
+  db.ref('bs_amalan_rumah/' + s.key + '_' + tg).update(upd).then(() => bsKunciSelesai('toggle_' + pKey)).catch(err => {
+    bsKunciSelesai('toggle_' + pKey);
+    if (bsOrtu.token !== token) return;
+    const cur = Object.assign({}, bsOrtu.amalan[tg] || {}); kodes.forEach(k => { cur[k] = sebelum[k] === true; }); bsOrtu.amalan[tg] = cur;
+    bsOrtuGambar(); toast('❌ Gagal menyimpan checklist: ' + ((err && err.message) || err), true);
+  });
+}
+
 // ============================================================
 // 3) AKSES SISWA -- "Mode Anak" (hanya-baca, di dalam sesi Portal Orang Tua)
 // ============================================================
@@ -1871,13 +1942,15 @@ function bsAnakBuka() {
   bsAnakTutup();
   const h = bsHariIni(), game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h, o.semua), berikut = bsOrtuTargetBerikut();
   const items = o.amalan[h] || {};
-  const hariIni = BS_AMALAN.map(a => { const on = items[a.k] === true;
-    return `<div style="text-align:center;padding:8px 4px;border-radius:12px;background:${on ? '#bbf7d0' : 'rgba(255,255,255,.7)'};"><div style="font-size:26px;${on ? '' : 'filter:grayscale(1);opacity:.55;'}">${a.e}</div><div style="font-size:11px;font-weight:700;margin-top:2px;">${bsEsc(a.nama)}</div><div style="font-size:14px;">${on ? '✅' : '⬜'}</div></div>`; }).join('');
-  const kebAnak = BS_KEB7.map(a => { const on = bsKebNilai(a, items);
-    return `<div style="text-align:center;padding:8px 4px;border-radius:12px;background:${on ? '#bbf7d0' : 'rgba(255,255,255,.7)'};"><div style="font-size:26px;${on ? '' : 'filter:grayscale(1);opacity:.55;'}">${a.e}</div><div style="font-size:11px;font-weight:700;margin-top:2px;">${bsEsc(a.nama)}</div><div style="font-size:14px;">${on ? '✅' : '⬜'}</div></div>`; }).join('');
+  const uzA = (o.uzur || {})[h] === true, skA = (o.sakit || {})[h] === true, hhA = bsHitungHari(items, uzA);
+  const ubinAnak = (a, on, libur) => libur
+    ? `<div style="text-align:center;padding:8px 4px;border-radius:12px;background:#f0fdfa;"><div style="font-size:26px;opacity:.5;">${a.e}</div><div style="font-size:11px;font-weight:700;margin-top:2px;">${bsEsc(a.nama)}</div><div style="font-size:14px;">🌿</div></div>`
+    : `<div style="text-align:center;padding:8px 4px;border-radius:12px;background:${on ? '#bbf7d0' : 'rgba(255,255,255,.7)'};"><div style="font-size:26px;${on ? '' : 'filter:grayscale(1);opacity:.55;'}">${a.e}</div><div style="font-size:11px;font-weight:700;margin-top:2px;">${bsEsc(a.nama)}</div><div style="font-size:14px;">${on ? '✅' : '⬜'}</div></div>`;
+  const hariIni = BS_AMALAN.map(a => ubinAnak(a, items[a.k] === true, uzA && a.wajib)).join('');
+  const kebAnak = BS_KEB7.map(a => ubinAnak(a, bsKebNilai(a, items), uzA && a.k === '_ibadah')).join('');
   const lv = game.level, sisa = lv.berikut != null ? lv.berikut - game.poin : 0;
   const KID = 'background:#fff;border:0;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);color:#111827;';   // gaya kartu lipat khusus Mode Anak
-  const nAmalanA = BS_AMALAN.filter(a => items[a.k] === true).length;
+  const nAmalanA = hhA.lamaC;
   const el = document.createElement('div'); el.id = 'bsAnakOverlay';
   el.style.cssText = 'position:fixed;inset:0;z-index:9000;overflow-y:auto;background:linear-gradient(180deg,#fef9c3 0%,#d1fae5 55%,#bfdbfe 100%);padding:16px 14px 40px;';
   el.innerHTML = `<div style="max-width:560px;margin:0 auto;">
@@ -1897,10 +1970,10 @@ function bsAnakBuka() {
         <p style="font-size:13px;margin-top:8px;">Ayo latihan, lalu setor ke Ustadz/Ustadzah di sekolah! 💪</p>`
         : (o.targets.length ? '<p style="font-size:16px;font-weight:700;color:#047857;">🎉 Hebat! Semua target bacaan sudah lulus.</p>' : '<p class="text-muted">Target bacaan belum dibuat oleh guru.</p>')}
       ${o.targets.length ? `<p style="font-size:12px;margin-top:8px;" class="text-muted">Sudah lulus ${game.lulus} dari ${game.nTarget} bacaan.</p>${bsBarProgres(game.nTarget ? game.lulus / game.nTarget * 100 : 0)}` : ''}`, KID)}
-    ${bsLipat('anak_amalan', 'rumah', '#2563eb', 'Amalanku Hari Ini', nAmalanA + ' dari ' + BS_AMALAN.length + ' amalan', `
+    ${bsLipat('anak_amalan', 'rumah', '#2563eb', 'Amalanku Hari Ini', nAmalanA + ' dari ' + hhA.lamaN + ' amalan' + (uzA ? ' · berhalangan sholat' : '') + (skA ? ' · lekas sembuh 🤒' : ''), `
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:#ecfdf5;border-radius:12px;padding:8px;">${hariIni}</div>
       ${game.rentetanLimaWaktu >= 1 ? `<p style="font-size:13px;text-align:center;margin-top:8px;">🔥 ${game.rentetanLimaWaktu} hari sholat 5 waktu lengkap berturut-turut!</p>` : '<p class="text-muted" style="font-size:12px;text-align:center;margin-top:8px;">Minta Ayah/Bunda mencentang amalanmu ya!</p>'}`, KID)}
-    ${bsLipat('anak_keb', 'bintang', '#d97706', '7 Kebiasaan Hebatku', bsKebJumlah(items) + ' dari ' + BS_KEB7.length + ' kebiasaan', `
+    ${bsLipat('anak_keb', 'bintang', '#d97706', '7 Kebiasaan Hebatku', hhA.kebC + ' dari ' + hhA.kebN + ' kebiasaan', `
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:#fefce8;border-radius:12px;padding:8px;">${kebAnak}</div>`, KID)}
     ${bsLipat('anak_pekan', 'kalender', '#7c3aed', 'Pekan Ini', 'Ringkasan amalan pekan ini', bsHtmlRingkasPekanAnak(bsOrtuDaftarAmalan()), KID)}
     ${bsLipat('anak_lencana', 'medali', '#f59e0b', 'Lencanaku', game.badges.filter(b => b.got).length + ' lencana diraih', bsHtmlLencana(game.badges, false), KID)}
