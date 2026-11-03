@@ -1800,6 +1800,29 @@ function bsRingkasKePortal(game, o, h) {
     persen + '% · ' + (berikut ? 'berikutnya: ' + bsEsc(berikut.nama) : 'semua target lulus 🎉'), bsBarProgres(persen));
 }
 function bsOrtuDaftarAmalan() { return Object.keys(bsOrtu.amalan).map(tg => ({ tanggal: tg, items: bsOrtu.amalan[tg], berhalangan: (bsOrtu.uzur || {})[tg] === true, sakit: (bsOrtu.sakit || {})[tg] === true })); }
+// Pengingat di dalam Portal Orang Tua: hari (hari ini sampai BS_HARI_ISI_MUNDUR hari ke belakang) yang belum ada isian sama sekali.
+// Hari ini baru dianggap belum diisi sesudah BS_PENGINGAT_JAM (jam perangkat); hari-hari sebelumnya selalu. Berhalangan/sakit dihitung sudah diisi.
+const BS_PENGINGAT_JAM = 16;
+let bsOrtuHkBuka = false;   // menu "Berhalangan sholat atau sakit?" dibuka orang tua
+let bsOrtuTunda = '';   // "kunciSiswa|tanggal" bila orang tua menekan Nanti (hanya selama halaman ini terbuka)
+function bsHariTerisi(o, tg) {
+  const it = (o.amalan || {})[tg];
+  return (o.uzur || {})[tg] === true || (o.sakit || {})[tg] === true || !!(it && BS_SEMUA_ITEM.some(a => typeof it[a.k] === 'boolean'));
+}
+function bsOrtuHariBelumIsi(o, h, jam) {   // paling lama dulu (paling cepat kedaluwarsa)
+  const out = [];
+  for (let n = BS_HARI_ISI_MUNDUR; n >= 0; n--) {
+    if (n === 0 && jam < BS_PENGINGAT_JAM) continue;
+    const tg = bsTambahHari(h, -n); if (!bsHariTerisi(o, tg)) out.push({ tg, n });
+  }
+  return out;
+}
+function bsOrtuTundaPengingat() { bsOrtuTunda = (bsOrtu.siswa ? bsOrtu.siswa.key : '') + '|' + bsHariIni(); bsOrtuGambar(); }
+function bsOrtuIsiSekarang(tg) {
+  bsOrtu.tgl = tg; bsLipatBuka.amalan = true; bsOrtuGambar();
+  const el = bsEl('bsLp_amalan'); if (!el) return;
+  try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { el.scrollIntoView(); }
+}
 function bsOrtuTargetBerikut() { return bsOrtu.targets.find(t => !(bsOrtu.setoran[t.key] && bsOrtu.setoran[t.key].status === 'Lulus')) || null; }
 function bsTglBolehIsi(tgl) { const h = bsHariIni(); return tgl <= h && bsSelisihHari(tgl, h) <= BS_HARI_ISI_MUNDUR; }
 function bsOrtuGambar() {
@@ -1808,8 +1831,7 @@ function bsOrtuGambar() {
   const game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h, o.semua);
   try { bsRingkasKePortal(game, o, h); } catch (e) { console.warn('[SI MAMBA] Ringkasan portal gagal:', e); }
   const tglOps = [0, 1, 2].map(n => { const tg = bsTambahHari(h, -n); return `<button class="btn ${o.tgl === tg ? 'btn-primary' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="bsOrtuPilihTgl('${tg}')">${n === 0 ? 'Hari ini' : n === 1 ? 'Kemarin' : '2 hari lalu'}</button>`; }).join('');
-  if (bsLipatBuka.amalan === undefined) bsLipatBuka.amalan = true;   // kartu isian langsung terbuka supaya orang tua tidak perlu mengetuk dulu
-  if (bsLipatBuka.keb === undefined) bsLipatBuka.keb = true;
+  if (bsLipatBuka.amalan === undefined) bsLipatBuka.amalan = true;   // kartu Amalan langsung terbuka; 7 Kebiasaan tertutup supaya halaman tidak terlalu panjang di HP
   const items = o.amalan[o.tgl] || {};
   const uzur = (o.uzur || {})[o.tgl] === true, sakit = (o.sakit || {})[o.tgl] === true, hh = bsHitungHari(items, uzur);
   const nCek = hh.lamaC, nKeb = hh.kebC;
@@ -1823,8 +1845,25 @@ function bsOrtuGambar() {
   const limaLengkap = BS_AMALAN.filter(a => a.wajib).every(a => items[a.k] === true);
   const tombolUzur = `<button type="button" onclick="bsOrtuBerhalangan()" aria-pressed="${uzur}" style="display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin-top:8px;padding:6px 10px;border-radius:12px;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;border:2px solid ${uzur ? '#0d9488' : '#d1d5db'};background:${uzur ? '#ccfbf1' : '#fff'};color:#111827;-webkit-tap-highlight-color:transparent;"><span style="font-size:18px;">🌿</span><span style="flex:1;min-width:0;">Berhalangan sholat pada tanggal ini<span class="text-muted" style="display:block;font-size:11px;font-weight:400;">Khusus haid atau kondisi lain yang membuat tidak boleh sholat. Yang sakit atau bepergian tetap sholat dengan keringanan, centang saja.</span></span><span style="font-size:16px;">${uzur ? '✅' : '⬜'}</span></button>`;
   const tombolSakit = `<button type="button" onclick="bsOrtuSakit()" aria-pressed="${sakit}" style="display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin-top:8px;padding:6px 10px;border-radius:12px;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;border:2px solid ${sakit ? '#d97706' : '#d1d5db'};background:${sakit ? '#fef3c7' : '#fff'};color:#111827;-webkit-tap-highlight-color:transparent;"><span style="font-size:18px;">🤒</span><span style="flex:1;min-width:0;">Anak sakit pada tanggal ini<span class="text-muted" style="display:block;font-size:11px;font-weight:400;">Seluruh hari tidak dihitung di persen dan tidak memutus rentetan. Yang sudah dicentang tetap dapat poin.</span></span><span style="font-size:16px;">${sakit ? '✅' : '⬜'}</span></button>`;
-  const tombolLima = `<button type="button" class="btn ${limaLengkap ? 'btn-soft' : 'btn-primary'}" style="width:100%;margin-bottom:8px;padding:9px 12px;font-size:13px;"${limaLengkap ? ' disabled' : ''} onclick="bsOrtuCentangLima()">${limaLengkap ? '✅ Sholat 5 waktu lengkap' : '☑️ Sholat 5 waktu semuanya sudah (sekali ketuk)'}</button>`;
-  const cek = BS_AMALAN.map(tombol).join(''), cekKeb = BS_KEB7.map(a => a.fn ? ubin(a) : tombol(a)).join('');
+  const rentang = (bidang, st) => { const ts = [0, 1, 2].map(n => bsTambahHari(h, -n)).filter(bsTglBolehIsi), semua = ts.length > 0 && ts.every(t => (o[st] || {})[t] === true);
+    return `<button type="button" class="btn btn-soft" style="width:100%;margin-top:4px;padding:5px 10px;font-size:12px;" onclick="bsOrtuTandaiRentang('${bidang}','${st}')">${semua ? '↩️ Batalkan ' + ts.length + ' hari terakhir' : '☑️ Tandai ' + ts.length + ' hari terakhir sekaligus'}</button>`; };
+  const labelHari = x => x.n === 0 ? 'Hari ini' : x.n === 1 ? 'Kemarin' : x.n + ' hari lalu';
+  const belum = bsOrtuTunda === ((o.siswa.key || '') + '|' + h) ? [] : bsOrtuHariBelumIsi(o, h, new Date().getHours());
+  const pengingat = belum.length ? `<div id="bsOrtuPengingat" class="card" style="margin-bottom:12px;padding:10px 14px;border:1px solid #fcd34d;background:#fffbeb;">
+      <p style="font-weight:700;font-size:13px;">🔔 Amalan di rumah belum diisi</p>
+      <p style="font-size:12px;margin:2px 0 8px;">${bsEsc(belum.map(labelHari).join(', '))} belum diisi.${belum[0].n === BS_HARI_ISI_MUNDUR ? ' ' + bsEsc(labelHari(belum[0])) + ' hanya bisa dilengkapi sampai hari ini.' : ''}</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="bsOrtuIsiSekarang('${belum[0].tg}')">Isi ${bsEsc(labelHari(belum[0]).toLowerCase())}</button><button type="button" class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="bsOrtuTundaPengingat()">Nanti</button></div></div>` : '';
+  const tombolLima = `<button type="button" class="btn ${limaLengkap ? 'btn-soft' : 'btn-primary'}" style="padding:4px 10px;font-size:12px;"${limaLengkap ? ' disabled' : ''} onclick="bsOrtuCentangLima()">${limaLengkap ? '✅ Lengkap' : '☑️ Semua sudah'}</button>`;
+  const kecilGaya = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:54px;padding:4px 2px;border-radius:12px;font:inherit;font-size:11px;font-weight:600;line-height:1.15;text-align:center;';
+  const kecil = (a, label) => { if (uzur && a.wajib) return `<div style="${kecilGaya}border:2px dashed #99f6e4;background:#f0fdfa;color:#6b7280;"><span style="font-size:18px;line-height:1;opacity:.55;">${a.e}</span><span>${bsEsc(label)}</span><span style="font-size:12px;line-height:1;">🌿</span></div>`;
+    const on = items[a.k] === true;
+    return `<button type="button" onclick="bsOrtuToggle('${a.k}')" aria-pressed="${on}" style="${kecilGaya}cursor:pointer;border:2px solid ${on ? '#059669' : '#d1d5db'};background:${on ? '#d1fae5' : '#fff'};color:#111827;-webkit-tap-highlight-color:transparent;"><span style="font-size:18px;line-height:1;">${a.e}</span><span>${bsEsc(label)}</span><span style="font-size:12px;line-height:1;">${on ? '✅' : '⬜'}</span></button>`; };
+  const rowLima = BS_AMALAN.filter(a => a.wajib).map(a => kecil(a, a.nama)).join('');
+  const rowLain = BS_AMALAN.filter(a => !a.wajib).map(a => kecil(a, a.t)).join('');
+  const rowKeb = BS_KEBIASAAN.map(a => kecil(a, a.nama)).join('');
+  const otoBaris = BS_KEB7.filter(a => a.fn).map(a => a.e + ' ' + bsEsc(a.t) + ' ' + ((uzur && a.k === '_ibadah') ? '🌿' : bsKebNilai(a, items) ? '✅' : '⬜')).join(' &nbsp;·&nbsp; ');
+  const ringkasHk = [uzur ? 'Berhalangan sholat' : '', sakit ? 'Hari sakit' : ''].filter(Boolean).join(' · ');
+  const menuHk = `<details${(bsOrtuHkBuka || uzur || sakit) ? ' open' : ''} ontoggle="bsOrtuHkBuka=this.open" style="margin-top:8px;"><summary style="cursor:pointer;list-style:none;font-size:12px;font-weight:600;padding:8px 10px;border:1px dashed #d1d5db;border-radius:10px;-webkit-tap-highlight-color:transparent;">🌿🤒 ${ringkasHk ? bsEsc(ringkasHk) : 'Berhalangan sholat atau sakit?'}<span style="float:right;opacity:.6;">▾</span></summary>${tombolUzur}${rentang('berhalangan', 'uzur')}${tombolSakit}${rentang('sakit', 'sakit')}</details>`;
   const berikut = bsOrtuTargetBerikut();
   const baris = o.targets.map(t => { const x = o.setoran[t.key], st = x ? x.status : 'Belum Setor';
     return `<div style="padding:9px 0;border-bottom:1px solid #f1f5f9;">
@@ -1834,24 +1873,28 @@ function bsOrtuGambar() {
   const persen = game.nTarget ? Math.round(game.lulus / game.nTarget * 100) : 0;
   const rentetan = game.rentetanLimaWaktu >= 2 ? ' · 🔥 ' + game.rentetanLimaWaktu + ' hari sholat 5 waktu lengkap berturut-turut' : '';
   box.innerHTML = `
-    <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,#ecfdf5,#fef9c3);border:1px solid #a7f3d0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div><p style="font-weight:700;">🕌 Bacaan Sholat &amp; Amalan</p>
-          <p style="font-size:13px;margin-top:2px;">${game.level.e} Level ${game.level.no} · <strong>${bsEsc(game.level.nama)}</strong> · ⭐ ${game.poin} poin</p></div>
-        <button class="btn btn-primary" style="padding:8px 14px;" onclick="bsAnakBuka()">👧 Mode Anak</button>
-      </div></div>
-    <div class="card" style="margin-bottom:12px;padding:10px 14px;">
-      <p style="font-weight:700;font-size:13px;margin-bottom:6px;">Isi checklist untuk tanggal</p>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">${tglOps}</div>
-      <p class="text-muted" style="font-size:12px;margin-top:6px;">${bsEsc(bsFmtTgl(o.tgl))}${rentetan}</p>
+    ${pengingat}
+    <div class="card" style="margin-bottom:12px;padding:10px 14px;background:linear-gradient(135deg,#ecfdf5,#fef9c3);border:1px solid #a7f3d0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="min-width:0;"><p style="font-weight:700;font-size:13px;">🕌 Bacaan Sholat &amp; Amalan</p>
+          <p style="font-size:12px;margin-top:1px;">${game.level.e} Level ${game.level.no} · <strong>${bsEsc(game.level.nama)}</strong> · ⭐ ${game.poin} poin</p></div>
+        <button class="btn btn-primary" style="padding:7px 12px;font-size:12px;white-space:nowrap;" onclick="bsAnakBuka()">👧 Mode Anak</button>
+      </div>
+      <div style="border-top:1px solid rgba(0,0,0,.08);margin-top:8px;padding-top:8px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"><span style="font-size:12px;font-weight:700;">Isi untuk:</span>${tglOps}</div>
+        <p class="text-muted" style="font-size:11px;margin-top:4px;">${bsEsc(bsFmtTgl(o.tgl))}${rentetan}</p>
+      </div>
     </div>
     ${bsLipat('amalan', 'rumah', '#2563eb', 'Amalan Harian di Rumah', nCek + ' dari ' + hh.lamaN + ' amalan terisi' + (uzur ? ' · berhalangan sholat' : '') + (sakit ? ' · hari sakit' : ''), `
-      <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Ketuk yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis.</p>
-      ${uzur ? '' : tombolLima}
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${cek}</div>${tombolUzur}${tombolSakit}`)}
+      <p class="text-muted" style="font-size:11px;margin-bottom:6px;">Ketuk yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis.</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-size:12px;font-weight:700;">Sholat 5 waktu</span>${uzur ? '<span style="font-size:11px;color:#0d9488;">🌿 berhalangan</span>' : tombolLima}</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">${rowLima}</div>
+      <p style="font-size:12px;font-weight:700;margin:8px 0 4px;">Amalan lain</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">${rowLain}</div>${menuHk}`)}
     ${bsLipat('keb', 'bintang', '#d97706', '7 Kebiasaan Anak Hebat', nKeb + ' dari ' + hh.kebN + ' kebiasaan terisi', `
-      <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Yang bergaris putus terisi otomatis dari Amalan Harian; sisanya ketuk di sini. Tidak memengaruhi poin dan lencana.</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">${cekKeb}</div>`)}
+      <p class="text-muted" style="font-size:11px;margin-bottom:6px;">Ketuk yang sudah dilakukan. Tidak memengaruhi poin dan lencana.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">${rowKeb}</div>
+      <p class="text-muted" style="font-size:11px;margin-top:8px;">Otomatis dari Amalan Harian: ${otoBaris}</p>`)}
     ${bsHtmlRingkasPekanOrtu(bsOrtuDaftarAmalan())}
     ${bsLipat('setoran', 'buku', '#059669', 'Progres Setoran Bacaan Sholat', o.targets.length ? game.lulus + ' dari ' + game.nTarget + ' target lulus (' + persen + '%)' : 'Belum ada target dari guru', `
       ${o.targets.length ? `${bsBarProgres(persen)}
@@ -1906,6 +1949,31 @@ function bsOrtuTandaiHari(bidang, kunciState) {
     if (bsOrtu.token !== token) return;
     bsOrtu[kunciState][tg] = sebelum; if (!adaCatatan) delete bsOrtu.amalan[tg];
     bsOrtuGambar(); toast('❌ Gagal menyimpan: ' + ((err && err.message) || err), true);
+  });
+}
+// Tandai / batalkan "berhalangan sholat" atau "hari sakit" untuk SEMUA hari yang masih boleh diisi (hari ini + BS_HARI_ISI_MUNDUR hari ke belakang).
+// Satu tulisan per tanggal (bentuk sama dengan tandai satu hari); tanggal yang gagal dikembalikan saja.
+function bsOrtuTandaiRentang(bidang, kunciState) {
+  const o = bsOrtu, s = o.siswa; if (!s) return;
+  if (!bsOnline()) return toast('📡 Sedang offline. Checklist butuh koneksi internet.', true);
+  const h = bsHariIni(), tgls = [0, 1, 2].map(n => bsTambahHari(h, -n)).filter(bsTglBolehIsi);
+  if (!tgls.length) return;
+  const pKey = 'rentang|' + bidang;
+  if (!bsKunciMulai('toggle_' + pKey)) return;
+  if (!o[kunciState]) o[kunciState] = {};
+  const baru = !tgls.every(t => o[kunciState][t] === true), sebelum = {}, adaCatatan = {};
+  tgls.forEach(t => { sebelum[t] = o[kunciState][t] === true; adaCatatan[t] = Object.prototype.hasOwnProperty.call(o.amalan, t); o[kunciState][t] = baru; if (!adaCatatan[t]) o.amalan[t] = {}; });
+  bsOrtuGambar();
+  const token = o.token, ta = bsTA(), iso = new Date().toISOString();
+  Promise.all(tgls.map(t => {
+    const upd = { siswaKey: s.key, siswaNama: s.name || '', kelas: s.kelas || '', tanggal: t, diisiOleh: 'ortu', tahunAjaran: ta, updatedAt: iso }; upd[bidang] = baru;
+    return db.ref('bs_amalan_rumah/' + s.key + '_' + t).update(upd).then(() => null, err => ({ t, err }));
+  })).then(hasil => {
+    bsKunciSelesai('toggle_' + pKey);
+    const gagal = hasil.filter(Boolean);
+    if (!gagal.length || bsOrtu.token !== token) return;
+    gagal.forEach(g => { bsOrtu[kunciState][g.t] = sebelum[g.t]; if (!adaCatatan[g.t]) delete bsOrtu.amalan[g.t]; });
+    bsOrtuGambar(); toast('❌ ' + gagal.length + ' tanggal gagal disimpan: ' + ((gagal[0].err && gagal[0].err.message) || gagal[0].err), true);
   });
 }
 // Satu ketukan: centang 5 sholat wajib sekaligus (satu tulisan multi-path, item lain tidak tersentuh).
