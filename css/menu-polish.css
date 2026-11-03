@@ -859,3 +859,29 @@ body.dark-mode .mp-iqb-tagih-det { color: #fca5a5; }
 /* Tombol unduh PDF/Excel pada Tagihan Bulanan (v32) */
 .mp-iqb-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .mp-iqb-actions .btn { min-height: 44px; padding: 8px 6px; font-size: 13px; font-weight: 700; }
+
+
+/* ===== Ikon sidebar modern (v36): kotak ikon berwarna per kelompok menu, terisi penuh pada menu aktif ===== */
+#v4SidebarMenu { --ic: var(--mi-green, #006b4f); --ic-bg: rgba(0, 107, 79, .10); }
+body.dark-mode #v4SidebarMenu { --ic: #34d399; --ic-bg: rgba(52, 211, 153, .14); }
+#v4SidebarMenu .menu-group[data-group="akademik-v4"] { --ic: #2563eb; --ic-bg: rgba(37,99,235, .10); }
+body.dark-mode #v4SidebarMenu .menu-group[data-group="akademik-v4"] { --ic: rgb(96,165,250); --ic-bg: rgba(96,165,250, .14); }
+#v4SidebarMenu .menu-group[data-group="siswa-ortu-v4"] { --ic: #7c3aed; --ic-bg: rgba(124,58,237, .10); }
+body.dark-mode #v4SidebarMenu .menu-group[data-group="siswa-ortu-v4"] { --ic: rgb(167,139,250); --ic-bg: rgba(167,139,250, .14); }
+#v4SidebarMenu .menu-group[data-group="raport-v4"] { --ic: #d97706; --ic-bg: rgba(217,119,6, .10); }
+body.dark-mode #v4SidebarMenu .menu-group[data-group="raport-v4"] { --ic: rgb(251,191,36); --ic-bg: rgba(251,191,36, .14); }
+#v4SidebarMenu .menu-group[data-group="kegiatan-v4"] { --ic: #0d9488; --ic-bg: rgba(13,148,136, .10); }
+body.dark-mode #v4SidebarMenu .menu-group[data-group="kegiatan-v4"] { --ic: rgb(45,212,191); --ic-bg: rgba(45,212,191, .14); }
+#v4SidebarMenu .menu-group[data-group="operasional-v4"] { --ic: #4f46e5; --ic-bg: rgba(79,70,229, .10); }
+body.dark-mode #v4SidebarMenu .menu-group[data-group="operasional-v4"] { --ic: rgb(129,140,248); --ic-bg: rgba(129,140,248, .14); }
+#v4SidebarMenu .menu-group[data-group="keuangan-v4"] { --ic: #059669; --ic-bg: rgba(5,150,105, .10); }
+body.dark-mode #v4SidebarMenu .menu-group[data-group="keuangan-v4"] { --ic: rgb(52,211,153); --ic-bg: rgba(52,211,153, .14); }
+#v4SidebarMenu .menu-group[data-group="sistem-v4"] { --ic: #475569; --ic-bg: rgba(71,85,105, .10); }
+body.dark-mode #v4SidebarMenu .menu-group[data-group="sistem-v4"] { --ic: rgb(148,163,184); --ic-bg: rgba(148,163,184, .14); }
+#v4SidebarMenu .menu-item .icon { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ic-bg); color: var(--ic); transition: background .15s, color .15s, transform .15s; }
+#v4SidebarMenu .menu-item .icon .ico, #v4SidebarMenu .menu-item .icon svg { width: 18px; height: 18px; stroke-width: 1.9; }
+#v4SidebarMenu .menu-item:hover .icon { transform: scale(1.06); }
+#v4SidebarMenu .menu-item.active .icon, #v4SidebarMenu .menu-item[aria-current="page"] .icon { background: var(--ic); color: #fff; }
+body.dark-mode #v4SidebarMenu .menu-item.active .icon, body.dark-mode #v4SidebarMenu .menu-item[aria-current="page"] .icon { color: #0f172a; }
+@media (prefers-reduced-motion: reduce) { #v4SidebarMenu .menu-item .icon { transition: none; } #v4SidebarMenu .menu-item:hover .icon { transform: none; } }
