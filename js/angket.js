@@ -708,7 +708,7 @@
       }
       // Pesan pengingat sengaja tidak memuat nama, agar aman ditempel di grup.
       teksIngat = "Assalamu'alaikum Bapak/Ibu guru. Angket Kurikulum (Pembelajaran Mendalam & Kurikulum Berbasis Cinta) periode " + labelPeriode(periode) +
-        ' sudah dibuka di SiMamba, menu Angket Kurikulum.' + (sisaPerkiraan ? ' Saat ini masih ada sekitar ' + sisaPerkiraan + ' guru yang belum mengisi.' : '') + infoBatasWa + ' Mohon segera diisi; bila sudah mengisi, abaikan pesan ini. Terima kasih.';
+        ' sudah dibuka di SiMamba, menu Angket Kurikulum.' + (sisaPerkiraan ? ' Saat ini masih ada sekitar ' + sisaPerkiraan + ' guru yang belum mengisi.' : '') + infoBatasWa + ' Mohon segera diisi sesuai kondisi yang sebenarnya; bila sudah mengisi, abaikan pesan ini. Terima kasih.';
       h += '</table></div><div class="akq-skala">Kategori: 3,26-4,00 Sangat Baik | 2,51-3,25 Baik | 1,76-2,50 Cukup | 1,00-1,75 Kurang. Butir negatif (E9, K16) otomatis dibalik. Rata-rata dihitung per butir terjawab.</div>';
       h += htmlAspekPM(dataRekap.guru);
       h += htmlRTL(periode);
@@ -735,7 +735,7 @@
         btn.addEventListener('click', function () {
           var g = belumList[parseInt(btn.getAttribute('data-akq-wa'), 10)]; if (!g) return;
           bukaWa(g.noWa, "Assalamu'alaikum Bapak/Ibu " + g.name + '. Mohon kesediaannya mengisi Angket Kurikulum (Pembelajaran Mendalam & Kurikulum Berbasis Cinta) periode ' +
-            labelPeriode(periode) + ' di SiMamba, menu Angket Kurikulum (sekitar 10 menit).' + infoBatasWa + ' Bila sudah mengisi, abaikan pesan ini. Terima kasih.');
+            labelPeriode(periode) + ' di SiMamba, menu Angket Kurikulum (sekitar 10 menit).' + infoBatasWa + ' Mohon diisi sesuai kondisi yang sebenarnya. Bila sudah mengisi, abaikan pesan ini. Terima kasih.');
         });
       });
       var sl = el('akqSalin'); if (sl) sl.addEventListener('click', function () {
@@ -1048,6 +1048,7 @@ const P8_CSS = '' +
   '.p8-sb{background:#dcfce7;color:#166534;}.p8-b{background:#dbeafe;color:#1e40af;}.p8-c{background:#fef9c3;color:#854d0e;}.p8-k{background:#fee2e2;color:#991b1b;}.p8-kosong{background:#f3f4f6;color:#9ca3af;}' +
   '.p8-tabel-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}' +
   '.p8-tabel{border-collapse:collapse;width:100%;font-size:12px;min-width:640px;}.p8-tabel th,.p8-tabel td{border:1px solid #e5e7eb;padding:6px 5px;text-align:center;}' +
+  '#p8OrtuBox.p8-perlu{border:2px solid #f59e0b;background:#fffbeb;}' +
   '.p8-tabel th{background:#f3f4f6;font-weight:700;}.p8-tabel td.p8-nama{text-align:left;white-space:nowrap;}' +
   '.p8-tabel tfoot td{font-weight:700;background:#f9fafb;}.p8-lihat{background:none;border:0;padding:0;color:#2563eb;cursor:pointer;font:inherit;text-decoration:underline;}' +
   '.p8-ringkas{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}.p8-kotak{flex:1 1 140px;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px;}' +
@@ -1062,7 +1063,14 @@ function p8PasangCss() {
 // ============================================================
 // PORTAL ORANG TUA
 // ============================================================
-let p8Ortu = { token: 0 };
+// Draf jawaban sementara (orang tua belum menekan Kirim): angket_profil_draf/{TA}_{Semester}_{siswaKey}. Dihapus saat angket dikirim.
+function p8DrafKey(siswaKey) { return 'angket_profil_draf/' + p8Key(siswaKey); }
+function p8DrafKeArray(v) {
+  const arr = new Array(P8_JUMLAH_BUTIR).fill(null);
+  if (v && typeof v === 'object') for (const k in v) { const i = parseInt(k, 10), n = Number(v[k]); if (i >= 0 && i < P8_JUMLAH_BUTIR && n >= 1 && n <= 4) arr[i] = n; }
+  return arr;
+}
+let p8Ortu = { token: 0, timer: null };
 function angketProfilOrtuRender(siswa) {
   const content = p8El('portalOrtuContent');
   if (!content || !siswa || typeof db === 'undefined') return;
@@ -1071,14 +1079,35 @@ function angketProfilOrtuRender(siswa) {
   const box = document.createElement('details');
   box.id = 'p8OrtuBox'; box.className = 'card po-acc'; box.style.marginBottom = '12px';
   box.innerHTML = '<summary><span>🧭 Angket 8 Profil Lulusan</span><span class="po-badge" id="p8Badge">Memuat...</span></summary><div class="po-acc-body" id="p8Isi"><p class="text-muted" style="font-size:12px;">⏳ Memuat...</p></div>';
-  const ds = content.querySelectorAll('details.po-acc');
-  const sebelum = ds.length ? ds[ds.length - 1] : null;   // sebelum "Saran & Kritik" (kartu lipat terakhir)
-  if (sebelum && sebelum.parentNode) sebelum.parentNode.insertBefore(box, sebelum); else content.appendChild(box);
+  // Letakkan tepat di ATAS kartu "Bacaan Sholat & Amalan". Kartu itu digambar modul lain (bacaan-shalat.js) dan bisa muncul
+  // belakangan, jadi: coba sekarang; bila belum ada, taruh di posisi cadangan lalu pindahkan begitu kartunya muncul.
+  const cariAnchor = () => Array.prototype.find.call(content.children, el => el !== box && /Bacaan Sholat\s*(&|&amp;)\s*Amalan/.test(el.textContent || '') && (el.textContent || '').length < 400);
+  const a0 = cariAnchor();
+  if (a0) content.insertBefore(box, a0);
+  else {
+    const ds = content.querySelectorAll('details.po-acc');
+    const sebelum = ds.length ? ds[ds.length - 1] : null;   // cadangan: sebelum "Saran & Kritik"
+    if (sebelum && sebelum.parentNode) sebelum.parentNode.insertBefore(box, sebelum); else content.appendChild(box);
+    if (typeof MutationObserver === 'function') {
+      const pantau = new MutationObserver(() => {
+        if (!box.isConnected) { pantau.disconnect(); return; }
+        const a = cariAnchor();
+        if (a) { pantau.disconnect(); if (box.nextElementSibling !== a) content.insertBefore(box, a); }
+      });
+      pantau.observe(content, { childList: true });
+      setTimeout(() => pantau.disconnect(), 20000);
+    }
+  }
   const my = ++p8Ortu.token;
-  db.ref('angket_profil/' + p8Key(siswa.key)).once('value').then(snap => {
+  Promise.all([
+    db.ref('angket_profil/' + p8Key(siswa.key)).once('value'),
+    db.ref(p8DrafKey(siswa.key)).once('value').then(x => x.val(), () => null)   // draf gagal dibaca: abaikan saja
+  ]).then(r => {
     if (my !== p8Ortu.token) return;
-    const v = snap.val();
-    p8OrtuGambar(box, siswa, v && Array.isArray(v.jawaban) ? v.jawaban : null, v && v.waktuIsi);
+    const v = r[0].val(), d = r[1];
+    const final = v && Array.isArray(v.jawaban) ? v.jawaban : null;
+    const awal = !final && d && d.jawaban ? p8DrafKeArray(d.jawaban) : null;
+    p8OrtuGambar(box, siswa, final, v && v.waktuIsi, awal);
   }).catch(err => {
     if (my !== p8Ortu.token) return;
     const isi = p8El('p8Isi');
@@ -1107,20 +1136,26 @@ function p8RingkasHtml(jawab) {
     return '<div class="p8-baris"><span class="p8-baris-nama">' + d.ikon + ' ' + p8Esc(d.nama) + '</span><span class="p8-bar"><i style="width:' + Math.round(((skor[i] || 0) / 4) * 100) + '%"></i></span><span class="p8-baris-nilai"><span class="p8-lencana ' + k.kelas + '">' + k.teks + '</span></span></div>';
   }).join('') + '</div>';
 }
-function p8OrtuGambar(box, siswa, jawab, waktu) {
+function p8OrtuGambar(box, siswa, jawab, waktu, awal) {
   const isi = p8El('p8Isi'), badge = p8El('p8Badge'); if (!isi) return;
   const sudah = !!jawab;
-  if (badge) { badge.textContent = sudah ? 'Sudah diisi' : 'Belum diisi'; badge.className = 'po-badge' + (sudah ? ' ok' : ' warn'); }
+  const nAwal = awal ? awal.filter(Boolean).length : 0;
+  if (badge) { badge.textContent = sudah ? 'Sudah diisi' : (nAwal ? '✏️ Belum selesai (' + nAwal + '/' + P8_JUMLAH_BUTIR + ')' : '⚠️ Belum diisi'); badge.className = 'po-badge' + (sudah ? ' ok' : ' warn'); }
+  // Penanda untuk orang tua: kartu diberi bingkai oranye & terbuka otomatis selama belum diisi.
+  const kotak = p8El('p8OrtuBox');
+  if (kotak) { kotak.classList.toggle('p8-perlu', !sudah); if (!sudah && !kotak.dataset.p8Buka) { kotak.open = true; kotak.dataset.p8Buka = '1'; } }
   const p = p8Periode();
   isi.innerHTML =
-    '<p class="text-muted" style="font-size:12px;margin-bottom:6px;">Bantu madrasah memahami kebiasaan <strong>' + p8Esc(siswa.name) + '</strong> di rumah. Pilih yang paling sesuai dengan keseharian ananda. ' +
+    '<p class="text-muted" style="font-size:12px;margin-bottom:6px;">Bantu madrasah memahami kebiasaan <strong>' + p8Esc(siswa.name) + '</strong> di rumah. Pilih yang paling sesuai dengan keseharian ananda, dan isilah dengan jujur. ' +
     'Tidak ada jawaban benar atau salah, dan hasilnya <strong>bukan nilai</strong>; hanya gambaran untuk kerja sama rumah dan madrasah.</p>' +
     '<p class="p8-legenda">Semester ' + p8Esc(p.sem || '-') + ' · TA ' + p8Esc(p.ta || '-') + '. <strong>Selalu</strong> = hampir setiap hari · <strong>Sering</strong> = lebih sering ya · <strong>Kadang</strong> = sesekali · <strong>Belum</strong> = belum pernah/belum terlihat.</p>' +
     (sudah ? '<div class="p8-dim"><div class="p8-dim-judul">📊 Gambaran terakhir</div>' + p8RingkasHtml(jawab) + '<div class="p8-dim-ket">Diisi ' + p8Esc((waktu || '').slice(0, 10)) + '. Bapak/Ibu boleh memperbarui jawaban di bawah.</div></div>' : '') +
-    '<form id="p8Form" onsubmit="return false;">' + p8FormHtml(jawab) + '</form>' +
+    (!sudah && nAwal ? '<p class="p8-legenda" style="color:#b45309;">✏️ Jawaban sementara Bapak/Ibu masih tersimpan (' + nAwal + ' dari ' + P8_JUMLAH_BUTIR + '). Silakan lanjutkan, lalu tekan Kirim Angket.</p>' : '') +
+    '<form id="p8Form" onsubmit="return false;">' + p8FormHtml(jawab || awal) + '</form>' +
     '<div class="p8-progres" id="p8Progres"></div>' +
     '<button type="button" class="btn btn-primary" id="p8Simpan" style="font-size:12px;padding:7px 14px;">' + (sudah ? '💾 Perbarui Jawaban' : '📤 Kirim Angket') + '</button>' +
-    '<div class="p8-status" id="p8Status"></div>';
+    '<div class="p8-status" id="p8Status"></div>' +
+    (!sudah ? '<div class="p8-legenda" id="p8DrafInfo" style="margin-top:6px;">Jawaban tersimpan sementara otomatis, jadi boleh dilanjutkan nanti.</div>' : '');
   const form = p8El('p8Form');
   const hitung = () => {
     const n = form.querySelectorAll('input[type=radio]:checked').length;
@@ -1128,7 +1163,18 @@ function p8OrtuGambar(box, siswa, jawab, waktu) {
     form.querySelectorAll('.p8-belum').forEach(e => { if (form.querySelector('input[name="p8_' + e.dataset.p8Butir + '"]:checked')) e.classList.remove('p8-belum'); });
   };
   form.addEventListener('change', hitung); hitung();
+  if (!sudah) form.addEventListener('change', () => { clearTimeout(p8Ortu.timer); p8Ortu.timer = setTimeout(() => p8DrafSimpan(siswa), 1500); });
   p8El('p8Simpan').addEventListener('click', () => p8OrtuSimpan(siswa));
+}
+function p8DrafSimpan(siswa) {
+  const form = p8El('p8Form'); if (!form) return;
+  const jawab = {}; let n = 0;
+  for (let i = 0; i < P8_JUMLAH_BUTIR; i++) { const c = form.querySelector('input[name="p8_' + i + '"]:checked'); if (c) { jawab[i] = Number(c.value); n++; } }
+  if (!n) return;
+  const p = p8Periode();
+  db.ref(p8DrafKey(siswa.key)).set({ siswaKey: siswa.key, siswaNama: siswa.name || '', kelas: siswa.kelas || '', tahunAjaran: p.ta, semester: p.sem, jawaban: jawab, terjawab: n, waktu: new Date().toISOString() }, err => {
+    const info = p8El('p8DrafInfo'); if (info && !err) info.textContent = '💾 Jawaban sementara tersimpan (' + n + ' dari ' + P8_JUMLAH_BUTIR + ').';
+  });
 }
 function p8OrtuSimpan(siswa) {
   if (typeof isBusy === 'function' && isBusy('p8Simpan')) return;
@@ -1144,6 +1190,7 @@ function p8OrtuSimpan(siswa) {
     const el = form.querySelector('[data-p8-butir="' + kosong + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     return;
   }
+  clearTimeout(p8Ortu.timer);
   const p = p8Periode();
   status.innerHTML = '<span class="text-muted">⏳ Menyimpan...</span>';
   if (typeof setBusy === 'function') setBusy('p8Simpan', btn);
@@ -1151,6 +1198,7 @@ function p8OrtuSimpan(siswa) {
   db.ref('angket_profil/' + p8Key(siswa.key)).set(rec, err => {
     if (typeof clearBusy === 'function') clearBusy('p8Simpan', btn);
     if (err) { status.innerHTML = '<span class="p8-err">❌ Gagal menyimpan: ' + p8Esc(err.message) + '</span>'; return; }
+    try { db.ref(p8DrafKey(siswa.key)).remove().catch(() => {}); } catch (e) {}
     p8OrtuGambar(p8El('p8OrtuBox'), siswa, jawab, rec.waktuIsi);
     const st = p8El('p8Status'); if (st) st.innerHTML = '<span class="p8-ok">✅ Tersimpan, terima kasih atas partisipasinya!</span>';
     if (typeof toast === 'function') toast('✅ Angket tersimpan');
@@ -1164,7 +1212,7 @@ function angketProfilCanAccess() {
   try { return !!((typeof isAdmin === 'function' && isAdmin()) || (typeof isKepsek === 'function' && isKepsek()) || (typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned())); }
   catch (e) { return false; }
 }
-let p8Guru = { kelas: '', rekap: {}, siswa: [], token: 0 };
+let p8Guru = { kelas: '', rekap: {}, draf: {}, siswa: [], token: 0 };
 function setupAngketProfilPage() {
   const area = p8El('angketProfilArea'); if (!area) return;
   p8PasangCss();
@@ -1199,11 +1247,15 @@ function p8GuruMuat(kelas) {
   hasil.innerHTML = '<p class="text-muted" style="text-align:center;padding:16px;">⏳ Memuat...</p>';
   const d = p8El('p8Detail'); if (d) d.innerHTML = '';
   const p = p8Periode();
-  db.ref('angket_profil').orderByChild('kelas').equalTo(kelas).once('value').then(snap => {
+  Promise.all([
+    db.ref('angket_profil').orderByChild('kelas').equalTo(kelas).once('value'),
+    db.ref('angket_profil_draf').orderByChild('kelas').equalTo(kelas).once('value').then(x => x, () => null)   // draf gagal dibaca: abaikan
+  ]).then(r => {
     if (my !== p8Guru.token) return;
-    const rekap = {};
-    snap.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === p.ta && v.semester === p.sem && v.siswaKey && Array.isArray(v.jawaban)) rekap[v.siswaKey] = v; });
-    p8Guru.rekap = rekap;
+    const rekap = {}, draf = {};
+    r[0].forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === p.ta && v.semester === p.sem && v.siswaKey && Array.isArray(v.jawaban)) rekap[v.siswaKey] = v; });
+    if (r[1]) r[1].forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === p.ta && v.semester === p.sem && v.siswaKey && !rekap[v.siswaKey]) draf[v.siswaKey] = { n: Number(v.terjawab) || 0, waktu: v.waktu || '' }; });
+    p8Guru.rekap = rekap; p8Guru.draf = draf;
     p8GuruGambar();
   }).catch(err => {
     if (my !== p8Guru.token) return;
@@ -1216,14 +1268,17 @@ function p8Wa(nomor, pesan) {
   if (n.length < 10 || n.length > 15) { if (typeof toast === 'function') toast('Nomor WhatsApp wali tidak valid.', true); return; }
   window.open('https://wa.me/' + n + '?text=' + encodeURIComponent(pesan), '_blank');
 }
-function p8TeksIngat(kelas, nama) {
+function p8TeksIngat(kelas, nama, sebagian) {
   const p = p8Periode();
-  return "Assalamu'alaikum Bapak/Ibu " + (nama ? 'wali dari ananda ' + nama : 'wali murid kelas ' + kelas) + '. Mohon kesediaannya mengisi Angket Profil Lulusan (kebiasaan ananda di rumah) semester ' +
-    (p.sem || '-') + ' TA ' + (p.ta || '-') + ' lewat Portal Orang Tua SiMamba, menu Angket Profil Lulusan (sekitar 10 menit). Terima kasih.';
+  const sapa = "Assalamu'alaikum Bapak/Ibu " + (nama ? 'wali dari ananda ' + nama : 'wali murid kelas ' + kelas) + '. ';
+  const dasar = 'Angket Profil Lulusan (kebiasaan ananda di rumah) semester ' + (p.sem || '-') + ' TA ' + (p.ta || '-');
+  if (sebagian) return sapa + dasar + ' baru terisi sebagian. Mohon dilanjutkan dan dikirim lewat Portal Orang Tua SiMamba, menu Angket Profil Lulusan. Isilah dengan jujur sesuai keseharian ananda. Terima kasih.';
+  return sapa + 'Mohon mengisi ' + dasar + ' lewat Portal Orang Tua SiMamba, menu Angket Profil Lulusan (sekitar 10 menit). Isilah dengan jujur sesuai keseharian ananda; tidak ada jawaban benar atau salah. Terima kasih.';
 }
 function p8GuruGambar() {
   const hasil = p8El('p8Hasil'); if (!hasil) return;
   const { siswa, rekap } = p8Guru;
+  const draf = p8Guru.draf || {};
   if (!siswa.length) { hasil.innerHTML = '<p class="text-muted" style="text-align:center;padding:16px;">Belum ada siswa di kelas ini.</p>'; return; }
   const skorSiswa = siswa.map(s => rekap[s.key] ? p8SkorDimensi(rekap[s.key].jawaban) : null);
   const terisi = skorSiswa.filter(Boolean).length;
@@ -1237,20 +1292,23 @@ function p8GuruGambar() {
     '<div class="p8-kotak"><b style="font-size:13px;">' + (fokus || '-') + '</b><small>dimensi dengan rata-rata terendah</small></div></div>';
   if (!terisi) h += '<p class="text-muted" style="font-size:13px;">Belum ada orang tua yang mengisi di kelas ini. Ingatkan lewat grup wali kelas agar membuka Portal Orang Tua → Angket 8 Profil Lulusan.</p>';
   const belumList = siswa.filter(s => !rekap[s.key]);
+  const nDraf = belumList.filter(s => draf[s.key]).length;
+  const antri = belumList.filter(s => String(s.noWaOrtu || '').replace(/[^0-9]/g, '').length >= 9);
+  if (nDraf) h += '<p style="font-size:12px;margin:6px 0;color:#1e40af;">✏️ ' + nDraf + ' orang tua sedang mengisi (jawaban sementara tersimpan, belum dikirim).</p>';
   if (belumList.length) {
     h += '<details style="margin:10px 0;"><summary style="cursor:pointer;font-size:13px;"><b>Belum mengisi (' + belumList.length + ')</b></summary>' +
       '<ul style="font-size:12px;margin:6px 0 6px 18px;">' + belumList.map((s, i) => {
         const wa = String(s.noWaOrtu || '').replace(/[^0-9]/g, '');
-        return '<li style="margin-bottom:6px;">' + p8Esc(s.name || '-') + ' ' + (wa.length >= 9 ?
+        return '<li style="margin-bottom:6px;">' + p8Esc(s.name || '-') + (draf[s.key] ? ' <span class="p8-lencana p8-b">✏️ sedang mengisi ' + draf[s.key].n + '/' + P8_JUMLAH_BUTIR + '</span>' : '') + ' ' + (wa.length >= 9 ?
           '<button type="button" class="btn btn-soft" data-p8-wa="' + i + '" style="padding:2px 10px;font-size:12px;">Ingatkan via WA</button>' :
           '<span style="color:#9ca3af;">(nomor WA belum diisi)</span>') + '</li>';
-      }).join('') + '</ul><button type="button" class="btn btn-soft" id="p8SalinIngat">Salin pesan untuk grup kelas</button> <button type="button" class="btn btn-soft" id="p8CsvBelum">Unduh daftar (CSV)</button></details>';
+      }).join('') + '</ul>' + (antri.length ? '<div style="margin:6px 0;"><button type="button" class="btn btn-primary" id="p8WaSemua" style="font-size:12px;"></button><div class="p8-legenda" style="margin-top:4px;">Tiap ketukan membuka WhatsApp untuk satu orang tua (pesan sudah terisi); kirim, lalu kembali ke sini dan ketuk lagi.</div></div>' : '') + '<button type="button" class="btn btn-soft" id="p8SalinIngat">Salin pesan untuk grup kelas</button> <button type="button" class="btn btn-soft" id="p8CsvBelum">Unduh daftar (CSV)</button></details>';
   } else if (terisi) h += '<p style="font-size:12px;color:#047857;margin:8px 0;">Semua orang tua di kelas ini sudah mengisi. Alhamdulillah.</p>';
   h += '<div class="p8-tabel-wrap"><table class="p8-tabel"><thead><tr><th>No</th><th>Nama</th>' +
     P8_DIMENSI.map((d, i) => '<th title="' + p8Esc(d.nama) + '">' + d.ikon + '<br>D' + (i + 1) + '</th>').join('') + '<th>Rata²</th></tr></thead><tbody>';
   siswa.forEach((s, n) => {
     const sk = skorSiswa[n];
-    h += '<tr><td>' + (n + 1) + '</td><td class="p8-nama">' + (sk ? '<button type="button" class="p8-lihat" data-p8-lihat="' + p8Esc(s.key) + '">' + p8Esc(s.name || '-') + '</button>' : p8Esc(s.name || '-')) + '</td>' +
+    h += '<tr><td>' + (n + 1) + '</td><td class="p8-nama">' + (sk ? '<button type="button" class="p8-lihat" data-p8-lihat="' + p8Esc(s.key) + '">' + p8Esc(s.name || '-') + '</button>' : p8Esc(s.name || '-') + (draf[s.key] ? ' <span class="p8-lencana p8-b">✏️ Sedang mengisi (' + draf[s.key].n + '/' + P8_JUMLAH_BUTIR + ')</span>' : ' <span class="p8-lencana p8-c">⚠️ Silakan isi</span>')) + '</td>' +
       P8_DIMENSI.map((_, i) => '<td class="' + p8Kategori(sk ? sk[i] : null).kelas + '">' + (sk ? p8F(sk[i]) : '·') + '</td>').join('') +
       '<td class="' + p8Kategori(sk ? p8Rata(sk) : null).kelas + '"><b>' + (sk ? p8F(p8Rata(sk)) : '·') + '</b></td></tr>';
   });
@@ -1258,9 +1316,25 @@ function p8GuruGambar() {
     '<p class="text-muted" style="font-size:11px;margin-top:8px;">' +
     P8_DIMENSI.map((d, i) => 'D' + (i + 1) + ' = ' + p8Esc(d.nama)).join(' · ') + '.<br>Warna: ' +
     '<span class="p8-lencana p8-sb">≥ 3,5 Sangat Baik</span> <span class="p8-lencana p8-b">≥ 2,75 Baik</span> <span class="p8-lencana p8-c">≥ 2,0 Cukup</span> <span class="p8-lencana p8-k">&lt; 2,0 Perlu Dibimbing</span>. Ketuk nama siswa untuk melihat rinciannya.</p>';
-  hasil.innerHTML = h;
+  const rtl = p8RtlBuat(p8Guru.kelas, siswa, skorSiswa, rataDim, terisi);
+  p8Guru.teksRtl = rtl.teks;
+  hasil.innerHTML = h + rtl.html;
+  const bSemua = p8El('p8WaSemua');
+  if (bSemua) {
+    let idx = 0;
+    const label = () => { bSemua.textContent = idx >= antri.length ? '✅ Semua pengingat sudah dibuka' : '📲 Ingatkan berikutnya (' + (idx + 1) + '/' + antri.length + '): ' + (antri[idx].name || '-'); bSemua.disabled = idx >= antri.length; };
+    label();
+    bSemua.addEventListener('click', () => { const s = antri[idx]; if (!s) return; p8Wa(s.noWaOrtu, p8TeksIngat(p8Guru.kelas, s.name || '', !!draf[s.key])); idx++; label(); });
+  }
+  const cRtl = p8El('p8CetakRtl');
+  if (cRtl) cRtl.addEventListener('click', p8CetakRtl);
+  const sRtl = p8El('p8SalinRtl');
+  if (sRtl) sRtl.addEventListener('click', () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(p8Guru.teksRtl || '').then(() => { if (typeof toast === 'function') toast('Rencana tindak lanjut disalin.'); }, () => { if (typeof toast === 'function') toast('Gagal menyalin.', true); });
+    else if (typeof toast === 'function') toast('Peramban tidak mendukung salin otomatis.', true);
+  });
   hasil.querySelectorAll('[data-p8-wa]').forEach(b => b.addEventListener('click', () => {
-    const s = belumList[parseInt(b.getAttribute('data-p8-wa'), 10)]; if (s) p8Wa(s.noWaOrtu, p8TeksIngat(p8Guru.kelas, s.name || ''));
+    const s = belumList[parseInt(b.getAttribute('data-p8-wa'), 10)]; if (s) p8Wa(s.noWaOrtu, p8TeksIngat(p8Guru.kelas, s.name || '', !!draf[s.key]));
   }));
   const cBel = p8El('p8CsvBelum');
   if (cBel) cBel.addEventListener('click', () => {
@@ -1278,6 +1352,113 @@ function p8GuruGambar() {
     else if (typeof toast === 'function') toast('Peramban tidak mendukung salin otomatis.', true);
   });
   hasil.querySelectorAll('[data-p8-lihat]').forEach(b => b.addEventListener('click', () => p8LihatDetail(b.getAttribute('data-p8-lihat'))));
+}
+// ---- Rekomendasi & Rencana Tindak Lanjut (Profil Lulusan, per kelas) ----
+// Usulan OTOMATIS dari rata-rata jawaban orang tua. Dimensi dengan rata-rata kelas < 2,75 (Cukup / Perlu Dibimbing) dijadikan tindak lanjut.
+// Ini laporan mandiri orang tua tentang kebiasaan di rumah, bukan nilai; dibahas wali kelas bersama orang tua. Tidak menulis ke Firebase.
+const P8_RTL = [
+  { kelas: 'Biasakan doa bersama, sholat berjamaah (dhuha/dzuhur), dan keteladanan guru; beri apresiasi pada kejujuran dan kesantunan.',
+    rumah: 'Dampingi sholat dan mengaji bersama, serta beri contoh berkata jujur dan sopan di rumah.' },
+  { kelas: 'Susun kesepakatan kelas, piket kebersihan bergilir, dan diskusi singkat tentang menghargai perbedaan.',
+    rumah: 'Libatkan ananda menjaga kebersihan rumah, membiasakan antre dan menaati aturan, serta bergaul dengan beragam teman.' },
+  { kelas: 'Ajukan pertanyaan "mengapa" dan "bagaimana", beri masalah sederhana yang menuntut alasan, dan minta siswa menjelaskan pilihannya.',
+    rumah: 'Tanggapi pertanyaan ananda dengan pertanyaan balik, ajak menimbang pilihan, dan minta ia menyebut alasannya.' },
+  { kelas: 'Beri tugas terbuka (karya dari barang bekas, cerita, gambar) dan apresiasi percobaan, walau hasilnya belum sempurna.',
+    rumah: 'Sediakan waktu dan bahan sederhana untuk berkarya, dan hargai hasilnya tanpa membandingkan dengan anak lain.' },
+  { kelas: 'Terapkan kerja kelompok dengan peran bergilir, kegiatan berbagi, dan refleksi singkat tentang kerja sama.',
+    rumah: 'Beri tugas rumah bersama saudara, ajak kegiatan keluarga, dan ajarkan bergantian saat bermain.' },
+  { kelas: 'Latih siswa menyiapkan perlengkapan sendiri, beri jadwal piket, dan tanggung jawab atas tugasnya.',
+    rumah: 'Biarkan ananda menyiapkan tas, merapikan barang, dan mengurus dirinya sendiri secara bertahap.' },
+  { kelas: 'Biasakan cuci tangan, olahraga atau senam rutin, dan beri waktu siswa mengungkapkan perasaannya.',
+    rumah: 'Atur jam tidur, makanan bergizi dan air putih, waktu bermain di luar, serta dengarkan cerita ananda.' },
+  { kelas: 'Latih menyimak, bercerita di depan kelas, dan jurnal membaca atau menulis singkat.',
+    rumah: 'Luangkan waktu bercakap tanpa gawai, membaca bersama, dan minta ananda menceritakan harinya.' }
+];
+function p8RtlBuat(kelas, siswa, skorSiswa, rataDim, terisi) {
+  const jml = skorSiswa.filter(Boolean).length;
+  if (!jml) return { html: '', teks: '' };
+  const item = rataDim.map((v, i) => ({ v, i })).filter(x => x.v !== null && x.v < 2.75).sort((a, b) => a.v - b.v);
+  const perhatian = [];
+  siswa.forEach((s, n) => {
+    const sk = skorSiswa[n]; if (!sk) return;
+    const r = p8Rata(sk); if (r === null || r >= 2.75) return;
+    const rendah = sk.map((v, i) => ({ v, i })).filter(x => x.v !== null).sort((a, b) => a.v - b.v).slice(0, 2).map(x => P8_DIMENSI[x.i].nama).join(', ');
+    perhatian.push({ nama: s.name || '-', r, rendah });
+  });
+  perhatian.sort((a, b) => a.r - b.r);
+  const tt = ['REKOMENDASI TINDAK LANJUT ANGKET PROFIL LULUSAN, KELAS ' + kelas, ''];
+  let h = '<div style="margin-top:16px;"><h4 style="font-size:14px;margin:0 0 6px;">📌 Rekomendasi &amp; Rencana Tindak Lanjut</h4>';
+  if (item.length) {
+    h += '<div class="p8-tabel-wrap"><table class="p8-tabel"><thead><tr><th>Prioritas</th><th>Dimensi</th><th>Di kelas (guru)</th><th>Di rumah (orang tua)</th></tr></thead><tbody>';
+    item.forEach((x, k) => {
+      const d = P8_DIMENSI[x.i], kat = p8Kategori(x.v), pr = x.v < 2 ? 'Tinggi' : 'Sedang';
+      h += '<tr><td>' + pr + '</td><td style="text-align:left;"><b>' + d.ikon + ' ' + p8Esc(d.nama) + '</b><br><span class="p8-lencana ' + kat.kelas + '">' + p8F(x.v) + ' · ' + kat.teks + '</span></td>' +
+        '<td style="text-align:left;">' + p8Esc(P8_RTL[x.i].kelas) + '</td><td style="text-align:left;">' + p8Esc(P8_RTL[x.i].rumah) + '</td></tr>';
+      tt.push((k + 1) + '. [Prioritas ' + pr + '] ' + d.nama + ': rata-rata ' + p8F(x.v) + ' (' + kat.teks + ').', '   Di kelas: ' + P8_RTL[x.i].kelas, '   Di rumah: ' + P8_RTL[x.i].rumah, '');
+    });
+    h += '</tbody></table></div>';
+  } else {
+    h += '<p style="font-size:13px;">Semua dimensi berada pada kategori Baik atau Sangat Baik. Fokus tindak lanjut: pertahankan kebiasaan baik dan sampaikan apresiasi kepada orang tua.</p>';
+    tt.push('Semua dimensi berada pada kategori Baik atau Sangat Baik. Fokus: pertahankan dan apresiasi orang tua.', '');
+  }
+  const baik = rataDim.map((v, i) => ({ v, i })).filter(x => x.v !== null && x.v >= 2.75).map(x => P8_DIMENSI[x.i].nama + ' (' + p8F(x.v) + ')');
+  if (baik.length) {
+    h += '<p style="font-size:12px;margin:8px 0;"><b>Sudah baik, pertahankan:</b> ' + p8Esc(baik.join(', ')) + '.</p>';
+    tt.push('Sudah baik, pertahankan: ' + baik.join(', ') + '.', '');
+  }
+  if (perhatian.length) {
+    h += '<details style="margin:8px 0;"><summary style="cursor:pointer;font-size:13px;"><b>Siswa yang perlu dipantau (' + perhatian.length + ')</b></summary><ul style="font-size:12px;margin:6px 0 6px 18px;">' +
+      perhatian.map(x => '<li>' + p8Esc(x.nama) + ' · rata² ' + p8F(x.r) + ' · terendah: ' + p8Esc(x.rendah) + '</li>').join('') + '</ul>' +
+      '<div class="p8-legenda">Gunakan untuk percakapan ramah dengan orang tua, bukan untuk melabeli anak.</div></details>';
+    tt.push('Siswa yang perlu dipantau (rata-rata < 2,75): ' + perhatian.map(x => x.nama + ' (' + p8F(x.r) + ')').join('; '), '');
+  }
+  if (jml < 5 || jml < siswa.length * 0.5) {
+    const cat = 'Baru ' + jml + ' dari ' + siswa.length + ' orang tua yang mengisi. Tafsirkan dengan hati-hati dan dorong orang tua lain mengisi.';
+    h += '<p style="font-size:12px;margin:6px 0;color:#92400e;">' + p8Esc(cat) + '</p>'; tt.push('Catatan: ' + cat);
+  }
+  h += '<div class="p8-legenda">Usulan otomatis dari rata-rata jawaban orang tua; dimensi ditandai bila rata-rata kelas di bawah 2,75. Ini gambaran kebiasaan di rumah, bukan nilai. Mohon dibahas dan disesuaikan oleh wali kelas.</div>' +
+    '<button type="button" class="btn btn-soft" id="p8SalinRtl">Salin rencana tindak lanjut</button> <button type="button" class="btn btn-soft" id="p8CetakRtl">Cetak / Simpan PDF</button></div>';
+  return { html: h, teks: tt.join('\n') };
+}
+// Cetak / simpan PDF rekomendasi kelas lewat fitur cetak peramban (di HP pilih "Simpan sebagai PDF").
+function p8PasangCssCetak() {
+  if (p8El('p8StyleCetak')) return;
+  const R = 'body.p8-cetak #p8PrintRoot';
+  const s = document.createElement('style'); s.id = 'p8StyleCetak';
+  s.textContent = '#p8PrintRoot{display:none;}@media print{' +
+    'html,body.p8-cetak{height:auto!important;overflow:visible!important;position:static!important;background:#fff!important;}' +
+    'body.p8-cetak>*:not(#p8PrintRoot){display:none!important;}' +
+    R + '{display:block!important;background:#fff;font-size:12px;}' +
+    R + ',' + R + ' *{color:#000!important;}' +
+    R + ' .p8-tabel-wrap{overflow:visible!important;}' +
+    R + ' .p8-tabel{min-width:0!important;width:100%;}' +
+    R + ' th,' + R + ' td{border:1px solid #999;padding:4px 6px;background:#fff!important;}' +
+    R + ' tr{page-break-inside:avoid;}}';
+  document.head.appendChild(s);
+}
+function p8CetakRtl() {
+  const box = p8El('p8SalinRtl'); if (!box) return;
+  const sumber = box.parentNode; if (!sumber) return;
+  const klon = sumber.cloneNode(true);
+  Array.prototype.forEach.call(klon.querySelectorAll('button'), n => n.remove());
+  Array.prototype.forEach.call(klon.querySelectorAll('details'), d => d.setAttribute('open', ''));
+  const p = p8Periode();
+  const old = p8El('p8PrintRoot'); if (old) old.remove();
+  const root = document.createElement('div'); root.id = 'p8PrintRoot';
+  root.innerHTML = '<h2 style="margin:0 0 2px;font-size:18px;">Rekomendasi Angket Profil Lulusan</h2><div style="font-size:12px;margin-bottom:10px;">Kelas ' + p8Esc(p8Guru.kelas) +
+    ' · Semester ' + p8Esc(p.sem || '-') + ' TA ' + p8Esc(p.ta || '-') + ' · dicetak ' + p8Esc(new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })) + ' · SI-MAMBA</div>';
+  root.appendChild(klon);
+  document.body.appendChild(root);
+  p8PasangCssCetak();
+  const bersih = () => {
+    document.body.classList.remove('p8-cetak');
+    const r = p8El('p8PrintRoot'); if (r) r.remove();
+    window.removeEventListener('afterprint', bersih);
+  };
+  window.addEventListener('afterprint', bersih);
+  document.body.classList.add('p8-cetak');
+  setTimeout(() => { try { window.print(); } catch (e) { bersih(); if (typeof toast === 'function') toast('Peramban tidak mendukung cetak.', true); } }, 150);
+  setTimeout(bersih, 90000);
 }
 function p8LihatDetail(siswaKey) {
   const box = p8El('p8Detail'); if (!box) return;

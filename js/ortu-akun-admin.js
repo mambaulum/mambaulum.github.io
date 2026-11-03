@@ -14,8 +14,19 @@
       if (!isAdmin()) return;
       const list = ortuEl('ortuAkunList');
       list.innerHTML = '<p class="text-muted" style="font-size:13px;">Memuat akun...</p>';
-      db.ref('ortu_akun').once('value').then(snap => {
-        ortuAkunCache = []; snap.forEach(c => { ortuAkunCache.push({ wa: c.key, ...(c.val() || {}) }); });
+      // Rules melarang membaca seluruh /ortu_akun (".read": false, melindungi PIN), hanya per nomor. Jadi daftar dibangun dari
+      // nomor WA orang tua pada data siswa, lalu tiap nomor dibaca satu per satu (25 sekaligus).
+      const keys = Array.from(new Set((allSiswa || []).map(x => x.noWaOrtu ? ortuWaKey(x.noWaOrtu) : null).filter(Boolean)));
+      const hasil = [];
+      let i = 0;
+      const batch = () => {
+        if (i >= keys.length) return Promise.resolve();
+        const potong = keys.slice(i, i + 25); i += 25;
+        list.innerHTML = '<p class="text-muted" style="font-size:13px;">Memuat akun... (' + Math.min(i, keys.length) + '/' + keys.length + ')</p>';
+        return Promise.all(potong.map(k => db.ref('ortu_akun/' + k).once('value').then(sn => { const v = sn.val(); if (v) hasil.push({ wa: k, ...v }); }))).then(batch);
+      };
+      batch().then(() => {
+        ortuAkunCache = hasil;
         renderOrtuAkunList();
       }).catch(err => { list.innerHTML = `<p style="color:#dc2626;font-size:13px;">Gagal memuat: ${escapeHtml(err.message)}</p>`; });
     }
