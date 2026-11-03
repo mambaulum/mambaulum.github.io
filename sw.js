@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.317';
+const APP_VERSION = 'v8.322';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -76,7 +76,7 @@ const PRECACHE_URLS = [
   './manifest.json',
   './manifest-ortu.json',                    // manifest PWA khusus Wali Murid (?app=ortu)
   './css/styles.css?v=21',
-  './css/menu-polish.css?v=35',              // samakan dengan ?v= di index.html
+  './css/menu-polish.css?v=36',              // samakan dengan ?v= di index.html
   './css/impersonate.css?v=3',            // gaya spanduk & modal impersonasi (samakan dengan ?v= di index.html)
   './js/logo-fallback.js',
   './js/offline-db.js',
@@ -84,7 +84,7 @@ const PRECACHE_URLS = [
   './js/administrasi-ujian.js?v=4',
   './js/app.js?v=154',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
-  './js/portal-ortu.js?v=11',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/portal-ortu.js?v=12',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=1',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=2',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -105,7 +105,7 @@ const PRECACHE_URLS = [
   './js/angket.js?v=11',                    // Angket gabungan: Kurikulum + Profil Lulusan (dimuat SESUDAH app.js & portal-ortu.js)
   './js/ortu-akun-admin.js?v=2',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/amalan-kegiatan.js?v=41',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
-  './js/bacaan-shalat.js?v=24',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
+  './js/bacaan-shalat.js?v=28',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=12',
