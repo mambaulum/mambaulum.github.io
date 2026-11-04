@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.340",
-  "disimpan": "2026-11-04T07:02:02.204Z",
+  "appVersion": "v8.341",
+  "disimpan": "2026-11-04T09:23:16.192Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -151,8 +151,8 @@
       "hash": "4b45d33713f10994a84b4f33ec9ef0ea77bda0ca"
     },
     "js/portal-tab.js": {
-      "v": "v=8",
-      "hash": "49f36094890964c0bf9549cb719a582099e27a06"
+      "v": "v=9",
+      "hash": "1ddae97d887ccc74e1ea95c37a25f412fc6d35d3"
     },
     "js/kredensial.js": {
       "v": "v=8",
