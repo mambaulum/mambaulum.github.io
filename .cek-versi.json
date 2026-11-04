@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.338",
-  "disimpan": "2026-11-04T06:46:05.517Z",
+  "appVersion": "v8.340",
+  "disimpan": "2026-11-04T07:02:02.204Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -63,8 +63,8 @@
       "hash": "b535651d49931efe668008d41464a238f9f815bf"
     },
     "js/portal-ortu.js": {
-      "v": "v=17",
-      "hash": "6c980ffd191b291a6cd3c1957e47967749e583a5"
+      "v": "v=19",
+      "hash": "7f9a05f2fff7006eed689f4c101fca88a8df9c07"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -151,8 +151,8 @@
       "hash": "4b45d33713f10994a84b4f33ec9ef0ea77bda0ca"
     },
     "js/portal-tab.js": {
-      "v": "v=6",
-      "hash": "3594cfe49dc856ab98980c2561038b2ebf5cccb8"
+      "v": "v=8",
+      "hash": "49f36094890964c0bf9549cb719a582099e27a06"
     },
     "js/kredensial.js": {
       "v": "v=8",
