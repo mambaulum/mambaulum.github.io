@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/portal-tab.js (v3)
+   SI MAMBA - js/portal-tab.js (v6)
    Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Lainnya.
    Tidak mengubah isi/kartu: setiap anak langsung #portalOrtuContent diberi data-ptab, lalu CSS menyembunyikan yang bukan tab aktif.
    Kartu yang disisipkan belakangan oleh modul lain (Bacaan Sholat, Sholat Dhuha & Dzuhur, angket) ikut terklasifikasi otomatis lewat
@@ -37,7 +37,34 @@
     termo: '<path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/>',
     api: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
-    jam: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+    jam: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    sunrise: '<path d="M12 2v6M4.9 10.9l1.4 1.4M2 18h2M20 18h2M19.1 10.9l-1.4 1.4M22 22H2M16 18a4 4 0 0 0-8 0M8 6l4-4 4 4"/>',
+    sunset: '<path d="M12 10V2M4.9 10.9l1.4 1.4M2 18h2M20 18h2M19.1 10.9l-1.4 1.4M22 22H2M16 18a4 4 0 0 0-8 0M16 5l-4 4-4-4"/>',
+    awan: '<path d="M12 2v2M4.9 4.9l1.4 1.4M2 12h2M20 12h2M19.1 4.9l-1.4 1.4M16 12a4 4 0 0 0-8 0"/><path d="M6 20h10a3.5 3.5 0 0 0 .5-6.9"/><path d="M6 20a3 3 0 0 1 0-6h1"/>',
+    hati: '<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>',
+    alarm: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M5 3 2 6M22 6l-3-3"/>',
+    aktif: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+    apel: '<path d="M12 20.9c1.5 0 2.7 1 4 1 3 0 6-8 6-12.2A4.9 4.9 0 0 0 17 5c-2.2 0-4 1.4-5 2-1-.6-2.8-2-5-2a4.9 4.9 0 0 0-5 4.8C2 14 5 22 8 22c1.3 0 2.5-1.1 4-1.1z"/><path d="M10 2c1 .5 2 2 2 5"/>',
+    kasur: '<path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/>',
+    tunas: '<path d="M7 20h10M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8zM14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/>',
+    medali: '<circle cx="12" cy="9" r="6"/><path d="M8.2 14 7 22l5-3 5 3-1.2-8"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+    kilau: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15v4M17 17h4"/>',
+    petir: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+    sinyal: '<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 20h.01"/>',
+    awas: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+    silang: '<path d="M18 6 6 18M6 6l12 12"/>',
+    segar: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
+    kotak: '<path d="m9 11 3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    batal: '<path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+    naik: '<path d="m22 7-8.5 8.5-5-5L2 17M16 7h6v6"/>',
+    bulat: '<circle cx="12" cy="12" r="9"/>',
+    titik: '<circle cx="12" cy="12" r="7" fill="currentColor" stroke="none"/>',
+    kirim: '<path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>',
+    kunci: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M16 7l3 3M14 9l2 2"/>',
+    pin: '<path d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.8V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+    tautan: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+    pasir: '<path d="M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"/>'
   };
   window.poIkon = function (nama, px) {
     var d = IKON[nama]; if (!d) return '';
@@ -52,6 +79,39 @@
     for (var i = 0; i < PETA.length; i++) if (PETA[i][0].test(t)) return window.poIkon(PETA[i][1], 17) + ' ' + t.replace(/^\S+ /, '');
     return t;
   };
+
+
+  // ---------- Emoji -> ikon garis di seluruh isi Portal Ortu (termasuk kotak Bacaan Sholat & Amalan) ----------
+  // Hanya emoji yang dikenal yang diganti; sisanya dibiarkan. Berjalan lagi tiap isi berubah, jadi ikut menangkap tampilan yang digambar ulang.
+  var EMO = {
+    '🌅': ['sunrise'], '🌞': ['sun'], '🌤': ['awan'], '🌇': ['sunset'], '🌙': ['moon'], '📖': ['buku'], '☀': ['sun'], '🤝': ['hati'],
+    '⏰': ['alarm'], '🏃': ['aktif'], '🥗': ['apel'], '📚': ['materi'], '🛌': ['kasur'], '🕌': ['moon'], '🌱': ['tunas'], '🌟': ['bintang'], '⭐': ['bintang'],
+    '🌠': ['bintang'], '🏅': ['medali'], '🎯': ['target'], '🎉': ['kilau', '#d97706'], '💪': ['petir'], '🔥': ['api', '#ea580c'], '📡': ['sinyal'],
+    '⚠': ['awas', '#d97706'], '❌': ['silang', '#dc2626'], '🔄': ['segar'], '🔁': ['segar'], '⏳': ['pasir'], '✅': ['cek', '#059669'], '⬜': ['bulat', '#9ca3af'],
+    '☑': ['kotak'], '↩': ['batal'], '🌿': ['daun'], '🤒': ['termo'], '💬': ['pesan'], '📈': ['naik'], '📋': ['tugas'], '🏡': ['home'], '👧': ['user'], '🧒': ['user'],
+    '📤': ['kirim'], '🔑': ['kunci'], '📜': ['nilai'], '📌': ['pin'], '🔗': ['tautan'], '🔴': ['titik', '#dc2626'], '🟣': ['titik', '#7c3aed'], '🟠': ['titik', '#ea580c'], '🟢': ['titik', '#16a34a']
+  };
+  var EMO_RE = new RegExp('(' + Object.keys(EMO).sort(function (a, b) { return b.length - a.length; }).join('|') + ')[\\uFE0F]?', 'g');
+  function ikonkan(akar) {
+    if (!akar || !document.createTreeWalker) return;
+    var w = document.createTreeWalker(akar, NodeFilter.SHOW_TEXT, null), n, daftar = [];
+    while ((n = w.nextNode())) {
+      var pr = n.parentNode && n.parentNode.nodeName;
+      if (pr === 'SCRIPT' || pr === 'STYLE' || pr === 'TEXTAREA' || pr === 'OPTION') continue;
+      EMO_RE.lastIndex = 0; if (EMO_RE.test(n.nodeValue)) daftar.push(n);
+    }
+    daftar.forEach(function (t) {
+      var teks = t.nodeValue, frag = document.createDocumentFragment(), akhir = 0, m;
+      EMO_RE.lastIndex = 0;
+      while ((m = EMO_RE.exec(teks))) {
+        if (m.index > akhir) frag.appendChild(document.createTextNode(teks.slice(akhir, m.index)));
+        var d = EMO[m[1]], sp = document.createElement('span'); sp.className = 'po-eik'; sp.innerHTML = window.poIkon(d[0], 16);
+        if (d[1]) sp.style.color = d[1]; frag.appendChild(sp); akhir = m.index + m[0].length;
+      }
+      if (akhir < teks.length) frag.appendChild(document.createTextNode(teks.slice(akhir)));
+      t.parentNode.replaceChild(frag, t);
+    });
+  }
 
   function el(id) { return document.getElementById(id); }
   function tabUntuk(c) {
@@ -109,6 +169,7 @@
     b.style.display = siap ? '' : 'none';
     if (!siap) { content.removeAttribute('data-pt'); return; }
     sinkronPengingat(content);
+    try { ikonkan(content); } catch (e) { console.warn('[SI MAMBA] Ikon Portal Ortu:', e); }
     Array.prototype.forEach.call(content.children, function (c) {
       var t = tabUntuk(c); if (c.getAttribute('data-ptab') !== t) c.setAttribute('data-ptab', t);
     });
@@ -120,6 +181,9 @@
     var dot = b.querySelector('button[data-tab="amalan"] .pt-dot'); if (dot) dot.hidden = !el('bsOrtuPengingat');
   }
   window.ptPilih = function (k) {
+    var arah = TABS.map(function (t) { return t[0]; }).indexOf(k) - TABS.map(function (t) { return t[0]; }).indexOf(aktif);
+    var cc = el('portalOrtuContent');
+    if (cc && arah !== 0) { cc.style.setProperty('--pt-dx', (arah > 0 ? '18px' : '-18px')); cc.setAttribute('data-anim', '1'); setTimeout(function () { cc.removeAttribute('data-anim'); }, 320); }
     aktif = k; try { sessionStorage.setItem(KUNCI, k); } catch (e) { /* abaikan */ }
     terapkan();
     var b = el('poTabBar'); if (b && b.scrollIntoView && b.getBoundingClientRect().top < 0) { try { b.scrollIntoView({ block: 'start' }); } catch (e) { /* abaikan */ } }
@@ -130,13 +194,97 @@
     var c = node; while (c && c.parentNode !== content) c = c.parentNode;
     if (c && c.getAttribute('data-ptab') && c.getAttribute('data-ptab') !== aktif) { aktif = c.getAttribute('data-ptab'); terapkan(); }
   };
+
+
+  // ---------- Tombol Update di header Portal Ortu ----------
+  // Memeriksa pembaruan Service Worker; bila ada versi baru langsung dipasang lalu halaman dimuat ulang. Bila tidak ada: tampil pesan "Sudah versi terbaru".
+  function toast(teks) {
+    var t = document.getElementById('poToast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'poToast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite');
+      t.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:88vw;padding:9px 16px;border-radius:999px;background:#0f172a;color:#fff;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 6px 20px rgba(0,0,0,.25);text-align:center;';
+      document.body.appendChild(t);
+    }
+    t.textContent = teks; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = 'none'; }, 3200);
+  }
+  function versiAktif(reg, cb) {
+    var selesai = false, fin = function (v) { if (!selesai) { selesai = true; cb(v); } };
+    try {
+      var w = reg.active; if (!w) return fin('');
+      var mc = new MessageChannel(); mc.port1.onmessage = function (e) { fin(e.data && e.data.version ? e.data.version : ''); };
+      w.postMessage({ type: 'GET_VERSION' }, [mc.port2]); setTimeout(function () { fin(''); }, 1500);
+    } catch (e) { fin(''); }
+  }
+  window.ptPerbarui = function (btn) {
+    if (!btn || btn.disabled) return;
+    var ik = btn.querySelector('svg'), mulaiPutar = function () { btn.disabled = true; if (ik) ik.style.animation = 'ptPutar .9s linear infinite'; },
+        selesai = function (pesan) { btn.disabled = false; if (ik) ik.style.animation = ''; if (pesan) toast(pesan); },
+        muat = function () { toast('Memuat ulang...'); setTimeout(function () { location.reload(); }, 400); };
+    mulaiPutar();
+    if (navigator.onLine === false) return selesai('Tidak ada koneksi internet. Coba lagi saat online.');
+    if (!('serviceWorker' in navigator)) return muat();
+    navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (!reg) return muat();
+      var pasangBaru = function (menunggu) {
+        var sudah = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () { if (!sudah) { sudah = true; location.reload(); } });
+        toast('Memasang pembaruan...'); menunggu.postMessage({ type: 'SKIP_WAITING' });
+        setTimeout(function () { if (!sudah) { sudah = true; location.reload(); } }, 4000);
+      };
+      return reg.update().then(function () {
+        if (reg.waiting) return pasangBaru(reg.waiting);
+        var inst = reg.installing;
+        if (inst) {
+          toast('Mengunduh pembaruan...');
+          var cek = function () { if (inst.state === 'installed' && reg.waiting) pasangBaru(reg.waiting); else if (inst.state === 'redundant') selesai('Pembaruan gagal diunduh. Coba lagi.'); };
+          inst.addEventListener('statechange', cek); cek(); return;
+        }
+        versiAktif(reg, function (v) { selesai('Sudah versi terbaru' + (v ? ' (' + v + ')' : '') + '.'); });
+      });
+    }).catch(function () { selesai('Gagal memeriksa pembaruan. Coba lagi.'); });
+  };
+
+  // ---------- Geser layar kiri/kanan untuk pindah tab (hanya HP) ----------
+  function bolehGeser(node) {
+    for (var x = node; x && x.nodeType === 1; x = x.parentNode) {
+      var tg = x.nodeName;
+      if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT' || x.isContentEditable) return false;
+      if (x.id === 'portalOrtuContent') break;
+      if (x.scrollWidth > x.clientWidth + 2) { var ov = getComputedStyle(x).overflowX; if (ov === 'auto' || ov === 'scroll') return false; }   // tabel/area yang bisa digeser sendiri
+    }
+    return true;
+  }
+  function pasangGeser(content) {
+    var x0 = 0, y0 = 0, t0 = 0, ok = false;
+    content.addEventListener('touchstart', function (e) {
+      var t = e.touches[0]; ok = e.touches.length === 1 && window.innerWidth < 760 && t.clientX > 28 && t.clientX < window.innerWidth - 28 && bolehGeser(e.target);   // tepi layar dibiarkan untuk gestur back
+      x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
+    }, { passive: true });
+    content.addEventListener('touchend', function (e) {
+      if (!ok) return; ok = false;
+      var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8 || Date.now() - t0 > 700) return;
+      var urut = TABS.map(function (a) { return a[0]; }), i = urut.indexOf(aktif), j = dx < 0 ? i + 1 : i - 1;
+      if (j >= 0 && j < urut.length) window.ptPilih(urut[j]);
+    }, { passive: true });
+  }
+
   function pasang() {
     var content = el('portalOrtuContent'); if (!content) return false;
     new MutationObserver(function () { try { terapkan(); } catch (e) { console.warn('[SI MAMBA] Tab Portal Ortu:', e); } }).observe(content, { childList: true, subtree: true });
-    terapkan(); return true;
+    pasangGeser(content); terapkan(); return true;
   }
   var css = document.createElement('style');
-  css.textContent = '.po-ik{flex:none;vertical-align:-3px}.po-ub-j{display:flex;align-items:center;gap:4px}.po-ub-j .po-ik,.po-acc>summary .po-ik,#poRingkas>p .po-ik,#poKopKehadiran .po-ik,#poTabBar .po-ik{color:#0f766e}#poTabBar button.on .po-ik{color:#00543f}#bsOrtuPengingat .po-ik,#poPengingatBeranda .po-ik{color:#b45309}.po-acc>summary>span:first-child .po-ik{margin-right:4px}#poTabBar{display:none}@media(min-width:760px){#poPengingatBeranda{display:none}}'
+  css.textContent = '.po-ik{flex:none;vertical-align:-3px}.po-eik{display:inline-flex;vertical-align:middle;line-height:1}.po-eik .po-ik{width:1.1em;height:1.1em;vertical-align:0;color:inherit}#bsOrtuBox .po-eik{color:#0f766e}.po-ub-j{display:flex;align-items:center;gap:4px}.po-ub-j .po-ik,.po-acc>summary .po-ik,#poRingkas>p .po-ik,#poKopKehadiran .po-ik,#poTabBar .po-ik{color:#0f766e}#poTabBar button.on .po-ik{color:#00543f}#bsOrtuPengingat .po-ik,#poPengingatBeranda .po-ik{color:#b45309}.po-acc>summary>span:first-child .po-ik{margin-right:4px}#poTabBar{display:none}@media(min-width:760px){#poPengingatBeranda{display:none}}'
+    + '@media(max-width:759px){#portalOrtuContent .btn,#poPengingatBeranda .btn,#portalOrtuDashboard .btn{min-height:30px!important;padding:2px 10px!important;font-size:12px!important;border-radius:9px!important}'
+    + '#bsOrtuBox button[style*="min-height:48px"],#bsOrtuBox div[style*="min-height:48px"]{min-height:36px!important;padding:3px 8px!important;font-size:12.5px!important;border-width:1.5px!important;border-radius:10px!important;gap:5px!important}'
+    + '#bsOrtuBox button[style*="min-height:44px"]{min-height:34px!important;padding:3px 8px!important;font-size:12.5px!important;border-width:1.5px!important;border-radius:10px!important;margin-top:6px!important}'
+    + '#bsOrtuBox [style*="font-size:20px"]{font-size:16px!important}#bsOrtuBox [style*="font-size:16px"]{font-size:14px!important}'
+    + '#portalOrtuDashboard>div>div:first-child .btn{min-height:28px!important;padding:2px 9px!important;font-size:11px!important}}'
+    + '@keyframes ptPutar{to{transform:rotate(360deg)}}'
+    + '@keyframes ptMasuk{from{opacity:0;transform:translateX(var(--pt-dx,18px))}to{opacity:1;transform:none}}'
+    + '@media(max-width:759px) and (prefers-reduced-motion:no-preference){#portalOrtuContent[data-anim="1"]>[data-ptab]{animation:ptMasuk .22s ease-out}}'
+    + '@media(max-width:759px){#portalOrtuDashboard .po-bt{display:none}#portalOrtuDashboard .po-bt-ikon{padding:2px 8px!important;min-width:34px}}'
     + '@media(max-width:759px){.po-rk-grid{gap:5px!important}.po-ub{padding:6px 8px!important;gap:0!important}.po-ub-u{font-size:16px!important}.po-ub-s{line-height:1.25!important}'
     + '#poTabBar{display:flex!important;gap:4px;position:sticky;top:0;z-index:20;background:#fff;padding:6px 0;margin:0 0 8px;border-bottom:1px solid #e5e7eb}'
     + '#poTabBar[style*="display: none"]{display:none!important}'
