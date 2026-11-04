@@ -2447,7 +2447,7 @@ function v4PortalSholatHtml(list) {
     const terbit = d.diterbitkanPada ? 'Diterbitkan wali kelas · ' + escapeHtml(String(d.diterbitkanPada).slice(0, 10)) : 'Diterbitkan wali kelas';
     return `<div style="padding:6px 0;${i ? 'border-top:1px solid #f1f5f9;' : ''}">
       <div style="font-size:12px;font-weight:700;margin-bottom:2px;">Semester ${escapeHtml(d.semester)} ${escapeHtml(d.tahunAjaran || '')}</div>
-      ${v4PortalSholatBaris('☀️', 'Dhuha', d.dhuha)}${v4PortalSholatBaris('🕌', 'Dzuhur', d.dzuhur)}
+      ${v4PortalSholatBaris(typeof poIkon === 'function' ? poIkon('sun', 15) : '☀️', 'Dhuha', d.dhuha)}${v4PortalSholatBaris(typeof poIkon === 'function' ? poIkon('jam', 15) : '🕌', 'Dzuhur', d.dzuhur)}
       ${d.deskripsi ? `<p style="font-size:12px;margin-top:6px;line-height:1.45;">${escapeHtml(d.deskripsi)}</p>` : ''}
       <p class="text-muted" style="font-size:11px;margin-top:4px;line-height:1.4;">${catatan.length ? catatan.map(escapeHtml).join(' ') + ' · ' : ''}${terbit}</p></div>`;
   }).join('');
@@ -2473,7 +2473,7 @@ function v4PortalSholatPasang(siswa) {
     if (content.querySelector('#portalOrtuSholatCard')) return true;
     const kartu = document.createElement('details');
     kartu.className = 'card po-acc'; kartu.id = 'portalOrtuSholatCard'; kartu.style.marginBottom = '12px';
-    kartu.innerHTML = '<summary><span>🕌 Sholat Dhuha &amp; Dzuhur</span><span class="po-badge">Memuat...</span></summary><div class="po-acc-body"><p class="text-muted" style="font-size:13px;">⏳ Memuat rekap...</p></div>';
+    kartu.innerHTML = '<summary><span>' + (typeof poIkonDepan === 'function' ? poIkonDepan('🕌 Sholat Dhuha &amp; Dzuhur') : '🕌 Sholat Dhuha &amp; Dzuhur') + '</span><span class="po-badge">Memuat...</span></summary><div class="po-acc-body"><p class="text-muted" style="font-size:13px;">⏳ Memuat rekap...</p></div>';
     const acuan = [...content.querySelectorAll('.card')].find(c => /Kehadiran Bulan Ini/.test(c.textContent));
     if (acuan) acuan.insertAdjacentElement('afterend', kartu); else content.appendChild(kartu);
     v4PortalSholatIsi(kartu, siswa);

@@ -1792,12 +1792,13 @@ function bsOrtuMuat(siswa) {
 function bsRingkasKePortal(game, o, h) {
   if (typeof poIsiUbin !== 'function') return;
   const ada = !!o.amalan[h], it = o.amalan[h] || {}, uz = (o.uzur || {})[h] === true, sk = (o.sakit || {})[h] === true, hh = bsHitungHari(it, uz), n = hh.lamaC, tot = hh.lamaN;
+  const ik = nm => typeof poIkon === 'function' ? poIkon(nm, 12) + ' ' : '';
   poIsiUbin('poRingkasAmalan', n + ' / ' + tot, !ada ? '#6b7280' : n === tot ? '#059669' : '#d97706',
-    uz ? '🌿 Berhalangan sholat hari ini' : sk ? '🤒 Hari sakit (tidak dihitung)' : !ada ? 'Belum diisi hari ini' : (game.rentetanLimaWaktu >= 2 ? '🔥 ' + game.rentetanLimaWaktu + ' hari sholat lengkap' : bsKebJumlah(it) + ' dari ' + BS_KEB7.length + ' kebiasaan'));
+    uz ? ik('daun') + 'Berhalangan sholat' : sk ? ik('termo') + 'Sakit (tidak dihitung)' : !ada ? 'Belum diisi hari ini' : (game.rentetanLimaWaktu >= 2 ? ik('api') + game.rentetanLimaWaktu + ' hari sholat lengkap' : bsKebJumlah(it) + ' dari ' + BS_KEB7.length + ' kebiasaan'));
   if (!o.targets.length) { poIsiUbin('poRingkasHafalan', 'Belum ada target', '#6b7280', 'Guru belum membuat target bacaan', ''); return; }
   const persen = game.nTarget ? Math.round(game.lulus / game.nTarget * 100) : 0, berikut = bsOrtuTargetBerikut();
   poIsiUbin('poRingkasHafalan', game.lulus + ' dari ' + game.nTarget + ' lulus', persen >= 100 ? '#059669' : '#2563eb',
-    persen + '% · ' + (berikut ? 'berikutnya: ' + bsEsc(berikut.nama) : 'semua target lulus 🎉'), bsBarProgres(persen));
+    persen + '% · ' + (berikut ? 'berikutnya: ' + bsEsc(berikut.nama) : 'semua target lulus'), bsBarProgres(persen));
 }
 function bsOrtuDaftarAmalan() { return Object.keys(bsOrtu.amalan).map(tg => ({ tanggal: tg, items: bsOrtu.amalan[tg], berhalangan: (bsOrtu.uzur || {})[tg] === true, sakit: (bsOrtu.sakit || {})[tg] === true })); }
 // Pengingat di dalam Portal Orang Tua: hari (hari ini sampai BS_HARI_ISI_MUNDUR hari ke belakang) yang belum ada isian sama sekali.
@@ -1850,7 +1851,7 @@ function bsOrtuGambar() {
   const labelHari = x => x.n === 0 ? 'Hari ini' : x.n === 1 ? 'Kemarin' : x.n + ' hari lalu';
   const belum = bsOrtuTunda === ((o.siswa.key || '') + '|' + h) ? [] : bsOrtuHariBelumIsi(o, h, new Date().getHours());
   const pengingat = belum.length ? `<div id="bsOrtuPengingat" class="card" style="margin-bottom:8px;padding:8px 12px;border:1px solid #fcd34d;background:#fffbeb;">
-      <p style="font-weight:700;font-size:13px;">🔔 Amalan di rumah belum diisi</p>
+      <p style="font-weight:700;font-size:13px;">${typeof poIkon === 'function' ? poIkon('bell', 16) + ' ' : ''}Amalan di rumah belum diisi</p>
       <p style="font-size:12px;margin:2px 0 6px;">${bsEsc(belum.map(labelHari).join(', '))} belum diisi.${belum[0].n === BS_HARI_ISI_MUNDUR ? ' Batas terakhir mengisi: hari ini.' : ''}</p>
       <div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-primary" style="padding:3px 12px;font-size:12px;min-height:32px;" onclick="bsOrtuIsiSekarang('${belum[0].tg}')">Isi ${bsEsc(labelHari(belum[0]).toLowerCase())}</button><button type="button" class="btn btn-soft" style="padding:3px 12px;font-size:12px;min-height:32px;" onclick="bsOrtuTundaPengingat()">Nanti</button></div></div>` : '';
   const tombolLima = `<button type="button" class="btn ${limaLengkap ? 'btn-soft' : 'btn-primary'}" style="padding:3px 10px;font-size:12px;min-height:30px;"${limaLengkap ? ' disabled' : ''} onclick="bsOrtuCentangLima()">${limaLengkap ? '✅ Lengkap' : '☑️ Semua sudah'}</button>`;

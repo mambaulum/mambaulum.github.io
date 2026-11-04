@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/portal-tab.js (v2)
+   SI MAMBA - js/portal-tab.js (v3)
    Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Lainnya.
    Tidak mengubah isi/kartu: setiap anak langsung #portalOrtuContent diberi data-ptab, lalu CSS menyembunyikan yang bukan tab aktif.
    Kartu yang disisipkan belakangan oleh modul lain (Bacaan Sholat, Sholat Dhuha & Dzuhur, angket) ikut terklasifikasi otomatis lewat
@@ -8,10 +8,50 @@
 ============================================================ */
 (function () {
   'use strict';
-  var TABS = [['home', '🏠', 'Beranda'], ['amalan', '🕌', 'Amalan'], ['belajar', '📚', 'Belajar'], ['lain', '⋯', 'Lainnya']];
+  var TABS = [['home', 'home', 'Beranda'], ['amalan', 'moon', 'Amalan'], ['belajar', 'buku', 'Belajar'], ['lain', 'lain', 'Lainnya']];
   var KUNCI = 'mamba_po_tab';
   var aktif = 'home';
   try { var s = sessionStorage.getItem(KUNCI); if (s && TABS.some(function (t) { return t[0] === s; })) aktif = s; } catch (e) { /* storage tidak ada */ }
+
+  // ---------- Ikon garis (outline) modern, menggantikan emoji di Portal Orang Tua ----------
+  var IKON = {
+    home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    buku: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
+    lain: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+    kehadiran: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M9 15l2 2 4-4"/>',
+    agenda: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
+    chart: '<path d="M3 3v18h18"/><path d="M7.5 16v-4M12 16V8M16.5 16v-6"/>',
+    nilai: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+    tugas: '<path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1z"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 14l2 2 4-4"/>',
+    infaq: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9.3C14.3 8.5 13.3 8 12 8c-1.7 0-3 .9-3 2.1 0 2.9 6 1.4 6 4.2 0 1.3-1.3 2.2-3 2.2-1.3 0-2.4-.5-3-1.4M12 6v2M12 16v2"/>',
+    cek: '<circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.8 2.8L16 9.5"/>',
+    bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+    pensil: '<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
+    materi: '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>',
+    bintang: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.3L5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+    pesan: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+    daun: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.2-4.1 10-10 10z"/><path d="M2 21c0-3 1.9-5.5 5-7"/>',
+    termo: '<path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/>',
+    api: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
+    jam: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  };
+  window.poIkon = function (nama, px) {
+    var d = IKON[nama]; if (!d) return '';
+    var u = px || 18;
+    return '<svg class="po-ik" viewBox="0 0 24 24" width="' + u + '" height="' + u + '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  };
+  // Ganti emoji di AWAL judul dengan ikon garis; teks lain tidak disentuh. Dipakai kartu lipat & kotak Ringkasan.
+  var PETA = [[/^📊 /, 'chart'], [/^📅 Kehadiran/, 'kehadiran'], [/^📝 Nilai/, 'nilai'], [/^📝 /, 'tugas'], [/^🧒 /, 'user'], [/^💵 /, 'infaq'], [/^🏡 /, 'cek'],
+    [/^📿 /, 'bookmark'], [/^📆 /, 'agenda'], [/^📘 /, 'pensil'], [/^📚 /, 'materi'], [/^🌟 /, 'bintang'], [/^📖 /, 'pesan'], [/^💬 /, 'pesan'], [/^🕌 /, 'moon']];
+  window.poIkonDepan = function (html) {
+    var t = String(html == null ? '' : html);
+    for (var i = 0; i < PETA.length; i++) if (PETA[i][0].test(t)) return window.poIkon(PETA[i][1], 17) + ' ' + t.replace(/^\S+ /, '');
+    return t;
+  };
 
   function el(id) { return document.getElementById(id); }
   function tabUntuk(c) {
@@ -33,7 +73,7 @@
     var content = el('portalOrtuContent'); if (!content || !content.parentNode) return null;
     b = document.createElement('div'); b.id = 'poTabBar'; b.setAttribute('role', 'tablist');
     b.innerHTML = TABS.map(function (t) {
-      return '<button type="button" role="tab" data-tab="' + t[0] + '" onclick="ptPilih(\'' + t[0] + '\')"><span class="pt-i">' + t[1] + '</span><span class="pt-l">' + t[2] + '</span><i class="pt-dot" hidden></i></button>';
+      return '<button type="button" role="tab" data-tab="' + t[0] + '" onclick="ptPilih(\'' + t[0] + '\')"><span class="pt-i">' + window.poIkon(t[1], 21) + '</span><span class="pt-l">' + t[2] + '</span><i class="pt-dot" hidden></i></button>';
     }).join('');
     content.parentNode.insertBefore(b, content);
     return b;
@@ -53,7 +93,7 @@
       if (acuan && acuan.nextSibling) content.insertBefore(m, acuan.nextSibling); else content.appendChild(m);
     }
     m.setAttribute('data-k', kunci); m.textContent = '';
-    var j = document.createElement('p'); j.style.cssText = 'font-weight:700;font-size:13px;'; j.textContent = '🔔 Amalan di rumah belum diisi'; m.appendChild(j);
+    var j = document.createElement('p'); j.style.cssText = 'font-weight:700;font-size:13px;'; j.innerHTML = window.poIkon('bell', 16) + ' Amalan di rumah belum diisi'; m.appendChild(j);
     var t = document.createElement('p'); t.style.cssText = 'font-size:12px;margin:2px 0 6px;'; t.textContent = teks; m.appendChild(t);
     var baris = document.createElement('div'); baris.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
     var b1 = document.createElement('button'); b1.type = 'button'; b1.className = 'btn btn-primary'; b1.style.cssText = 'padding:3px 12px;font-size:12px;min-height:32px;'; b1.textContent = labelIsi;
@@ -96,12 +136,12 @@
     terapkan(); return true;
   }
   var css = document.createElement('style');
-  css.textContent = '#poTabBar{display:none}@media(min-width:760px){#poPengingatBeranda{display:none}}'
-    + '@media(max-width:759px){'
+  css.textContent = '.po-ik{flex:none;vertical-align:-3px}.po-ub-j{display:flex;align-items:center;gap:4px}.po-ub-j .po-ik,.po-acc>summary .po-ik,#poRingkas>p .po-ik,#poKopKehadiran .po-ik,#poTabBar .po-ik{color:#0f766e}#poTabBar button.on .po-ik{color:#00543f}#bsOrtuPengingat .po-ik,#poPengingatBeranda .po-ik{color:#b45309}.po-acc>summary>span:first-child .po-ik{margin-right:4px}#poTabBar{display:none}@media(min-width:760px){#poPengingatBeranda{display:none}}'
+    + '@media(max-width:759px){.po-rk-grid{gap:5px!important}.po-ub{padding:6px 8px!important;gap:0!important}.po-ub-u{font-size:16px!important}.po-ub-s{line-height:1.25!important}'
     + '#poTabBar{display:flex!important;gap:4px;position:sticky;top:0;z-index:20;background:#fff;padding:6px 0;margin:0 0 8px;border-bottom:1px solid #e5e7eb}'
     + '#poTabBar[style*="display: none"]{display:none!important}'
     + '#poTabBar button{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 2px;border:0;border-radius:10px;background:transparent;color:#475569;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}'
-    + '#poTabBar .pt-i{font-size:17px;line-height:1.1}#poTabBar .pt-l{font-size:11px;font-weight:600}'
+    + '#poTabBar .pt-i{display:flex;line-height:1}#poTabBar .pt-l{font-size:11px;font-weight:600}'
     + '#poTabBar button.on{background:#d1fae5;color:#00543f}#poTabBar button.on .pt-l{font-weight:800}'
     + '#poTabBar .pt-dot{position:absolute;top:3px;right:22%;width:8px;height:8px;border-radius:50%;background:#dc2626}#poTabBar .pt-dot[hidden]{display:none}'
     + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'

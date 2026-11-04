@@ -323,8 +323,9 @@
     // Nominal tunggakan memakai nominal siswa saat ini, jadi sifatnya perkiraan.
     // Kartu lipat (accordion) supaya halaman tidak terlalu panjang di HP: judul + lencana ringkas selalu terlihat,
     // isi baru terbuka saat diketuk. `badge` & `isi` sudah berupa HTML (escape dilakukan pemanggil).
+    const poID = t => typeof poIkonDepan === 'function' ? poIkonDepan(t) : t;   // emoji awal judul -> ikon garis (portal-tab.js)
     function poAcc(judul, badge, isi, buka, id) {
-      return `<details class="card po-acc"${id ? ' id="' + id + '"' : ''} style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${judul}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
+      return `<details class="card po-acc"${id ? ' id="' + id + '"' : ''} style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${poID(judul)}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
     }
     const poBadge = (teks, kelas) => `<span class="po-badge${kelas ? ' ' + kelas : ''}">${teks}</span>`;
     const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:span 2}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:19px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}#bsOrtuBox summary::-webkit-details-marker{display:none}@media(max-width:759px){#portalOrtuContent .card{padding:10px 12px!important;margin-bottom:8px!important}.po-ub{padding:7px 8px}.po-ub-j{font-size:11px}.po-ub-u{font-size:17px}.po-ub-s{font-size:10.5px}}#portalOrtuAnakWrap,#portalOrtuGantiPin{max-width:600px}@media(min-width:760px){#portalOrtuContent{column-count:2;column-gap:12px}#portalOrtuContent .card,#portalOrtuContent details{break-inside:avoid;-webkit-column-break-inside:avoid}#portalOrtuContent #poKopKehadiran,#portalOrtuContent #poRingkas{column-span:all}}</style>`;
@@ -348,14 +349,14 @@
       if (x) x.innerHTML = extra || '';
     }
     function poUbin(idEl, tujuan, judul, utama, warna, sub, penuh) {
-      return `<button type="button" id="${idEl}" class="po-ub${penuh ? ' po-ub-penuh' : ''}" onclick="poBukaBagian('${tujuan}')"><span class="po-ub-j">${judul}</span><span class="po-ub-u" style="color:${warna}">${utama}</span><span class="po-ub-s">${sub}</span>${penuh ? '<span class="po-ub-x"></span>' : ''}</button>`;
+      return `<button type="button" id="${idEl}" class="po-ub${penuh ? ' po-ub-penuh' : ''}" onclick="poBukaBagian('${tujuan}')"><span class="po-ub-j">${poID(judul)}</span><span class="po-ub-u" style="color:${warna}">${utama}</span><span class="po-ub-s">${sub}</span>${penuh ? '<span class="po-ub-x"></span>' : ''}</button>`;
     }
     function poRingkasInfaq() {
       const r = portalOrtuInfaqRingkas; if (!r) return { utama: '-', warna: '#6b7280', sub: 'Belum ada data' };
-      if (r.gratis) return { utama: 'Bebas', warna: '#059669', sub: 'Dibebaskan dari iuran' };
-      if (r.belum > 0) return { utama: r.belum + ' mgg belum', warna: '#dc2626', sub: r.perkiraan !== null && r.perkiraan !== undefined ? 'Perkiraan ' + escapeHtml(iuranRp(r.perkiraan)) : 'Belum tercatat lunas' };
-      if (r.lunasIni) return { utama: 'Lancar', warna: '#059669', sub: 'Lunas minggu ini' };
-      return { utama: 'Belum lunas', warna: '#d97706', sub: 'Minggu ini belum tercatat' };
+      if (r.gratis) return { utama: 'Bebas', warna: '#059669', sub: 'bebas iuran' };
+      if (r.belum > 0) return { utama: r.belum + ' mgg', warna: '#dc2626', sub: 'belum lunas' };
+      if (r.lunasIni) return { utama: 'Lancar', warna: '#059669', sub: 'lunas minggu ini' };
+      return { utama: 'Belum', warna: '#d97706', sub: 'minggu ini' };
     }
     function poRingkasHtml(o) {
       const persen = o.totalAbsen > 0 ? Math.round(o.hadir / o.totalAbsen * 100) : null;
@@ -365,10 +366,10 @@
       const fmt = n => (Math.round(n * 10) / 10).toString().replace('.', ',');
       const inf = poRingkasInfaq();
       return `<div class="card" id="poRingkas" style="margin-bottom:12px;">
-        <p style="font-weight:700;font-size:13px;margin:0 0 8px;">📊 Ringkasan Ananda <span class="text-muted" style="font-weight:400;font-size:11px;">· ketuk kotak untuk rincian</span></p>
+        <p style="font-weight:700;font-size:13px;margin:0 0 8px;">${poID('📊 Ringkasan Ananda')} <span class="text-muted" style="font-weight:400;font-size:11px;">· ketuk kotak untuk rincian</span></p>
         <div class="po-rk-grid">
-          ${poUbin('poRingkasHadir', 'poKopKehadiran', '📅 Kehadiran', persen === null ? '-' : persen + '%', wHadir, persen === null ? 'Belum ada absensi' : escapeHtml(o.labelBulan) + ' · ' + o.hadir + ' hadir')}
-          ${poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : escapeHtml(o.labelSemester) + ' · ' + o.nMapel + ' mapel' + (o.nilaiSementara ? ' · sementara' : ''))}
+          ${poUbin('poRingkasHadir', 'poKopKehadiran', '📅 Kehadiran', persen === null ? '-' : persen + '%', wHadir, persen === null ? 'Belum ada absensi' : o.hadir + ' dari ' + o.totalAbsen + ' hari')}
+          ${poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : o.nMapel + ' mapel' + (o.nilaiSementara ? ' · sementara' : ''))}
           ${poUbin('poRingkasInfaq', 'poAccInfaq', '💵 Infaq', inf.utama, inf.warna, inf.sub)}
           ${poUbin('poRingkasAmalan', 'bsLp_amalan', '🏡 Amalan hari ini', '⏳', '#6b7280', 'Memuat...')}
           ${poUbin('poRingkasHafalan', 'bsLp_setoran', '📿 Hafalan bacaan sholat', '⏳', '#6b7280', 'Memuat...', true)}
@@ -578,7 +579,7 @@
               </div>
             </div>
             <div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px;">
-              <p style="font-weight:700;font-size:13px;margin:0 0 6px;">📅 Kehadiran Bulan Ini <span class="text-muted" style="font-weight:400;font-size:11px;">· ${escapeHtml(labelBulan(bulanTampil))}</span></p>
+              <p style="font-weight:700;font-size:13px;margin:0 0 6px;">${poID('📅 Kehadiran Bulan Ini')} <span class="text-muted" style="font-weight:400;font-size:11px;">· ${escapeHtml(labelBulan(bulanTampil))}</span></p>
               <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;">
                 <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#059669;">${hadir}</div><div class="text-muted" style="font-size:11px;">Hadir</div></div>
                 <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#d97706;">${sakit}</div><div class="text-muted" style="font-size:11px;">Sakit</div></div>
@@ -600,7 +601,7 @@
           <div id="angketOrtuSlot"></div>
           <div id="angketSiswaSlot"></div>
           <details class="card po-acc">
-            <summary><span>💬 Saran &amp; Kritik untuk Madrasah</span></summary>
+            <summary><span>${poID('💬 Saran &amp; Kritik untuk Madrasah')}</span></summary>
             <div class="po-acc-body">
             <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Masukan Bapak/Ibu membantu madrasah menjadi lebih baik. Bisa dikirim dengan nama, atau anonim kalau memang lebih nyaman.</p>
             <textarea id="saranKritikTeks" class="field" rows="3" placeholder="Tulis saran atau kritik di sini..."></textarea>
@@ -644,7 +645,7 @@
           const pengantar = ortu
             ? 'Angket tentang pembelajaran di madrasah ini. Sekitar 5–10 menit. Tidak ada jawaban benar atau salah, dan jawaban hanya dipakai untuk perbaikan.'
             : 'Untuk Ananda. Mohon <b>didampingi</b>: bacakan tiap pernyataan, lalu biarkan Ananda memilih jawabannya sendiri sesuai yang ia alami di kelas. Bukan ujian, tidak memengaruhi nilai.';
-          slot2.innerHTML = `<details class="card po-acc" id="${accId}" style="margin-bottom:12px;"><summary><span>${judul}</span>${sudah ? poBadge('Sudah diisi', 'ok') : poBadge('Mohon diisi', 'warn')}</summary>
+          slot2.innerHTML = `<details class="card po-acc" id="${accId}" style="margin-bottom:12px;"><summary><span>${poID(judul)}</span>${sudah ? poBadge('Sudah diisi', 'ok') : poBadge('Mohon diisi', 'warn')}</summary>
             <div class="po-acc-body"><p class="text-muted" style="font-size:12px;margin-bottom:8px;">${pengantar}</p><div id="${wadahId}"></div></div></details>`;
           const acc = document.getElementById(accId); let dimuat = false;
           acc.addEventListener('toggle', () => {
