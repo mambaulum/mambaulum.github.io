@@ -40,7 +40,8 @@
       // PIN yang dibuatkan otomatis belum tentu sudah dicatat orang tua: kalau keluar menghapusnya dari perangkat, mereka terkunci.
       const tersimpan = ortuPerangkatBaca();
       if (tersimpan && tersimpan.auto && !confirm(`PIN Anda dibuatkan otomatis dan hanya tersimpan di perangkat ini.\n\nPIN Anda: ${tersimpan.pin}\n\nCatat dulu PIN ini. Jika keluar, PIN dihapus dari perangkat ini dan Anda harus mengetik PIN itu untuk masuk lagi.\n\nTetap keluar?`)) return;
-      ortuPerangkatLupa();
+      if (ortuLinkBaca() && !confirm('Jika keluar, Anda perlu membuka kembali link dari WhatsApp untuk masuk lagi.\n\nTetap keluar?')) return;
+      ortuPerangkatLupa(); ortuLinkLupa();
       const infoPin = document.getElementById('portalOrtuPinOtomatis'); if (infoPin) infoPin.remove();
       portalOrtuWaKey = null; portalOrtuAnak = [];
       ortuEl('portalOrtuContent').innerHTML = '';
@@ -107,7 +108,7 @@
       }).catch(() => ({ tampil: 'PIN salah.' }));
     }
     // ---------- Riwayat login orang tua -> node ortu_login_log (dibaca Admin: js/riwayat-login-ortu.js) ----------
-    // Dicatat: login berhasil (cara: pin / pertama / otomatis) dan PIN salah (termasuk yang memicu kunci akun).
+    // Dicatat: login berhasil (cara: pin / pertama / otomatis / link) dan PIN salah (termasuk yang memicu kunci akun).
     // Tidak menyimpan PIN. Gagal menulis TIDAK mengganggu login (semua dibungkus try/catch).
     function ortuPerangkatRingkas() {
       const ua = navigator.userAgent || '';
@@ -199,6 +200,51 @@
     function ortuPenyimpananBisa() {
       try { localStorage.setItem('simambaOrtuTes', '1'); const ok = localStorage.getItem('simambaOrtuTes') === '1'; localStorage.removeItem('simambaOrtuTes'); return ok; } catch (e) { return false; }
     }
+    // ---------- Link masuk lewat WhatsApp (tanpa PIN) ----------
+    // Admin/wali kelas membuat link pribadi per nomor WA (js/link-ortu.js) lalu mengirimnya lewat WhatsApp:
+    //   https://.../?app=ortu#masuk=<noWA 62...>.<token 32 hex>
+    // Di server hanya disimpan HASH token: ortu_link/<noWA>/<sha256(token)> = { dibuat }. Token acak 128 bit
+    // (tidak bisa ditebak), jadi tidak perlu PIN. Perangkat yang sudah membuka link mengingat token-nya
+    // (localStorage 'simambaOrtuLink') sehingga berikutnya langsung masuk. Token ditaruh di #hash supaya
+    // tidak ikut terkirim ke server. Admin mencabut link (hapus ortu_link/<noWA>) -> perangkat dilupakan
+    // otomatis saat portal dibuka berikutnya. Login lewat link TIDAK menyentuh ortu_akun (PIN tetap berjalan sendiri).
+    const ORTU_LINK_KEY = 'simambaOrtuLink';
+    function ortuLinkHash(token) { return CryptoJS.SHA256(String(token)).toString(CryptoJS.enc.Hex); }
+    function ortuLinkBaca() {
+      try {
+        const o = JSON.parse(localStorage.getItem(ORTU_LINK_KEY) || 'null');
+        return o && /^62[0-9]{8,13}$/.test(String(o.wa)) && /^[0-9a-f]{32}$/.test(String(o.tok)) ? { wa: String(o.wa), tok: String(o.tok) } : null;
+      } catch (e) { return null; }
+    }
+    function ortuLinkSimpan(wa, tok) { try { localStorage.setItem(ORTU_LINK_KEY, JSON.stringify({ wa, tok, t: Date.now() })); return true; } catch (e) { return false; } }
+    function ortuLinkLupa() { try { localStorage.removeItem(ORTU_LINK_KEY); } catch (e) {} }
+    function ortuLinkDariUrl() {
+      const m = /[#&]masuk=(62[0-9]{8,13})\.([0-9a-f]{32})(?:&|$)/.exec(location.hash || '');
+      return m ? { wa: m[1], tok: m[2] } : null;
+    }
+    function ortuLinkBersihkanUrl() { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+    function ortuMasukLink(c, dariUrl) {
+      if (portalOrtuBusy) return;
+      const errEl = ortuEl('portalOrtuError');
+      ortuEl('portalOrtuNoWa').value = '0' + c.wa.slice(2);
+      portalOrtuBusy = true; errEl.textContent = dariUrl ? '⏳ Membuka dengan link Anda...' : '⏳ Masuk otomatis...';
+      let coba = false;   // link tersimpan sudah dicabut -> lanjut coba PIN tersimpan (kalau ada)
+      db.ref('ortu_link/' + c.wa + '/' + ortuLinkHash(c.tok)).once('value').then(snap => {
+        const v = snap.val();
+        if (!v || v.dicabut) {
+          ortuLinkLupa();
+          if (dariUrl) ortuLinkBersihkanUrl(); else coba = true;
+          throw { tampil: 'Link ini sudah tidak berlaku. Minta link baru ke wali kelas/Admin, atau masuk dengan PIN.' };
+        }
+        return ortuCariAnak(c.wa).then(anak => {
+          if (!anak.length) throw { tampil: 'Nomor ini belum/tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
+          ortuLinkSimpan(c.wa, c.tok);
+          if (dariUrl) ortuLinkBersihkanUrl();
+          bukaDashboardPortalOrtu(c.wa, anak, dariUrl ? 'link' : 'otomatis');
+        });
+      }).catch(e => { errEl.textContent = ortuPesanError(e); })   // gagal jaringan: kredensial perangkat TIDAK dihapus
+        .finally(() => { portalOrtuBusy = false; if (coba) ortuMasukOtomatis(); });
+    }
     function ortuIngatSetelahMasuk(wa, pin, idCek) {
       const cek = ortuEl(idCek);
       if (cek && !cek.checked) ortuPerangkatLupa(); else ortuPerangkatSimpan(wa, pin, false);
@@ -247,6 +293,10 @@
     // Dipanggil saat form login portal dibuka: kalau perangkat ini menyimpan PIN, langsung masuk.
     // Tidak memakai ortuCatatGagal: PIN tersimpan yang basi (diganti/direset) bukan percobaan tebak, jadi tidak menambah hitungan gagal.
     function ortuMasukOtomatis() {
+      if (!portalOrtuBusy && typeof CryptoJS !== 'undefined') {
+        const dariUrl = ortuLinkDariUrl(), link = dariUrl || ortuLinkBaca();   // link dari WhatsApp didahulukan
+        if (link) { ortuMasukLink(link, !!dariUrl); return; }
+      }
       const p = ortuPerangkatBaca();
       if (!p || portalOrtuBusy || typeof CryptoJS === 'undefined') return;
       const errEl = ortuEl('portalOrtuError');
@@ -274,6 +324,8 @@
       ortuEl('portalOrtuLogin').style.display = 'none';
       ortuEl('portalOrtuDashboard').style.display = 'block';
       ortuEl('portalOrtuGantiPin').style.display = 'none';
+      const tanpaPin = !!ortuLinkBaca() && !ortuPerangkatBaca();   // masuk lewat link WA: belum ada PIN, tombol Ganti PIN disembunyikan
+      document.querySelectorAll('#portalOrtuDashboard [onclick="toggleGantiPinOrtu()"]').forEach(b => { b.style.display = tanpaPin ? 'none' : ''; });
       const sel = ortuEl('portalOrtuAnakSelect');
       sel.innerHTML = anak.map(a => `<option value="${escapeHtml(a.key)}">${escapeHtml(a.name || '-')} — ${escapeHtml(a.kelas || '-')}</option>`).join('');
       ortuEl('portalOrtuAnakWrap').style.display = anak.length > 1 ? 'block' : 'none';
