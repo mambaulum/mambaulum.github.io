@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.344",
-  "disimpan": "2026-11-04T13:27:42.069Z",
+  "appVersion": "v8.346",
+  "disimpan": "2026-11-04T13:35:22.367Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -63,8 +63,8 @@
       "hash": "b535651d49931efe668008d41464a238f9f815bf"
     },
     "js/portal-ortu.js": {
-      "v": "v=20",
-      "hash": "2683594cc02a14e1d8eed7a4c73f979fb0e274ff"
+      "v": "v=21",
+      "hash": "345f781565d97037c1392299961515083aa0575e"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -135,16 +135,16 @@
       "hash": "578bf1340c3d364076377f1b979c209fecab2479"
     },
     "js/riwayat-login-ortu.js": {
-      "v": "v=1",
-      "hash": "371a5f38bf6339861b468bfc882f837a29b03b0b"
+      "v": "v=2",
+      "hash": "43836863c3fd4b492fce08f1435bca60d296d426"
     },
     "js/ortu-akun-admin.js": {
       "v": "v=2",
       "hash": "7f58513b243bf5c96aaeb5d7839f2e4b41ea6a97"
     },
     "js/link-ortu.js": {
-      "v": "v=3",
-      "hash": "37491bfc69e660e341680b50be019f3a5b308aa5"
+      "v": "v=4",
+      "hash": "0e4141b607e7eb6b9bbc6765d66e20484c84a376"
     },
     "js/amalan-kegiatan.js": {
       "v": "v=44",
