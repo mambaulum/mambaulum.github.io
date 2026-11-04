@@ -125,7 +125,7 @@
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
   <script defer src="js/app.js?v=154"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=19"></script>
+  <script defer src="js/portal-ortu.js?v=20"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
@@ -154,6 +154,7 @@
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
   <script defer src="js/riwayat-login-ortu.js?v=1"></script>
   <script defer src="js/ortu-akun-admin.js?v=2"></script>
+  <script defer src="js/link-ortu.js?v=3"></script>   <!-- Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js) -->
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=44"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
@@ -1817,6 +1818,7 @@
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
             <input id="ortuAkunCari" class="field" style="flex:1;min-width:160px;" placeholder="Cari nama anak / nomor WA..." oninput="renderOrtuAkunList()">
             <button class="btn btn-soft" onclick="renderOrtuAkunAdmin()">🔄 Muat Ulang</button>
+            <button class="btn btn-primary" onclick="bukaLinkMasukOrtu()">🔗 Link Masuk WA</button>
           </div>
           <div id="ortuAkunList" style="max-height:340px;overflow-y:auto;"></div>
         </div>
@@ -2495,6 +2497,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:-6px 0 12px;cursor:pointer;"><input type="checkbox" id="ortuIngatPerangkat" checked> Ingat saya di perangkat ini (masuk otomatis)</label>
         <button class="btn btn-primary" style="width:100%;" onclick="loginPortalOrtu()">🔓 Masuk</button>
         <div style="text-align:center;margin-top:12px;font-size:13px;"><a href="javascript:void(0)" onclick="tampilFormBuatPinOrtu(true)" style="color:#059669;font-weight:600;text-decoration:none;">🆕 Belum punya PIN? Buat PIN</a></div>
+        <div style="margin-top:14px;padding:10px 12px;border-radius:10px;background:#ecfdf5;text-align:center;font-size:12px;color:#065f46;line-height:1.5;">📲 Sudah dapat <b>link dari WhatsApp</b> madrasah? Cukup ketuk link itu, tanpa nomor dan PIN.</div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db;text-align:center;">
           <p style="font-size:12px;color:#6b7280;margin:0 0 8px;">Belum pernah punya PIN? Cukup isi nomor WhatsApp di atas, PIN dibuatkan otomatis dan tersimpan di perangkat ini.</p>
           <button type="button" class="btn btn-soft" style="font-size:13px;" onclick="masukPertamaKaliOrtu()">✨ Masuk pertama kali (tanpa PIN)</button>
