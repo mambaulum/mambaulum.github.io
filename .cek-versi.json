@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.341",
-  "disimpan": "2026-11-04T09:24:08.510Z",
+  "appVersion": "v8.343",
+  "disimpan": "2026-11-04T12:20:22.454Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -143,16 +143,16 @@
       "hash": "7f58513b243bf5c96aaeb5d7839f2e4b41ea6a97"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=43",
-      "hash": "e780c7a1757dfb24d6b4213facb1b2dac16c7f52"
+      "v": "v=44",
+      "hash": "5f9d4f9db3e21c81cf0ecd50c573e07aabef24b8"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=38",
-      "hash": "4b45d33713f10994a84b4f33ec9ef0ea77bda0ca"
+      "v": "v=39",
+      "hash": "3795854089a385b202396ecee12bceda0bda9483"
     },
     "js/portal-tab.js": {
-      "v": "v=9",
-      "hash": "1ddae97d887ccc74e1ea95c37a25f412fc6d35d3"
+      "v": "v=10",
+      "hash": "cb314424a6f022a7548b88c037c605e66ec02a8e"
     },
     "js/kredensial.js": {
       "v": "v=8",
