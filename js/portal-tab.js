@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/portal-tab.js (v8)
+   SI MAMBA - js/portal-tab.js (v9)
    Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Lainnya.
    Tidak mengubah isi/kartu: setiap anak langsung #portalOrtuContent diberi data-ptab, lalu CSS menyembunyikan yang bukan tab aktif.
    Kartu yang disisipkan belakangan oleh modul lain (Bacaan Sholat, Sholat Dhuha & Dzuhur, angket) ikut terklasifikasi otomatis lewat
@@ -294,7 +294,7 @@
     + '#poTabBar .pt-dot{position:absolute;top:3px;right:22%;width:8px;height:8px;border-radius:50%;background:#dc2626}#poTabBar .pt-dot[hidden]{display:none}'
     + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
     + '}';
-  // Tema hijau (v8): pita header hijau, latar halaman hijau muda, tab aktif hijau penuh. Warna utama ada di satu tempat (--po-hijau) supaya mudah diganti.
+  // Tema hijau (v9): pita header hijau, latar halaman hijau muda, tab aktif hijau penuh. Warna utama ada di satu tempat (--po-hijau) supaya mudah diganti.
   // Juga memperbaiki ikon yang tadinya turun ke baris sendiri (styles.css membuat svg display:block).
   css.textContent += '#portalOrtuDashboard{--po-hijau:#0b6b4f;--po-hijau-tua:#08523d;--po-hijau-muda:#e8f3ec;background:var(--po-hijau-muda)!important}'
     + '.po-ik,.po-eik .po-ik{display:inline-block!important}'
@@ -306,9 +306,9 @@
     + '#poTabBar button.on{background:var(--po-hijau)!important;color:#fff!important}#poTabBar button.on .po-ik{color:#fff!important}#poTabBar button.on .pt-l{color:#fff}'
     + '.po-ub-j .po-ik,.po-acc>summary .po-ik,#poRingkas>p .po-ik,#poKopKehadiran .po-ik,#bsOrtuBox .po-eik{color:var(--po-hijau)!important}'
     + '#portalOrtuContent .card{border-color:#d5e6dc!important}'
-    + '#portalOrtuContent .po-acc:has(>summary .po-badge.bad){border-left:4px solid #dc2626!important}'
-    + '#portalOrtuContent .po-acc:has(>summary .po-badge.warn){border-left:4px solid #f59e0b!important}'
-    + '#poPengingatBeranda,#bsOrtuPengingat{border-left:4px solid #f59e0b!important}'
+    + '#portalOrtuContent .po-acc:has(>summary .po-badge.bad){box-shadow:inset 4px 0 0 #dc2626,0 1px 3px rgba(0,0,0,.06)!important}'
+    + '#portalOrtuContent .po-acc:has(>summary .po-badge.warn){box-shadow:inset 4px 0 0 #f59e0b,0 1px 3px rgba(0,0,0,.06)!important}'
+    + '#poPengingatBeranda,#bsOrtuPengingat{box-shadow:inset 4px 0 0 #f59e0b,0 1px 3px rgba(0,0,0,.06)!important}'
     + '@media(max-width:759px){.po-ub-j{font-size:10.5px!important}}';
   document.head.appendChild(css);
   if (!pasang()) document.addEventListener('DOMContentLoaded', pasang);
