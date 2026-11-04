@@ -13,19 +13,21 @@
 
   // ---------- 1) Sisi orang tua: buka portal otomatis dari link ----------
   if (/[#&]masuk=62[0-9]{8,13}\.[0-9a-f]{32}/.test(location.hash || '')) {
-    let n = 0;
-    const t = setInterval(() => {
-      n++;
-      const siap = typeof db !== 'undefined' && typeof bukaPortalOrtuForm === 'function' && typeof CryptoJS !== 'undefined' && document.getElementById('portalOrtuLogin');
-      let masuk = true;   // Rules butuh auth != null: tunggu sesi Firebase siap (maks ~6 dtk), lalu tetap coba
-      try { masuk = !(window.firebase && firebase.auth) || !!firebase.auth().currentUser || n > 30; } catch (e) { masuk = true; }
-      if (siap && masuk) {
-        clearInterval(t);
-        const dash = document.getElementById('portalOrtuDashboard');
-        if (dash && dash.style.display !== 'none') return;   // sudah masuk
-        bukaPortalOrtuForm();                                // -> ortuMasukOtomatis() membaca #masuk=
-      } else if (n > 75) clearInterval(t);                   // menyerah setelah ~15 detik
-    }, 200);
+    // Rules butuh auth != null: tunggu login anonim app.js (authReady, maks. 5 dtk) sebelum membaca ortu_link.
+    const tunggu = (typeof authReady !== 'undefined' && authReady && typeof authReady.then === 'function') ? authReady : Promise.resolve();
+    tunggu.then(() => {
+      let n = 0;
+      const t = setInterval(() => {
+        n++;
+        const siap = typeof db !== 'undefined' && typeof bukaPortalOrtuForm === 'function' && typeof CryptoJS !== 'undefined' && document.getElementById('portalOrtuLogin');
+        if (siap) {
+          clearInterval(t);
+          const dash = document.getElementById('portalOrtuDashboard');
+          if (dash && dash.style.display !== 'none') return;   // sudah masuk
+          bukaPortalOrtuForm();                                // -> ortuMasukOtomatis() membaca #masuk=
+        } else if (n > 75) clearInterval(t);                   // menyerah setelah ~15 detik
+      }, 200);
+    });
   }
 
   // ---------- 2) Sisi Admin ----------

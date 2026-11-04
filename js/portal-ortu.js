@@ -233,6 +233,7 @@
         const v = snap.val();
         if (!v || v.dicabut) {
           ortuLinkLupa();
+          ortuCatatRiwayatLogin(c.wa, 'link', 'gagal', null, dariUrl ? 'Link tidak berlaku' : 'Link tersimpan sudah dicabut');
           if (dariUrl) ortuLinkBersihkanUrl(); else coba = true;
           throw { tampil: 'Link ini sudah tidak berlaku. Minta link baru ke wali kelas/Admin, atau masuk dengan PIN.' };
         }

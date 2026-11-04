@@ -1,6 +1,6 @@
 // ============================================================
 // RIWAYAT LOGIN ORANG TUA (tampilan Admin) -- js/riwayat-login-ortu.js
-// Membaca node ortu_login_log yang ditulis portal-ortu.js (ortuCatatRiwayatLogin).
+// Membaca node ortu_login_log yang ditulis portal-ortu.js (ortuCatatRiwayatLogin). Cara masuk: pin / pertama / otomatis / link (link WhatsApp).
 // Tampil sebagai kartu di halaman Admin (#riwayatLoginOrtuCard), hanya untuk Admin.
 // Dimuat SESUDAH app.js. Nomor WA disamarkan di layar dan di CSV.
 // Data dibaca sekali per sesi (300 catatan terbaru) dan saat tombol Muat Ulang ditekan, untuk menghemat kuota.
@@ -9,7 +9,7 @@
   'use strict';
   var BATAS_BACA = 300, BATAS_TAMPIL = 100;
   var data = [], tampil = BATAS_TAMPIL, terikat = false, sudahMuat = false, sedang = false;
-  var CARA = { pin: 'PIN', pertama: 'Masuk pertama kali', otomatis: 'Otomatis (perangkat diingat)' };
+  var CARA = { pin: 'PIN', pertama: 'Masuk pertama kali', otomatis: 'Otomatis (perangkat diingat)', link: 'Link WhatsApp' };
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {
