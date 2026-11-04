@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/portal-tab.js (v9)
+   SI MAMBA - js/portal-tab.js (v10)
    Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Lainnya.
    Tidak mengubah isi/kartu: setiap anak langsung #portalOrtuContent diberi data-ptab, lalu CSS menyembunyikan yang bukan tab aktif.
    Kartu yang disisipkan belakangan oleh modul lain (Bacaan Sholat, Sholat Dhuha & Dzuhur, angket) ikut terklasifikasi otomatis lewat
@@ -59,6 +59,7 @@
     batal: '<path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
     naik: '<path d="m22 7-8.5 8.5-5-5L2 17M16 7h6v6"/>',
     bulat: '<circle cx="12" cy="12" r="9"/>',
+    sekolah: '<path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-5h6v5M12 4V2"/>',
     titik: '<circle cx="12" cy="12" r="7" fill="currentColor" stroke="none"/>',
     kirim: '<path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>',
     kunci: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M16 7l3 3M14 9l2 2"/>',
@@ -89,7 +90,7 @@
     '🌠': ['bintang'], '🏅': ['medali'], '🎯': ['target'], '🎉': ['kilau', '#d97706'], '💪': ['petir'], '🔥': ['api', '#ea580c'], '📡': ['sinyal'],
     '⚠': ['awas', '#d97706'], '❌': ['silang', '#dc2626'], '🔄': ['segar'], '🔁': ['segar'], '⏳': ['pasir'], '✅': ['cek', '#059669'], '⬜': ['bulat', '#9ca3af'],
     '☑': ['kotak'], '↩': ['batal'], '🌿': ['daun'], '🤒': ['termo'], '💬': ['pesan'], '📈': ['naik'], '📋': ['tugas'], '🏡': ['home'], '👧': ['user'], '🧒': ['user'],
-    '📤': ['kirim'], '🔑': ['kunci'], '📜': ['nilai'], '📌': ['pin'], '🔗': ['tautan'], '🔴': ['titik', '#dc2626'], '🟣': ['titik', '#7c3aed'], '🟠': ['titik', '#ea580c'], '🟢': ['titik', '#16a34a']
+    '🏫': ['sekolah'], '📤': ['kirim'], '🔑': ['kunci'], '📜': ['nilai'], '📌': ['pin'], '🔗': ['tautan'], '🔴': ['titik', '#dc2626'], '🟣': ['titik', '#7c3aed'], '🟠': ['titik', '#ea580c'], '🟢': ['titik', '#16a34a']
   };
   var EMO_RE = new RegExp('(' + Object.keys(EMO).sort(function (a, b) { return b.length - a.length; }).join('|') + ')[\\uFE0F]?', 'g');
   function ikonkan(akar) {
@@ -294,7 +295,7 @@
     + '#poTabBar .pt-dot{position:absolute;top:3px;right:22%;width:8px;height:8px;border-radius:50%;background:#dc2626}#poTabBar .pt-dot[hidden]{display:none}'
     + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
     + '}';
-  // Tema hijau (v9): pita header hijau, latar halaman hijau muda, tab aktif hijau penuh. Warna utama ada di satu tempat (--po-hijau) supaya mudah diganti.
+  // Tema hijau (v10): pita header hijau, latar halaman hijau muda, tab aktif hijau penuh. Warna utama ada di satu tempat (--po-hijau) supaya mudah diganti.
   // Juga memperbaiki ikon yang tadinya turun ke baris sendiri (styles.css membuat svg display:block).
   css.textContent += '#portalOrtuDashboard{--po-hijau:#0b6b4f;--po-hijau-tua:#08523d;--po-hijau-muda:#e8f3ec;background:var(--po-hijau-muda)!important}'
     + '.po-ik,.po-eik .po-ik{display:inline-block!important}'

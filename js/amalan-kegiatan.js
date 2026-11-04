@@ -2410,6 +2410,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) setT
 
 // ============================================================
 // PORTAL ORANG TUA: kartu "Sholat Dhuha & Dzuhur" (rekap semester yang diterbitkan wali kelas)
+// v44: kartu menampilkan absensi Dhuha/Dzuhur BULAN INI secara langsung (tanpa menunggu rekap semester); rekap semester tetap di bawahnya.
 // v42: kartu lipat (tertutup bawaan, gaya .po-acc sama dengan kartu portal lain), lencana ringkasan di judul, tiap sholat 1 baris (H/S/I/A + % + predikat).
 // renderPortalOrtuDashboard (app.js) membangun halaman SEKALI lewat content.innerHTML setelah semua data terbaca, jadi fungsi itu
 // dibungkus: setelah halaman jadi, kartu disisipkan sesudah kartu "Kehadiran Bulan Ini" dan diisi dari node kecil
@@ -2429,7 +2430,7 @@ function v4PortalSholatBaris(ikon, nama, r) {
   const cip = (hrf, v, warna) => `<span style="color:${warna};font-weight:700;">${hrf} ${n(v)}</span>`;
   const pct = (r.pct === null || r.pct === undefined) ? '-' : n(r.pct) + '%';
   const pred = r.pred ? escapeHtml(r.pred) + (n(r.T) > 0 ? '*' : '') : '-';
-  return `<div style="${bar}"><strong style="min-width:64px;">${ikon} ${escapeHtml(nama)}</strong>${cip('H', r.H, '#059669')}${cip('S', r.S, '#d97706')}${cip('I', r.I, '#2563eb')}${cip('A', r.A, '#dc2626')}<span style="margin-left:auto;white-space:nowrap;"><strong>${pct}</strong> · ${pred}</span></div>`;
+  return `<div style="${bar}"><strong style="min-width:64px;">${ikon} ${escapeHtml(nama)}</strong>${cip('H', r.H, '#059669')}${cip('S', r.S, '#d97706')}${cip('I', r.I, '#2563eb')}${cip('A', r.A, '#dc2626')}<span style="margin-left:auto;white-space:nowrap;"><strong>${pct}</strong>${r.pred ? ' · ' + pred : ''}</span></div>`;
 }
 // Ringkasan untuk lencana di judul kartu (semester terbaru): "Dhuha 92% · Dzuhur 88%"
 function v4PortalSholatLencana(d) {
@@ -2452,15 +2453,91 @@ function v4PortalSholatHtml(list) {
       <p class="text-muted" style="font-size:11px;margin-top:4px;line-height:1.4;">${catatan.length ? catatan.map(escapeHtml).join(' ') + ' · ' : ''}${terbit}</p></div>`;
   }).join('');
 }
+
+// ---- Tampilan LANGSUNG bulan ini (tanpa menunggu rekap semester diterbitkan) ----
+// Membaca absensi Dhuha/Dzuhur anak ini SAJA lewat kunci pasti `${jenisKey}_${tanggal}_${siswaKey}` (tanpa index, tanpa mengunduh data kelas lain).
+// Hari yang dihitung: Dhuha Senin-Sabtu, Dzuhur Senin-Kamis (sama dengan aturan Absensi). Hanya hari yang SUDAH dicatat guru yang dihitung.
+const V4_PORTAL_STATUS = { h: 'H', hadir: 'H', s: 'S', sakit: 'S', i: 'I', izin: 'I', ijin: 'I', a: 'A', alpa: 'A', alpha: 'A', alfa: 'A', 'tidak hadir': 'A', absen: 'A', 'tanpa keterangan': 'A' };
+const V4_PORTAL_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const V4_PORTAL_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+function v4PortalNamaJenis(nama) {
+  const n = String(nama || '').toLowerCase();
+  if (/dluha|dhuha|duha/.test(n)) return 'dhuha';
+  if (/dluhur|dhuhur|duhur|dzuhur|zuhur/.test(n)) return 'dzuhur';
+  return null;
+}
+function v4PortalBulanIni(siswa) {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const pad = n => (n < 10 ? '0' : '') + n, tgl = d => y + '-' + pad(m + 1) + '-' + pad(d);
+  return db.ref('activity_types_v4').once('value').then(sn => {
+    const tipe = { dhuha: [], dzuhur: [] }, idKelasKecuali = {};
+    sn.forEach(c => {
+      const v = c.val() || {}, j = v4PortalNamaJenis(v.name);
+      if (!j) return;
+      const raw = v.kelasTidakIkut;
+      let kec = [];
+      if (raw === '-') kec = [];
+      else if (!raw) kec = j === 'dzuhur' ? ['Kelas 1', 'Kelas 2'] : [];
+      else kec = (Array.isArray(raw) ? raw : (typeof raw === 'object' ? Object.keys(raw).map(k => raw[k]) : String(raw).split('|'))).map(x => String(x).trim()).filter(Boolean);
+      tipe[j].push(c.key); idKelasKecuali[c.key] = kec;
+    });
+    const kelas = String(siswa.kelas || '').trim();
+    const hasil = { bulan: V4_PORTAL_BULAN[m] + ' ' + y, dhuha: null, dzuhur: null, terakhir: null };
+    const tugas = [], catatan = {};
+    let ditolak = 0;
+    [['dhuha', [1, 2, 3, 4, 5, 6]], ['dzuhur', [1, 2, 3, 4]]].forEach(([jenis, hariOk]) => {
+      const kunci = tipe[jenis].filter(k => !(idKelasKecuali[k] || []).some(x => x === kelas || ('Kelas ' + x) === kelas));
+      if (!tipe[jenis].length) { hasil[jenis] = { ada: false }; return; }
+      if (!kunci.length) { hasil[jenis] = { tidakIkut: true }; return; }
+      const r = hasil[jenis] = { ada: true, H: 0, S: 0, I: 0, A: 0, n: 0, pct: null };
+      for (let d = 1; d <= now.getDate(); d++) {
+        if (!hariOk.includes(new Date(y, m, d).getDay())) continue;
+        kunci.forEach(k => tugas.push(db.ref('activity_attendance_v4/' + k + '_' + tgl(d) + '_' + siswa.key).once('value')
+          .then(x => { const rec = x.val(); const st = rec && V4_PORTAL_STATUS[String(rec.status || '').trim().toLowerCase()]; if (st) { r[st]++; r.n++; (catatan[d] = catatan[d] || {})[jenis] = st; } })
+          .catch(() => { ditolak++; })));
+      }
+    });
+    return Promise.all(tugas).then(() => {
+      if (tugas.length && ditolak === tugas.length) throw new Error('semua pembacaan absensi ditolak (cek Rules activity_attendance_v4: .read untuk portal)');
+      ['dhuha', 'dzuhur'].forEach(j => { const r = hasil[j]; if (r && r.ada) { r.pct = r.n ? Math.round(r.H / r.n * 100) : null; } });
+      const hariAda = Object.keys(catatan).map(Number);
+      if (hariAda.length) { const d = Math.max.apply(null, hariAda); hasil.terakhir = { d: d, hari: V4_PORTAL_HARI[new Date(y, m, d).getDay()], s_dhuha: catatan[d].dhuha || null, s_dzuhur: catatan[d].dzuhur || null }; }
+      return hasil;
+    });
+  });
+}
+function v4PortalBulanIniHtml(b) {
+  if (!b) return '';
+  const ikS = typeof poIkon === 'function' ? poIkon('sun', 15) : '☀️', ikJ = typeof poIkon === 'function' ? poIkon('jam', 15) : '🕌';
+  const adaData = [b.dhuha, b.dzuhur].some(r => r && r.ada && r.n > 0);
+  const nama = { H: 'Hadir', S: 'Sakit', I: 'Izin', A: 'Alpa' };
+  const ter = b.terakhir ? `<p class="text-muted" style="font-size:11px;margin-top:3px;">Catatan terakhir: ${escapeHtml(b.terakhir.hari)}, ${b.terakhir.d} ${escapeHtml(b.bulan.split(' ')[0])}${b.terakhir.s_dhuha ? ' · Dhuha ' + nama[b.terakhir.s_dhuha] : ''}${b.terakhir.s_dzuhur ? ' · Dzuhur ' + nama[b.terakhir.s_dzuhur] : ''}</p>` : '';
+  return `<div style="padding:4px 0 8px;">
+    <div style="font-size:12px;font-weight:700;margin-bottom:2px;">Bulan ini · ${escapeHtml(b.bulan)}</div>
+    ${adaData ? v4PortalSholatBaris(ikS, 'Dhuha', b.dhuha) + v4PortalSholatBaris(ikJ, 'Dzuhur', b.dzuhur) + ter
+      : '<p class="text-muted" style="font-size:12px;">Belum ada absensi Dhuha/Dzuhur yang dicatat bulan ini.</p>'}
+    <p class="text-muted" style="font-size:11px;margin-top:3px;line-height:1.4;">Dari hari yang sudah dicatat guru (Dhuha Senin–Sabtu, Dzuhur Senin–Kamis); diperbarui setiap Anda membuka halaman ini.</p></div>`;
+}
+function v4PortalBulanLencana(b) {
+  if (!b) return '';
+  const p = (nm, r) => (r && r.ada && r.pct !== null) ? nm + ' ' + r.pct + '%' : null;
+  return [p('Dhuha', b.dhuha), p('Dzuhur', b.dzuhur)].filter(Boolean).join(' · ');
+}
 function v4PortalSholatIsi(kartu, siswa) {
   if (typeof db === 'undefined' || !db) { kartu.remove(); return; }
-  v4PortalSholatBaca(siswa).then(list => {
-    // Kartu lipat (tertutup bawaan) supaya halaman di HP tidak panjang; lencana di judul = ringkasan semester terbaru.
+  const gagal = [];
+  const bacaSem = v4PortalSholatBaca(siswa).catch(e => { gagal.push(e); return []; });
+  const bacaBln = v4PortalBulanIni(siswa).catch(e => { gagal.push(e); console.warn('[SI MAMBA] Sholat bulan ini (Portal Ortu) gagal dibaca:', e && e.message || e); return null; });
+  Promise.all([bacaSem, bacaBln]).then(([list, bln]) => {
+    if (gagal.length >= 2) { kartu.remove(); return; }   // dua-duanya gagal: kartu dibuang diam-diam seperti sebelumnya
+    // Kartu lipat (tertutup bawaan) supaya halaman di HP tidak panjang; lencana = bulan ini bila ada, selain itu semester terbaru.
     const urut = list.slice().sort((a, b) => (a.semester === b.semester ? 0 : a.semester === 'Genap' ? -1 : 1));
-    const teksBadge = urut.length ? (v4PortalSholatLencana(urut[0]) || 'Lihat rincian') : 'Belum diterbitkan';
+    const teksBadge = v4PortalBulanLencana(bln) || (urut.length ? (v4PortalSholatLencana(urut[0]) || 'Lihat rincian') : 'Belum ada data');
     const sum = kartu.querySelector('summary');
     if (sum) sum.querySelector('.po-badge').textContent = teksBadge;
-    kartu.querySelector('.po-acc-body').innerHTML = list.length ? v4PortalSholatHtml(list) : '<p class="text-muted" style="font-size:13px;">Rekap semester belum diterbitkan oleh wali kelas.</p>';
+    const semHtml = list.length ? '<div style="font-size:11px;font-weight:700;color:#64748b;margin:4px 0 0;">REKAP SEMESTER (diterbitkan wali kelas)</div>' + v4PortalSholatHtml(list)
+      : '<p class="text-muted" style="font-size:12px;margin-top:2px;">Rekap semester (untuk raport) belum diterbitkan wali kelas.</p>';
+    kartu.querySelector('.po-acc-body').innerHTML = v4PortalBulanIniHtml(bln) + semHtml;
   }).catch(e => { console.warn('[SI MAMBA] Kartu sholat Portal Ortu gagal dimuat:', e && e.message || e); kartu.remove(); });
 }
 let v4PortalSholatObs = null;

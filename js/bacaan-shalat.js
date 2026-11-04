@@ -1778,8 +1778,11 @@ function bsOrtuMuat(siswa) {
     targets.sort(bsBandingTarget);
     const setoran = {}; ss.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === ta && v.targetId) setoran[v.targetId] = v; });
     const amalan = {}, uzur = {}, sakit = {}; as.forEach(c => { const v = c.val() || {}; if (v.tahunAjaran === ta && v.siswaKey === siswa.key && v.tanggal) { amalan[v.tanggal] = v.items || {}; if (v.berhalangan === true) uzur[v.tanggal] = true; if (v.sakit === true) sakit[v.tanggal] = true; } });
-    bsOrtu = { token: my, siswa, targets, semua, setoran, amalan, uzur, sakit, tgl: bsHariIni(), err: '' };
+    bsOrtu = { token: my, siswa, targets, semua, setoran, amalan, uzur, sakit, madrasah: {}, tgl: bsHariIni(), err: '' };
     bsOrtuGambar();
+    // Dhuha/Dzuhur di madrasah dimuat SETELAH kotak tampil (tidak menahan layar); gagal = tampil seperti biasa tanpa centang otomatis.
+    bsMadrasahMuat(siswa, ta).then(md => { if (my === bsOrtu.token) { bsOrtu.madrasah = md || {}; bsOrtuGambar(); } })
+      .catch(e => console.warn('[SI MAMBA] Dhuha/Dzuhur madrasah (amalan rumah) tidak dimuat:', e && e.message || e));
   }).catch(err => {
     clearTimeout(lambat);
     if (my !== bsOrtu.token) return;
@@ -1791,7 +1794,7 @@ function bsOrtuMuat(siswa) {
 // Isi dua kotak Ringkasan (Amalan hari ini & Hafalan) di dashboard Portal Orang Tua; kotaknya dibuat js/portal-ortu.js.
 function bsRingkasKePortal(game, o, h) {
   if (typeof poIsiUbin !== 'function') return;
-  const ada = !!o.amalan[h], it = o.amalan[h] || {}, uz = (o.uzur || {})[h] === true, sk = (o.sakit || {})[h] === true, hh = bsHitungHari(it, uz), n = hh.lamaC, tot = hh.lamaN;
+  const ada = !!o.amalan[h], it = bsItemsEfektif(o, h), uz = (o.uzur || {})[h] === true, sk = (o.sakit || {})[h] === true, hh = bsHitungHari(it, uz), n = hh.lamaC, tot = hh.lamaN;
   const ik = nm => typeof poIkon === 'function' ? poIkon(nm, 12) + ' ' : '';
   poIsiUbin('poRingkasAmalan', n + ' / ' + tot, !ada ? '#6b7280' : n === tot ? '#059669' : '#d97706',
     uz ? ik('daun') + 'Berhalangan sholat' : sk ? ik('termo') + 'Sakit (tidak dihitung)' : !ada ? 'Belum diisi hari ini' : (game.rentetanLimaWaktu >= 2 ? ik('api') + game.rentetanLimaWaktu + ' hari sholat lengkap' : bsKebJumlah(it) + ' dari ' + BS_KEB7.length + ' kebiasaan'));
@@ -1800,7 +1803,61 @@ function bsRingkasKePortal(game, o, h) {
   poIsiUbin('poRingkasHafalan', game.lulus + ' dari ' + game.nTarget + ' lulus', persen >= 100 ? '#059669' : '#2563eb',
     persen + '% · ' + (berikut ? 'berikutnya: ' + bsEsc(berikut.nama) : 'semua target lulus'), bsBarProgres(persen));
 }
-function bsOrtuDaftarAmalan() { return Object.keys(bsOrtu.amalan).map(tg => ({ tanggal: tg, items: bsOrtu.amalan[tg], berhalangan: (bsOrtu.uzur || {})[tg] === true, sakit: (bsOrtu.sakit || {})[tg] === true })); }
+// ---------- Dhuha & Dzuhur yang dikerjakan di MADRASAH -> tercentang otomatis di amalan rumah ----------
+// Hanya tampilan & hitungan poin/rentetan di Portal Ortu & Mode Anak (data amalan rumah yang tersimpan TIDAK diubah, jadi pengingat "belum diisi"
+// dan rekap guru tetap berdasarkan isian orang tua). Sumber: absensi Dhuha/Dzuhur anak ini (status Hadir) lewat kunci pasti
+// activity_attendance_v4/<jenisKey>_<tanggal>_<siswaKey>. Dhuha Senin-Sabtu, Dzuhur Senin-Kamis (kelas yang tidak ikut Dzuhur dilewati).
+// Hari lama disimpan di localStorage; 7 hari terakhir selalu dibaca ulang supaya koreksi guru ikut.
+const BS_MADRASAH_HARI = { dhuha: [1, 2, 3, 4, 5, 6], dzuhur: [1, 2, 3, 4] };
+const BS_MADRASAH_SEGAR_HARI = 8;
+function bsMadrasahJenis(nama) {
+  const n = String(nama || '').toLowerCase();
+  if (/dluha|dhuha|duha/.test(n)) return 'dhuha';
+  if (/dluhur|dhuhur|duhur|dzuhur|zuhur/.test(n)) return 'dzuhur';
+  return null;
+}
+function bsMadrasahMuat(siswa, ta) {
+  if (!siswa || !siswa.key || typeof db === 'undefined') return Promise.resolve({});
+  const m = /^(\d{4})\/(\d{4})$/.exec(String(ta || ''));
+  const hari = bsHariIni(), mulai = m ? m[1] + '-07-01' : bsTambahHari(hari, -60);
+  const kunci = 'mamba_bs_madrasah_v1_' + siswa.key + '_' + (ta || '');
+  let cache = {}; try { cache = JSON.parse(localStorage.getItem(kunci) || '{}') || {}; } catch (e) { cache = {}; }
+  const hasil = (cache.d && typeof cache.d === 'object') ? cache.d : {};
+  const dari = (cache.cek && cache.cek >= mulai) ? bsTambahHari(cache.cek, 1) : mulai;
+  if (dari > hari) return Promise.resolve(hasil);
+  return db.ref('activity_types_v4').once('value').then(sn => {
+    const tipe = { dhuha: [], dzuhur: [] }, kelas = String(siswa.kelas || '').trim();
+    sn.forEach(c => {
+      const v = c.val() || {}, j = bsMadrasahJenis(v.name); if (!j) return;
+      const raw = v.kelasTidakIkut;
+      const kec = raw === '-' ? [] : !raw ? (j === 'dzuhur' ? ['Kelas 1', 'Kelas 2'] : [])
+        : (Array.isArray(raw) ? raw : (typeof raw === 'object' ? Object.keys(raw).map(k => raw[k]) : String(raw).split('|'))).map(x => String(x).trim()).filter(Boolean);
+      if (!kec.some(x => x === kelas || ('Kelas ' + x) === kelas)) tipe[j].push(c.key);
+    });
+    const tugas = [];
+    for (let tg = dari; tg <= hari; tg = bsTambahHari(tg, 1)) {
+      delete hasil[tg];   // hari yang dibaca ulang dihitung dari nol
+      const hr = bsTglParse(tg).getDay();
+      ['dhuha', 'dzuhur'].forEach(j => { if (!BS_MADRASAH_HARI[j].includes(hr)) return; tipe[j].forEach(k => tugas.push({ tg, j, id: k + '_' + tg + '_' + siswa.key })); });
+    }
+    let ditolak = 0, selesai = Promise.resolve();
+    for (let i = 0; i < tugas.length; i += 30) {
+      const bagian = tugas.slice(i, i + 30);
+      selesai = selesai.then(() => Promise.all(bagian.map(t => db.ref('activity_attendance_v4/' + t.id).once('value').then(x => {
+        const rec = x.val(), st = rec && String(rec.status || '').trim().toLowerCase();
+        if (st === 'h' || st === 'hadir') (hasil[t.tg] = hasil[t.tg] || {})[t.j] = true;
+      }).catch(() => { ditolak++; }))));
+    }
+    return selesai.then(() => {
+      if (tugas.length && ditolak === tugas.length) throw new Error('pembacaan absensi madrasah ditolak (cek Rules activity_attendance_v4)');
+      try { localStorage.setItem(kunci, JSON.stringify({ d: hasil, cek: bsTambahHari(hari, -BS_MADRASAH_SEGAR_HARI) })); } catch (e) { /* penyimpanan penuh/dimatikan */ }
+      return hasil;
+    });
+  });
+}
+function bsMadrasahDi(o, tg) { return ((o && o.madrasah) || {})[tg] || {}; }
+function bsItemsEfektif(o, tg) { return Object.assign({}, ((o && o.amalan) || {})[tg] || {}, bsMadrasahDi(o, tg)); }
+function bsOrtuDaftarAmalan() { return Object.keys(Object.assign({}, bsOrtu.amalan, bsOrtu.madrasah || {})).map(tg => ({ tanggal: tg, items: bsItemsEfektif(bsOrtu, tg), berhalangan: (bsOrtu.uzur || {})[tg] === true, sakit: (bsOrtu.sakit || {})[tg] === true })); }
 // Pengingat di dalam Portal Orang Tua: hari (hari ini sampai BS_HARI_ISI_MUNDUR hari ke belakang) yang belum ada isian sama sekali.
 // Hari ini baru dianggap belum diisi sesudah BS_PENGINGAT_JAM (jam perangkat); hari-hari sebelumnya selalu. Berhalangan/sakit dihitung sudah diisi.
 const BS_PENGINGAT_JAM = 16;
@@ -1833,7 +1890,7 @@ function bsOrtuGambar() {
   try { bsRingkasKePortal(game, o, h); } catch (e) { console.warn('[SI MAMBA] Ringkasan portal gagal:', e); }
   const tglOps = [0, 1, 2].map(n => { const tg = bsTambahHari(h, -n); return `<button class="btn ${o.tgl === tg ? 'btn-primary' : 'btn-soft'}" style="padding:4px 10px;font-size:12px;min-height:32px;" onclick="bsOrtuPilihTgl('${tg}')">${n === 0 ? 'Hari ini' : n === 1 ? 'Kemarin' : '2 hari lalu'}</button>`; }).join('');
   if (bsLipatBuka.amalan === undefined) bsLipatBuka.amalan = true;   // kartu Amalan langsung terbuka; 7 Kebiasaan tertutup supaya halaman tidak terlalu panjang di HP
-  const items = o.amalan[o.tgl] || {};
+  const items = bsItemsEfektif(o, o.tgl), kr = bsMadrasahDi(o, o.tgl);
   const uzur = (o.uzur || {})[o.tgl] === true, sakit = (o.sakit || {})[o.tgl] === true, hh = bsHitungHari(items, uzur);
   const nCek = hh.lamaC, nKeb = hh.kebC;
   const tileLibur = (a, teks) => `<div style="display:flex;align-items:center;gap:6px;min-height:48px;padding:6px 10px;border-radius:12px;font-size:13px;font-weight:600;line-height:1.2;border:2px dashed #99f6e4;background:#f0fdfa;color:#6b7280;"><span style="font-size:20px;opacity:.55;">${a.e}</span><span style="flex:1;min-width:0;">${bsEsc(a.t)}<span style="display:block;font-size:10.5px;font-weight:400;">${teks}</span></span><span style="font-size:16px;">🌿</span></div>`;
@@ -1857,6 +1914,7 @@ function bsOrtuGambar() {
   const tombolLima = `<button type="button" class="btn ${limaLengkap ? 'btn-soft' : 'btn-primary'}" style="padding:3px 10px;font-size:12px;min-height:30px;"${limaLengkap ? ' disabled' : ''} onclick="bsOrtuCentangLima()">${limaLengkap ? '✅ Lengkap' : '☑️ Semua sudah'}</button>`;
   const kecilGaya = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:54px;padding:4px 2px;border-radius:12px;font:inherit;font-size:11px;font-weight:600;line-height:1.15;text-align:center;';
   const kecil = (a, label) => { if (uzur && a.wajib) return `<div style="${kecilGaya}border:2px dashed #99f6e4;background:#f0fdfa;color:#6b7280;"><span style="font-size:18px;line-height:1;opacity:.55;">${a.e}</span><span>${bsEsc(label)}</span><span style="font-size:12px;line-height:1;">🌿</span></div>`;
+    if (kr[a.k]) return `<div title="Tercatat hadir di madrasah" style="${kecilGaya}border:2px solid #059669;background:#d1fae5;color:#111827;"><span style="font-size:18px;line-height:1;">${a.e}</span><span>${bsEsc(label)}</span><span style="font-size:12px;line-height:1;">🏫</span></div>`;
     const on = items[a.k] === true;
     return `<button type="button" onclick="bsOrtuToggle('${a.k}')" aria-pressed="${on}" style="${kecilGaya}cursor:pointer;border:2px solid ${on ? '#059669' : '#d1d5db'};background:${on ? '#d1fae5' : '#fff'};color:#111827;-webkit-tap-highlight-color:transparent;"><span style="font-size:18px;line-height:1;">${a.e}</span><span>${bsEsc(label)}</span><span style="font-size:12px;line-height:1;">${on ? '✅' : '⬜'}</span></button>`; };
   const rowLima = BS_AMALAN.filter(a => a.wajib).map(a => kecil(a, a.nama)).join('');
@@ -1887,7 +1945,7 @@ function bsOrtuGambar() {
       </div>
     </div>
     ${bsLipat('amalan', 'rumah', '#2563eb', 'Amalan Harian di Rumah', nCek + ' dari ' + hh.lamaN + ' amalan terisi' + (uzur ? ' · berhalangan sholat' : '') + (sakit ? ' · hari sakit' : ''), `
-      <p class="text-muted" style="font-size:11px;margin-bottom:6px;">Ketuk yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis.</p>
+      <p class="text-muted" style="font-size:11px;margin-bottom:6px;">Ketuk yang sudah dilakukan ${bsEsc(o.siswa.name)}. Tersimpan otomatis.${Object.keys(kr).length ? ' <strong>🏫 Dhuha/Dzuhur yang tercatat hadir di madrasah tercentang otomatis.</strong>' : ''}</p>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-size:12px;font-weight:700;">Sholat 5 waktu</span>${uzur ? '<span style="font-size:11px;color:#0d9488;">🌿 berhalangan</span>' : tombolLima}</div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">${rowLima}</div>
       <p style="font-size:12px;font-weight:700;margin:8px 0 4px;">Amalan lain</p>
@@ -1909,6 +1967,7 @@ function bsOrtuToggle(kode) {
   if (!bsTglBolehIsi(tg)) return toast('⚠️ Hanya bisa mengisi hari ini sampai ' + BS_HARI_ISI_MUNDUR + ' hari ke belakang.', true);
   if (!bsOnline()) return toast('📡 Sedang offline. Checklist butuh koneksi internet.', true);
   if ((o.uzur || {})[tg] === true && BS_AMALAN.some(a => a.k === kode && a.wajib)) return toast('🌿 Tanggal ini ditandai berhalangan sholat. Matikan dulu tandanya kalau mau mencentang sholat.', true);
+  if (bsMadrasahDi(o, tg)[kode]) return toast('🏫 Tercatat hadir di madrasah, jadi sudah tercentang otomatis.');
   const pKey = tg + '|' + kode;
   if (!bsKunciMulai('toggle_' + pKey)) return;   // item yang sama masih menyimpan: abaikan ketukan ganda
   const sebelum = Object.assign({}, o.amalan[tg] || {});
@@ -2019,7 +2078,7 @@ function bsAnakBuka() {
   const o = bsOrtu; if (!o.siswa) return;
   bsAnakTutup();
   const h = bsHariIni(), game = bsHitungGame(o.targets, o.setoran, bsOrtuDaftarAmalan(), h, o.semua), berikut = bsOrtuTargetBerikut();
-  const items = o.amalan[h] || {};
+  const items = bsItemsEfektif(o, h);
   const uzA = (o.uzur || {})[h] === true, skA = (o.sakit || {})[h] === true, hhA = bsHitungHari(items, uzA);
   const ubinAnak = (a, on, libur) => libur
     ? `<div style="text-align:center;padding:8px 4px;border-radius:12px;background:#f0fdfa;"><div style="font-size:26px;opacity:.5;">${a.e}</div><div style="font-size:11px;font-weight:700;margin-top:2px;">${bsEsc(a.nama)}</div><div style="font-size:14px;">🌿</div></div>`
