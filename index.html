@@ -158,7 +158,7 @@
   <script defer src="js/amalan-kegiatan.js?v=43"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=38"></script>
-  <script defer src="js/portal-tab.js?v=3"></script>   <!-- tab Beranda/Amalan/Belajar/Lainnya Portal Ortu (HP) -->
+  <script defer src="js/portal-tab.js?v=6"></script>   <!-- tab Beranda/Amalan/Belajar/Lainnya Portal Ortu (HP) -->
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
@@ -2516,15 +2516,16 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
   <div id="portalOrtuDashboard" style="display:none;min-height:100vh;background:#f9fafb;padding:10px 12px 16px;">
     <div style="max-width:980px;margin:0 auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
-        <h2 style="font-size:15px;font-weight:800;">👨‍👩‍👧 Data Murid</h2>
+        <h2 style="font-size:15px;font-weight:800;"><svg class="po-ik" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;color:#0f766e"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg> Data Murid</h2>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-soft" style="padding:3px 10px;font-size:11px;min-height:32px;" onclick="toggleGantiPinOrtu()">🔑 Ganti PIN</button>
-          <button class="btn btn-soft" style="padding:3px 10px;font-size:11px;min-height:32px;" onclick="tutupPortalOrtu()">✕ Keluar</button>
+          <button class="btn btn-soft po-bt-ikon" style="padding:3px 10px;font-size:11px;min-height:32px;" onclick="toggleGantiPinOrtu()" aria-label="Ganti PIN" title="Ganti PIN"><svg class="po-ik" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M16 7l3 3M14 9l2 2"/></svg><span class="po-bt"> Ganti PIN</span></button>
+          <button class="btn btn-soft po-bt-ikon" style="padding:3px 10px;font-size:11px;min-height:32px;" onclick="window.ptPerbarui ? ptPerbarui(this) : location.reload()" aria-label="Cek pembaruan aplikasi" title="Cek pembaruan aplikasi"><svg class="po-ik" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg><span class="po-bt"> Update</span></button>
+          <button class="btn btn-soft po-bt-ikon" style="padding:3px 10px;font-size:11px;min-height:32px;" onclick="tutupPortalOrtu()" aria-label="Keluar" title="Keluar"><svg class="po-ik" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span class="po-bt"> Keluar</span></button>
         </div>
       </div>
       <div id="portalOrtuAnakWrap" style="display:none;margin-bottom:12px;"><label class="label">Pilih Anak</label><select id="portalOrtuAnakSelect" class="field" onchange="pilihAnakPortalOrtu(this.value)"></select></div>
       <div id="portalOrtuGantiPin" class="card" style="display:none;margin-bottom:12px;">
-        <h4 style="font-weight:700;margin-bottom:8px;">🔑 Ganti PIN</h4>
+        <h4 style="font-weight:700;margin-bottom:8px;"><svg class="po-ik" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M16 7l3 3M14 9l2 2"/></svg> Ganti PIN</h4>
         <div style="margin-bottom:8px;"><label class="label">PIN Lama</label><input id="portalOrtuPinLama" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password"></div>
         <div style="margin-bottom:8px;"><label class="label">PIN Baru (6 angka)</label><input id="portalOrtuPinGanti1" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></div>
         <div style="margin-bottom:10px;"><label class="label">Ulangi PIN Baru</label><input id="portalOrtuPinGanti2" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></div>
