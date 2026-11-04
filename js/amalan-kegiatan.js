@@ -2410,6 +2410,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) setT
 
 // ============================================================
 // PORTAL ORANG TUA: kartu "Sholat Dhuha & Dzuhur" (rekap semester yang diterbitkan wali kelas)
+// v42: kartu lipat (tertutup bawaan, gaya .po-acc sama dengan kartu portal lain), lencana ringkasan di judul, tiap sholat 1 baris (H/S/I/A + % + predikat).
 // renderPortalOrtuDashboard (app.js) membangun halaman SEKALI lewat content.innerHTML setelah semua data terbaca, jadi fungsi itu
 // dibungkus: setelah halaman jadi, kartu disisipkan sesudah kartu "Kehadiran Bulan Ini" dan diisi dari node kecil
 // rekap_sholat_raport (2 pembacaan: Genap & Ganjil tahun ajaran aktif). Kalau gagal dibaca, kartu dibuang diam-diam.
@@ -2420,38 +2421,46 @@ function v4PortalSholatBaca(siswa) {
     db.ref('rekap_sholat_raport/' + v4PortalSholatPeriode(sm) + '/' + siswa.key).once('value').then(sn => (sn.val() ? Object.assign({ semester: sm }, sn.val()) : null))
   )).then(l => l.filter(Boolean));
 }
-function v4PortalSholatBlok(nama, r) {
-  const hdr = `<div style="font-weight:600;font-size:13px;margin:8px 0 4px;">${escapeHtml(nama)}</div>`;
-  if (!r || r.tidakIkut) return hdr + `<p class="text-muted" style="font-size:12px;">${r && r.tidakIkut ? 'Kelas ini tidak mengikuti ' + escapeHtml(nama) + ' berjamaah di madrasah.' : 'Belum ada data.'}</p>`;
-  if (r.ada === false) return hdr + '<p class="text-muted" style="font-size:12px;">Belum ada data.</p>';
+function v4PortalSholatBaris(ikon, nama, r) {
   const n = v => Number(v) || 0;
-  const kotak = (v, label, warna) => `<div><div style="font-size:18px;font-weight:800;color:${warna};">${n(v)}</div><div class="text-muted" style="font-size:11px;">${label}</div></div>`;
+  const bar = 'display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-size:12.5px;padding:3px 0;';
+  if (!r || r.tidakIkut) return `<div class="text-muted" style="font-size:12px;padding:3px 0;">${ikon} ${escapeHtml(nama)}: ${r && r.tidakIkut ? 'kelas ini tidak mengikuti berjamaah di madrasah.' : 'belum ada data.'}</div>`;
+  if (r.ada === false) return `<div class="text-muted" style="font-size:12px;padding:3px 0;">${ikon} ${escapeHtml(nama)}: belum ada data.</div>`;
+  const cip = (hrf, v, warna) => `<span style="color:${warna};font-weight:700;">${hrf} ${n(v)}</span>`;
   const pct = (r.pct === null || r.pct === undefined) ? '-' : n(r.pct) + '%';
   const pred = r.pred ? escapeHtml(r.pred) + (n(r.T) > 0 ? '*' : '') : '-';
-  return hdr + `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">${kotak(r.H, 'Hadir', '#059669')}${kotak(r.S, 'Sakit', '#d97706')}${kotak(r.I, 'Izin', '#2563eb')}${kotak(r.A, 'Alfa', '#dc2626')}</div>
-    <p style="font-size:12px;margin-top:6px;">% Hadir: <strong>${pct}</strong> · Predikat: <strong>${pred}</strong></p>`;
+  return `<div style="${bar}"><strong style="min-width:64px;">${ikon} ${escapeHtml(nama)}</strong>${cip('H', r.H, '#059669')}${cip('S', r.S, '#d97706')}${cip('I', r.I, '#2563eb')}${cip('A', r.A, '#dc2626')}<span style="margin-left:auto;white-space:nowrap;"><strong>${pct}</strong> · ${pred}</span></div>`;
+}
+// Ringkasan untuk lencana di judul kartu (semester terbaru): "Dhuha 92% · Dzuhur 88%"
+function v4PortalSholatLencana(d) {
+  const p = (nama, r) => (r && !r.tidakIkut && r.ada !== false && r.pct !== null && r.pct !== undefined) ? nama + ' ' + (Number(r.pct) || 0) + '%' : null;
+  return [p('Dhuha', d.dhuha), p('Dzuhur', d.dzuhur)].filter(Boolean).join(' · ');
 }
 function v4PortalSholatHtml(list) {
   const urut = list.slice().sort((a, b) => (a.semester === b.semester ? 0 : a.semester === 'Genap' ? -1 : 1));
-  return urut.map(d => {
+  return urut.map((d, i) => {
     const adaT = [d.dhuha, d.dzuhur].some(r => r && Number(r.T) > 0);
     const catatan = [];
     if (d.udzur) catatan.push('Predikat dihitung dari kehadiran dibanding hadir + alfa; sakit dan izin tidak menurunkan predikat.');
     if (adaT) catatan.push('* Ada hari yang belum tercatat; hari itu tidak dihitung ke persen.');
     if (d.lengkap === false) catatan.push('Rekap ini masih sementara karena data kelas belum lengkap.');
-    return `<div style="padding:8px 0;border-top:1px solid #f1f5f9;">
-      <div style="font-size:12px;font-weight:700;">Semester ${escapeHtml(d.semester)} ${escapeHtml(d.tahunAjaran || '')}</div>
-      ${v4PortalSholatBlok('Sholat Dhuha', d.dhuha)}${v4PortalSholatBlok('Sholat Dzuhur', d.dzuhur)}
-      ${d.deskripsi ? `<p style="font-size:12px;margin-top:8px;line-height:1.5;">${escapeHtml(d.deskripsi)}</p>` : ''}
-      ${catatan.length ? `<p class="text-muted" style="font-size:11px;margin-top:8px;">${catatan.map(escapeHtml).join(' ')}</p>` : ''}
-      <p class="text-muted" style="font-size:11px;margin-top:4px;">Diterbitkan wali kelas${d.diterbitkanPada ? ' · ' + escapeHtml(String(d.diterbitkanPada).slice(0, 10)) : ''}</p></div>`;
+    const terbit = d.diterbitkanPada ? 'Diterbitkan wali kelas · ' + escapeHtml(String(d.diterbitkanPada).slice(0, 10)) : 'Diterbitkan wali kelas';
+    return `<div style="padding:6px 0;${i ? 'border-top:1px solid #f1f5f9;' : ''}">
+      <div style="font-size:12px;font-weight:700;margin-bottom:2px;">Semester ${escapeHtml(d.semester)} ${escapeHtml(d.tahunAjaran || '')}</div>
+      ${v4PortalSholatBaris('☀️', 'Dhuha', d.dhuha)}${v4PortalSholatBaris('🕌', 'Dzuhur', d.dzuhur)}
+      ${d.deskripsi ? `<p style="font-size:12px;margin-top:6px;line-height:1.45;">${escapeHtml(d.deskripsi)}</p>` : ''}
+      <p class="text-muted" style="font-size:11px;margin-top:4px;line-height:1.4;">${catatan.length ? catatan.map(escapeHtml).join(' ') + ' · ' : ''}${terbit}</p></div>`;
   }).join('');
 }
 function v4PortalSholatIsi(kartu, siswa) {
   if (typeof db === 'undefined' || !db) { kartu.remove(); return; }
   v4PortalSholatBaca(siswa).then(list => {
-    const judul = '<p style="font-weight:700;margin-bottom:4px;">🕌 Sholat Dhuha &amp; Dzuhur</p>';
-    kartu.innerHTML = judul + (list.length ? v4PortalSholatHtml(list) : '<p class="text-muted" style="font-size:13px;">Rekap semester belum diterbitkan oleh wali kelas.</p>');
+    // Kartu lipat (tertutup bawaan) supaya halaman di HP tidak panjang; lencana di judul = ringkasan semester terbaru.
+    const urut = list.slice().sort((a, b) => (a.semester === b.semester ? 0 : a.semester === 'Genap' ? -1 : 1));
+    const teksBadge = urut.length ? (v4PortalSholatLencana(urut[0]) || 'Lihat rincian') : 'Belum diterbitkan';
+    const sum = kartu.querySelector('summary');
+    if (sum) sum.querySelector('.po-badge').textContent = teksBadge;
+    kartu.querySelector('.po-acc-body').innerHTML = list.length ? v4PortalSholatHtml(list) : '<p class="text-muted" style="font-size:13px;">Rekap semester belum diterbitkan oleh wali kelas.</p>';
   }).catch(e => { console.warn('[SI MAMBA] Kartu sholat Portal Ortu gagal dimuat:', e && e.message || e); kartu.remove(); });
 }
 let v4PortalSholatObs = null;
@@ -2462,9 +2471,9 @@ function v4PortalSholatPasang(siswa) {
   const pasang = () => {
     if (!content.querySelector('.card')) return false;                 // masih "Memuat data..."
     if (content.querySelector('#portalOrtuSholatCard')) return true;
-    const kartu = document.createElement('div');
-    kartu.className = 'card'; kartu.id = 'portalOrtuSholatCard'; kartu.style.marginBottom = '12px';
-    kartu.innerHTML = '<p style="font-weight:700;margin-bottom:4px;">🕌 Sholat Dhuha &amp; Dzuhur</p><p class="text-muted" style="font-size:13px;">⏳ Memuat rekap...</p>';
+    const kartu = document.createElement('details');
+    kartu.className = 'card po-acc'; kartu.id = 'portalOrtuSholatCard'; kartu.style.marginBottom = '12px';
+    kartu.innerHTML = '<summary><span>🕌 Sholat Dhuha &amp; Dzuhur</span><span class="po-badge">Memuat...</span></summary><div class="po-acc-body"><p class="text-muted" style="font-size:13px;">⏳ Memuat rekap...</p></div>';
     const acuan = [...content.querySelectorAll('.card')].find(c => /Kehadiran Bulan Ini/.test(c.textContent));
     if (acuan) acuan.insertAdjacentElement('afterend', kartu); else content.appendChild(kartu);
     v4PortalSholatIsi(kartu, siswa);

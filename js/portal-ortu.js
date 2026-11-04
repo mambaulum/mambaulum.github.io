@@ -334,6 +334,7 @@
     let portalOrtuInfaqRingkas = null;   // diisi portalOrtuInfaqHtml() setiap dashboard digambar
     function poBukaBagian(id) {
       const el = document.getElementById(id); if (!el) return;
+      try { if (typeof ptTampilkanDi === 'function') ptTampilkanDi(el); } catch (e) { /* tab tidak aktif */ }
       if (el.tagName === 'DETAILS') el.open = true;
       else if (/^bsLp_/.test(id) && typeof bsLipatToggle === 'function' && typeof bsLipatBuka !== 'undefined' && bsLipatBuka[id.slice(5)] !== true) bsLipatToggle(id.slice(5));
       try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { el.scrollIntoView(); }

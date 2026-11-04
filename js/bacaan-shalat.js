@@ -1499,7 +1499,7 @@ function bsRingkasPekan(amalanList) {
   });
   return per;
 }
-function bsHariSel(g, per7) { return g && g.hari ? g.hari + (per7 ? ' / 7' : '') : (g && g.sakit ? '🤒 ' + g.sakit + ' sakit' : '-'); }
+function bsHariSel(g, per7) { return g && g.hari ? g.hari + (per7 ? ' / 7' : '') + (g.sakit ? ' · 🤒 ' + g.sakit : '') : (g && g.sakit ? '🤒 ' + g.sakit + ' sakit' : '-'); }
 function bsPersenRingkas(g, nButir) { return g && g.hari ? Math.round(g.centang / (g.butir || g.hari * nButir) * 100) : null; }
 function bsDaftarPekanAmalan(n) {   // n pekan terakhir (pekan ini dulu), tanpa kunci ganda
   const h = bsHariIni(), out = [], seen = {};
