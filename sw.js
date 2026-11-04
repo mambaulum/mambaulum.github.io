@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.341';
+const APP_VERSION = 'v8.343';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -104,9 +104,9 @@ const PRECACHE_URLS = [
   './js/riwayat-login-ortu.js?v=1',          // Riwayat Login Orang Tua, kartu di halaman Admin (dimuat SESUDAH app.js)
   './js/angket.js?v=11',                    // Angket gabungan: Kurikulum + Profil Lulusan (dimuat SESUDAH app.js & portal-ortu.js)
   './js/ortu-akun-admin.js?v=2',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/amalan-kegiatan.js?v=43',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
-  './js/bacaan-shalat.js?v=38',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
-  './js/portal-tab.js?v=9',                // Tab Portal Ortu di HP: Beranda/Amalan/Belajar/Lainnya (dimuat SESUDAH portal-ortu.js)
+  './js/amalan-kegiatan.js?v=44',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
+  './js/bacaan-shalat.js?v=39',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
+  './js/portal-tab.js?v=10',                // Tab Portal Ortu di HP: Beranda/Amalan/Belajar/Lainnya (dimuat SESUDAH portal-ortu.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=12',
