@@ -369,7 +369,7 @@
         <p style="font-weight:700;font-size:13px;margin:0 0 8px;">${poID('📊 Ringkasan Ananda')} <span class="text-muted" style="font-weight:400;font-size:11px;">· ketuk kotak untuk rincian</span></p>
         <div class="po-rk-grid">
           ${poUbin('poRingkasHadir', 'poKopKehadiran', '📅 Kehadiran', persen === null ? '-' : persen + '%', wHadir, persen === null ? 'Belum ada absensi' : o.hadir + ' dari ' + o.totalAbsen + ' hari')}
-          ${poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : o.nMapel + ' mapel' + (o.nilaiSementara ? ' · sementara' : ''))}
+          ${poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : (o.nilaiSementara ? 'sementara' : o.nMapel + ' mapel'))}
           ${poUbin('poRingkasInfaq', 'poAccInfaq', '💵 Infaq', inf.utama, inf.warna, inf.sub)}
           ${poUbin('poRingkasAmalan', 'bsLp_amalan', '🏡 Amalan hari ini', '⏳', '#6b7280', 'Memuat...')}
           ${poUbin('poRingkasHafalan', 'bsLp_setoran', '📿 Hafalan bacaan sholat', '⏳', '#6b7280', 'Memuat...', true)}
@@ -570,11 +570,12 @@
         });
         content.innerHTML = `
           <div class="card" id="poKopKehadiran" style="margin-bottom:8px;">
+            <p id="poSapaan" style="font-size:12px;margin:0 0 6px;color:#0b6b4f;font-weight:600;">Assalamu\'alaikum, Bapak/Ibu <span class="text-muted" style="font-weight:400;">· kabar terbaru Ananda</span></p>
             <div style="display:flex;align-items:center;gap:10px;">
               <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" width="36" height="36" style="width:36px;height:36px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
               <div style="min-width:0;">
                 <p class="text-muted" style="font-size:11px;margin:0;">${escapeHtml(MADRASAH.nama || '')}</p>
-                <p style="font-size:15px;font-weight:700;margin:0;line-height:1.25;">${escapeHtml(siswa.name)}</p>
+                <p style="font-size:17px;font-weight:800;margin:0;line-height:1.2;">${escapeHtml(siswa.name)}</p>
                 <p class="text-muted" style="font-size:12px;margin:0;">${/^kelas\b/i.test(String(siswa.kelas || '')) ? escapeHtml(siswa.kelas) : 'Kelas ' + escapeHtml(siswa.kelas)}</p>
               </div>
             </div>
