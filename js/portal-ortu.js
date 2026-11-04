@@ -327,7 +327,7 @@
       return `<details class="card po-acc"${id ? ' id="' + id + '"' : ''} style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${judul}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
     }
     const poBadge = (teks, kelas) => `<span class="po-badge${kelas ? ' ' + kelas : ''}">${teks}</span>`;
-    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:span 2}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:19px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}#bsOrtuBox summary::-webkit-details-marker{display:none}@media(max-width:759px){.po-ub{padding:7px 8px}.po-ub-j{font-size:11px}.po-ub-u{font-size:17px}.po-ub-s{font-size:10.5px}}#portalOrtuAnakWrap,#portalOrtuGantiPin{max-width:600px}@media(min-width:760px){#portalOrtuContent{column-count:2;column-gap:12px}#portalOrtuContent .card,#portalOrtuContent details{break-inside:avoid;-webkit-column-break-inside:avoid}#portalOrtuContent #poKopKehadiran,#portalOrtuContent #poRingkas{column-span:all}}</style>`;
+    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:span 2}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:19px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}#bsOrtuBox summary::-webkit-details-marker{display:none}@media(max-width:759px){#portalOrtuContent .card{padding:10px 12px!important;margin-bottom:8px!important}.po-ub{padding:7px 8px}.po-ub-j{font-size:11px}.po-ub-u{font-size:17px}.po-ub-s{font-size:10.5px}}#portalOrtuAnakWrap,#portalOrtuGantiPin{max-width:600px}@media(min-width:760px){#portalOrtuContent{column-count:2;column-gap:12px}#portalOrtuContent .card,#portalOrtuContent details{break-inside:avoid;-webkit-column-break-inside:avoid}#portalOrtuContent #poKopKehadiran,#portalOrtuContent #poRingkas{column-span:all}}</style>`;
     // ---------- Ringkasan satu layar (kartu #poRingkas, tepat di bawah kop anak) ----------
     // Kotak Kehadiran, Nilai, Infaq dihitung di sini. Kotak Amalan & Hafalan diisi js/bacaan-shalat.js lewat poIsiUbin()
     // begitu datanya selesai dimuat. Mengetuk kotak membuka bagian rinciannya dan menggulir ke sana.
@@ -567,22 +567,22 @@
           nMapel: dasarNilai.length, nilaiSementara: stFinal.length === 0, labelSemester: pakaiSem ? 'Semester ' + semAktif : 'TA ' + currentTahunAjaran
         });
         content.innerHTML = `
-          <div class="card" id="poKopKehadiran" style="margin-bottom:12px;">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" width="44" height="44" style="width:44px;height:44px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
+          <div class="card" id="poKopKehadiran" style="margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" width="36" height="36" style="width:36px;height:36px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
               <div style="min-width:0;">
                 <p class="text-muted" style="font-size:11px;margin:0;">${escapeHtml(MADRASAH.nama || '')}</p>
-                <p style="font-size:16px;font-weight:700;margin:0;">${escapeHtml(siswa.name)}</p>
-                <p class="text-muted" style="font-size:13px;margin:0;">${/^kelas\b/i.test(String(siswa.kelas || '')) ? escapeHtml(siswa.kelas) : 'Kelas ' + escapeHtml(siswa.kelas)}</p>
+                <p style="font-size:15px;font-weight:700;margin:0;line-height:1.25;">${escapeHtml(siswa.name)}</p>
+                <p class="text-muted" style="font-size:12px;margin:0;">${/^kelas\b/i.test(String(siswa.kelas || '')) ? escapeHtml(siswa.kelas) : 'Kelas ' + escapeHtml(siswa.kelas)}</p>
               </div>
             </div>
-            <div style="border-top:1px solid #f1f5f9;margin-top:12px;padding-top:10px;">
+            <div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px;">
               <p style="font-weight:700;font-size:13px;margin:0 0 6px;">📅 Kehadiran Bulan Ini <span class="text-muted" style="font-weight:400;font-size:11px;">· ${escapeHtml(labelBulan(bulanTampil))}</span></p>
-              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
-                <div><div style="font-size:20px;font-weight:800;color:#059669;">${hadir}</div><div class="text-muted" style="font-size:11px;">Hadir</div></div>
-                <div><div style="font-size:20px;font-weight:800;color:#d97706;">${sakit}</div><div class="text-muted" style="font-size:11px;">Sakit</div></div>
-                <div><div style="font-size:20px;font-weight:800;color:#2563eb;">${izin}</div><div class="text-muted" style="font-size:11px;">Izin</div></div>
-                <div><div style="font-size:20px;font-weight:800;color:#dc2626;">${alfa}</div><div class="text-muted" style="font-size:11px;">Alfa</div></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;">
+                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#059669;">${hadir}</div><div class="text-muted" style="font-size:11px;">Hadir</div></div>
+                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#d97706;">${sakit}</div><div class="text-muted" style="font-size:11px;">Sakit</div></div>
+                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#2563eb;">${izin}</div><div class="text-muted" style="font-size:11px;">Izin</div></div>
+                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#dc2626;">${alfa}</div><div class="text-muted" style="font-size:11px;">Alfa</div></div>
               </div>
               ${catatanAbsen ? `<p class="text-muted" style="font-size:11px;font-style:italic;margin:8px 0 0;text-align:center;">${catatanAbsen}</p>` : ''}
             </div>
