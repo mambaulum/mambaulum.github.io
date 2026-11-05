@@ -1,6 +1,6 @@
 {
   "appVersion": "v8.346",
-  "disimpan": "2026-11-04T13:35:22.367Z",
+  "disimpan": "2026-11-05T02:52:18.888Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -151,8 +151,8 @@
       "hash": "5f9d4f9db3e21c81cf0ecd50c573e07aabef24b8"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=39",
-      "hash": "3795854089a385b202396ecee12bceda0bda9483"
+      "v": "v=40",
+      "hash": "1a188b0427626e192fdd65a036033d4ab7cf5bcf"
     },
     "js/portal-tab.js": {
       "v": "v=10",
