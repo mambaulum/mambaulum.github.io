@@ -210,6 +210,14 @@ function bsKelasPilihan() {
 }
 function bsGuruKey() { return (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.key || currentUser.name || '') : ''; }
 function bsGuruNama() { return (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.name || '') : ''; }
+// Rules bs_target / bs_setoran mewajibkan bukti sesi tulis (Admin: sesi_admin, guru: sesi_guru) terisi SEBELUM menulis.
+// Sama seperti simpan Nilai di app.js. Tidak pernah menolak: bila gagal / lewat 8 dtk, penulisan tetap dicoba dan server yang memutuskan.
+function bsSesiSiap() {
+  try {
+    const f = bsIsAdmin() ? (typeof adminSesiSiap === 'function' ? adminSesiSiap : null) : (typeof guruSesiSiap === 'function' ? guruSesiSiap : null);
+    return f ? Promise.resolve(f()).catch(() => true) : Promise.resolve(true);
+  } catch (e) { return Promise.resolve(true); }
+}
 
 // ============================================================
 // GAMIFIKASI -- dihitung ulang dari data (tidak disimpan)
@@ -986,7 +994,7 @@ function bsSimpanTarget() {
   if (edit) {
     rec = Object.assign({}, edit, data); if (teks) rec.teks = teks; else delete rec.teks;
     const dataUbah = Object.assign({}, data, { teks: teks || null });
-    janji = db.ref('bs_target/' + edit.key).update(dataUbah);
+    janji = bsSesiSiap().then(() => db.ref('bs_target/' + edit.key).update(dataUbah));
   } else {
     const updates = {};
     kelasPilih.forEach(k => {   // satu target per kelas yang dicentang (tidak ada lagi target "semua kelas" untuk target baru)
@@ -995,7 +1003,7 @@ function bsSimpanTarget() {
       if (teks) d.teks = teks;
       updates[key] = d; recsBaru.push(Object.assign({ key }, d));
     });
-    rec = recsBaru[0]; janji = db.ref('bs_target').update(updates);
+    rec = recsBaru[0]; janji = bsSesiSiap().then(() => db.ref('bs_target').update(updates));
   }
   janji.then(() => {
     clearBusy('bsSimpanTarget', bsEl('bsBtnSimpanTarget'));
@@ -1010,7 +1018,7 @@ function bsToggleAktif(id) {
   if (!bsOnline()) return toast('📡 Sedang offline.', true);
   const baru = t.aktif === false, kunci = 'aktif_' + id;
   if (!bsKunciMulai(kunci)) return;
-  db.ref('bs_target/' + id).update({ aktif: baru, updatedAt: new Date().toISOString() })
+  bsSesiSiap().then(() => db.ref('bs_target/' + id).update({ aktif: baru, updatedAt: new Date().toISOString() }))
     .then(() => { t.aktif = baru; toast(baru ? '▶️ Target diaktifkan.' : '⏸️ Target dinonaktifkan (data penilaian tetap tersimpan).'); bsRender(); })
     .catch(err => toast('❌ Gagal: ' + ((err && err.message) || err), true))
     .then(() => bsKunciSelesai(kunci));
@@ -1192,7 +1200,7 @@ function bsSimpanNilai() {
     return rec;
   };
   // Satu transaksi per catatan: dibaca ulang dari server, ditolak bila sudah berubah dari yang dilihat penilai.
-  const tugas = dirty.map(d => {
+  const tugas = bsSesiSiap().then(() => Promise.all(dirty.map(d => {
     const key = bsKunciSetoran(d.targetId, d.siswaKey), dilihat = saved[key] || null;
     return db.ref('bs_setoran/' + key).transaction(cur => {
       // cur === null bisa berarti "belum ada" ATAU "belum termuat" (putaran pertama); biarkan server yang menguji ulang.
@@ -1200,8 +1208,9 @@ function bsSimpanNilai() {
       return bangunRec(d, cur);
     }, undefined, false).then(res => ({ key, d, committed: res.committed, server: res.snapshot.val() }))
       .catch(err => ({ key, d, err }));
-  });
-  Promise.all(tugas).then(hasil => {
+  })));
+  tugas.then(hasil => {
+    hasil.filter(h => h.err).forEach(h => console.warn('[SI MAMBA] Simpan penilaian ditolak:', h.key, h.err && (h.err.code || h.err.message), { kelas: k, guruKey: bsGuruKey() }));
     clearBusy('bsSimpanNilai', bsEl('bsBtnSimpanNilai'));
     const peta = (bsState.setoran[k] = bsState.setoran[k] || {});
     const ok = hasil.filter(h => h.committed), gagal = hasil.filter(h => h.err), konflik = hasil.filter(h => !h.committed && !h.err);
