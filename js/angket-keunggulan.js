@@ -42,7 +42,13 @@
 (function () {
   'use strict';
 
+  // Kata tombol (nilai tersimpan tetap 1-4). Staf: persetujuan; orang tua & siswa: kesesuaian.
   var SKALA = ['Sangat Tidak Setuju', 'Tidak Setuju', 'Setuju', 'Sangat Setuju'];
+  var SKALA_KATA = {
+    guru: SKALA, kepala: SKALA,
+    ortu: ['Tidak Sesuai', 'Kurang Sesuai', 'Sesuai', 'Sangat Sesuai'],
+    siswa: ['Tidak Sesuai', 'Kurang Sesuai', 'Sesuai', 'Sangat Sesuai']
+  };
   var JENIS = ['guru', 'kepala', 'ortu', 'siswa'];
   var JUDUL_JENIS = { guru: 'Guru', kepala: 'Kepala Madrasah', ortu: 'Orang Tua', siswa: 'Peserta Didik' };
   var DIM_NAMA = ['Keimanan & Ketakwaan', 'Kewargaan', 'Penalaran Kritis', 'Kreativitas', 'Kolaborasi', 'Kemandirian', 'Kesehatan', 'Komunikasi']; // urutan sama dengan P8_DIMENSI
@@ -168,9 +174,13 @@
     '.akq-tbl th,.akq-tbl td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;}' +
     '.akq-tbl th{background:#f0fdf4;}' +
     '.akq-scroll{overflow-x:auto;}';
+  // Tombol 2 x 2 berisi kata (dipasang terpisah: akqCss bisa sudah dibuat angket.js tanpa gaya ini).
+  var CSS2 = '.akg-opsi{display:grid;grid-template-columns:1fr 1fr;gap:6px;}' +
+    '.akg-opsi label{min-width:0;flex:none;}' +
+    '.akg-opsi span{padding:10px 6px;line-height:1.25;}';
   function pasangCss() {
-    if (el('akqCss')) return;
-    var s = document.createElement('style'); s.id = 'akqCss'; s.textContent = CSS; document.head.appendChild(s);
+    if (!el('akqCss')) { var s = document.createElement('style'); s.id = 'akqCss'; s.textContent = CSS; document.head.appendChild(s); }
+    if (!el('akgCss2')) { var s2 = document.createElement('style'); s2.id = 'akgCss2'; s2.textContent = CSS2; document.head.appendChild(s2); }
   }
 
   // ---------- status ON/OFF (terpisah dari angket kurikulum) ----------
@@ -221,14 +231,15 @@
       BIDANG.map(function (b) { return '<option value="' + esc(b.id) + '"' + (nilai === b.id ? ' selected' : '') + '>' + esc(b.ikon + ' ' + b.nama) + '</option>'; }).join('') + '</select></div>';
   }
   function htmlForm(jenis, pre) {
-    var h = '<div class="akq-skala">Skala: 1 = ' + esc(SKALA[0]) + ' &nbsp;|&nbsp; 2 = ' + esc(SKALA[1]) + ' &nbsp;|&nbsp; 3 = ' + esc(SKALA[2]) + ' &nbsp;|&nbsp; 4 = ' + esc(SKALA[3]) + '. Jawablah sesuai kondisi yang SEBENARNYA.</div>';
+    var kata = SKALA_KATA[jenis] || SKALA;
+    var h = '<div class="akq-skala">Pilih satu jawaban untuk tiap pernyataan. Jawablah sesuai kondisi yang SEBENARNYA.</div>';
     var last = '';
     BUTIR[jenis].forEach(function (b) {
       if (b[1] !== last) { var bd = bidangDari(b[1]); h += '<div class="akq-grup">' + esc(bd.ikon + ' ' + bd.nama) + '</div>'; last = b[1]; }
       var cur = pre && pre.jawaban ? pre.jawaban[b[0]] : null;
       var label = (jenis === 'guru' || jenis === 'kepala') ? '<b>[' + esc(SISI.filter(function (s) { return s.id === b[3]; })[0].nama) + ']</b> ' : '';
-      h += '<div class="akq-butir"><div class="akq-teks">' + label + esc(b[2]) + '</div><div class="akq-opsi" role="radiogroup" aria-label="' + esc(b[2]) + '">';
-      for (var i = 1; i <= 4; i++) h += '<label><input type="radio" name="akg_' + esc(b[0]) + '" value="' + i + '"' + (cur === i ? ' checked' : '') + '><span>' + i + '</span></label>';
+      h += '<div class="akq-butir"><div class="akq-teks">' + label + esc(b[2]) + '</div><div class="akq-opsi akg-opsi" role="radiogroup" aria-label="' + esc(b[2]) + '">';
+      for (var i = 1; i <= 4; i++) h += '<label><input type="radio" name="akg_' + esc(b[0]) + '" value="' + i + '"' + (cur === i ? ' checked' : '') + '><span>' + esc(kata[i - 1]) + '</span></label>';
       h += '</div></div>';
     });
     h += '<div class="akq-grup">Bidang Prioritas</div><div class="akq-butir"><div class="akq-teks">Dari lima bidang di atas, pilih bidang yang paling perlu dijadikan keunggulan madrasah.</div>' +
