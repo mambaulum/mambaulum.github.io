@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.359",
-  "disimpan": "2026-11-06T13:15:27.344Z",
+  "appVersion": "v8.362",
+  "disimpan": "2026-11-06T14:01:30.857Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -139,12 +139,12 @@
       "hash": "7fa0c91a5e784e0271111dd06549dc766a3356f3"
     },
     "js/kpi.js": {
-      "v": "v=2",
-      "hash": "ef6cef994df255a9a88efe019069916cdaa77b6d"
+      "v": "v=4",
+      "hash": "b0385ea2ebd060ba2363b8edbe62b02d4562c8e3"
     },
     "js/nilai-harian.js": {
-      "v": "v=6",
-      "hash": "a63d0f6af165b23dcc48d0e84d7a529b10158f93"
+      "v": "v=7",
+      "hash": "4d551dc877277e5b6dc531c3cc8448404e06d258"
     },
     "js/riwayat-login-ortu.js": {
       "v": "v=2",
