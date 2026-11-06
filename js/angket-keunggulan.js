@@ -496,6 +496,131 @@
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   }
 
+
+  // ---------- Pengingat via WhatsApp (Admin/Kepala, di tab Rekap) ----------
+  // Cara kerja sama dengan pengingat tunggakan infaq: aplikasi TIDAK mengirim otomatis. Tombol membuka WhatsApp
+  // (wa.me) dengan pesan yang sudah terisi, lalu pengirim menekan Kirim. Tanda "diingatkan" disimpan di perangkat ini saja.
+  // Orang tua : jawaban disimpan dengan kunci hash (tanpa No. WA) jadi tidak bisa dicocokkan -> SEMUA nomor orang tua
+  //             aktif diingatkan (satu pesan per nomor walau punya beberapa anak). Keanoniman tetap terjaga.
+  // Guru      : hanya guru yang jawabannya TIDAK anonim yang dikenali sudah mengisi; jawaban anonim diberi catatan.
+  var FIELD_WA_GURU = ['noWa', 'noWA', 'no_wa', 'wa', 'noHp', 'noHP', 'hp', 'telp', 'telepon', 'phone'];
+  function nomorWa(x) {
+    var d = String(x == null ? '' : x).replace(/\D/g, '');
+    if (!d) return '';
+    if (d.indexOf('00') === 0) d = d.slice(2);
+    if (d.charAt(0) === '0') d = '62' + d.slice(1); else if (d.charAt(0) === '8') d = '62' + d;
+    return (d.indexOf('62') === 0 && d.length >= 10 && d.length <= 15) ? d : '';
+  }
+  function waGuru(g) { for (var i = 0; i < FIELD_WA_GURU.length; i++) { var n = nomorWa(g && g[FIELD_WA_GURU[i]]); if (n) return n; } return ''; }
+  function namaMadrasah() { try { if (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) return MADRASAH.nama; } catch (e) {} return 'Madrasah'; }
+  function basisUrl() { return location.origin + location.pathname.replace(/[^\/]*$/, ''); }
+  function infoBatasWa(st) {
+    if (!st || !st.batas) return '';
+    return 'Batas pengisian: ' + labelTgl(st.batas) + (st.sisa !== null && st.sisa !== undefined ? ' (' + teksSisa(st.sisa) + ')' : '') + '.\n';
+  }
+  function pesanOrtu(st, anak) {
+    return 'Assalamu\u2019alaikum Bapak/Ibu' + (anak ? ' wali dari ' + anak : ' wali murid') + '.\n\n' +
+      'Angket Keunggulan ' + namaMadrasah() + ' periode ' + labelPeriode(st.periode) + ' sedang dibuka. Mohon Bapak/Ibu dan ananda berkenan mengisinya lewat Portal Wali Murid:\n' + basisUrl() + '?app=ortu\n\n' +
+      infoBatasWa(st) + 'Pengisian hanya beberapa menit dan boleh anonim.\n\nTerima kasih.\n' + namaMadrasah();
+  }
+  function pesanGuru(st, nama) {
+    return 'Assalamu\u2019alaikum' + (nama ? ' Bapak/Ibu ' + nama : ' Bapak/Ibu Guru') + '.\n\n' +
+      'Angket Keunggulan ' + namaMadrasah() + ' periode ' + labelPeriode(st.periode) + ' sedang dibuka. Mohon diisi lewat aplikasi SI MAMBA, menu Angket \u2192 tab \uD83C\uDF1F Keunggulan:\n' + basisUrl() + '\n\n' +
+      infoBatasWa(st) + 'Terima kasih.\n' + namaMadrasah();
+  }
+  function tandaWa(periode, jenis, k) { return 'akg_wa_' + periode + '_' + jenis + '_' + aman(k); }
+  function sudahWa(periode, jenis, k) { try { return localStorage.getItem(tandaWa(periode, jenis, k)) || ''; } catch (e) { return ''; } }
+  function catatWa(periode, jenis, k) { try { localStorage.setItem(tandaWa(periode, jenis, k), hariIni()); } catch (e) {} }
+  function bukaWa(no, teks) { window.open('https://wa.me/' + no + '?text=' + encodeURIComponent(teks), '_blank', 'noopener'); }
+  function salinTeks(teks) {
+    function cadangan() { var t = document.createElement('textarea'); t.value = teks; t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) {} document.body.removeChild(t); toast(ok ? 'Pesan disalin.' : 'Gagal menyalin pesan.', !ok); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(teks).then(function () { toast('Pesan disalin.'); }, cadangan); else cadangan();
+  }
+  function ambilGuru() {
+    try { if (typeof allGuru !== 'undefined' && allGuru && allGuru.length) return Promise.resolve(allGuru.slice()); } catch (e) {}
+    return db.ref('guru').once('value').then(function (sn) { var l = []; sn.forEach(function (c) { var g = c.val(); if (g) { g.key = c.key; l.push(g); } }); return l; }, function () { return []; });
+  }
+  function ambilSiswaAktif() {
+    try { if (typeof allSiswa !== 'undefined' && allSiswa && allSiswa.length) return Promise.resolve(allSiswa.slice()); } catch (e) {}
+    return db.ref('siswa').once('value').then(function (sn) { var l = []; sn.forEach(function (c) { var x = c.val(); if (x && x.aktif !== false) { x.key = c.key; l.push(x); } }); return l; }, function () { return []; });
+  }
+  function renderWa(periode, data) {
+    var w = el('akgWa'); if (!w) return;
+    w.innerHTML = '<div class="akq-grup">\uD83D\uDCF2 Ingatkan via WhatsApp</div><div class="akq-skala">Memuat daftar...</div>';
+    Promise.all([bacaStatus(), ambilGuru(), ambilSiswaAktif()]).then(function (r) {
+      if (el('akgWa') !== w) return;
+      var st = r[0], guruAll = r[1], siswaAll = r[2];
+      if (st.gagal) { w.innerHTML = '<div class="akq-grup">\uD83D\uDCF2 Ingatkan via WhatsApp</div><div class="akq-skala" style="color:#b91c1c;">Status angket tidak bisa dibaca.</div>'; return; }
+      var head = '<div class="akq-grup">\uD83D\uDCF2 Ingatkan via WhatsApp</div>';
+      if (!st.aktif || periode !== st.periode) {
+        w.innerHTML = head + '<div class="akq-skala">Pengingat hanya tersedia saat angket DIBUKA dan periode yang dipilih sama dengan periode berjalan (' + esc(labelPeriode(st.periode)) + ').</div>'; return;
+      }
+      // ---- guru ----
+      var pg = data.guru || {}, kunciSudah = {}, namaSudah = {}, anonim = 0;
+      Object.keys(pg).forEach(function (k) { kunciSudah[k] = true; var nm = pg[k] && pg[k].nama; if (nm) namaSudah[String(nm).trim().toLowerCase()] = true; else anonim++; });
+      var guruList = guruAll.filter(function (g) {
+        if (!g || g.aktif === false) return false;
+        if (g.role === ROLES.ADMIN || g.role === ROLES.HEADMASTER) return false;
+        return true;
+      }).filter(function (g) {
+        var k = aman(kunciDari(g));
+        return !(kunciSudah[k] || (g.name && namaSudah[String(g.name).trim().toLowerCase()]));
+      });
+      // ---- orang tua: satu baris per nomor ----
+      var peta = {}, tanpaNomor = 0;
+      siswaAll.forEach(function (s) {
+        var n = nomorWa(s.noWaOrtu); if (!n) { tanpaNomor++; return; }
+        (peta[n] = peta[n] || { no: n, anak: [], kelas: {} }).anak.push(s.nama || s.name || '-');
+        if (s.kelas) peta[n].kelas[s.kelas] = true;
+      });
+      var ortuList = Object.keys(peta).map(function (k) { return peta[k]; }).sort(function (a, b) { return a.anak[0].localeCompare(b.anak[0]); });
+      var kelasAda = {}; ortuList.forEach(function (o) { Object.keys(o.kelas).forEach(function (k) { kelasAda[k] = true; }); });
+      var kelasOpsi = Object.keys(kelasAda).sort();
+
+      function barisGuru(g, i) {
+        var no = waGuru(g), t = sudahWa(periode, 'guru', kunciDari(g));
+        return '<tr><td>' + esc(g.name || '-') + '</td><td>' + (no ? esc(no) : '<span style="color:#b45309;">tanpa No. WA</span>') + '</td><td>' +
+          (no ? '<button type="button" class="btn btn-soft" data-akgwa="guru" data-i="' + i + '">' + (t ? 'Ingatkan lagi' : 'Kirim WA') + '</button>' + (t ? ' <span style="font-size:11px;color:#047857;">\u2713 ' + esc(t) + '</span>' : '') : '-') + '</td></tr>';
+      }
+      function barisOrtu(o, i) {
+        var t = sudahWa(periode, 'ortu', o.no);
+        return '<tr data-kelas="' + esc(Object.keys(o.kelas).join('|')) + '"><td>' + esc(o.anak.join(', ')) + '<div style="font-size:11px;color:#6b7280;">' + esc(Object.keys(o.kelas).join(', ')) + '</div></td><td>' + esc(o.no) + '</td><td>' +
+          '<button type="button" class="btn btn-soft" data-akgwa="ortu" data-i="' + i + '">' + (t ? 'Ingatkan lagi' : 'Kirim WA') + '</button>' + (t ? ' <span style="font-size:11px;color:#047857;">\u2713 ' + esc(t) + '</span>' : '') + '</td></tr>';
+      }
+      var h = head +
+        '<div class="akq-skala">Tombol membuka WhatsApp dengan pesan yang sudah terisi; Anda tinggal menekan Kirim. Tanda \u2713 hanya tersimpan di perangkat ini.</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"><button type="button" class="btn btn-soft" data-akgsalin="guru">Salin pesan untuk grup Guru</button><button type="button" class="btn btn-soft" data-akgsalin="ortu">Salin pesan untuk grup Orang Tua</button></div>' +
+        '<details open style="margin:8px 0;"><summary style="cursor:pointer;font-size:13px;"><b>Guru yang belum tercatat mengisi (' + guruList.length + ')</b></summary>' +
+        (anonim ? '<div class="akq-skala">Ada ' + anonim + ' jawaban guru anonim yang tidak bisa dikenali, jadi sebanyak itu dari daftar ini mungkin sebenarnya sudah mengisi.</div>' : '') +
+        (guruList.length ? '<div class="akq-scroll"><table class="akq-tbl"><tr><th>Nama</th><th>No. WA</th><th></th></tr>' + guruList.map(barisGuru).join('') + '</table></div>' : '<div class="akq-skala">Semua guru aktif sudah tercatat mengisi.</div>') +
+        '</details>' +
+        '<details style="margin:8px 0;"><summary style="cursor:pointer;font-size:13px;"><b>Orang tua / wali (' + ortuList.length + ' nomor)</b></summary>' +
+        '<div class="akq-skala">Jawaban orang tua anonim dan tidak terhubung ke nomor WA, jadi pengingat ini ke semua nomor aktif.' + (tanpaNomor ? ' ' + tanpaNomor + ' siswa belum punya No. WA orang tua yang valid.' : '') + '</div>' +
+        (kelasOpsi.length ? '<div style="font-size:13px;margin-bottom:6px;">Kelas: <select id="akgWaKelas"><option value="">Semua</option>' + kelasOpsi.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('') + '</select></div>' : '') +
+        (ortuList.length ? '<div class="akq-scroll"><table class="akq-tbl" id="akgWaOrtuTbl"><tr><th>Anak</th><th>No. WA</th><th></th></tr>' + ortuList.map(barisOrtu).join('') + '</table></div>' : '<div class="akq-skala">Belum ada No. WA orang tua yang valid.</div>') +
+        '</details>';
+      w.innerHTML = h;
+
+      var kel = el('akgWaKelas');
+      if (kel) kel.addEventListener('change', function () {
+        var v = kel.value, rows = el('akgWaOrtuTbl').querySelectorAll('tr[data-kelas]');
+        Array.prototype.forEach.call(rows, function (tr) { tr.style.display = (!v || tr.getAttribute('data-kelas').split('|').indexOf(v) !== -1) ? '' : 'none'; });
+      });
+      Array.prototype.forEach.call(w.querySelectorAll('[data-akgwa]'), function (b) {
+        b.addEventListener('click', function () {
+          var jenis = b.getAttribute('data-akgwa'), i = +b.getAttribute('data-i');
+          if (jenis === 'guru') { var g = guruList[i]; bukaWa(waGuru(g), pesanGuru(st, g.name)); catatWa(periode, 'guru', kunciDari(g)); }
+          else { var o = ortuList[i]; bukaWa(o.no, pesanOrtu(st, o.anak.join(', '))); catatWa(periode, 'ortu', o.no); }
+          b.textContent = 'Ingatkan lagi';
+          if (!b.parentNode.querySelector('.akg-ok')) { var sp = document.createElement('span'); sp.className = 'akg-ok'; sp.style.cssText = 'font-size:11px;color:#047857;margin-left:4px;'; sp.textContent = '\u2713 ' + hariIni(); b.parentNode.appendChild(sp); }
+        });
+      });
+      Array.prototype.forEach.call(w.querySelectorAll('[data-akgsalin]'), function (b) {
+        b.addEventListener('click', function () { salinTeks(b.getAttribute('data-akgsalin') === 'guru' ? pesanGuru(st, '') : pesanOrtu(st, '')); });
+      });
+    }).catch(function (e) { if (el('akgWa') === w) w.innerHTML = '<div class="akq-grup">\uD83D\uDCF2 Ingatkan via WhatsApp</div><div class="akq-skala" style="color:#b91c1c;">Gagal memuat daftar: ' + esc(e && e.message ? e.message : e) + '</div>'; });
+  }
+
   function renderRekap() {
     var sel = el('akgPeriode'), w = el('akgRekapIsi'); if (!sel || !w) return;
     var periode = sel.value;
@@ -507,8 +632,9 @@
       if (el('akgPeriode') !== sel) return;
       if (!r[0].ok) { w.innerHTML = '<div class="akq-skala" style="color:#b91c1c;">Rekap tidak bisa dibaca. Periksa koneksi atau Rules Firebase untuk angket_keunggulan.</div>'; return; }
       var out = htmlRekap(periode, r[0].v, r[1]);
-      if (typeof out === 'string') { w.innerHTML = out; return; }
+      if (typeof out === 'string') { w.innerHTML = out; renderWa(periode, r[0].v); return; }
       w.innerHTML = out.html;
+      renderWa(periode, r[0].v);
       var b = el('akgCsv'); if (b) b.addEventListener('click', function () { unduhCsv(periode, out.matriks, out.jml, r[1], out.prio); });
     });
   }
@@ -525,7 +651,7 @@
       '<div class="akq-tabs">' + (isiAngket ? '<button type="button" class="akq-tab on" data-akg-sub="isi">Isi Angket</button>' : '') +
       (bolehRekap() ? '<button type="button" class="akq-tab' + (isiAngket ? '' : ' on') + '" data-akg-sub="rekap">Rekap</button>' : '') + '</div>' +
       '<div id="akgTabIsi"' + (isiAngket ? '' : ' class="hidden"') + '><div id="akgWadahForm"></div></div>' +
-      '<div id="akgTabRekap" class="hidden"><div style="font-size:13px;margin-bottom:8px;">Periode: <select id="akgPeriode"></select></div><div id="akgRekapIsi"></div></div></div>';
+      '<div id="akgTabRekap" class="hidden"><div style="font-size:13px;margin-bottom:8px;">Periode: <select id="akgPeriode"></select></div><div id="akgRekapIsi"></div><div id="akgWa"></div></div></div>';
 
     function muatForm() { renderForm('akgWadahForm', jenis, { kunci: kunciDari(currentUser), nama: currentUser.name }, { izinAnonim: jenis === 'guru' }); }
 
@@ -570,7 +696,7 @@
           this.disabled = true;
           aturBatas(bt).then(function () {
             toast(bt ? 'Batas pengisian disimpan: ' + labelTgl(bt) + '.' : 'Batas pengisian dihapus.');
-            renderStatus();
+            renderStatus(); if (el('akgPeriode')) renderRekap();
           }).catch(function (e) { toast('Gagal menyimpan batas: ' + (e && e.message ? e.message : e), true); renderStatus(); });
         });
       });
