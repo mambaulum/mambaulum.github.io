@@ -154,9 +154,9 @@
   <!-- Angket Keunggulan Madrasah (tab ke-3 pada halaman Angket + kartu Portal Ortu). WAJIB sesudah angket.js (membungkus setupAngketPage). -->
   <script defer src="js/angket-keunggulan.js?v=4"></script>
   <!-- KPI Madrasah (halaman Admin & Kepala, hanya membaca data). WAJIB sesudah app.js dan infaq.js. -->
-  <script defer src="js/kpi.js?v=1"></script>
+  <script defer src="js/kpi.js?v=2"></script>
   <!-- Catatan Nilai Harian: rata-rata penilaian harian mengisi NH1/NH2/NH3 di halaman Nilai. WAJIB sesudah app.js. -->
-  <script defer src="js/nilai-harian.js?v=1"></script>
+  <script defer src="js/nilai-harian.js?v=2"></script>
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
   <script defer src="js/riwayat-login-ortu.js?v=2"></script>
   <script defer src="js/ortu-akun-admin.js?v=2"></script>
@@ -422,6 +422,7 @@
           <div class="menu-group-items">
             <div class="menu-item" data-page="grades"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-grades"/></svg></span> Nilai</div>
             <div class="menu-item" data-page="rekap-nilai"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap-nilai"/></svg></span> Rekap Nilai</div>
+            <div class="menu-item hidden-tab" data-page="catatan-nilai"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap-nilai"/></svg></span> Catatan Nilai Harian</div>
             <div class="menu-item" data-page="sikap-siswa"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-sikap-siswa"/></svg></span> Sikap Siswa</div>
             <div class="menu-item" data-page="ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-ujian"/></svg></span> Honor Ujian</div>
             <div class="menu-item" data-page="administrasi-ujian"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-administrasi-ujian"/></svg></span> Administrasi Ujian</div>
@@ -2187,6 +2188,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
            PAGE: ANGKET (diisi oleh js/angket.js + js/angket-keunggulan.js): tab Kurikulum | Profil Lulusan | Keunggulan
       ============================================================ -->
       <div id="page-kpi" class="page-content hidden"></div>
+      <div id="page-catatan-nilai" class="page-content hidden"></div>
       <div id="page-angket" class="page-content hidden">
         <div id="angketTabBar" class="akq-tabs hidden" style="margin-bottom:12px;"></div>
         <div id="angketKurikulumArea"></div>
