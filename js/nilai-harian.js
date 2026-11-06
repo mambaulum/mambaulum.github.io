@@ -48,7 +48,7 @@
     'body.dark-mode .nh-tbl th,body.dark-mode .nh-tbl td{background:#1e293b;}body.dark-mode .nh-tbl thead th{background:#334155;}' +
     '.nh-tbl .nh-in{width:72px;min-height:44px !important;font-size:16px !important;text-align:center;padding:4px 6px;-moz-appearance:textfield;appearance:textfield;}' +
     '.nh-tbl .nh-in::-webkit-outer-spin-button,.nh-tbl .nh-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}' +
-    '.nh-tbl .nh-jdl{width:76px;min-height:40px !important;font-size:14px !important;padding:4px 6px;}' +
+    '.nh-tbl .nh-jdl{width:88px;min-height:40px !important;font-size:13px !important;padding:4px 4px;}' +
     '.nh-tbl th .nh-x{display:block;width:100%;min-width:0;min-height:32px;margin-top:4px;padding:0;}' +
     '.nh-bad{border-color:#dc2626 !important;background:#fef2f2 !important;}.nh-cat{font-size:11px;opacity:.75;line-height:1.5;margin:6px 0;}' +
     '.nh-rata{font-weight:700;text-align:center !important;min-width:56px;}' +
@@ -224,11 +224,11 @@
       }).join('') + '</tbody></table></div>';
     if (!lihat) {
       h += '<div class="nh-bar"><button type="button" class="btn" id="nhTambah"' + (s.kolom.length >= MAKS_KOLOM ? ' disabled' : '') + '>+ Tambah penilaian</button>' +
-        (guru ? '<button type="button" class="btn btn-soft" id="nhAmbil">⬆ Ambil NH lama</button>' : '') +
+        (guru || s.mode === 'admin' ? '<button type="button" class="btn btn-soft" id="nhAmbil">⬆ Ambil NH lama</button>' : '') +
         '<button type="button" class="btn btn-success" id="nhSimpan">💾 Simpan Catatan</button>' +
         (guru ? '<button type="button" class="btn btn-success" id="nhTerap">⬇ Terapkan rata-rata ke ' + labelNh(s.c.nh) + '</button>' : '') + '</div>';
     }
-    if (guru) h += '<div class="nh-cat"><b>Ambil NH lama</b>: menyalin nilai ' + labelNh(s.c.nh) + ' yang sudah ada di tabel nilai ke kolom "NH lama" untuk siswa yang belum punya catatan (rincian per penilaian sebelumnya tidak tercatat). Nilai di tabel tidak berubah.</div>';
+    if (guru || s.mode === 'admin') h += '<div class="nh-cat"><b>Ambil NH lama</b>: menyalin nilai ' + labelNh(s.c.nh) + ' yang sudah ada di tabel nilai ke kolom "NH lama" untuk siswa yang belum punya catatan (rincian per penilaian sebelumnya tidak tercatat). Nilai di tabel tidak berubah.</div>';
     if (guru) h += '<div class="nh-cat">Setelah diterapkan, tekan <b>Simpan Nilai</b> di tabel nilai agar ' + labelNh(s.c.nh) + ' tersimpan. Kotak yang sudah terkunci tidak diubah.</div>';
     return h;
   }
@@ -272,15 +272,51 @@
     tandai(); gambar();
   }
 
-  // Salin nilai NH yang sudah ada di tabel nilai (diisi sebelum fitur catatan ada) ke kolom "NH lama"; tidak menimpa catatan yang sudah ada.
-  function ambilNhLama() {
-    var peta = {}, n = 0;
+  // Salin nilai NH yang sudah ada (diisi sebelum fitur catatan ada) ke kolom "NH lama"; tidak menimpa catatan yang sudah ada.
+  // Guru: nilai dibaca dari kotak di tabel nilai. Admin: dibaca dari data nilai (grades) kelas/mapel/semester yang dibuka.
+  function petaNhDariTabel() {
+    var peta = {};
     Array.prototype.forEach.call(document.querySelectorAll('.grade-input'), function (inp) {
       if (inp.dataset.key !== st.c.nh) return;
       var raw = String(inp.value || '').trim(), v = raw === '' ? null : angka(raw);
       if (v !== null && v >= 0 && v <= 100) peta[inp.dataset.siswa] = v;
     });
-    if (!Object.keys(peta).length) return toastX('Belum ada nilai ' + labelNh(st.c.nh) + ' di tabel nilai.', true);
+    return peta;
+  }
+  // Admin: muat ulang data nilai dari server dulu supaya yang disalin adalah nilai terbaru, lalu saring per kelas/mapel/semester.
+  function petaNhDariData(c) {
+    return new Promise(function (resolve) {
+      var selesai = false;
+      function baca() {
+        if (selesai) return; selesai = true;
+        var peta = {}, kls = aman(c.kelas), mp = aman(c.mapel), sm = aman(c.sem);
+        (typeof allGrades !== 'undefined' ? allGrades : []).forEach(function (g) {
+          if (!g || !g.data || aman(g.subject) !== mp || aman(g.semester) !== sm) return;
+          var sw = st.siswa.filter(function (x) { return x.key === g.siswaKey; })[0]; if (!sw) return;
+          if (g.kelas && aman(g.kelas) !== kls) return;
+          var raw = g.data[c.nh], v = raw === undefined || raw === null || String(raw).trim() === '' ? null : angka(raw);
+          if (v !== null && v >= 0 && v <= 100) peta[g.siswaKey] = v;
+        });
+        resolve(peta);
+      }
+      try { if (typeof reloadDataset === 'function') { reloadDataset('grades', baca); setTimeout(baca, 8000); } else baca(); } catch (e) { baca(); }
+    });
+  }
+  function ambilNhLama() {
+    var S = st; if (!S) return;
+    var btn = el('nhAmbil');
+    if (S.mode === 'admin') {
+      if (btn) { btn.disabled = true; btn.textContent = 'Mengambil…'; }
+      petaNhDariData(S.c).then(function (peta) {
+        if (btn) { btn.disabled = false; btn.textContent = '⬆ Ambil NH lama'; }
+        if (st !== S) return;   // panel sudah diganti selama menunggu
+        salinNhLama(peta);
+      });
+    } else salinNhLama(petaNhDariTabel());
+  }
+  function salinNhLama(peta) {
+    var n = 0;
+    if (!Object.keys(peta).length) return toastX('Belum ada nilai ' + labelNh(st.c.nh) + ' yang tersimpan untuk ' + st.c.kelas + ' · ' + st.c.mapel + ' · ' + st.c.sem + '.', true);
     var calon = st.siswa.filter(function (x) { return peta[x.key] !== undefined && rata(st.nilai[x.key], st.kolom) === null; });
     if (!calon.length) return toastX('Semua siswa yang punya nilai ' + labelNh(st.c.nh) + ' sudah ada catatannya.');
     var kol = null; st.kolom.forEach(function (k) { if (k.judul === 'NH lama') kol = k; });
