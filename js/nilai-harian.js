@@ -37,13 +37,23 @@
     return v.length ? Math.round(v.reduce(function (t, x) { return t + x; }, 0) / v.length * 100) / 100 : null;
   }
 
-  var CSS = '.nh-wrap{border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:12px;margin-top:14px;}' +
+  var CSS = '.nh-wrap{border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:12px;margin:14px 0 96px;}' +
     '.nh-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}' +
-    '.nh-scroll{overflow-x:auto;}.nh-tbl{border-collapse:collapse;font-size:12px;}' +
-    '.nh-tbl th,.nh-tbl td{border:1px solid rgba(128,128,128,.3);padding:4px 6px;text-align:left;white-space:nowrap;}' +
-    '.nh-in{width:62px;padding:4px 6px;}.nh-jdl{width:110px;padding:4px 6px;}' +
-    '.nh-bad{border-color:#dc2626 !important;}.nh-cat{font-size:11px;opacity:.75;line-height:1.5;margin:6px 0;}' +
-    '.nh-rata{font-weight:700;}';
+    '.nh-scroll{overflow:auto;max-height:68vh;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}' +
+    '.nh-tbl{border-collapse:separate;border-spacing:0;font-size:13px;border-top:1px solid rgba(128,128,128,.3);border-left:1px solid rgba(128,128,128,.3);}' +
+    '.nh-tbl th,.nh-tbl td{border-right:1px solid rgba(128,128,128,.3);border-bottom:1px solid rgba(128,128,128,.3);padding:4px 6px;text-align:left;white-space:nowrap;background:#fff;}' +
+    '.nh-tbl thead th{position:sticky;top:0;z-index:2;background:#f3f4f6;}' +
+    '.nh-tbl th:first-child,.nh-tbl td:first-child{white-space:normal;word-break:break-word;min-width:104px;max-width:128px;position:sticky;left:0;z-index:1;}' +
+    '.nh-tbl thead th:first-child{z-index:3;}' +
+    'body.dark-mode .nh-tbl th,body.dark-mode .nh-tbl td{background:#1e293b;}body.dark-mode .nh-tbl thead th{background:#334155;}' +
+    '.nh-tbl .nh-in{width:72px;min-height:44px !important;font-size:16px !important;text-align:center;padding:4px 6px;-moz-appearance:textfield;appearance:textfield;}' +
+    '.nh-tbl .nh-in::-webkit-outer-spin-button,.nh-tbl .nh-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}' +
+    '.nh-tbl .nh-jdl{width:76px;min-height:40px !important;font-size:14px !important;padding:4px 6px;}' +
+    '.nh-tbl th .nh-x{display:block;width:100%;min-width:0;min-height:32px;margin-top:4px;padding:0;}' +
+    '.nh-bad{border-color:#dc2626 !important;background:#fef2f2 !important;}.nh-cat{font-size:11px;opacity:.75;line-height:1.5;margin:6px 0;}' +
+    '.nh-rata{font-weight:700;text-align:center !important;min-width:56px;}' +
+    '.nh-stat{font-size:12px;font-weight:600;margin-left:auto;}.nh-stat.ok{color:#059669;}.nh-stat.err{color:#b91c1c;}.nh-stat.wait{opacity:.7;}' +
+    '@media(max-width:600px){.nh-bar .btn{flex:1 1 140px;min-height:44px;}.nh-bar #nhTutup{flex:0 0 auto;padding-left:14px;padding-right:14px;}}';
   function pasangCss() {
     if (el('nhCss')) return;
     var s = document.createElement('style'); s.id = 'nhCss'; s.textContent = CSS; document.head.appendChild(s);
@@ -84,7 +94,7 @@
     });
   }
 
-  function bersihNilai() {
+  function bersihNilai(st) {
     var out = {}, idOk = {};
     st.kolom.forEach(function (k) { idOk[k.id] = true; });
     st.siswa.forEach(function (s) {
@@ -95,28 +105,101 @@
     return out;
   }
 
-  function simpan() {
+  // ---------- simpan otomatis ----------
+  var JEDA = 1500, tunda = null, rantai = Promise.resolve(), daring = true;
+  function offline() { return daring === false || (typeof navigator !== 'undefined' && navigator.onLine === false); }
+  var TXT_OFFLINE = '📴 Offline: nilai aman di HP, dikirim otomatis saat online';
+  function kunciDraf(c) { return 'nhDraf:' + jalur(c); }
+  function simpanDraf() { try { if (st) localStorage.setItem(kunciDraf(st.c), JSON.stringify({ versi: st.versi, kolom: st.kolom, nilai: st.nilai, t: Date.now() })); } catch (e) {} }
+  function hapusDraf(c) { try { localStorage.removeItem(kunciDraf(c)); } catch (e) {} }
+  function terapkanDraf(c, d) {
+    try {
+      var dr = JSON.parse(localStorage.getItem(kunciDraf(c)) || 'null');
+      if (dr && dr.versi === d.versi && dr.nilai && typeof dr.nilai === 'object') {
+        var kol = normKolom(dr.kolom);
+        return { kolom: kol.length ? kol : d.kolom, nilai: dr.nilai, versi: d.versi, meta: d.meta, draf: true };
+      }
+    } catch (e) {}
+    return d;
+  }
+  function jam() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function statusS(S, txt, kls) {
+    S.stat = [txt, kls];
+    var x = el('nhStatus'); if (x && S.wadah && S.wadah.contains(x)) { x.textContent = txt; x.className = 'nh-stat ' + kls; }
+  }
+  function tandai() {
+    st.dirty = true; st.rev = (st.rev || 0) + 1; simpanDraf();
+    statusS(st, offline() ? TXT_OFFLINE : '● Belum tersimpan…', 'wait'); jadwal();
+  }
+  function jadwal() { clearTimeout(tunda); if (!st || st.mode === 'lihat' || st.konflik) return; tunda = setTimeout(autoSimpan, JEDA); }
+  function simpanAman(diam, S) { var p = rantai.then(function () { return simpan(diam, S); }); rantai = p.catch(function () {}); return p; }
+  function autoSimpan() {
+    clearTimeout(tunda);
+    var S = st; if (!S || !S.dirty || S.konflik || S.mode === 'lihat') return Promise.resolve(false);
+    if (offline()) { statusS(S, TXT_OFFLINE, 'wait'); return Promise.resolve(false); }   // jangan antre transaksi yang menggantung; dikirim saat online lagi
+    statusS(S, 'Menyimpan…', 'wait');
+    return simpanAman(true, S).then(function (ok) { if (st === S && S.dirty && !S.konflik && !offline()) jadwal(); return ok; });
+  }
+  // Simpan dulu bila ada perubahan; tanya hanya jika gagal.
+  function amankan(pesan, lanjut, batal) {
+    if (!st || !st.dirty) return lanjut();
+    autoSimpan().then(function (ok) {
+      if (ok && !(st && st.dirty)) return lanjut();
+      if (window.confirm(pesan)) lanjut(); else if (batal) batal();
+    });
+  }
+
+  // diam = true untuk simpan otomatis (tanpa toast); S = keadaan panel yang disimpan
+  function simpan(diam, S) {
+    S = S || st;
     return new Promise(function (resolve) {
-      if (!st) return resolve(false);
-      if (st.wadah && st.wadah.querySelector('.nh-bad')) { toastX('Ada nilai yang tidak valid (harus angka 0-100). Periksa kotak berwarna merah.', true, 5000); return resolve(false); }
-      var c = st.c, ref = db.ref(jalur(c)), base = st.versi;
-      if (!st.kolom.length) { ref.remove(function (err) { if (err) { toastX('Gagal menyimpan: ' + err.message, true); resolve(false); } else { st.versi = 0; st.dirty = false; resolve(true); } }); return; }
+      if (!S) return resolve(false);
+      if (S.wadah && S.wadah.querySelector('.nh-bad')) {
+        if (diam) statusS(S, '⚠ Ada nilai tidak valid (0-100), belum tersimpan', 'err');
+        else toastX('Ada nilai yang tidak valid (harus angka 0-100). Periksa kotak berwarna merah.', true, 5000);
+        return resolve(false);
+      }
+      var c = S.c, ref = db.ref(jalur(c)), base = S.versi, rev0 = S.rev || 0;
+      function gagal(m) {
+        if (diam) { statusS(S, '⚠ Gagal menyimpan, mencoba lagi…', 'err'); setTimeout(function () { if (st === S && S.dirty && !S.konflik) autoSimpan(); }, 8000); }
+        else toastX('Gagal menyimpan: ' + m, true);
+        resolve(false);
+      }
+      function selesai(versi, meta) {
+        S.versi = versi; S.meta = meta || S.meta; S.dirty = (S.rev || 0) !== rev0;
+        if (!S.dirty) hapusDraf(c);
+        statusS(S, S.dirty ? '● Belum tersimpan…' : '✓ Tersimpan ' + jam(), S.dirty ? 'wait' : 'ok');
+        // Admin: tiap simpan manual dicatat di log; simpan otomatis dicatat sekali per pembukaan panel agar log tidak penuh.
+        if (S.mode === 'admin' && (!diam || !S.sudahLog)) { S.sudahLog = true; try { addLog('ubah_catatan_nilai_harian', c.mapel + ' - ' + c.kelas + ' - ' + c.sem + ' - ' + labelNh(c.nh)); } catch (e) {} }
+        resolve(true);
+      }
+      if (!S.kolom.length) {
+        ref.remove(function (err) { if (err) gagal(err.message); else selesai(0, null); });
+        return;
+      }
       var doc = {
-        kolom: st.kolom.map(function (k) { return { id: k.id, judul: (k.judul || 'Penilaian').slice(0, 40) }; }),
-        nilai: bersihNilai(), versi: 0,
+        kolom: S.kolom.map(function (k) { return { id: k.id, judul: (k.judul || 'Penilaian').slice(0, 40) }; }),
+        nilai: bersihNilai(S), versi: 0,
         updatedBy: String((currentUser && currentUser.name) || '').slice(0, 100), updatedAt: new Date().toISOString()
       };
       ref.transaction(function (cur) {
-        var v = cur && cur.versi ? cur.versi : 0;
-        if (v !== base) return;            // diubah pengguna lain sejak dimuat -> batalkan
-        doc.versi = v + 1; return doc;
+        if (cur !== null && cur !== undefined) {
+          var v = cur.versi ? cur.versi : 0;
+          if (v !== base) return;          // diubah pengguna lain sejak dimuat -> batalkan
+          doc.versi = v + 1;
+        } else {
+          doc.versi = base + 1;            // cache lokal kosong: Firebase menjalankan ulang dengan data server bila berbeda
+        }
+        return doc;
       }, function (err, committed) {
-        if (err) { toastX('Gagal menyimpan: ' + err.message, true); return resolve(false); }
-        if (!committed) { toastX('Catatan ini sudah diubah pengguna lain. Tutup panel dan buka lagi untuk memuat versi terbaru.', true, 6000); return resolve(false); }
-        st.versi = doc.versi; st.dirty = false; st.meta = { updatedBy: doc.updatedBy, updatedAt: doc.updatedAt };
-        if (st.mode === 'admin') { try { addLog('ubah_catatan_nilai_harian', c.mapel + ' - ' + c.kelas + ' - ' + c.sem + ' - ' + labelNh(c.nh)); } catch (e) {} }
-        resolve(true);
-      });
+        if (err) return gagal(err.message);
+        if (!committed) {
+          S.konflik = true; statusS(S, '⚠ Diubah pengguna lain. Tutup panel lalu buka lagi.', 'err');
+          toastX('Catatan ini sudah diubah pengguna lain. Tutup panel dan buka lagi untuk memuat versi terbaru.', true, 6000);
+          return resolve(false);
+        }
+        selesai(doc.versi, { updatedBy: doc.updatedBy, updatedAt: doc.updatedAt });
+      }, false);
     });
   }
 
@@ -125,17 +208,18 @@
     var s = st, lihat = s.mode === 'lihat', guru = s.mode === 'guru', dis = lihat ? ' disabled' : '';
     var h = '<div class="nh-bar"><b>📝 Catatan Nilai Harian</b> untuk ' +
       '<select id="nhPilih" class="field" style="width:auto;">' + NH.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === s.c.nh ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>' +
-      (guru ? '<button type="button" class="btn btn-soft" id="nhTutup">Tutup</button>' : '') + '</div>' +
+      (guru ? '<button type="button" class="btn btn-soft" id="nhTutup">Tutup</button>' : '') +
+      (lihat ? '' : '<span id="nhStatus" class="nh-stat ' + esc(s.stat ? s.stat[1] : 'ok') + '">' + esc(s.stat ? s.stat[0] : 'Simpan otomatis aktif') + '</span>') + '</div>' +
       '<div class="nh-cat">' + esc(s.c.mapel) + ' · ' + esc(s.c.kelas) + ' · ' + esc(s.c.sem) +
       (s.meta && s.meta.updatedAt ? '. Terakhir disimpan oleh <b>' + esc(s.meta.updatedBy || '-') + '</b> pada ' + esc(String(s.meta.updatedAt).replace('T', ' ').slice(0, 16)) : '. Belum ada catatan tersimpan') + '.' +
-      (guru ? ' Catat nilai tiap penilaian (kosongkan bila belum ada). Rata-rata hanya memakai kolom yang terisi. Yang masuk rapor tetap kotak NH di tabel nilai.' :
+      (guru ? ' Catat nilai tiap penilaian (kosongkan bila belum ada); perubahan tersimpan otomatis. Rata-rata hanya memakai kolom yang terisi. Yang masuk rapor tetap kotak NH di tabel nilai.' :
         lihat ? ' Tampilan lihat saja.' : ' Anda mengubah catatan milik guru; setiap penyimpanan dicatat di log. Nilai NH di rapor tidak ikut berubah.') + '</div>' +
       '<div class="nh-scroll"><table class="nh-tbl"><thead><tr><th>Nama</th>' +
-      s.kolom.map(function (k) { return '<th><input class="field nh-jdl" data-jdl="' + esc(k.id) + '" maxlength="40" value="' + esc(k.judul) + '"' + dis + '>' + (lihat ? '' : ' <button type="button" class="btn btn-soft" data-hapus="' + esc(k.id) + '" title="Hapus kolom">×</button>') + '</th>'; }).join('') +
+      s.kolom.map(function (k) { return '<th><input class="field nh-jdl" data-jdl="' + esc(k.id) + '" maxlength="40" value="' + esc(k.judul) + '"' + dis + '>' + (lihat ? '' : '<button type="button" class="btn btn-soft nh-x" data-hapus="' + esc(k.id) + '" title="Hapus kolom">×</button>') + '</th>'; }).join('') +
       '<th>Rata-rata</th></tr></thead><tbody>' +
       s.siswa.map(function (x) {
         return '<tr data-baris="' + esc(x.key) + '"><td style="font-weight:600;">' + esc(x.name) + '</td>' +
-          s.kolom.map(function (k) { var v = s.nilai[x.key] && s.nilai[x.key][k.id]; return '<td><input class="field nh-in" type="number" min="0" max="100" step="any" inputmode="decimal" data-s="' + esc(x.key) + '" data-c="' + esc(k.id) + '" value="' + (typeof v === 'number' ? v : '') + '"' + dis + '></td>'; }).join('') +
+          s.kolom.map(function (k) { var v = s.nilai[x.key] && s.nilai[x.key][k.id]; return '<td><input class="field nh-in" type="number" min="0" max="100" step="any" inputmode="decimal" enterkeyhint="next" data-s="' + esc(x.key) + '" data-c="' + esc(k.id) + '" value="' + (typeof v === 'number' ? v : '') + '"' + dis + '></td>'; }).join('') +
           '<td class="nh-rata" data-rata="' + esc(x.key) + '">' + fmt(rata(s.nilai[x.key], s.kolom)) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
     if (!lihat) {
@@ -165,10 +249,10 @@
         if (n === null || n < 0 || n > 100 || (t.validity && t.validity.badInput)) { t.classList.add('nh-bad'); delete st.nilai[s][c]; }
         else { t.classList.remove('nh-bad'); st.nilai[s][c] = n; }
       }
-      st.dirty = true; hitungUlangBaris(s);
+      tandai(); hitungUlangBaris(s);
     } else if (t.dataset && t.dataset.jdl) {
       st.kolom.forEach(function (k) { if (k.id === t.dataset.jdl) k.judul = t.value; });
-      st.dirty = true;
+      tandai();
     }
   }
 
@@ -176,18 +260,18 @@
     if (st.kolom.length >= MAKS_KOLOM) return;
     var maks = 0; st.kolom.forEach(function (k) { var n = parseInt(String(k.id).replace(/\D/g, ''), 10) || 0; if (n > maks) maks = n; });
     st.kolom.push({ id: 'c' + (maks + 1), judul: 'Penilaian ' + (st.kolom.length + 1) });
-    st.dirty = true; gambar();
+    tandai(); gambar();
   }
   function hapusKolom(id) {
     var ada = st.siswa.some(function (s) { return st.nilai[s.key] && typeof st.nilai[s.key][id] === 'number'; });
     if (ada && !window.confirm('Kolom ini berisi nilai. Hapus kolom beserta nilainya?')) return;
     st.kolom = st.kolom.filter(function (k) { return k.id !== id; });
     st.siswa.forEach(function (s) { if (st.nilai[s.key]) delete st.nilai[s.key][id]; });
-    st.dirty = true; gambar();
+    tandai(); gambar();
   }
 
   function terapkan() {
-    simpan().then(function (ok) {
+    simpanAman(false, st).then(function (ok) {
       if (!ok || !st) return;
       var peta = {};
       Array.prototype.forEach.call(document.querySelectorAll('.grade-input'), function (inp) { if (inp.dataset.key === st.c.nh) peta[inp.dataset.siswa] = inp; });
@@ -213,39 +297,49 @@
     if (!bolehPakai(c)) return toastX('Anda tidak punya akses mencatat nilai kelas/mapel ini.', true);
     c.nh = nh || 'h1';
     var siswa = daftarSiswaDiTabel(); if (!siswa.length) return toastX('Tidak ada siswa di tabel nilai.', true);
-    muat(c).then(function (d) {
-      var w = el('nhPanel');
+    muat(c).then(function (d0) {
+      var d = terapkanDraf(c, d0), w = el('nhPanel');
       if (!w) { w = document.createElement('div'); w.id = 'nhPanel'; w.className = 'nh-wrap'; el('gradesContainer').insertAdjacentElement('afterend', w); }
       st = { c: c, siswa: siswa, kolom: d.kolom, nilai: d.nilai, versi: d.versi, dirty: false, mode: 'guru', wadah: w, meta: d.meta };
-      w.style.display = ''; gambar();
+      w.style.display = ''; pulihkanDraf(d); gambar();
     }, function (err) { toastX('Catatan tidak bisa dibaca: ' + (err && err.message ? err.message : err), true, 6000); });
   }
+  function pulihkanDraf(d) {
+    if (!d || !d.draf || !st) return;
+    st.dirty = true; st.rev = 1;
+    statusS(st, '● Draf dipulihkan, menyimpan…', 'wait');
+    toastX('Draf yang belum sempat tersimpan dipulihkan dan akan disimpan otomatis.', false, 5000);
+    jadwal();
+  }
   function tutup() {
-    if (st && st.dirty && !window.confirm('Ada perubahan catatan yang belum disimpan. Tutup tanpa menyimpan?')) return;
-    st = null; var w = el('nhPanel'); if (w) { w.style.display = 'none'; w.innerHTML = ''; }
+    amankan('Perubahan catatan belum tersimpan. Tutup tanpa menyimpan?', function () {
+      clearTimeout(tunda); st = null; var w = el('nhPanel'); if (w) { w.style.display = 'none'; w.innerHTML = ''; }
+    });
   }
 
   function onKlik(e) {
     var t = e.target.closest ? e.target.closest('button') : null; if (!t || !st) return;
     if (t.id === 'nhTutup') tutup();
     else if (t.id === 'nhTambah') tambahKolom();
-    else if (t.id === 'nhSimpan') simpan().then(function (ok) { if (ok) toastX('✅ Catatan nilai harian tersimpan.'); });
+    else if (t.id === 'nhSimpan') simpanAman(false, st).then(function (ok) { if (ok) toastX('✅ Catatan nilai harian tersimpan.'); });
     else if (t.id === 'nhTerap') terapkan();
     else if (t.dataset && t.dataset.hapus) hapusKolom(t.dataset.hapus);
   }
   function onUbah(e) {
     if (e.target.id !== 'nhPilih' || !st) return;
-    var baru = e.target.value;
-    if (st.dirty && !window.confirm('Ada perubahan catatan yang belum disimpan. Pindah ke ' + labelNh(baru) + ' tanpa menyimpan?')) { e.target.value = st.c.nh; return; }
-    if (st.mode === 'guru') { st = null; buka(baru); }
-    else { var c2 = { ta: st.c.ta, kelas: st.c.kelas, mapel: st.c.mapel, sem: st.c.sem, nh: baru }, md = st.mode; st = null; bukaAdmin(c2, md === 'lihat'); }
+    var baru = e.target.value, sel = e.target, nhLama = st.c.nh;
+    amankan('Perubahan catatan belum tersimpan. Pindah ke ' + labelNh(baru) + ' tanpa menyimpan?', function () {
+      clearTimeout(tunda);
+      if (st.mode === 'guru') { st = null; buka(baru); }
+      else { var c2 = { ta: st.c.ta, kelas: st.c.kelas, mapel: st.c.mapel, sem: st.c.sem, nh: baru }, md = st.mode; st = null; bukaAdmin(c2, md === 'lihat'); }
+    }, function () { sel.value = nhLama; });
   }
 
   // ---------- pemasangan tombol (tabel nilai dirender ulang oleh app.js, jadi dipantau) ----------
   function pasangTombol() {
     var cont = el('gradesContainer'); if (!cont) return;
     if (cont.querySelector('#nhBtn')) return;                 // tombol masih ada: bukan render baru
-    if (st && st.mode === 'guru') { st = null; var w = el('nhPanel'); if (w) { w.style.display = 'none'; w.innerHTML = ''; } }   // render baru: panel lama kedaluwarsa
+    if (st && st.mode === 'guru') { if (st.dirty) autoSimpan(); clearTimeout(tunda); st = null; var w = el('nhPanel'); if (w) { w.style.display = 'none'; w.innerHTML = ''; } }   // render baru: panel lama kedaluwarsa
     if (!cont.querySelector('.grade-input') || !cont.querySelector('#btnSaveGrades')) return;
     var c = konteks(); if (!c || !bolehPakai(c)) return;
     var b = document.createElement('button');
@@ -260,6 +354,34 @@
     document.addEventListener('input', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel, #nhPanelAdmin')) onInput(e); });
     document.addEventListener('click', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel, #nhPanelAdmin')) onKlik(e); });
     document.addEventListener('change', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel, #nhPanelAdmin')) onUbah(e); });
+    document.addEventListener('focusin', function (e) {
+      var t = e.target; if (!t || !t.classList || !t.classList.contains('nh-in') || !t.closest('#nhPanel, #nhPanelAdmin')) return;
+      try { t.select(); } catch (x) {}
+      setTimeout(function () { try { t.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (x) {} }, 350);   // tunggu keyboard muncul
+    });
+    document.addEventListener('keydown', function (e) {   // Enter -> kotak di bawahnya (kolom yang sama)
+      var t = e.target; if (e.key !== 'Enter' || !st || !t || !t.classList || !t.classList.contains('nh-in') || !t.closest('#nhPanel, #nhPanelAdmin')) return;
+      e.preventDefault();
+      var all = Array.prototype.slice.call(st.wadah.querySelectorAll('.nh-in[data-c="' + t.dataset.c + '"]')), n = all[all.indexOf(t) + 1];
+      if (n) n.focus(); else t.blur();
+    });
+    function kembaliOnline() {
+      if (!st || st.mode === 'lihat' || st.konflik) return;
+      if (st.dirty) autoSimpan(); else if (st.stat && st.stat[0] === TXT_OFFLINE) statusS(st, '✓ Online kembali', 'ok');
+    }
+    function jadiOffline() { if (st && st.dirty && st.mode !== 'lihat') statusS(st, TXT_OFFLINE, 'wait'); }
+    window.addEventListener('online', function () { daring = true; kembaliOnline(); });
+    window.addEventListener('offline', jadiOffline);
+    try {   // status koneksi Firebase (menangkap kasus sinyal ada tapi server tak terjangkau)
+      db.ref('.info/connected').on('value', function (sn) {
+        var on = sn.val() === true; if (on === daring) return;
+        daring = on; if (on) kembaliOnline(); else jadiOffline();
+      });
+    } catch (x) {}
+    function lepas() { if (st && st.dirty && !st.konflik) autoSimpan(); }
+    document.addEventListener('visibilitychange', function () { if (document.hidden) lepas(); });
+    window.addEventListener('pagehide', lepas);
+    window.addEventListener('beforeunload', function (e) { if (st && st.dirty && !st.konflik) { lepas(); e.preventDefault(); e.returnValue = ''; } });
     pasangTombol();
   }
 
@@ -284,9 +406,10 @@
       .map(function (x) { return { key: x.key, name: x.name || x.key }; });
     if (!siswa.length) { wadah.style.display = 'none'; return toastX('Tidak ada siswa di ' + c.kelas + '.', true); }
     var lama = el('nhPanel'); if (lama) { lama.innerHTML = ''; lama.style.display = 'none'; }
-    muat(c).then(function (d) {
+    muat(c).then(function (d0) {
+      var d = bacaSaja ? d0 : terapkanDraf(c, d0);
       st = { c: c, siswa: siswa, kolom: d.kolom, nilai: d.nilai, versi: d.versi, dirty: false, mode: bacaSaja ? 'lihat' : 'admin', wadah: wadah, meta: d.meta };
-      wadah.style.display = ''; gambar();
+      wadah.style.display = ''; pulihkanDraf(d); gambar();
       try { wadah.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     }, function (err) { toastX('Catatan tidak bisa dibaca: ' + (err && err.message ? err.message : err), true, 6000); });
   }
