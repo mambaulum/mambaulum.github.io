@@ -7,6 +7,9 @@
 // Tombol "Terapkan rata-rata" mengisi kotak NH di tabel nilai dengan rata-ratanya (2 desimal), lalu guru menekan
 // "Simpan Nilai" seperti biasa. Catatan mentah tersimpan di Firebase node grades_harian sebagai bukti.
 //
+// Halaman "Catatan Nilai Harian" (menu khusus Admin & Kepala): daftar semua catatan yang sudah dibuat guru + membuka/mengubahnya
+// (Admin: boleh mengubah, tiap simpan dicatat di log; Kepala: lihat saja). Menu "Nilai" bawaan hanya untuk Guru/Wali Kelas.
+//
 // Firebase: grades_harian/{tahunAjaran}/{kelas}/{mapel}/{semester}/{h1|h2|h3}
 //   = { kolom:[{id,judul}], nilai:{siswaKey:{idKolom:angka}}, versi, updatedBy, updatedAt }
 // (karakter . # $ [ ] / pada nama diganti _ ; tahun ajaran 2026/2027 -> 2026-2027)
@@ -77,7 +80,7 @@
     return db.ref(jalur(c)).once('value').then(function (sn) {
       var v = sn.val() || {};
       var kol = normKolom(v.kolom);
-      return { kolom: kol.length ? kol : kolomBawaan(), nilai: v.nilai || {}, versi: v.versi || 0 };
+      return { kolom: kol.length ? kol : kolomBawaan(), nilai: v.nilai || {}, versi: v.versi || 0, meta: v.updatedAt ? { updatedBy: v.updatedBy, updatedAt: v.updatedAt } : null };
     });
   }
 
@@ -95,7 +98,7 @@
   function simpan() {
     return new Promise(function (resolve) {
       if (!st) return resolve(false);
-      if (el('nhPanel') && el('nhPanel').querySelector('.nh-bad')) { toastX('Ada nilai yang tidak valid (harus angka 0-100). Periksa kotak berwarna merah.', true, 5000); return resolve(false); }
+      if (st.wadah && st.wadah.querySelector('.nh-bad')) { toastX('Ada nilai yang tidak valid (harus angka 0-100). Periksa kotak berwarna merah.', true, 5000); return resolve(false); }
       var c = st.c, ref = db.ref(jalur(c)), base = st.versi;
       if (!st.kolom.length) { ref.remove(function (err) { if (err) { toastX('Gagal menyimpan: ' + err.message, true); resolve(false); } else { st.versi = 0; st.dirty = false; resolve(true); } }); return; }
       var doc = {
@@ -110,36 +113,44 @@
       }, function (err, committed) {
         if (err) { toastX('Gagal menyimpan: ' + err.message, true); return resolve(false); }
         if (!committed) { toastX('Catatan ini sudah diubah pengguna lain. Tutup panel dan buka lagi untuk memuat versi terbaru.', true, 6000); return resolve(false); }
-        st.versi = doc.versi; st.dirty = false; resolve(true);
+        st.versi = doc.versi; st.dirty = false; st.meta = { updatedBy: doc.updatedBy, updatedAt: doc.updatedAt };
+        if (st.mode === 'admin') { try { addLog('ubah_catatan_nilai_harian', c.mapel + ' - ' + c.kelas + ' - ' + c.sem + ' - ' + labelNh(c.nh)); } catch (e) {} }
+        resolve(true);
       });
     });
   }
 
   // ---------- panel ----------
   function htmlPanel() {
-    var s = st, h = '<div class="nh-bar"><b>📝 Catatan Nilai Harian</b> untuk ' +
+    var s = st, lihat = s.mode === 'lihat', guru = s.mode === 'guru', dis = lihat ? ' disabled' : '';
+    var h = '<div class="nh-bar"><b>📝 Catatan Nilai Harian</b> untuk ' +
       '<select id="nhPilih" class="field" style="width:auto;">' + NH.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === s.c.nh ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>' +
-      '<button type="button" class="btn btn-soft" id="nhTutup">Tutup</button></div>' +
-      '<div class="nh-cat">' + esc(s.c.mapel) + ' · ' + esc(s.c.kelas) + ' · ' + esc(s.c.sem) + '. Catat nilai tiap penilaian (kosongkan bila belum ada). Rata-rata hanya memakai kolom yang terisi. Yang masuk rapor tetap kotak NH di tabel nilai.</div>' +
+      (guru ? '<button type="button" class="btn btn-soft" id="nhTutup">Tutup</button>' : '') + '</div>' +
+      '<div class="nh-cat">' + esc(s.c.mapel) + ' · ' + esc(s.c.kelas) + ' · ' + esc(s.c.sem) +
+      (s.meta && s.meta.updatedAt ? '. Terakhir disimpan oleh <b>' + esc(s.meta.updatedBy || '-') + '</b> pada ' + esc(String(s.meta.updatedAt).replace('T', ' ').slice(0, 16)) : '. Belum ada catatan tersimpan') + '.' +
+      (guru ? ' Catat nilai tiap penilaian (kosongkan bila belum ada). Rata-rata hanya memakai kolom yang terisi. Yang masuk rapor tetap kotak NH di tabel nilai.' :
+        lihat ? ' Tampilan lihat saja.' : ' Anda mengubah catatan milik guru; setiap penyimpanan dicatat di log. Nilai NH di rapor tidak ikut berubah.') + '</div>' +
       '<div class="nh-scroll"><table class="nh-tbl"><thead><tr><th>Nama</th>' +
-      s.kolom.map(function (k) { return '<th><input class="field nh-jdl" data-jdl="' + esc(k.id) + '" maxlength="40" value="' + esc(k.judul) + '"> <button type="button" class="btn btn-soft" data-hapus="' + esc(k.id) + '" title="Hapus kolom">×</button></th>'; }).join('') +
-      '<th>Rata-rata → ' + labelNh(s.c.nh) + '</th></tr></thead><tbody>' +
+      s.kolom.map(function (k) { return '<th><input class="field nh-jdl" data-jdl="' + esc(k.id) + '" maxlength="40" value="' + esc(k.judul) + '"' + dis + '>' + (lihat ? '' : ' <button type="button" class="btn btn-soft" data-hapus="' + esc(k.id) + '" title="Hapus kolom">×</button>') + '</th>'; }).join('') +
+      '<th>Rata-rata</th></tr></thead><tbody>' +
       s.siswa.map(function (x) {
         return '<tr data-baris="' + esc(x.key) + '"><td style="font-weight:600;">' + esc(x.name) + '</td>' +
-          s.kolom.map(function (k) { var v = s.nilai[x.key] && s.nilai[x.key][k.id]; return '<td><input class="field nh-in" type="number" min="0" max="100" step="any" inputmode="decimal" data-s="' + esc(x.key) + '" data-c="' + esc(k.id) + '" value="' + (typeof v === 'number' ? v : '') + '"></td>'; }).join('') +
+          s.kolom.map(function (k) { var v = s.nilai[x.key] && s.nilai[x.key][k.id]; return '<td><input class="field nh-in" type="number" min="0" max="100" step="any" inputmode="decimal" data-s="' + esc(x.key) + '" data-c="' + esc(k.id) + '" value="' + (typeof v === 'number' ? v : '') + '"' + dis + '></td>'; }).join('') +
           '<td class="nh-rata" data-rata="' + esc(x.key) + '">' + fmt(rata(s.nilai[x.key], s.kolom)) + '</td></tr>';
-      }).join('') + '</tbody></table></div>' +
-      '<div class="nh-bar"><button type="button" class="btn" id="nhTambah"' + (s.kolom.length >= MAKS_KOLOM ? ' disabled' : '') + '>+ Tambah penilaian</button>' +
-      '<button type="button" class="btn btn-success" id="nhSimpan">💾 Simpan Catatan</button>' +
-      '<button type="button" class="btn btn-success" id="nhTerap">⬇ Terapkan rata-rata ke ' + labelNh(s.c.nh) + '</button></div>' +
-      '<div class="nh-cat">Setelah diterapkan, tekan <b>Simpan Nilai</b> di tabel nilai agar ' + labelNh(s.c.nh) + ' tersimpan. Kotak yang sudah terkunci tidak diubah.</div>';
+      }).join('') + '</tbody></table></div>';
+    if (!lihat) {
+      h += '<div class="nh-bar"><button type="button" class="btn" id="nhTambah"' + (s.kolom.length >= MAKS_KOLOM ? ' disabled' : '') + '>+ Tambah penilaian</button>' +
+        '<button type="button" class="btn btn-success" id="nhSimpan">💾 Simpan Catatan</button>' +
+        (guru ? '<button type="button" class="btn btn-success" id="nhTerap">⬇ Terapkan rata-rata ke ' + labelNh(s.c.nh) + '</button>' : '') + '</div>';
+    }
+    if (guru) h += '<div class="nh-cat">Setelah diterapkan, tekan <b>Simpan Nilai</b> di tabel nilai agar ' + labelNh(s.c.nh) + ' tersimpan. Kotak yang sudah terkunci tidak diubah.</div>';
     return h;
   }
 
-  function gambar() { var w = el('nhPanel'); if (w && st) w.innerHTML = htmlPanel(); }
+  function gambar() { if (st && st.wadah) st.wadah.innerHTML = htmlPanel(); }
 
   function hitungUlangBaris(key) {
-    var cell = el('nhPanel') && el('nhPanel').querySelector('[data-rata="' + key.replace(/"/g, '\\"') + '"]');
+    var cell = st.wadah && st.wadah.querySelector('[data-rata="' + key.replace(/"/g, '\\"') + '"]');
     if (cell) cell.textContent = fmt(rata(st.nilai[key], st.kolom));
   }
 
@@ -203,9 +214,9 @@
     c.nh = nh || 'h1';
     var siswa = daftarSiswaDiTabel(); if (!siswa.length) return toastX('Tidak ada siswa di tabel nilai.', true);
     muat(c).then(function (d) {
-      st = { c: c, siswa: siswa, kolom: d.kolom, nilai: d.nilai, versi: d.versi, dirty: false };
       var w = el('nhPanel');
       if (!w) { w = document.createElement('div'); w.id = 'nhPanel'; w.className = 'nh-wrap'; el('gradesContainer').insertAdjacentElement('afterend', w); }
+      st = { c: c, siswa: siswa, kolom: d.kolom, nilai: d.nilai, versi: d.versi, dirty: false, mode: 'guru', wadah: w, meta: d.meta };
       w.style.display = ''; gambar();
     }, function (err) { toastX('Catatan tidak bisa dibaca: ' + (err && err.message ? err.message : err), true, 6000); });
   }
@@ -226,14 +237,15 @@
     if (e.target.id !== 'nhPilih' || !st) return;
     var baru = e.target.value;
     if (st.dirty && !window.confirm('Ada perubahan catatan yang belum disimpan. Pindah ke ' + labelNh(baru) + ' tanpa menyimpan?')) { e.target.value = st.c.nh; return; }
-    st = null; buka(baru);
+    if (st.mode === 'guru') { st = null; buka(baru); }
+    else { var c2 = { ta: st.c.ta, kelas: st.c.kelas, mapel: st.c.mapel, sem: st.c.sem, nh: baru }, md = st.mode; st = null; bukaAdmin(c2, md === 'lihat'); }
   }
 
   // ---------- pemasangan tombol (tabel nilai dirender ulang oleh app.js, jadi dipantau) ----------
   function pasangTombol() {
     var cont = el('gradesContainer'); if (!cont) return;
     if (cont.querySelector('#nhBtn')) return;                 // tombol masih ada: bukan render baru
-    if (st) { st = null; var w = el('nhPanel'); if (w) { w.style.display = 'none'; w.innerHTML = ''; } }   // render baru: panel lama kedaluwarsa
+    if (st && st.mode === 'guru') { st = null; var w = el('nhPanel'); if (w) { w.style.display = 'none'; w.innerHTML = ''; } }   // render baru: panel lama kedaluwarsa
     if (!cont.querySelector('.grade-input') || !cont.querySelector('#btnSaveGrades')) return;
     var c = konteks(); if (!c || !bolehPakai(c)) return;
     var b = document.createElement('button');
@@ -245,12 +257,119 @@
     var cont = el('gradesContainer'); if (!cont) return;
     pasangCss();
     new MutationObserver(function () { pasangTombol(); }).observe(cont, { childList: true });
-    document.addEventListener('input', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel')) onInput(e); });
-    document.addEventListener('click', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel')) onKlik(e); });
-    document.addEventListener('change', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel')) onUbah(e); });
+    document.addEventListener('input', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel, #nhPanelAdmin')) onInput(e); });
+    document.addEventListener('click', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel, #nhPanelAdmin')) onKlik(e); });
+    document.addEventListener('change', function (e) { if (e.target && e.target.closest && e.target.closest('#nhPanel, #nhPanelAdmin')) onUbah(e); });
     pasangTombol();
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mulai); else mulai();
+
+  // ============================================================
+  // HALAMAN ADMIN & KEPALA  (#page-catatan-nilai)
+  // ============================================================
+  function adminAtauKepala() { try { return isAdmin() || isKepsek(); } catch (e) { return false; } }
+  function opsiMapel() {
+    var html = '';
+    try { if (typeof daftarMapelNilaiAsli === 'function') html = daftarMapelNilaiAsli(); } catch (e) {}
+    if (html) return html;
+    var set = {}; (allJadwal || []).forEach(function (j) { if (j && j.mapel) set[j.mapel] = true; });
+    return Object.keys(set).sort().map(function (m) { return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join('');
+  }
+  function opsiSemester() { var e = el('gradeSemester'); return e && e.innerHTML ? e.innerHTML : '<option value="Ganjil">Ganjil</option><option value="Genap">Genap</option>'; }
+
+  function bukaAdmin(c, bacaSaja) {
+    if (!adminAtauKepala()) return;
+    var wadah = el('nhPanelAdmin'); if (!wadah) return;
+    var siswa = (allSiswa || []).filter(function (x) { return x.kelas === c.kelas; })
+      .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); })
+      .map(function (x) { return { key: x.key, name: x.name || x.key }; });
+    if (!siswa.length) { wadah.style.display = 'none'; return toastX('Tidak ada siswa di ' + c.kelas + '.', true); }
+    var lama = el('nhPanel'); if (lama) { lama.innerHTML = ''; lama.style.display = 'none'; }
+    muat(c).then(function (d) {
+      st = { c: c, siswa: siswa, kolom: d.kolom, nilai: d.nilai, versi: d.versi, dirty: false, mode: bacaSaja ? 'lihat' : 'admin', wadah: wadah, meta: d.meta };
+      wadah.style.display = ''; gambar();
+      try { wadah.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    }, function (err) { toastX('Catatan tidak bisa dibaca: ' + (err && err.message ? err.message : err), true, 6000); });
+  }
+
+  function cocokOpsi(selectHtml, kunciAman, bawaan) {
+    var tmp = document.createElement('select'); tmp.innerHTML = selectHtml;
+    var hasil = bawaan;
+    Array.prototype.forEach.call(tmp.querySelectorAll('option'), function (o) { if (hasil === bawaan && aman(o.value) === kunciAman) hasil = o.value; });
+    return hasil;
+  }
+
+  function muatDaftar() {
+    var w = el('ncDaftar'); if (!w) return;
+    w.innerHTML = '<div class="nh-cat">Memuat daftar catatan...</div>';
+    db.ref('grades_harian/' + aman(currentTahunAjaran)).once('value').then(function (sn) {
+      var v = sn.val() || {}, rows = [];
+      Object.keys(v).forEach(function (k) { Object.keys(v[k] || {}).forEach(function (m) { Object.keys(v[k][m] || {}).forEach(function (sm) { Object.keys(v[k][m][sm] || {}).forEach(function (nh) {
+        var d = v[k][m][sm][nh]; if (!d) return;
+        rows.push({ kelas: k, mapel: m, sem: sm, nh: nh, kol: normKolom(d.kolom).length, siswa: Object.keys(d.nilai || {}).length, oleh: d.updatedBy || '-', waktu: d.updatedAt || '' });
+      }); }); }); });
+      rows.sort(function (a, b) { return (a.kelas + a.mapel + a.sem + a.nh).localeCompare(b.kelas + b.mapel + b.sem + b.nh, 'id'); });
+      if (!rows.length) { w.innerHTML = '<div class="nh-cat">Belum ada guru yang menyimpan catatan nilai harian pada tahun ajaran ini.</div>'; return; }
+      w.innerHTML = '<div class="nh-cat">' + rows.length + ' catatan tersimpan. Ketuk <b>Buka</b> untuk melihat' + (isAdmin() ? ' atau mengubah' : '') + '.</div><div class="nh-scroll"><table class="nh-tbl"><thead><tr><th>Kelas</th><th>Mapel</th><th>Smt</th><th>NH</th><th>Penilaian</th><th>Siswa terisi</th><th>Terakhir oleh</th><th></th></tr></thead><tbody>' +
+        rows.map(function (r) {
+          return '<tr><td>' + esc(r.kelas) + '</td><td>' + esc(r.mapel) + '</td><td>' + esc(r.sem) + '</td><td>' + esc(labelNh(r.nh)) + '</td><td>' + r.kol + '</td><td>' + r.siswa + '</td><td>' + esc(r.oleh) + (r.waktu ? '<br><span style="opacity:.7;">' + esc(String(r.waktu).slice(0, 10)) + '</span>' : '') + '</td>' +
+            '<td><button type="button" class="btn btn-soft" data-nc-kelas="' + esc(r.kelas) + '" data-nc-mapel="' + esc(r.mapel) + '" data-nc-sem="' + esc(r.sem) + '" data-nc-nh="' + esc(r.nh) + '">Buka</button></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }, function () { w.innerHTML = '<div class="nh-cat" style="color:#b91c1c;">Daftar catatan tidak bisa dibaca (izin akses). Pastikan Rules node grades_harian sudah dipasang.</div>'; });
+  }
+
+  function renderHalaman() {
+    var pg = el('page-catatan-nilai'); if (!pg) return;
+    pasangCss();
+    if (!adminAtauKepala()) { pg.innerHTML = '<div class="card"><p class="text-muted">Halaman ini hanya untuk Admin dan Kepala Madrasah.</p></div>'; return; }
+    var sem = el('ncSem') && el('ncSem').value;
+    pg.innerHTML = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📝 Catatan Nilai Harian</h3>' +
+      '<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Catatan penilaian harian yang dibuat guru sebelum menjadi NH1/NH2/NH3. Tahun ajaran ' + esc(currentTahunAjaran) + '. ' + (isAdmin() ? 'Admin dapat mengubah catatan.' : 'Tampilan lihat saja.') + '</p>' +
+      '<div class="nh-bar"><select id="ncKelas" class="field" style="width:auto;">' + (KELAS_LIST || []).map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('') + '</select>' +
+      '<select id="ncMapel" class="field" style="width:auto;max-width:100%;">' + opsiMapel() + '</select>' +
+      '<select id="ncSem" class="field" style="width:auto;">' + opsiSemester() + '</select>' +
+      '<select id="ncNh" class="field" style="width:auto;">' + NH.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('') + '</select>' +
+      '<button type="button" class="btn btn-success" id="ncBuka">Buka</button> <button type="button" class="btn btn-soft" id="ncMuat">🔄 Muat ulang daftar</button></div>' +
+      '<div id="nhPanelAdmin" class="nh-wrap" style="display:none;"></div>' +
+      '<div class="kpi-h" style="font-size:14px;font-weight:700;margin:16px 0 6px;">Daftar Catatan Tersimpan</div><div id="ncDaftar"></div></div>';
+    if (sem && el('ncSem')) el('ncSem').value = sem;
+    muatDaftar();
+  }
+
+  function pasangHalaman() {
+    var pg = el('page-catatan-nilai'); if (!pg) return;
+    var tampilSebelumnya = false;
+    new MutationObserver(function () {
+      var tampil = !pg.classList.contains('hidden');
+      if (tampil && !tampilSebelumnya) { try { renderHalaman(); } catch (e) { pg.innerHTML = '<div class="card"><p class="text-muted">Halaman gagal dimuat: ' + esc(e && e.message ? e.message : e) + '</p></div>'; } }
+      if (!tampil) { if (st && st.mode !== 'guru') st = null; }
+      tampilSebelumnya = tampil;
+    }).observe(pg, { attributes: true, attributeFilter: ['class'] });
+    var judul = el('pageTitle');   // menu terdaftar ganda di app.js -> navigateTo bisa menimpa judul; kembalikan
+    if (judul) new MutationObserver(function () {
+      if (pg.classList.contains('hidden')) return;
+      if (judul.textContent !== 'Catatan Nilai Harian') judul.textContent = 'Catatan Nilai Harian';
+    }).observe(judul, { childList: true, characterData: true, subtree: true });
+    pg.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('button') : null; if (!t) return;
+      if (t.id === 'ncMuat') return muatDaftar();
+      if (t.id === 'ncBuka') {
+        var c = { ta: currentTahunAjaran, kelas: el('ncKelas').value, mapel: el('ncMapel').value, sem: el('ncSem').value, nh: el('ncNh').value };
+        if (!c.kelas || !c.mapel) return toastX('Pilih kelas dan mata pelajaran.', true);
+        return bukaAdmin(c, !isAdmin());
+      }
+      if (t.dataset && t.dataset.ncKelas) {
+        var mp = cocokOpsi(opsiMapel(), aman(t.dataset.ncMapel), t.dataset.ncMapel);
+        var sm = cocokOpsi(opsiSemester(), aman(t.dataset.ncSem), t.dataset.ncSem);
+        var kl = (KELAS_LIST || []).filter(function (k) { return aman(k) === t.dataset.ncKelas; })[0] || t.dataset.ncKelas;
+        if (el('ncKelas')) el('ncKelas').value = kl; if (el('ncMapel')) el('ncMapel').value = mp; if (el('ncSem')) el('ncSem').value = sm; if (el('ncNh')) el('ncNh').value = t.dataset.ncNh;
+        bukaAdmin({ ta: currentTahunAjaran, kelas: kl, mapel: mp, sem: sm, nh: t.dataset.ncNh }, !isAdmin());
+      }
+    });
+    function aturMenu() { Array.prototype.forEach.call(document.querySelectorAll('.menu-item[data-page="catatan-nilai"]'), function (m) { m.classList.toggle('hidden-tab', !adminAtauKepala()); }); }
+    aturMenu(); setInterval(aturMenu, 2000);
+  }
+  function awal() { mulai(); pasangHalaman(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', awal); else awal();
 
   window.NilaiHarian = { rata: rata, aman: aman, jalur: jalur };
 })();

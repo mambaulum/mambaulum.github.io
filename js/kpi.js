@@ -7,7 +7,7 @@
 //   allInfaqSiswa + allSiswa -> infaq mingguan: { siswaKey, kelas, minggu:'YYYY-Www', status:'lunas' }; siswa gratis tidak dihitung
 //   allJadwal + allJournals  -> jurnal terisi: slot jadwal (kelas, hari, jam) dicocokkan ke jurnal (kelas, tanggal, jam_ke)
 //   allTeacherAttendance   -> absensi guru: { tanggal, guruKey, type:'Datang'|'Pulang'|'Izin'|'Sakit'|'Alpha', keterangan:'Telat N menit' }
-//   ortu_akun (dibaca sekali) -> orang tua aktif: field terakhirLogin
+//   ortu_login_log (dibaca sekali, 5000 catatan terakhir) + noWaOrtu siswa -> orang tua aktif: nomor WA unik yang login berhasil <= 30 hari
 //   angket_keunggulan/{periode} (dibaca sekali) -> jumlah responden
 //
 // "Hari sekolah" = tanggal yang punya minimal satu catatan absensi siswa (jadi hari libur otomatis tidak dihitung).
@@ -111,14 +111,24 @@
     return { baris: baris, hadirPct: pct(sumHadir, guruList.length * jmlHari), telatPct: pct(sumTelat, sumDatang), hari: jmlHari };
   }
 
-  function hitungOrtu(akun, sekarang) {
-    var total = 0, aktif = 0, batas = sekarang - ORTU_AKTIF_HARI * 86400000;
-    Object.keys(akun || {}).forEach(function (k) {
-      var a = akun[k]; if (!a) return; total++;
-      var t = a.terakhirLogin ? Date.parse(a.terakhirLogin) : NaN;
-      if (!isNaN(t) && t >= batas) aktif++;
+  // Orang tua aktif: nomor WA unik (dari noWaOrtu siswa aktif) yang punya login BERHASIL dalam 30 hari terakhir di ortu_login_log.
+  // waFn = fungsi normalisasi nomor (ortuWaKey dari portal-ortu.js); tanpa itu dipakai noWaKey / nomor apa adanya.
+  function hitungOrtu(logs, siswa, sekarang, waFn) {
+    var norm = function (x) { try { return waFn ? (waFn(x) || '') : String(x || ''); } catch (e) { return ''; } };
+    var target = {}, tanpaWa = 0;
+    (siswa || []).forEach(function (s) {
+      var k = s.noWaKey || norm(s.noWaOrtu);
+      if (k) target[k] = true; else tanpaWa++;
     });
-    return { total: total, aktif: aktif, pct: pct(aktif, total) };
+    var batas = sekarang - ORTU_AKTIF_HARI * 86400000, aktif = {};
+    (logs || []).forEach(function (l) {
+      if (!l || l.hasil !== 'berhasil' || !l.wa) return;
+      var t = Date.parse(l.waktu); if (isNaN(t) || t < batas) return;
+      aktif[String(l.wa)] = true;
+    });
+    var total = Object.keys(target).length, n = 0;
+    Object.keys(aktif).forEach(function (k) { if (target[k]) n++; });
+    return { total: total, aktif: n, tanpaWa: tanpaWa, pct: pct(n, total) };
   }
 
   // ---------- status warna ----------
@@ -241,7 +251,10 @@
 
   function muatOrtu() {
     var w = el('kpiOrtu'); if (!w || typeof db === 'undefined') return;
-    var akunP = db.ref('ortu_akun').once('value').then(function (sn) { return hitungOrtu(sn.val() || {}, Date.now()); }, function () { return null; });
+    var akunP = db.ref('ortu_login_log').orderByKey().limitToLast(5000).once('value').then(function (sn) {
+      var logs = []; sn.forEach(function (c) { logs.push(c.val()); });
+      return hitungOrtu(logs, allSiswa, Date.now(), (typeof ortuWaKey === 'function') ? ortuWaKey : null);
+    }, function () { return null; });
     var angketP = db.ref('angket_keunggulan_status').once('value').then(function (sn) {
       var per = (sn.val() || {}).periode; if (!per) return null;
       return db.ref('angket_keunggulan/' + per).once('value').then(function (s2) {
@@ -252,8 +265,8 @@
     Promise.all([akunP, angketP]).then(function (r) {
       if (el('kpiOrtu') !== w) return;
       if (terakhir) terakhir.ortu = r[0];
-      var h = r[0] ? kartu('Orang tua aktif', r[0].pct, KPI_TARGET.ortuAktif, 'min', r[0].aktif + ' dari ' + r[0].total + ' akun login ≤ ' + ORTU_AKTIF_HARI + ' hari') :
-        '<div class="kpi-card"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Data akun orang tua tidak bisa dibaca (izin akses).</div></div>';
+      var h = r[0] ? kartu('Orang tua aktif', r[0].pct, KPI_TARGET.ortuAktif, 'min', r[0].aktif + ' dari ' + r[0].total + ' nomor WA login ≤ ' + ORTU_AKTIF_HARI + ' hari' + (r[0].tanpaWa ? ' (' + r[0].tanpaWa + ' siswa belum punya nomor WA)' : '')) :
+        '<div class="kpi-card"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Riwayat login orang tua tidak bisa dibaca (izin akses).</div></div>';
       var a = r[1];
       h += a ? '<div class="kpi-card"><div class="kpi-nama">Angket Keunggulan</div><div class="kpi-val">' + (a.guru + a.kepala + a.ortu + a.siswa) + '</div><div class="kpi-sub">responden<br>Guru ' + a.guru + ' · Kepala ' + a.kepala + '<br>Ortu ' + a.ortu + ' · Siswa ' + a.siswa + '</div></div>' :
         '<div class="kpi-card"><div class="kpi-nama">Angket Keunggulan</div><div class="kpi-sub">Belum ada data atau tidak bisa dibaca.</div></div>';
@@ -297,6 +310,11 @@
       }
       tampilSebelumnya = tampil;
     }).observe(pg, { attributes: true, attributeFilter: ['class'] });
+    var judul = el('pageTitle');
+    if (judul) new MutationObserver(function () {
+      if (pg.classList.contains('hidden')) return;
+      if (judul.textContent !== 'KPI Madrasah') judul.textContent = 'KPI Madrasah';
+    }).observe(judul, { childList: true, characterData: true, subtree: true });
     aturMenu(); setInterval(aturMenu, 2000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasang); else pasang();
