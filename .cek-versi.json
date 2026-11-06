@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.350",
-  "disimpan": "2026-11-06T05:34:10.049Z",
+  "appVersion": "v8.353",
+  "disimpan": "2026-11-06T08:55:16.353Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -135,8 +135,16 @@
       "hash": "578bf1340c3d364076377f1b979c209fecab2479"
     },
     "js/angket-keunggulan.js": {
-      "v": "v=3",
-      "hash": "34125f1b6852c1a8ab2f9ed4109f6c16d33c5b51"
+      "v": "v=4",
+      "hash": "7fa0c91a5e784e0271111dd06549dc766a3356f3"
+    },
+    "js/kpi.js": {
+      "v": "v=1",
+      "hash": "efab6f7e764f084cc08ee9753d164669f9c211a5"
+    },
+    "js/nilai-harian.js": {
+      "v": "v=1",
+      "hash": "82a5d5fefae60ee7fca006c6f38c5ee5041c1f58"
     },
     "js/riwayat-login-ortu.js": {
       "v": "v=2",
