@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.366",
-  "disimpan": "2026-11-06T14:45:38.352Z",
+  "appVersion": "v8.367",
+  "disimpan": "2026-11-06T15:33:36.189Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -135,8 +135,8 @@
       "hash": "578bf1340c3d364076377f1b979c209fecab2479"
     },
     "js/angket-keunggulan.js": {
-      "v": "v=4",
-      "hash": "7fa0c91a5e784e0271111dd06549dc766a3356f3"
+      "v": "v=5",
+      "hash": "e56fa77ecac611a23e6cc86b29b61369706008e9"
     },
     "js/kpi.js": {
       "v": "v=8",
