@@ -7,7 +7,7 @@
 //   allInfaqSiswa + allSiswa -> infaq mingguan: { siswaKey, kelas, minggu:'YYYY-Www', status:'lunas' }; siswa gratis tidak dihitung
 //   allJadwal + allJournals  -> jurnal terisi: slot jadwal (kelas, hari, jam) dicocokkan ke jurnal (kelas, tanggal, jam_ke)
 //   allTeacherAttendance   -> absensi guru: { tanggal, guruKey, type:'Datang'|'Pulang'|'Izin'|'Sakit'|'Alpha', keterangan:'Telat N menit' }
-//   ortu_login_log (dibaca sekali, 5000 catatan terakhir) + noWaOrtu siswa -> orang tua aktif: nomor WA unik yang login berhasil <= 30 hari
+//   ortu_login_log (dibaca sekali, log ~31 hari terakhir lewat startAt pada kunci push, maks 20000) + noWaOrtu siswa -> orang tua aktif: nomor WA unik yang login berhasil <= 30 hari
 //   angket_keunggulan/{periode} (dibaca sekali) -> jumlah responden
 //
 // "Hari sekolah" = tanggal yang punya minimal satu catatan absensi siswa (jadi hari libur otomatis tidak dihitung).
@@ -161,7 +161,7 @@
   function kartu(nama, nilai, target, mode, sub) {
     var st = status(nilai, target, mode);
     return '<div class="kpi-card"><div class="kpi-nama">' + esc(nama) + '</div><div class="kpi-val" style="color:' + st.w + ';">' + f1(nilai) + '</div>' +
-      '<div class="kpi-sub">Target ' + (mode === 'max' ? 'maks ' : 'min ') + target + '%' + (sub ? '<br>' + esc(sub) : '') + '</div><span class="kpi-badge" style="background:' + st.w + ';">' + st.t + '</span></div>';
+      '<div class="kpi-sub">Target ' + (mode === 'max' ? 'maksimal ' : 'minimal ') + target + '%' + (sub ? '<br>' + esc(sub) : '') + '</div><span class="kpi-badge" style="background:' + st.w + ';">' + st.t + '</span></div>';
   }
   function warna(v, target, mode) { return status(v, target, mode).w; }
 
@@ -194,6 +194,29 @@
     setTimeout(akhir, 15000);
   }
 
+  // allGuru hanya diisi oleh loadGuruListForLogin() di layar login (app.js), bukan oleh loadAllData(). Bila login lewat sesi tersimpan,
+  // pemuatan itu timeout, atau cache offline-nya kosong, allGuru kosong -> kartu guru "Daftar guru belum termuat".
+  // Di sini daftar guru dibaca sekali (hanya baca) dari node 'guru' dan dipakai sebagai cadangan; allGuru milik app.js tidak diubah.
+  var guruCadangan = { data: [], sedang: false, coba: false };
+  function adaDaftarGuru() { try { return !!(allGuru && allGuru.length); } catch (e) { return false; } }
+  function pastikanDaftarGuru() {
+    if (adaDaftarGuru() || guruCadangan.sedang || guruCadangan.coba || typeof db === 'undefined') return;
+    guruCadangan.sedang = true;
+    var selesai = false;
+    function akhir(list) {
+      if (selesai) return; selesai = true; guruCadangan.sedang = false; guruCadangan.coba = true;
+      if (list && list.length) guruCadangan.data = list;
+      var pg = el('page-kpi'); if (pg && !pg.classList.contains('hidden')) { try { render(); } catch (e) {} }
+    }
+    try {
+      db.ref('guru').once('value').then(function (sn) {
+        var list = []; sn.forEach(function (c) { var g = c.val(); if (g) { g.key = c.key; list.push(g); } });
+        akhir(list);
+      }, function () { akhir(null); });
+    } catch (e) { akhir(null); }
+    setTimeout(function () { akhir(null); }, 15000);
+  }
+
   function render() {
     var p = el('page-kpi'); if (!p) return;
     pasangCss();
@@ -212,36 +235,40 @@
     var hariLalu = sis.hariSekolah.filter(function (d) { return d < today; });
 
     // infaq
-    var inf = null;
+    var inf = null, infaqBerjalan = false;
     try {
       var weeks = infaqMingguBulan(b.y, b.m).filter(function (k) { return tglLokal(mingguKeTanggal(k).senin) <= today; });
       inf = hitungInfaq(allInfaqSiswa, allSiswa, KELAS_LIST, weeks, iuranGratis);
+      if (weeks.length) infaqBerjalan = tglLokal(mingguKeTanggal(weeks[weeks.length - 1]).minggu) >= today;   // minggu terakhir belum selesai
     } catch (e) { inf = null; }
     var jur = hitungJurnal(allJadwal, allJournals, hariLalu);
-    var guruList = (allGuru || []).filter(function (g) { return g.role === 'guru' || g.role === 'wali_kelas' || !g.role; })
+    if (!adaDaftarGuru()) pastikanDaftarGuru();
+    var guruList = (adaDaftarGuru() ? allGuru : guruCadangan.data).filter(function (g) { return g.role === 'guru' || g.role === 'wali_kelas' || !g.role; })
       .sort(function (a, c) { return String(a.name || '').localeCompare(String(c.name || ''), 'id'); });
-    var gr = hitungGuru(allTeacherAttendance, guruList, b.ym, hariSet);
+    var hariSetLalu = {}; hariLalu.forEach(function (d) { hariSetLalu[d] = true; });   // hari ini belum dihitung: guru bisa saja belum absen
+    var gr = hitungGuru(allTeacherAttendance, guruList, b.ym, hariSetLalu);
     var adaTA = adaAbsenGuru();
     if (!adaTA) { gr.hadirPct = null; gr.telatPct = null; pastikanAbsenGuru(); }   // jangan tampil 0% yang menyesatkan saat datanya belum ada
-    var ketGuru = guruMuat.sedang ? 'Memuat absensi guru…' : (!adaTA ? 'Catatan absensi guru belum ada / belum bisa dimuat' : (!guruList.length ? 'Daftar guru belum termuat' : null));
+    var ketGuru = (guruMuat.sedang || guruCadangan.sedang) ? 'Memuat data guru…' : (!adaTA ? 'Catatan absensi guru belum ada / belum bisa dimuat' : (!guruList.length ? 'Daftar guru belum termuat' : null));
 
     var pSiswa = pct(sis.total.H, sis.total.H + sis.total.S + sis.total.I + sis.total.A);
     var pInfaq = inf ? pct(inf.lunas, inf.wajib) : null;
     var pJur = pct(jur.total.fill, jur.total.exp);
     var pJurHari = pct(jur.total.tepat, jur.total.tepatDen);
 
-    var h = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📊 KPI Madrasah</h3>' +
+    var h = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📊 Indikator Kinerja Utama Madrasah</h3>' +
       '<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Dihitung otomatis dari data aplikasi. Periode: <select id="kpiBulan">' +
       bulan.map(function (x) { return '<option value="' + x.ym + '"' + (x.ym === b.ym ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</select> ' +
-      '<button type="button" class="btn btn-soft" id="kpiCsv">Unduh CSV</button></p>' +
+      '<button type="button" class="btn btn-soft" id="kpiCsv" title="CSV = Comma-Separated Values">Unduh CSV</button></p>' +
+      '<div class="kpi-cat">Singkatan: <b>KPI</b> (nama di menu) = Key Performance Indicator, yaitu Indikator Kinerja Utama; <b>CSV</b> = Comma-Separated Values (berkas tabel yang bisa dibuka di Excel); <b>WA</b> = WhatsApp.</div>' +
       (dataSiap ? '' : '<div class="kpi-cat" style="color:#b45309;">Data belum termuat sepenuhnya. Tunggu sebentar atau muat ulang aplikasi.</div>') +
       '<div class="kpi-cat">Hari sekolah bulan ini (ada absensi siswa): <b>' + sis.hariSekolah.length + '</b> hari. Siswa non aktif tidak dihitung.</div>' +
       '<div class="kpi-grid">' +
       kartu('Kehadiran siswa', pSiswa, KPI_TARGET.hadirSiswa, 'min', 'Alfa: ' + sis.total.A + ' siswa-hari') +
-      kartu('Infaq lunas', pInfaq, KPI_TARGET.infaq, 'min', inf ? inf.minggu + ' minggu dihitung' : 'Data infaq belum termuat') +
+      kartu('Infaq lunas', pInfaq, KPI_TARGET.infaq, 'min', inf ? inf.minggu + ' minggu dihitung' + (infaqBerjalan ? ' (termasuk minggu berjalan, belum selesai)' : '') : 'Data infaq belum termuat') +
       kartu('Jurnal terisi', pJur, KPI_TARGET.jurnal, 'min', jur.total.fill + ' dari ' + jur.total.exp + ' jam terjadwal') +
       kartu('Jurnal di hari yang sama', pJurHari, KPI_TARGET.jurnalHariSama, 'min', 'dari jurnal yang tercatat waktu buatnya') +
-      kartu('Kehadiran guru', gr.hadirPct, KPI_TARGET.hadirGuru, 'min', ketGuru || (guruList.length + ' guru, ' + gr.hari + ' hari')) +
+      kartu('Kehadiran guru', gr.hadirPct, KPI_TARGET.hadirGuru, 'min', ketGuru || (guruList.length + ' guru, ' + gr.hari + ' hari tanpa hari ini')) +
       kartu('Guru datang terlambat', gr.telatPct, KPI_TARGET.telatGuru, 'max', ketGuru || 'dari semua catatan Datang') +
       '</div>' +
       '<div id="kpiOrtu" class="kpi-grid"><div class="kpi-card"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Memuat...</div></div></div>';
@@ -265,7 +292,7 @@
     var gb = gr.baris.slice().sort(function (a, c) { return (pct(a.hadir, a.hari) == null ? 101 : pct(a.hadir, a.hari)) - (pct(c.hadir, c.hari) == null ? 101 : pct(c.hadir, c.hari)); });
     h += '<div class="kpi-h">Kehadiran Guru</div><details><summary style="cursor:pointer;font-size:12px;">' + gb.length + ' guru (terendah di atas)</summary><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Guru</th><th>Hadir</th><th>Telat</th><th>Izin</th><th>Sakit</th><th>Alpha</th></tr>' +
       gb.map(function (g) { var pg = pct(g.hadir, g.hari); return '<tr><td>' + esc(g.nama) + '</td><td style="color:' + warna(pg, KPI_TARGET.hadirGuru, 'min') + ';font-weight:700;">' + g.hadir + '/' + g.hari + ' (' + f1(pg) + ')</td><td>' + g.telat + '</td><td>' + g.izin + '</td><td>' + g.sakit + '</td><td>' + g.alpha + '</td></tr>'; }).join('') + '</table></div></details>' +
-      '<div class="kpi-cat">Kehadiran guru dihitung dari catatan Datang dibanding hari sekolah. Izin, sakit, dan alpha ditampilkan terpisah.</div>';
+      '<div class="kpi-cat">Kehadiran guru dihitung dari catatan Datang dibanding hari sekolah yang sudah lewat (hari ini belum dihitung). Izin, sakit, dan alpha ditampilkan terpisah.</div>';
     h += '</div>';
     p.innerHTML = h;
     el('kpiBulan').addEventListener('change', render);
@@ -274,9 +301,17 @@
     muatOrtu();
   }
 
+  // Kunci push Firebase diawali 8 karakter waktu (urut naik), jadi log 30 hari terakhir bisa diambil dengan startAt() pada kunci tanpa indeks.
+  var PUSH_CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+  function kunciDariWaktu(ms) {
+    var out = '';
+    for (var i = 0; i < 8; i++) { out = PUSH_CHARS.charAt(ms % 64) + out; ms = Math.floor(ms / 64); }
+    return out;
+  }
+
   function muatOrtu() {
     var w = el('kpiOrtu'); if (!w || typeof db === 'undefined') return;
-    var akunP = db.ref('ortu_login_log').orderByKey().limitToLast(5000).once('value').then(function (sn) {
+    var akunP = db.ref('ortu_login_log').orderByKey().startAt(kunciDariWaktu(Date.now() - (ORTU_AKTIF_HARI + 1) * 86400000)).limitToLast(20000).once('value').then(function (sn) {
       var logs = []; sn.forEach(function (c) { logs.push(c.val()); });
       return hitungOrtu(logs, allSiswa, Date.now(), (typeof ortuWaKey === 'function') ? ortuWaKey : null);
     }, function () { return null; });
@@ -290,10 +325,10 @@
     Promise.all([akunP, angketP]).then(function (r) {
       if (el('kpiOrtu') !== w) return;
       if (terakhir) terakhir.ortu = r[0];
-      var h = r[0] ? kartu('Orang tua aktif', r[0].pct, KPI_TARGET.ortuAktif, 'min', r[0].aktif + ' dari ' + r[0].total + ' nomor WA login ≤ ' + ORTU_AKTIF_HARI + ' hari' + (r[0].tanpaWa ? ' (' + r[0].tanpaWa + ' siswa belum punya nomor WA)' : '')) :
+      var h = r[0] ? kartu('Orang tua aktif', r[0].pct, KPI_TARGET.ortuAktif, 'min', r[0].aktif + ' dari ' + r[0].total + ' nomor WhatsApp (WA) login ≤ ' + ORTU_AKTIF_HARI + ' hari' + (r[0].tanpaWa ? ' (' + r[0].tanpaWa + ' siswa belum punya nomor WA)' : '')) :
         '<div class="kpi-card"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Riwayat login orang tua tidak bisa dibaca (izin akses).</div></div>';
       var a = r[1];
-      h += a ? '<div class="kpi-card"><div class="kpi-nama">Angket Keunggulan</div><div class="kpi-val">' + (a.guru + a.kepala + a.ortu + a.siswa) + '</div><div class="kpi-sub">responden<br>Guru ' + a.guru + ' · Kepala ' + a.kepala + '<br>Ortu ' + a.ortu + ' · Siswa ' + a.siswa + '</div></div>' :
+      h += a ? '<div class="kpi-card"><div class="kpi-nama">Angket Keunggulan</div><div class="kpi-val">' + (a.guru + a.kepala + a.ortu + a.siswa) + '</div><div class="kpi-sub">responden<br>Guru ' + a.guru + ' · Kepala ' + a.kepala + '<br>Orang tua ' + a.ortu + ' · Siswa ' + a.siswa + '</div></div>' :
         '<div class="kpi-card"><div class="kpi-nama">Angket Keunggulan</div><div class="kpi-sub">Belum ada data atau tidak bisa dibaca.</div></div>';
       w.innerHTML = h;
     });
@@ -331,7 +366,7 @@
       var tampil = !pg.classList.contains('hidden');
       if (tampil && !tampilSebelumnya) {
         var t = el('pageTitle'); if (t) t.textContent = 'KPI Madrasah';
-        guruMuat.coba = false;
+        guruMuat.coba = false; guruCadangan.coba = false;
         try { render(); } catch (e) { pg.innerHTML = '<div class="card"><p class="text-muted">KPI gagal dimuat: ' + esc(e && e.message ? e.message : e) + '</p></div>'; try { console.error('[kpi]', e); } catch (e2) {} }
       }
       tampilSebelumnya = tampil;
