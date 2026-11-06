@@ -1,14 +1,15 @@
 /* ============================================================
-   SI MAMBA - js/portal-tab.js (v10)
-   Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Lainnya.
+   SI MAMBA - js/portal-tab.js (v12)
+   Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Angket | Lainnya.
    Tidak mengubah isi/kartu: setiap anak langsung #portalOrtuContent diberi data-ptab, lalu CSS menyembunyikan yang bukan tab aktif.
+   Tab Angket menampung tiga angket (Kurikulum, Profil Lulusan, Keunggulan); titik merah muncul bila ada angket yang dibuka dan belum diisi.
    Kartu yang disisipkan belakangan oleh modul lain (Bacaan Sholat, Sholat Dhuha & Dzuhur, angket) ikut terklasifikasi otomatis lewat
    MutationObserver; anak yang tidak dikenal masuk "Lainnya". Di tablet/laptop (>= 760px) tab disembunyikan dan semua kartu tampil seperti biasa.
    Dimuat SESUDAH js/portal-ortu.js. Fungsi global: ptTampilkanDi(el) dipanggil poBukaBagian() agar kotak Ringkasan membuka tab yang tepat.
 ============================================================ */
 (function () {
   'use strict';
-  var TABS = [['home', 'home', 'Beranda'], ['amalan', 'moon', 'Amalan'], ['belajar', 'buku', 'Belajar'], ['lain', 'lain', 'Lainnya']];
+  var TABS = [['home', 'home', 'Beranda'], ['amalan', 'moon', 'Amalan'], ['belajar', 'buku', 'Belajar'], ['angket', 'angket', 'Angket'], ['lain', 'lain', 'Lainnya']];
   var KUNCI = 'mamba_po_tab';
   var aktif = 'home';
   try { var s = sessionStorage.getItem(KUNCI); if (s && TABS.some(function (t) { return t[0] === s; })) aktif = s; } catch (e) { /* storage tidak ada */ }
@@ -18,6 +19,7 @@
     home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     buku: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
+    angket: '<path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1z"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M8 11h8M8 15h5"/>',
     lain: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
     kehadiran: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M9 15l2 2 4-4"/>',
     agenda: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
@@ -115,11 +117,15 @@
   }
 
   function el(id) { return document.getElementById(id); }
+  // Tiga angket di Portal Ortu: Kurikulum (ortu & siswa), Profil Lulusan, Keunggulan (ortu & siswa). Slot kosong = angket ditutup.
+  // Urutan di sini = urutan tampil di tab Angket (diatur lewat CSS order di bawah): Kurikulum, Keunggulan, lalu Profil Lulusan.
+  var ID_ANGKET = ['angketOrtuSlot', 'angketSiswaSlot', 'angketKeunggulanOrtuSlot', 'angketKeunggulanSiswaSlot', 'p8OrtuBox'];
   function tabUntuk(c) {
     var id = c.id || '';
     if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda') return 'home';
     if (id === 'bsOrtuBox' || id === 'portalOrtuSholatCard') return 'amalan';
     if (id === 'poAccNilai') return 'belajar';
+    if (id === 'poAngketKosong' || ID_ANGKET.indexOf(id) >= 0) return 'angket';
     if (c.tagName === 'DETAILS') {
       var sm = c.querySelector('summary'), t = sm ? (sm.textContent || '').slice(0, 60) : '';
       if (/Tugas|Agenda|Infaq/.test(t)) return 'home';
@@ -163,6 +169,49 @@
     b2.onclick = function () { var a = el('bsOrtuPengingat'), x = a && a.querySelector('button.btn-soft'); if (x) x.click(); };
     baris.appendChild(b1); baris.appendChild(b2); m.appendChild(baris);
   }
+  // Kartu angket Kurikulum/Keunggulan tidak mengubah lencananya sesudah dikirim (formnya menampilkan "Anda sudah mengisi angket ini").
+  // Di sini lencananya disamakan, supaya titik merah ikut hilang begitu angket terkirim tanpa memuat ulang halaman.
+  function samakanLencana(content) {
+    Array.prototype.forEach.call(content.querySelectorAll('#angketOrtuSlot,#angketSiswaSlot,#angketKeunggulanOrtuSlot,#angketKeunggulanSiswaSlot'), function (slot) {
+      var bd = slot.querySelector('summary .po-badge.warn');
+      if (bd && /Anda sudah mengisi angket ini/.test(slot.textContent || '')) { bd.textContent = 'Sudah diisi'; bd.className = 'po-badge ok'; }
+    });
+  }
+  function kartuAngketBelum(content) {
+    return ID_ANGKET.map(el).filter(function (k) { return k && k.parentNode === content && k.querySelector('summary .po-badge.warn'); });
+  }
+  function adaAngketBelumDiisi(content) { return kartuAngketBelum(content).length > 0; }
+  // Ketuk kotak "Angket" di Ringkasan: buka tab Angket (HP), buka kartu angket pertama yang belum diisi, lalu gulir ke sana.
+  window.ptBukaAngket = function () {
+    var content = el('portalOrtuContent'); if (!content) return;
+    var k = kartuAngketBelum(content)[0]; if (!k) return;
+    if (window.innerWidth < 760) window.ptPilih('angket');
+    var d = k.tagName === 'DETAILS' ? k : k.querySelector('details'); if (d) d.open = true;
+    try { k.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { k.scrollIntoView(); }
+  };
+  // Kotak tambahan di Ringkasan Beranda: "Angket · N belum diisi". Hanya ada selama ada angket yang belum diisi.
+  function sinkronUbinAngket(content) {
+    var grid = content.querySelector('#poRingkas .po-rk-grid'), u = el('poRingkasAngket');
+    var n = kartuAngketBelum(content).length;
+    if (!grid || !n) { if (u) u.remove(); return; }
+    if (u && u.getAttribute('data-n') === String(n) && u.parentNode === grid) return;
+    if (u) u.remove();
+    u = document.createElement('button'); u.type = 'button'; u.id = 'poRingkasAngket'; u.className = 'po-ub po-ub-penuh'; u.setAttribute('data-n', String(n));
+    u.onclick = function () { window.ptBukaAngket(); };
+    u.innerHTML = '<span class="po-ub-j">' + window.poIkon('angket', 17) + ' Angket</span><span class="po-ub-u" style="color:#dc2626">' + n + ' belum diisi</span><span class="po-ub-s">Ketuk untuk mengisi</span>';
+    grid.appendChild(u);
+  }
+  // Isi kosong di tab Angket (semua angket ditutup / belum termuat): tampilkan keterangan singkat supaya tab tidak terlihat rusak.
+  function sinkronAngketKosong(content) {
+    var ada = ID_ANGKET.some(function (id) { var k = el(id); return k && k.parentNode === content && (k.textContent || '').replace(/\s+/g, '') !== ''; });
+    var m = el('poAngketKosong');
+    if (ada) { if (m) m.remove(); return; }
+    if (m) return;
+    m = document.createElement('div'); m.id = 'poAngketKosong'; m.className = 'card'; m.setAttribute('data-ptab', 'angket');
+    m.style.cssText = 'padding:14px;text-align:center;font-size:13px;color:#475569;';
+    m.textContent = 'Belum ada angket yang perlu diisi. Bila madrasah membuka angket, kartunya akan muncul di sini.';
+    content.appendChild(m);
+  }
   function terapkan() {
     var content = el('portalOrtuContent'); if (!content) return;
     var b = bar(); if (!b) return;
@@ -170,6 +219,7 @@
     b.style.display = siap ? '' : 'none';
     if (!siap) { content.removeAttribute('data-pt'); return; }
     sinkronPengingat(content);
+    samakanLencana(content); sinkronAngketKosong(content); sinkronUbinAngket(content);
     try { ikonkan(content); } catch (e) { console.warn('[SI MAMBA] Ikon Portal Ortu:', e); }
     Array.prototype.forEach.call(content.children, function (c) {
       var t = tabUntuk(c); if (c.getAttribute('data-ptab') !== t) c.setAttribute('data-ptab', t);
@@ -180,6 +230,8 @@
     });
     // Titik merah di tab Amalan bila ada pengingat "Amalan di rumah belum diisi" (kartu itu ada di dalam kotak Amalan).
     var dot = b.querySelector('button[data-tab="amalan"] .pt-dot'); if (dot) dot.hidden = !el('bsOrtuPengingat');
+    // Titik merah di tab Angket bila ada angket yang sedang dibuka dan belum diisi (lencana kartu "Mohon diisi" / "Belum diisi" / "Belum selesai").
+    var dotA = b.querySelector('button[data-tab="angket"] .pt-dot'); if (dotA) dotA.hidden = !adaAngketBelumDiisi(content);
   }
   window.ptPilih = function (k) {
     var arah = TABS.map(function (t) { return t[0]; }).indexOf(k) - TABS.map(function (t) { return t[0]; }).indexOf(aktif);
@@ -287,13 +339,14 @@
     + '@media(max-width:759px) and (prefers-reduced-motion:no-preference){#portalOrtuContent[data-anim="1"]>[data-ptab]{animation:ptMasuk .22s ease-out}}'
     + '@media(max-width:759px){#portalOrtuDashboard .po-bt{display:none}#portalOrtuDashboard .po-bt-ikon{padding:2px 8px!important;min-width:34px}}'
     + '@media(max-width:759px){.po-rk-grid{gap:5px!important}.po-ub{padding:6px 8px!important;gap:0!important}.po-ub-u{font-size:16px!important}.po-ub-s{line-height:1.25!important}'
-    + '#poTabBar{display:flex!important;gap:4px;position:sticky;top:0;z-index:20;background:#fff;padding:6px 0;margin:0 0 8px;border-bottom:1px solid #e5e7eb}'
+    + '#poTabBar{display:flex!important;gap:2px;position:sticky;top:0;z-index:20;background:#fff;padding:6px 0;margin:0 0 8px;border-bottom:1px solid #e5e7eb}'
     + '#poTabBar[style*="display: none"]{display:none!important}'
-    + '#poTabBar button{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 2px;border:0;border-radius:10px;background:transparent;color:#475569;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}'
-    + '#poTabBar .pt-i{display:flex;line-height:1}#poTabBar .pt-l{font-size:11px;font-weight:600}'
+    + '#poTabBar button{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 1px;border:0;border-radius:10px;background:transparent;color:#475569;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}'
+    + '#poTabBar .pt-i{display:flex;line-height:1}#poTabBar .pt-l{font-size:10.5px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.1px}'
     + '#poTabBar button.on{background:#d1fae5;color:#00543f}#poTabBar button.on .pt-l{font-weight:800}'
-    + '#poTabBar .pt-dot{position:absolute;top:3px;right:22%;width:8px;height:8px;border-radius:50%;background:#dc2626}#poTabBar .pt-dot[hidden]{display:none}'
-    + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
+    + '#poTabBar .pt-dot{position:absolute;top:2px;left:calc(50% + 6px);width:8px;height:8px;border-radius:50%;background:#dc2626}#poTabBar .pt-dot[hidden]{display:none}'
+    + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="angket"]>:not([data-ptab="angket"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
+    + '#portalOrtuContent[data-pt="angket"]{display:flex;flex-direction:column}#angketOrtuSlot{order:1}#angketSiswaSlot{order:2}#angketKeunggulanOrtuSlot{order:3}#angketKeunggulanSiswaSlot{order:4}#p8OrtuBox{order:5}#poAngketKosong{order:0}'
     + '}';
   // Tema hijau (v10): pita header hijau, latar halaman hijau muda, tab aktif hijau penuh. Warna utama ada di satu tempat (--po-hijau) supaya mudah diganti.
   // Juga memperbaiki ikon yang tadinya turun ke baris sendiri (styles.css membuat svg display:block).
