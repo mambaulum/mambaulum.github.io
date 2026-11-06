@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.346",
-  "disimpan": "2026-11-05T02:52:18.888Z",
+  "appVersion": "v8.349",
+  "disimpan": "2026-11-06T03:28:21.230Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -63,8 +63,8 @@
       "hash": "b535651d49931efe668008d41464a238f9f815bf"
     },
     "js/portal-ortu.js": {
-      "v": "v=21",
-      "hash": "345f781565d97037c1392299961515083aa0575e"
+      "v": "v=24",
+      "hash": "60e1cab2205c9464aa1fb5ca7f2478b65e05452a"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -133,6 +133,10 @@
     "js/angket.js": {
       "v": "v=11",
       "hash": "578bf1340c3d364076377f1b979c209fecab2479"
+    },
+    "js/angket-keunggulan.js": {
+      "v": "v=2",
+      "hash": "2d7456d7e7ebd664766b6632944be54871885f98"
     },
     "js/riwayat-login-ortu.js": {
       "v": "v=2",
