@@ -13,6 +13,11 @@
 
     // ---------- Portal Orang Tua: login No. WA + PIN buatan sendiri ----------
     const ORTU_PIN_ITER = 5000, ORTU_MAX_GAGAL = 5, ORTU_KUNCI_MENIT = 10;
+    // PIN pertama hanya boleh dibuat oleh orang tua yang SUDAH masuk lewat link WhatsApp dari madrasah (link membuktikan
+    // bahwa nomor itu milik penerimanya). Sebelumnya cukup mengetik nomor WA, sehingga siapa pun yang tahu nomor orang tua
+    // bisa mendaftar lebih dulu. Ubah ke false untuk mengembalikan perilaku lama (tombol di index.html muncul lagi).
+    const ORTU_BUAT_PIN_BUTUH_LINK = true;
+    const ORTU_PESAN_BUTUH_LINK = 'Untuk keamanan, minta link masuk dari wali kelas/Admin lewat WhatsApp. Setelah masuk, Anda bisa membuat PIN sendiri.';
     let portalOrtuWaKey = null, portalOrtuAnak = [], portalOrtuBusy = false;
     function ortuPinValid(pin) { return /^[0-9]{6}$/.test(pin); }
     function ortuPinTerlaluMudah(pin) { return /^(\d)\1{5}$/.test(pin) || '01234567890123456789'.includes(pin) || '98765432109876543210'.includes(pin); }
@@ -29,7 +34,12 @@
       document.getElementById('portalOrtuDashboard').style.display = 'none';
       ['portalOrtuNoWa', 'portalOrtuPin', 'portalOrtuPinBaru', 'portalOrtuPinBaru2'].forEach(id => { ortuEl(id).value = ''; });
       tampilFormBuatPinOrtu(false);
+      ortuTerapkanModeLink();
       ortuMasukOtomatis();
+    }
+    function ortuTerapkanModeLink() {
+      ['portalOrtuBlokPertama', 'portalOrtuBlokBuatPin'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = ORTU_BUAT_PIN_BUTUH_LINK ? 'none' : ''; });
+      const i = document.getElementById('portalOrtuInfoButuhLink'); if (i) i.style.display = ORTU_BUAT_PIN_BUTUH_LINK ? 'block' : 'none';
     }
     function tampilFormBuatPinOrtu(buat) {
       ortuEl('portalOrtuFormMasuk').style.display = buat ? 'none' : 'block';
@@ -43,6 +53,7 @@
       if (ortuLinkBaca() && !confirm('Jika keluar, Anda perlu membuka kembali link dari WhatsApp untuk masuk lagi.\n\nTetap keluar?')) return;
       ortuPerangkatLupa(); ortuLinkLupa();
       const infoPin = document.getElementById('portalOrtuPinOtomatis'); if (infoPin) infoPin.remove();
+      const kartuBuatPin = document.getElementById('portalOrtuBuatPinLink'); if (kartuBuatPin) kartuBuatPin.remove();
       portalOrtuWaKey = null; portalOrtuAnak = [];
       ortuEl('portalOrtuContent').innerHTML = '';
       ['portalOrtuPinLama', 'portalOrtuPinGanti1', 'portalOrtuPinGanti2'].forEach(id => { ortuEl(id).value = ''; });
@@ -162,6 +173,7 @@
     function buatPinOrtu() {
       const errEl = ortuEl('portalOrtuError');
       if (portalOrtuBusy) return;
+      if (ORTU_BUAT_PIN_BUTUH_LINK) { errEl.textContent = '⚠️ ' + ORTU_PESAN_BUTUH_LINK; return; }
       if (typeof CryptoJS === 'undefined') { errEl.textContent = '❌ Komponen keamanan belum termuat. Muat ulang halaman lalu coba lagi.'; return; }
       const waKey = ortuWaKey(ortuEl('portalOrtuNoWa').value);
       const pin1 = ortuEl('portalOrtuPinBaru').value.trim(), pin2 = ortuEl('portalOrtuPinBaru2').value.trim();
@@ -261,6 +273,7 @@
     function masukPertamaKaliOrtu() {
       const errEl = ortuEl('portalOrtuError');
       if (portalOrtuBusy) return;
+      if (ORTU_BUAT_PIN_BUTUH_LINK) { errEl.textContent = '⚠️ ' + ORTU_PESAN_BUTUH_LINK; return; }
       if (typeof CryptoJS === 'undefined') { errEl.textContent = '❌ Komponen keamanan belum termuat. Muat ulang halaman lalu coba lagi.'; return; }
       const waKey = ortuWaKey(ortuEl('portalOrtuNoWa').value);
       if (!waKey) { errEl.textContent = '⚠️ Isi nomor WhatsApp yang valid dulu di kolom atas.'; return; }
@@ -327,10 +340,56 @@
       ortuEl('portalOrtuGantiPin').style.display = 'none';
       const tanpaPin = !!ortuLinkBaca() && !ortuPerangkatBaca();   // masuk lewat link WA: belum ada PIN, tombol Ganti PIN disembunyikan
       document.querySelectorAll('#portalOrtuDashboard [onclick="toggleGantiPinOrtu()"]').forEach(b => { b.style.display = tanpaPin ? 'none' : ''; });
+      const kartuLama = document.getElementById('portalOrtuBuatPinLink'); if (kartuLama) kartuLama.remove();
+      if (ORTU_BUAT_PIN_BUTUH_LINK && tanpaPin) ortuTampilBuatPinLink(waKey);
       const sel = ortuEl('portalOrtuAnakSelect');
       sel.innerHTML = anak.map(a => `<option value="${escapeHtml(a.key)}">${escapeHtml(a.name || '-')} — ${escapeHtml(a.kelas || '-')}</option>`).join('');
       ortuEl('portalOrtuAnakWrap').style.display = anak.length > 1 ? 'block' : 'none';
       renderPortalOrtuDashboard(anak[0]);
+    }
+    // ---------- Buat PIN sendiri setelah masuk lewat link WhatsApp ----------
+    function ortuPunyaLinkValid(waKey) {
+      const c = ortuLinkBaca();
+      if (!c || c.wa !== waKey) return Promise.resolve(false);
+      return db.ref('ortu_link/' + c.wa + '/' + ortuLinkHash(c.tok)).once('value').then(sn => { const v = sn.val(); return !!v && !v.dicabut; }, () => false);
+    }
+    function ortuTampilBuatPinLink(waKey) {
+      db.ref('ortu_akun/' + waKey).once('value').then(sn => {
+        if (sn.exists() || portalOrtuWaKey !== waKey || document.getElementById('portalOrtuBuatPinLink')) return;   // sudah punya PIN / sudah keluar
+        const content = ortuEl('portalOrtuContent'); if (!content || !content.parentNode) return;
+        const box = document.createElement('div'); box.id = 'portalOrtuBuatPinLink'; box.className = 'card'; box.style.cssText = 'margin-bottom:12px;border-left:4px solid #059669;';
+        box.innerHTML = `<p style="font-weight:700;margin-bottom:4px;">🔑 Buat PIN (opsional)</p>
+          <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Dengan PIN, Bapak/Ibu juga bisa masuk dari HP lain memakai nomor WhatsApp, tanpa link.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <input id="portalOrtuBuatPinLink1" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="PIN 6 angka" style="flex:1;min-width:120px;">
+            <input id="portalOrtuBuatPinLink2" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="Ulangi PIN" style="flex:1;min-width:120px;">
+          </div>
+          <button type="button" class="btn btn-success" style="font-size:12px;padding:6px 14px;" onclick="ortuBuatPinDariLink()">💾 Simpan PIN</button>
+          <div id="portalOrtuBuatPinLinkMsg" style="margin-top:8px;font-size:12px;"></div>`;
+        content.parentNode.insertBefore(box, content);
+      }).catch(() => {});
+    }
+    function ortuBuatPinDariLink() {
+      const msg = ortuEl('portalOrtuBuatPinLinkMsg'); if (!msg || portalOrtuBusy || !portalOrtuWaKey) return;
+      if (typeof CryptoJS === 'undefined') { msg.style.color = '#dc2626'; msg.textContent = '❌ Komponen keamanan belum termuat. Muat ulang halaman.'; return; }
+      const p1 = ortuEl('portalOrtuBuatPinLink1').value.trim(), p2 = ortuEl('portalOrtuBuatPinLink2').value.trim();
+      msg.style.color = '#dc2626';
+      if (!ortuPinValid(p1)) { msg.textContent = '⚠️ PIN harus 6 angka.'; return; }
+      if (ortuPinTerlaluMudah(p1)) { msg.textContent = '⚠️ PIN terlalu mudah ditebak. Pilih PIN lain.'; return; }
+      if (p1 !== p2) { msg.textContent = '⚠️ Ulangi PIN tidak sama.'; return; }
+      const waKey = portalOrtuWaKey;
+      portalOrtuBusy = true; msg.textContent = '⏳ Menyimpan...';
+      ortuPunyaLinkValid(waKey).then(ok => {
+        if (!ok) throw { tampil: 'Link masuk Anda sudah tidak berlaku. Minta link baru ke wali kelas/Admin.' };
+        const hash = ortuHashPin(p1, waKey), sekarang = new Date().toISOString();
+        return db.ref('ortu_akun/' + waKey).transaction(cur => cur ? undefined : { pin: hash, v: 1, dibuat: sekarang, terakhirLogin: sekarang }).then(res => {
+          if (!res.committed) throw { tampil: 'Nomor ini sudah punya PIN. Lupa PIN? Hubungi Admin untuk reset.' };
+          const k = document.getElementById('portalOrtuBuatPinLink'); if (k) k.remove();
+          document.querySelectorAll('#portalOrtuDashboard [onclick="toggleGantiPinOrtu()"]').forEach(b => { b.style.display = ''; });
+          toast('✅ PIN berhasil dibuat. Bisa dipakai untuk masuk dari HP lain.');
+        });
+      }).catch(e => { msg.style.color = '#dc2626'; msg.textContent = ortuPesanError(e); })
+        .finally(() => { portalOrtuBusy = false; });
     }
     function pilihAnakPortalOrtu(key) {
       const a = portalOrtuAnak.find(x => x.key === key);
@@ -484,6 +543,12 @@
       return poAcc(`💵 Infaq · TA ${escapeHtml(currentTahunAjaran)}`, gratis ? poBadge('Bebas', 'ok') : (belum.length ? poBadge(belum.length + ' mgg belum', 'bad') : poBadge('Lancar', 'ok')), `${statusIni}${ringkas}${blokTunggak}${blokRiwayat}
           <p class="text-muted" style="font-size:11px;margin-top:8px;">Berdasarkan catatan petugas infaq kelas. Minggu libur pada kalender akademik dan minggu berjalan tidak dihitung; nominal tunggakan adalah perkiraan. Bila ada selisih dengan catatan Bapak/Ibu, mohon hubungi wali kelas.</p>`, false, 'poAccInfaq');
     }
+    // Satu query ditolak (Rules/jaringan) tidak lagi menggagalkan seluruh dashboard: node itu dianggap kosong
+    // dan namanya dicatat di `gagal` supaya orang tua diberi tahu bahwa sebagian data belum termuat.
+    const ORTU_SNAP_KOSONG = { forEach() { return false; }, numChildren() { return 0; }, val() { return null; }, exists() { return false; } };
+    function ortuBacaAman(ref, nama, gagal) {
+      return ref.once('value').catch(e => { gagal.push(nama); console.warn('[SI MAMBA] Portal Ortu: gagal membaca ' + nama + ':', (e && e.message) || e); return ORTU_SNAP_KOSONG; });
+    }
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');
       content.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">⏳ Memuat data...</p>';
@@ -492,21 +557,23 @@
       const prevMonthStr = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
       const NAMA_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
       const labelBulan = ym => NAMA_BULAN_ID[parseInt(ym.slice(5, 7), 10) - 1] + ' ' + ym.slice(0, 4);
+      // events & ujian: hanya 8 terdekat mulai hari ini (butuh ".indexOn": ["tanggal"] di Rules; tanpa itu tetap jalan, hanya lebih boros).
+      const gagalMuat = [];
       Promise.all([
-        db.ref('grades').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
-        db.ref('kedisiplinan_siswa').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
-        db.ref('iuran_siswa').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
-        db.ref('buku_penghubung').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
+        ortuBacaAman(db.ref('grades').orderByChild('siswaKey').equalTo(siswa.key), 'grades', gagalMuat),
+        ortuBacaAman(db.ref('kedisiplinan_siswa').orderByChild('siswaKey').equalTo(siswa.key), 'kedisiplinan_siswa', gagalMuat),
+        ortuBacaAman(db.ref('iuran_siswa').orderByChild('siswaKey').equalTo(siswa.key), 'iuran_siswa', gagalMuat),
+        ortuBacaAman(db.ref('buku_penghubung').orderByChild('siswaKey').equalTo(siswa.key), 'buku_penghubung', gagalMuat),
         // Hanya absensi BULAN INI + BULAN LALU (cadangan saat awal bulan belum ada absensi; dulu seluruh riwayat kelas, semua tahun). Filter kelas dilakukan di bawah.
-        db.ref('attendance').orderByChild('tanggal').startAt(prevMonthStr + '-01').endAt(monthStr + '-31').once('value'),
-        db.ref('materi_belajar').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
-        db.ref('tugas').orderByChild('kelas').equalTo(siswa.kelas).once('value'),
-        db.ref('tugas_submission').orderByChild('siswaKey').equalTo(siswa.key).once('value'),
+        ortuBacaAman(db.ref('attendance').orderByChild('tanggal').startAt(prevMonthStr + '-01').endAt(monthStr + '-31'), 'attendance', gagalMuat),
+        ortuBacaAman(db.ref('materi_belajar').orderByChild('kelas').equalTo(siswa.kelas), 'materi_belajar', gagalMuat),
+        ortuBacaAman(db.ref('tugas').orderByChild('kelas').equalTo(siswa.kelas), 'tugas', gagalMuat),
+        ortuBacaAman(db.ref('tugas_submission').orderByChild('siswaKey').equalTo(siswa.key), 'tugas_submission', gagalMuat),
         // Hanya jurnal HARI INI (dulu seluruh riwayat jurnal kelas). Filter kelas dilakukan di bawah.
-        db.ref('journal').orderByChild('tanggal').equalTo(tglLokal()).once('value'),
-        db.ref('kalender_akademik').once('value'),
-        db.ref('events').once('value'),
-        db.ref('ujian').once('value')
+        ortuBacaAman(db.ref('journal').orderByChild('tanggal').equalTo(tglLokal()), 'journal', gagalMuat),
+        ortuBacaAman(db.ref('kalender_akademik'), 'kalender_akademik', gagalMuat),
+        ortuBacaAman(db.ref('events').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'events', gagalMuat),
+        ortuBacaAman(db.ref('ujian').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'ujian', gagalMuat)
       ]).then(([gradesSnap, sikapSnap, iuranSnap, bukuSnap, absenSnap, materiSnap, tugasSnap, submissionSnap, journalSnap, kalenderSnap, eventsSnap, ujianSnap]) => {
         // Semua query di atas cuma bisa orderByChild SATU field di Firebase RTDB (siswaKey/kelas),
         // jadi filter tahunAjaran-nya WAJIB ditambahkan manual di sini -- tanpa ini, portal ortu
@@ -535,7 +602,7 @@
         journalSnap.forEach(c => { const j = c.val(); if (j.kelas === siswa.kelas && j.tanggal === todayStrJurnal && j.status === 'approved' && sesuaiTahunAjaran(j)) journalHariIni.push(j); });
         journalHariIni.sort((a,b) => (a.jam_ke||0) - (b.jam_ke||0));
         const journalRows = journalHariIni.map(j => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
-          <div class="text-muted" style="font-size:11px;">Jam ke-${j.jam_ke} — ${escapeHtml(j.subject||'-')}</div>
+          <div class="text-muted" style="font-size:11px;">Jam ke-${escapeHtml(j.jam_ke)} — ${escapeHtml(j.subject||'-')}</div>
           <div style="font-size:13px;margin-top:2px;">${escapeHtml(j.activity||'-')}</div>
           <div class="text-muted" style="font-size:11px;margin-top:2px;">Oleh: ${escapeHtml(j.guru||'-')}</div>
         </div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada jurnal pelajaran tercatat untuk hari ini.</p>';
@@ -571,10 +638,10 @@
         // Nilai belum lengkap (NH, MID, atau PAS belum lengkap) tampil abu-abu berlabel "sementara", bukan angka rendah biasa.
         const nilaiRows = grades.map(g => { const st = statusRapor(g.data || {}); const sel = st.nilai === null ? '-' : (st.final ? st.nilai : raporSementaraHtml(st.nilai)); return `<tr><td>${escapeHtml(g.subject||'-')}</td><td>${escapeHtml(g.semester||'-')}</td><td style="text-align:right;font-weight:700;">${sel}</td></tr>`; }).join('')
           + (grades.some(g => { const st = statusRapor(g.data || {}); return st.nilai !== null && !st.final; }) ? `<tr><td colspan="3" style="font-size:11px;color:#6b7280;font-style:italic;">Nilai berlabel sementara belum final. Angka menjadi final setelah minimal satu NH, MID, dan PAS terisi.</td></tr>` : '');
-        const totalPelanggaran = sikap.filter(d=>d.jenis==='pelanggaran').reduce((s,d)=>s+(d.poin||0),0);
-        const totalPrestasi = sikap.filter(d=>d.jenis==='prestasi').reduce((s,d)=>s+(d.poin||0),0);
+        const totalPelanggaran = sikap.filter(d=>d.jenis==='pelanggaran').reduce((s,d)=>s+(Number(d.poin)||0),0);
+        const totalPrestasi = sikap.filter(d=>d.jenis==='prestasi').reduce((s,d)=>s+(Number(d.poin)||0),0);
         const netSikap = totalPrestasi - totalPelanggaran;
-        const sikapRows = [...sikap].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(d => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;"><span style="color:${d.jenis==='prestasi'?'#059669':'#dc2626'};font-weight:600;">${d.jenis==='prestasi'?'🌟':'⚠️'} ${escapeHtml(d.kategori||'-')}</span> <span class="text-muted">(${d.poin||0} poin) — ${escapeHtml(d.tanggal||'-')}</span></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada catatan.</p>';
+        const sikapRows = [...sikap].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(d => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;"><span style="color:${d.jenis==='prestasi'?'#059669':'#dc2626'};font-weight:600;">${d.jenis==='prestasi'?'🌟':'⚠️'} ${escapeHtml(d.kategori||'-')}</span> <span class="text-muted">(${Number(d.poin) || 0} poin) — ${escapeHtml(d.tanggal||'-')}</span></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada catatan.</p>';
         const iuranMingguIni = iuran.find(it => it.minggu === isoMingguKey());
         // Diagnosis infaq: bandingkan jumlah catatan mentah milik anak ini dengan yang lolos filter tahun ajaran.
         // Hanya ke Console (tidak ditampilkan ke orang tua). Buka Console HP/Chrome desktop untuk melihatnya.
@@ -586,7 +653,7 @@
         } catch (e) { /* diagnosis opsional */ }
         const infaqCardHtml = portalOrtuInfaqHtml(siswa, iuran, kalenderSnap);
         const bukuRows = [...buku].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(b => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;"><div class="text-muted" style="font-size:12px;">${escapeHtml(b.tanggal||'-')}</div><div style="font-size:13px;">${escapeHtml(b.catatan||'-')}</div></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada catatan dari guru.</p>';
-        const materiRows = [...materi].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(m => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;"><div style="font-size:13px;font-weight:600;">${escapeHtml(m.judul)} <span class="text-muted" style="font-weight:400;font-size:11px;">— ${escapeHtml(m.mapel||'-')} — ${escapeHtml(m.tanggal||'-')}</span></div><div class="text-muted" style="font-size:12px;margin-top:2px;">${escapeHtml(m.isi)}</div>${m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;">🔗 Buka Link</a>` : ''}</div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada materi dibagikan.</p>';
+        const materiRows = [...materi].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(m => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;"><div style="font-size:13px;font-weight:600;">${escapeHtml(m.judul)} <span class="text-muted" style="font-weight:400;font-size:11px;">— ${escapeHtml(m.mapel||'-')} — ${escapeHtml(m.tanggal||'-')}</span></div><div class="text-muted" style="font-size:12px;margin-top:2px;">${escapeHtml(m.isi)}</div>${/^https?:\/\//i.test(String(m.link || '')) ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;">🔗 Buka Link</a>` : ''}</div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada materi dibagikan.</p>';
         const tugasRows = [...tugasList].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).map(t => {
           const sub = submissionMap[t.key];
           if (sub) {
@@ -599,9 +666,9 @@
             <div style="font-size:13px;font-weight:600;">${escapeHtml(t.judul)} <span class="text-muted" style="font-weight:400;font-size:11px;">— ${escapeHtml(t.mapel||'-')}</span></div>
             <div class="text-muted" style="font-size:12px;margin:4px 0;">${escapeHtml(t.deskripsi)}</div>
             <div style="font-size:11px;color:#d97706;margin-bottom:6px;">⏳ Belum dikumpulkan${t.deadline ? ' — batas waktu: ' + escapeHtml(t.deadline) : ''}</div>
-            <textarea id="jawabanTeks_${t.key}" class="field" rows="2" placeholder="Tulis jawaban di sini (opsional kalau cuma kirim foto)..." style="margin-bottom:6px;"></textarea>
-            <input id="jawabanFoto_${t.key}" type="file" accept="image/*" style="font-size:12px;margin-bottom:6px;">
-            <button class="btn btn-success" style="font-size:12px;padding:6px 12px;" onclick="kumpulTugasOrtu('${t.key}','${siswa.key}','${escapeJs(siswa.name)}','${escapeJs(siswa.kelas)}')">📤 Kumpulkan Tugas</button>
+            <textarea id="jawabanTeks_${escapeHtml(t.key)}" class="field" rows="2" placeholder="Tulis jawaban di sini (opsional kalau cuma kirim foto)..." style="margin-bottom:6px;"></textarea>
+            <input id="jawabanFoto_${escapeHtml(t.key)}" type="file" accept="image/*" style="font-size:12px;margin-bottom:6px;">
+            <button class="btn btn-success" style="font-size:12px;padding:6px 12px;" onclick="kumpulTugasOrtu('${escapeJs(t.key)}','${escapeJs(siswa.key)}','${escapeJs(siswa.name)}','${escapeJs(siswa.kelas)}')">📤 Kumpulkan Tugas</button>
           </div>`;
         }).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada tugas untuk kelas ini.</p>';
         const belumTugas = tugasList.filter(t => !submissionMap[t.key]).length;
@@ -643,6 +710,7 @@
               ${catatanAbsen ? `<p class="text-muted" style="font-size:11px;font-style:italic;margin:8px 0 0;text-align:center;">${catatanAbsen}</p>` : ''}
             </div>
           </div>
+          ${gagalMuat.length ? '<div class="card" style="margin-bottom:8px;border-left:4px solid #d97706;font-size:12px;">⚠️ Sebagian data belum bisa dimuat. Tarik ke bawah untuk muat ulang, atau hubungi Admin bila berulang.</div>' : ''}
           ${ringkasHtml}
           ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
           ${poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false, 'poAccNilai')}
@@ -654,6 +722,8 @@
           ${poAcc('📖 Buku Penghubung Terbaru', buku.length ? poBadge(Math.min(buku.length, 5) + ' catatan') : poBadge('Kosong'), bukuRows, false)}
           <div id="angketOrtuSlot"></div>
           <div id="angketSiswaSlot"></div>
+          <div id="angketKeunggulanOrtuSlot"></div>
+          <div id="angketKeunggulanSiswaSlot"></div>
           <details class="card po-acc">
             <summary><span>${poID('💬 Saran &amp; Kritik untuk Madrasah')}</span></summary>
             <div class="po-acc-body">
@@ -662,7 +732,7 @@
             <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0;cursor:pointer;">
               <input type="checkbox" id="saranKritikAnonim"> Kirim sebagai anonim (nama &amp; kelas tidak disertakan)
             </label>
-            <button class="btn btn-primary" id="btnKirimSaranKritik" style="font-size:12px;padding:7px 14px;" onclick="kirimSaranKritik('${siswa.key}','${escapeJs(siswa.name)}','${escapeJs(siswa.kelas)}')">📤 Kirim ke Madrasah</button>
+            <button class="btn btn-primary" id="btnKirimSaranKritik" style="font-size:12px;padding:7px 14px;" onclick="kirimSaranKritik('${escapeJs(siswa.key)}','${escapeJs(siswa.name)}','${escapeJs(siswa.kelas)}')">📤 Kirim ke Madrasah</button>
             <div id="saranKritikStatus" style="margin-top:8px;font-size:12px;"></div>
             </div>
           </details>
@@ -671,6 +741,7 @@
         try { if (typeof bsOrtuRender === 'function') bsOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Bacaan Shalat (Portal Ortu) gagal dirender:', e); }
         try { if (typeof angketProfilOrtuRender === 'function') angketProfilOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Profil Lulusan (Portal Ortu) gagal dirender:', e); }
         try { angketOrtuMuat(siswa); angketSiswaMuat(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Kurikulum (Portal Ortu) gagal dimuat:', e); }
+        try { angketKeunggulanMuat('ortu', siswa); angketKeunggulanMuat('siswa', siswa); } catch (e) { console.warn('[SI MAMBA] Angket Keunggulan (Portal Ortu) gagal dimuat:', e); }
       }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${err.message}</p>`; });
     }
     // ---------- Angket Kurikulum untuk orang tua (modul: js/angket.js) ----------
@@ -712,6 +783,34 @@
     }
     function angketOrtuMuat(siswa) { angketPortalMuat('ortu', siswa); }
     function angketSiswaMuat(siswa) { angketPortalMuat('siswa', siswa); }
+    // ---------- Angket Keunggulan Madrasah untuk orang tua / siswa (modul: js/angket-keunggulan.js) ----------
+    // Sama dengan Angket Kurikulum di atas: kartu muncul hanya saat angket keunggulan DIBUKA (ON), kunci data = hash
+    // (tanpa No. WA), isian anonim tidak bisa ditelusuri. Hanya sisi Minat (5 butir). Path data: angket_keunggulan/...
+    function angketKeunggulanMuat(jenis, siswa) {
+      const ortu = jenis === 'ortu';
+      const slotId = ortu ? 'angketKeunggulanOrtuSlot' : 'angketKeunggulanSiswaSlot';
+      if (!document.getElementById(slotId) || typeof AngketKeunggulan === 'undefined') return;
+      const kunci = angketOrtuKunci(ortu ? portalOrtuWaKey : 'siswa:' + siswa.key);
+      const accId = ortu ? 'angketKeunggulanOrtuAcc' : 'angketKeunggulanSiswaAcc', wadahId = ortu ? 'angketKeunggulanOrtuWadah' : 'angketKeunggulanSiswaWadah';
+      AngketKeunggulan.cekAktif().then(st => {
+        if (!st.aktif || !document.getElementById(slotId)) return;
+        return db.ref('angket_keunggulan/' + st.periode + '/' + jenis + '/' + kunci).once('value').then(x => x.exists(), () => false).then(sudah => {
+          const slot2 = document.getElementById(slotId); if (!slot2) return;
+          const judul = ortu ? '🌟 Angket Keunggulan Madrasah' : '🌟 Angket Keunggulan · ' + escapeHtml(siswa.name || '-');
+          const pengantar = ortu
+            ? 'Bidang apa yang Bapak/Ibu harapkan berkembang di madrasah (Tahfidz, Bahasa, Seni &amp; Olahraga, Sains &amp; Riset, Kewirausahaan &amp; Literasi Digital)? Sekitar 2 menit.'
+            : 'Untuk Ananda. Mohon <b>didampingi</b>: bacakan tiap pernyataan, lalu biarkan Ananda memilih sendiri kegiatan yang ia sukai. Bukan ujian, tidak memengaruhi nilai.';
+          slot2.innerHTML = `<details class="card po-acc" id="${accId}" style="margin-bottom:12px;"><summary><span>${poID(judul)}</span>${sudah ? poBadge('Sudah diisi', 'ok') : poBadge('Mohon diisi', 'warn')}</summary>
+            <div class="po-acc-body"><p class="text-muted" style="font-size:12px;margin-bottom:8px;">${pengantar}</p><div id="${wadahId}"></div></div></details>`;
+          const acc = document.getElementById(accId); let dimuat = false;
+          acc.addEventListener('toggle', () => {
+            if (!acc.open || dimuat) return; dimuat = true;
+            const nama = ortu ? 'Wali dari ' + (siswa.name || '-') + ' (' + (siswa.kelas || '-') + ')' : (siswa.name || '-') + ' (' + (siswa.kelas || '-') + ')';
+            AngketKeunggulan.renderForm(wadahId, jenis, { kunci, nama }, { izinAnonim: true });
+          });
+        });
+      }).catch(() => {});
+    }
     // Saran & Kritik dari Portal Orang Tua -- disimpan terpisah dari data siswa lain (tidak ikut
     // di-load lagi ke portal setelah kirim, sekali kirim langsung selesai) supaya orang tua tidak
     // bisa lihat balik kiriman orang lain. Opsi anonim: siswaKey/siswaNama/kelas cuma diisi kalau
@@ -757,7 +856,7 @@
           if (err) { toast('❌ Gagal mengumpulkan: ' + err.message, true); return; }
           simpanFotoTerpisah('tugas_submission', tugasKey + '_' + siswaKey, fotoDataUrl); // set / hapus foto (kumpul ulang tanpa foto = foto lama dihapus)
           toast('✅ Tugas berhasil dikumpulkan!');
-          const siswa = { key: siswaKey, name: siswaNama, kelas };
+          const siswa = portalOrtuAnak.find(a => a.key === siswaKey) || { key: siswaKey, name: siswaNama, kelas };   // objek utuh (nominal iuran dsb.), bukan yang dipangkas
           renderPortalOrtuDashboard(siswa);
         });
       };
