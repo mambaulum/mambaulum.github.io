@@ -152,7 +152,11 @@
   <!-- Angket (gabungan: Angket Kurikulum + Angket Profil Lulusan). WAJIB sesudah app.js dan portal-ortu.js. -->
   <script defer src="js/angket.js?v=11"></script>
   <!-- Angket Keunggulan Madrasah (tab ke-3 pada halaman Angket + kartu Portal Ortu). WAJIB sesudah angket.js (membungkus setupAngketPage). -->
-  <script defer src="js/angket-keunggulan.js?v=3"></script>
+  <script defer src="js/angket-keunggulan.js?v=4"></script>
+  <!-- KPI Madrasah (halaman Admin & Kepala, hanya membaca data). WAJIB sesudah app.js dan infaq.js. -->
+  <script defer src="js/kpi.js?v=1"></script>
+  <!-- Catatan Nilai Harian: rata-rata penilaian harian mengisi NH1/NH2/NH3 di halaman Nilai. WAJIB sesudah app.js. -->
+  <script defer src="js/nilai-harian.js?v=1"></script>
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
   <script defer src="js/riwayat-login-ortu.js?v=2"></script>
   <script defer src="js/ortu-akun-admin.js?v=2"></script>
@@ -466,6 +470,7 @@
             <div class="menu-item notif-badge" data-page="admin"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-admin"/></svg></span> Admin <span class="badge-dot" id="adminNotifDot"></span></div>
             <div class="menu-item" data-page="user-management"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> User & Permission</div>
             <div class="menu-item" data-page="rekap"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> Ringkasan Sekolah</div>
+            <div class="menu-item hidden-tab" data-page="kpi"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> KPI Madrasah</div>
             <div class="menu-item" data-page="setting-jam"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-setting-jam"/></svg></span> Setting Jam</div>
           </div>
         </div>
@@ -2181,6 +2186,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
       <!-- ============================================================
            PAGE: ANGKET (diisi oleh js/angket.js + js/angket-keunggulan.js): tab Kurikulum | Profil Lulusan | Keunggulan
       ============================================================ -->
+      <div id="page-kpi" class="page-content hidden"></div>
       <div id="page-angket" class="page-content hidden">
         <div id="angketTabBar" class="akq-tabs hidden" style="margin-bottom:12px;"></div>
         <div id="angketKurikulumArea"></div>
