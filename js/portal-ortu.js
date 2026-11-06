@@ -785,7 +785,7 @@
     function angketSiswaMuat(siswa) { angketPortalMuat('siswa', siswa); }
     // ---------- Angket Keunggulan Madrasah untuk orang tua / siswa (modul: js/angket-keunggulan.js) ----------
     // Sama dengan Angket Kurikulum di atas: kartu muncul hanya saat angket keunggulan DIBUKA (ON), kunci data = hash
-    // (tanpa No. WA), isian anonim tidak bisa ditelusuri. Hanya sisi Minat (5 butir). Path data: angket_keunggulan/...
+    // (tanpa No. WA), isian anonim tidak bisa ditelusuri. Hanya sisi Minat (3 butir per bidang) + pilihan bidang prioritas. Path data: angket_keunggulan/...
     function angketKeunggulanMuat(jenis, siswa) {
       const ortu = jenis === 'ortu';
       const slotId = ortu ? 'angketKeunggulanOrtuSlot' : 'angketKeunggulanSiswaSlot';
@@ -798,7 +798,7 @@
           const slot2 = document.getElementById(slotId); if (!slot2) return;
           const judul = ortu ? '🌟 Angket Keunggulan Madrasah' : '🌟 Angket Keunggulan · ' + escapeHtml(siswa.name || '-');
           const pengantar = ortu
-            ? 'Bidang apa yang Bapak/Ibu harapkan berkembang di madrasah (Tahfidz, Bahasa, Seni &amp; Olahraga, Sains &amp; Riset, Kewirausahaan &amp; Literasi Digital)? Sekitar 2 menit.'
+            ? 'Bidang apa yang Bapak/Ibu harapkan berkembang di madrasah (Tahfidz, Bahasa, Seni &amp; Olahraga, Sains &amp; Riset, Kewirausahaan &amp; Literasi Digital)? Sekitar 3 menit.'
             : 'Untuk Ananda. Mohon <b>didampingi</b>: bacakan tiap pernyataan, lalu biarkan Ananda memilih sendiri kegiatan yang ia sukai. Bukan ujian, tidak memengaruhi nilai.';
           slot2.innerHTML = `<details class="card po-acc" id="${accId}" style="margin-bottom:12px;"><summary><span>${poID(judul)}</span>${sudah ? poBadge('Sudah diisi', 'ok') : poBadge('Mohon diisi', 'warn')}</summary>
             <div class="po-acc-body"><p class="text-muted" style="font-size:12px;margin-bottom:8px;">${pengantar}</p><div id="${wadahId}"></div></div></details>`;
