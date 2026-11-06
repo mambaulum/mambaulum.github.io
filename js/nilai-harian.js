@@ -224,9 +224,11 @@
       }).join('') + '</tbody></table></div>';
     if (!lihat) {
       h += '<div class="nh-bar"><button type="button" class="btn" id="nhTambah"' + (s.kolom.length >= MAKS_KOLOM ? ' disabled' : '') + '>+ Tambah penilaian</button>' +
+        (guru ? '<button type="button" class="btn btn-soft" id="nhAmbil">⬆ Ambil NH lama</button>' : '') +
         '<button type="button" class="btn btn-success" id="nhSimpan">💾 Simpan Catatan</button>' +
         (guru ? '<button type="button" class="btn btn-success" id="nhTerap">⬇ Terapkan rata-rata ke ' + labelNh(s.c.nh) + '</button>' : '') + '</div>';
     }
+    if (guru) h += '<div class="nh-cat"><b>Ambil NH lama</b>: menyalin nilai ' + labelNh(s.c.nh) + ' yang sudah ada di tabel nilai ke kolom "NH lama" untuk siswa yang belum punya catatan (rincian per penilaian sebelumnya tidak tercatat). Nilai di tabel tidak berubah.</div>';
     if (guru) h += '<div class="nh-cat">Setelah diterapkan, tekan <b>Simpan Nilai</b> di tabel nilai agar ' + labelNh(s.c.nh) + ' tersimpan. Kotak yang sudah terkunci tidak diubah.</div>';
     return h;
   }
@@ -268,6 +270,28 @@
     st.kolom = st.kolom.filter(function (k) { return k.id !== id; });
     st.siswa.forEach(function (s) { if (st.nilai[s.key]) delete st.nilai[s.key][id]; });
     tandai(); gambar();
+  }
+
+  // Salin nilai NH yang sudah ada di tabel nilai (diisi sebelum fitur catatan ada) ke kolom "NH lama"; tidak menimpa catatan yang sudah ada.
+  function ambilNhLama() {
+    var peta = {}, n = 0;
+    Array.prototype.forEach.call(document.querySelectorAll('.grade-input'), function (inp) {
+      if (inp.dataset.key !== st.c.nh) return;
+      var raw = String(inp.value || '').trim(), v = raw === '' ? null : angka(raw);
+      if (v !== null && v >= 0 && v <= 100) peta[inp.dataset.siswa] = v;
+    });
+    if (!Object.keys(peta).length) return toastX('Belum ada nilai ' + labelNh(st.c.nh) + ' di tabel nilai.', true);
+    var calon = st.siswa.filter(function (x) { return peta[x.key] !== undefined && rata(st.nilai[x.key], st.kolom) === null; });
+    if (!calon.length) return toastX('Semua siswa yang punya nilai ' + labelNh(st.c.nh) + ' sudah ada catatannya.');
+    var kol = null; st.kolom.forEach(function (k) { if (k.judul === 'NH lama') kol = k; });
+    if (!kol) {
+      if (st.kolom.length >= MAKS_KOLOM) return toastX('Kolom penuh. Hapus satu kolom kosong dulu.', true);
+      var maks = 0; st.kolom.forEach(function (k) { var m = parseInt(String(k.id).replace(/\D/g, ''), 10) || 0; if (m > maks) maks = m; });
+      kol = { id: 'c' + (maks + 1), judul: 'NH lama' }; st.kolom.unshift(kol);
+    }
+    calon.forEach(function (x) { if (!st.nilai[x.key]) st.nilai[x.key] = {}; st.nilai[x.key][kol.id] = peta[x.key]; n++; });
+    tandai(); gambar();
+    toastX(n + ' nilai ' + labelNh(st.c.nh) + ' lama disalin ke kolom "NH lama" dan disimpan otomatis.', false, 6000);
   }
 
   function terapkan() {
@@ -323,6 +347,7 @@
     else if (t.id === 'nhTambah') tambahKolom();
     else if (t.id === 'nhSimpan') simpanAman(false, st).then(function (ok) { if (ok) toastX('✅ Catatan nilai harian tersimpan.'); });
     else if (t.id === 'nhTerap') terapkan();
+    else if (t.id === 'nhAmbil') ambilNhLama();
     else if (t.dataset && t.dataset.hapus) hapusKolom(t.dataset.hapus);
   }
   function onUbah(e) {
