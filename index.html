@@ -125,7 +125,7 @@
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
   <script defer src="js/app.js?v=154"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=21"></script>
+  <script defer src="js/portal-ortu.js?v=24"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=1"></script>
@@ -151,6 +151,8 @@
   <script defer src="js/saran-kritik.js?v=1"></script>
   <!-- Angket (gabungan: Angket Kurikulum + Angket Profil Lulusan). WAJIB sesudah app.js dan portal-ortu.js. -->
   <script defer src="js/angket.js?v=11"></script>
+  <!-- Angket Keunggulan Madrasah (tab ke-3 pada halaman Angket + kartu Portal Ortu). WAJIB sesudah angket.js (membungkus setupAngketPage). -->
+  <script defer src="js/angket-keunggulan.js?v=2"></script>
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
   <script defer src="js/riwayat-login-ortu.js?v=2"></script>
   <script defer src="js/ortu-akun-admin.js?v=2"></script>
@@ -2177,12 +2179,13 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
       </div>
 
       <!-- ============================================================
-           PAGE: ANGKET (diisi oleh js/angket.js): tab Kurikulum | Profil Lulusan
+           PAGE: ANGKET (diisi oleh js/angket.js + js/angket-keunggulan.js): tab Kurikulum | Profil Lulusan | Keunggulan
       ============================================================ -->
       <div id="page-angket" class="page-content hidden">
         <div id="angketTabBar" class="akq-tabs hidden" style="margin-bottom:12px;"></div>
         <div id="angketKurikulumArea"></div>
         <div id="angketProfilArea" class="hidden"></div>
+        <div id="angketKeunggulanArea" class="hidden"></div>
       </div>
 
       <!-- TASKS -->
@@ -2494,11 +2497,12 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
       <div style="margin-bottom:12px;"><label class="label">No. WhatsApp Orang Tua/Wali</label><input id="portalOrtuNoWa" class="field" placeholder="Contoh: 081234567890" inputmode="numeric" autocomplete="tel"></div>
       <div id="portalOrtuFormMasuk">
         <div style="margin-bottom:16px;"><label class="label">PIN (6 angka)</label><input id="portalOrtuPin" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="PIN Anda" onkeydown="if(event.key==='Enter') loginPortalOrtu()"></div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:-6px 0 12px;cursor:pointer;"><input type="checkbox" id="ortuIngatPerangkat" checked> Ingat saya di perangkat ini (masuk otomatis)</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:-6px 0 12px;cursor:pointer;"><input type="checkbox" id="ortuIngatPerangkat"> Ingat PIN di perangkat ini (hanya untuk HP pribadi)</label>
         <button class="btn btn-primary" style="width:100%;" onclick="loginPortalOrtu()">🔓 Masuk</button>
-        <div style="text-align:center;margin-top:12px;font-size:13px;"><a href="javascript:void(0)" onclick="tampilFormBuatPinOrtu(true)" style="color:#059669;font-weight:600;text-decoration:none;">🆕 Belum punya PIN? Buat PIN</a></div>
+        <div id="portalOrtuBlokBuatPin" style="text-align:center;margin-top:12px;font-size:13px;"><a href="javascript:void(0)" onclick="tampilFormBuatPinOrtu(true)" style="color:#059669;font-weight:600;text-decoration:none;">🆕 Belum punya PIN? Buat PIN</a></div>
         <div style="margin-top:14px;padding:10px 12px;border-radius:10px;background:#ecfdf5;text-align:center;font-size:12px;color:#065f46;line-height:1.5;">📲 Sudah dapat <b>link dari WhatsApp</b> madrasah? Cukup ketuk link itu, tanpa nomor dan PIN.</div>
-        <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db;text-align:center;">
+        <div id="portalOrtuInfoButuhLink" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:#fffbeb;text-align:center;font-size:12px;color:#92400e;line-height:1.5;">Belum punya akses? Minta <b>link masuk</b> ke wali kelas atau Admin lewat WhatsApp. Setelah masuk, Bapak/Ibu bisa membuat PIN sendiri.</div>
+        <div id="portalOrtuBlokPertama" style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db;text-align:center;">
           <p style="font-size:12px;color:#6b7280;margin:0 0 8px;">Belum pernah punya PIN? Cukup isi nomor WhatsApp di atas, PIN dibuatkan otomatis dan tersimpan di perangkat ini.</p>
           <button type="button" class="btn btn-soft" style="font-size:13px;" onclick="masukPertamaKaliOrtu()">✨ Masuk pertama kali (tanpa PIN)</button>
         </div>
@@ -2506,7 +2510,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
       <div id="portalOrtuFormBuat" style="display:none;">
         <div style="margin-bottom:12px;"><label class="label">Buat PIN Baru (6 angka)</label><input id="portalOrtuPinBaru" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="Contoh: 6 angka yang mudah Anda ingat"></div>
         <div style="margin-bottom:16px;"><label class="label">Ulangi PIN Baru</label><input id="portalOrtuPinBaru2" class="field" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="Ketik ulang PIN" onkeydown="if(event.key==='Enter') buatPinOrtu()"></div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:-6px 0 12px;cursor:pointer;"><input type="checkbox" id="ortuIngatPerangkatBuat" checked> Ingat saya di perangkat ini (masuk otomatis)</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:-6px 0 12px;cursor:pointer;"><input type="checkbox" id="ortuIngatPerangkatBuat"> Ingat PIN di perangkat ini (hanya untuk HP pribadi)</label>
         <button class="btn btn-primary" style="width:100%;" onclick="buatPinOrtu()">✅ Buat PIN &amp; Masuk</button>
         <div style="text-align:center;margin-top:12px;font-size:13px;"><a href="javascript:void(0)" onclick="tampilFormBuatPinOrtu(false)" style="color:#6b7280;text-decoration:none;">← Sudah punya PIN? Masuk</a></div>
       </div>
