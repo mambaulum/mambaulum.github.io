@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var BATAS_BACA = 300, BATAS_TAMPIL = 100;
-  var data = [], tampil = BATAS_TAMPIL, terikat = false, sudahMuat = false, sedang = false;
+  var data = [], tampil = BATAS_TAMPIL, terikat = false, sudahMuat = false, sedang = false, sedangBersih = false;
   var CARA = { pin: 'PIN', pertama: 'Masuk pertama kali', otomatis: 'Otomatis (perangkat diingat)', link: 'Link WhatsApp' };
 
   function el(id) { return document.getElementById(id); }
@@ -106,7 +106,9 @@
   function unduhCsv() {
     if (!data.length) return toast('Belum ada data untuk diunduh.', true);
     var peta = petaNama();
-    var q = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+    // Isi node ortu_login_log bisa ditulis siapa pun yang login anonim, jadi sel yang diawali = + - @ (atau tab/CR) diberi
+    // apostrof di depan supaya Excel tidak menjalankannya sebagai rumus.
+    var q = function (v) { var t = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
     var baris = [['Waktu', 'Hasil', 'Cara', 'Perangkat', 'Anak', 'Kelas', 'Nomor WA (disamarkan)', 'Keterangan'].map(q).join(',')];
     saring(peta).forEach(function (x) {
       baris.push([waktuTeks(x.waktu), x.hasil, CARA[x.cara] || x.cara, x.perangkat, namaAnak(x, peta), x.kelas, samar(x.wa), x.detail].map(q).join(','));
@@ -121,7 +123,10 @@
 
   function bersihkan() {
     if (!adminAktif()) return toast('Hanya Admin!', true);
+    if (sedangBersih) return;
     if (!confirm('Hapus catatan login orang tua yang lebih lama dari 90 hari? Tindakan ini tidak bisa dibatalkan.')) return;
+    sedangBersih = true;
+    var tombol = el('rloBersih'); if (tombol) tombol.disabled = true;
     var batas = new Date(Date.now() - 90 * 86400000).toISOString();
     db.ref('ortu_login_log').orderByChild('waktu').endAt(batas).limitToFirst(500).once('value').then(function (snap) {
       var tugas = [];
@@ -130,7 +135,8 @@
     }).then(function (n) {
       toast(n ? n + ' catatan lama dihapus.' + (n >= 500 ? ' Ulangi bila masih ada.' : '') : 'Tidak ada catatan yang lebih lama dari 90 hari.');
       return muat();
-    }).catch(function (e) { console.error(e); toast('Gagal menghapus catatan lama.', true); });
+    }).catch(function (e) { console.error(e); toast('Gagal menghapus catatan lama.', true); })
+      .then(function () { sedangBersih = false; var t2 = el('rloBersih'); if (t2) t2.disabled = false; });
   }
 
   function setupRiwayatLoginOrtu() {

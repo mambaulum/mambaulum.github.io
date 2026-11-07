@@ -11,8 +11,9 @@
 // Siapa mengisi:
 //   - Guru / Wali Kelas   -> 40 butir (5 bidang x 4 sisi x 2 butir khusus bidang) + prioritas + 3 pertanyaan terbuka.
 //   - Kepala Madrasah     -> 40 butir + prioritas + 3 pertanyaan terbuka.
-//   - Orang tua & siswa   -> hanya sisi Minat (5 bidang x 3 butir) + prioritas + 2 pertanyaan terbuka, lewat API global:
-//       AngketKeunggulan.renderForm(idWadah, 'ortu' | 'siswa', { kunci, nama }, { izinAnonim:true })
+//   - Orang tua & siswa   -> hanya sisi Minat (5 bidang x 3 butir) + prioritas + 2 pertanyaan terbuka. Siswa HANYA kelas 4-6
+//                            (kelas dikirim pemanggil lewat resp.kelas; kelas 1-3 cukup lewat orang tua), lewat API global:
+//       AngketKeunggulan.renderForm(idWadah, 'ortu' | 'siswa', { kunci, nama, kelas }, { izinAnonim:true })
 //     (sudah dipanggil dari portal-ortu.js: angketKeunggulanMuat).
 //   - Admin & Kepala      -> tombol ON/OFF + batas waktu + tab Rekap (matriks skor, peringkat, pemetaan
 //                            dimensi profil lulusan, jawaban terbuka, ekspor CSV).
@@ -29,7 +30,7 @@
 // Data Firebase:
 //   angket_keunggulan_status = { aktif, periode, batas, diubahOleh, tgl }
 //   angket_keunggulan/{periode}/{jenis}/{kunciResponden}
-//        = { nama, jenis, periode, tgl, jawaban:{tahfidz_minat1:3, tahfidz_sdm2:4, ...}, prioritas:{p1:'tahfidz', p2:'sains'}, terbuka:{T1:'...'} }
+//        = { nama, jenis, periode, tgl, jawaban:{tahfidz_minat1:3, tahfidz_sdm2:4, ...}, prioritas:{p1:'tahfidz', p2:'sains'}, kegiatan:{sains:{p1:'sains_1',p2:'sains_3'}} (hanya ortu & siswa; slot p1-p3 = maks 3 per bidang), terbuka:{T1:'...'} }
 //   prioritas.p1 wajib, p2 opsional; berisi id bidang. TIDAK ikut skor, ditampilkan sebagai jumlah pilihan di Rekap.
 //   jenis: guru | kepala | ortu | siswa.   periode: "2026-1" (Ganjil Jul-Des) / "2026-2" (Genap Jan-Jun).
 //
@@ -61,6 +62,58 @@
     { id: 'sains',     nama: 'Sains & Riset',                      ikon: '🔬', dim: [2, 3, 4] },
     { id: 'wirausaha', nama: 'Kewirausahaan & Literasi Digital',   ikon: '💡', dim: [5, 3, 1] }
   ];
+  // Pilihan kegiatan per bidang (orang tua & siswa mencentang, maksimal MAKS_KEGIATAN per bidang). Disusun untuk MI di
+  // pedesaan: bisa dijalankan dengan sarana sederhana dan tidak bergantung pada internet. ID tersimpan di data
+  // (kegiatan:{bidang:{p1:id,p2:id,p3:id}}), jadi JANGAN mengubah ID yang sudah dipakai; teks boleh disunting, item baru pakai nomor baru.
+  var MAKS_KEGIATAN = 3;
+  var KEGIATAN = {
+    tahfidz: [
+      ['tahfidz_1', 'Setoran hafalan surat pendek (juz 30)'],
+      ['tahfidz_2', 'Muraja\u2019ah (mengulang hafalan) bersama teman'],
+      ['tahfidz_3', 'Belajar membaca Al-Qur\u2019an dengan tajwid'],
+      ['tahfidz_4', 'Menghafal doa harian dan bacaan salat'],
+      ['tahfidz_5', 'Lomba hafalan antarkelas atau antarmadrasah']
+    ],
+    bahasa: [
+      ['bahasa_1', 'Menambah kosakata bahasa Arab dan Inggris'],
+      ['bahasa_2', 'Pidato atau muhadharah di depan teman'],
+      ['bahasa_3', 'Bercerita atau mendongeng'],
+      ['bahasa_4', 'Hari berbahasa Arab atau Inggris di madrasah'],
+      ['bahasa_5', 'Membaca buku cerita di pojok baca']
+    ],
+    seni: [
+      ['seni_1', 'Hadrah atau rebana'],
+      ['seni_2', 'Menggambar dan kaligrafi'],
+      ['seni_3', 'Tari atau seni budaya daerah'],
+      ['seni_4', 'Sepak bola atau futsal'],
+      ['seni_5', 'Bulu tangkis atau bola voli'],
+      ['seni_6', 'Pencak silat']
+    ],
+    sains: [
+      ['sains_1', 'Menanam sayur atau tanaman di kebun atau pot'],
+      ['sains_2', 'Mengamati hewan dan serangga di sawah atau halaman'],
+      ['sains_3', 'Percobaan sederhana (magnet, gunung api mini)'],
+      ['sains_4', 'Membuat kompos dari daun dan sisa makanan'],
+      ['sains_5', 'Membuat alat sederhana dari barang bekas'],
+      ['sains_6', 'Lomba sains atau Kompetisi Sains Madrasah (KSM)']
+    ],
+    wirausaha: [
+      ['wirausaha_1', 'Berjualan di bazar atau pasar kelas'],
+      ['wirausaha_2', 'Membuat dan menjual makanan atau jajanan sederhana'],
+      ['wirausaha_3', 'Menabung dan mencatat uang (belajar untung rugi)'],
+      ['wirausaha_4', 'Membuat kerajinan dari bahan di sekitar (anyaman, barang bekas)'],
+      ['wirausaha_5', 'Belajar komputer: mengetik, menggambar, membuat presentasi'],
+      ['wirausaha_6', 'Belajar aman memakai HP dan internet']
+    ]
+  };
+  // ID kegiatan terpilih satu responden pada satu bidang. Disimpan sebagai slot {p1,p2,p3} (Rules membatasi kuncinya, jadi maks. 3).
+  function idKegiatan(r, bid) {
+    var o = r && r.kegiatan && r.kegiatan[bid]; if (!o || typeof o !== 'object') return [];
+    var hasil = [];
+    Object.keys(o).forEach(function (k) { var id = o[k] === true ? k : o[k]; if (typeof id === 'string' && namaKegiatan(bid, id) && hasil.indexOf(id) < 0) hasil.push(id); });
+    return hasil;
+  }
+  function namaKegiatan(bid, kid) { var l = KEGIATAN[bid] || []; for (var i = 0; i < l.length; i++) if (l[i][0] === kid) return l[i][1]; return ''; }
   var SISI = [
     { id: 'minat',   nama: 'Minat',   teks: function (n) { return 'Siswa menunjukkan minat yang tinggi pada bidang ' + n + '.'; } },
     { id: 'sdm',     nama: 'SDM',     teks: function (n) { return 'Madrasah memiliki guru atau pembina yang mampu membina bidang ' + n + '.'; } },
@@ -143,6 +196,17 @@
   function kategori(r) { r = +r.toFixed(2); return r >= 3.26 ? 'Sangat Baik' : r >= 2.51 ? 'Baik' : r >= 1.76 ? 'Cukup' : 'Kurang'; }
   function skorValid(v) { return typeof v === 'number' && v >= 1 && v <= 4 && v % 1 === 0; }
   function f2(v) { return v == null ? '-' : (+v).toFixed(2); }
+  function contohBidang(bd) { return (KEGIATAN[bd.id] || []).map(function (k) { return k[1].charAt(0).toLowerCase() + k[1].slice(1); }).join(', '); }
+  // Orang tua & siswa: daftar centang kegiatan (maks. MAKS_KEGIATAN). Guru & kepala: hanya baris contoh.
+  function htmlKegiatan(bd, jenis, pre) {
+    var l = KEGIATAN[bd.id] || []; if (!l.length) return '';
+    if (jenis === 'guru' || jenis === 'kepala') return '<div class="akq-skala" style="margin:-2px 0 6px;font-size:12px;"><b>Contoh kegiatan:</b> ' + esc(contohBidang(bd)) + '.</div>';
+    var pilih = {}; idKegiatan(pre, bd.id).forEach(function (id) { pilih[id] = true; });
+    return '<div class="akq-skala" style="margin:-2px 0 4px;font-size:12px;"><b>Contoh kegiatan.</b> ' + (jenis === 'siswa' ? 'Centang yang kamu suka' : 'Centang yang diminati anak Bapak/Ibu') + ' (maksimal ' + MAKS_KEGIATAN + ', boleh tidak memilih):</div>' +
+      '<div class="akg-keg" data-akg-bid="' + esc(bd.id) + '" style="margin:0 0 8px;">' + l.map(function (k) {
+        return '<label style="display:flex;align-items:flex-start;gap:6px;font-size:13px;padding:3px 0;cursor:pointer;"><input type="checkbox" name="akgK_' + esc(bd.id) + '" value="' + esc(k[0]) + '"' + (pilih[k[0]] === true ? ' checked' : '') + ' style="margin-top:3px;"><span>' + esc(k[1]) + '</span></label>';
+      }).join('') + '</div>';
+  }
   function bidangDari(id) { for (var i = 0; i < BIDANG.length; i++) if (BIDANG[i].id === id) return BIDANG[i]; return null; }
   var POLA_PERIODE = /^\d{4}-[12]$/;
   function kunciDari(o) {
@@ -235,7 +299,7 @@
     var h = '<div class="akq-skala">Pilih satu jawaban untuk tiap pernyataan. Jawablah sesuai kondisi yang SEBENARNYA.</div>';
     var last = '';
     BUTIR[jenis].forEach(function (b) {
-      if (b[1] !== last) { var bd = bidangDari(b[1]); h += '<div class="akq-grup">' + esc(bd.ikon + ' ' + bd.nama) + '</div>'; last = b[1]; }
+      if (b[1] !== last) { var bd = bidangDari(b[1]); h += '<div class="akq-grup">' + esc(bd.ikon + ' ' + bd.nama) + '</div>' + htmlKegiatan(bd, jenis, pre); last = b[1]; }
       var cur = pre && pre.jawaban ? pre.jawaban[b[0]] : null;
       var label = (jenis === 'guru' || jenis === 'kepala') ? '<b>[' + esc(SISI.filter(function (s) { return s.id === b[3]; })[0].nama) + ']</b> ' : '';
       h += '<div class="akq-butir"><div class="akq-teks">' + label + esc(b[2]) + '</div><div class="akq-opsi akg-opsi" role="radiogroup" aria-label="' + esc(b[2]) + '">';
@@ -263,7 +327,16 @@
     var pv = function (no) { var e = el('akgP' + no + '_' + jenis); var v = e ? e.value : ''; return bidangDari(v) ? v : ''; };
     var prioritas = { p1: pv('1') };
     if (pv('2')) prioritas.p2 = pv('2');
-    return { jawaban: jawaban, terbuka: terbuka, kosong: kosong, prioritas: prioritas };
+    var kegiatan = {}, kebanyakan = '';
+    if (jenis === 'ortu' || jenis === 'siswa') {
+      BIDANG.forEach(function (bd) {
+        var pil = [];
+        Array.prototype.forEach.call(document.querySelectorAll('input[name="akgK_' + bd.id + '"]:checked'), function (c) { if (namaKegiatan(bd.id, c.value)) pil.push(c.value); });
+        if (pil.length > MAKS_KEGIATAN && !kebanyakan) kebanyakan = bd.nama;
+        if (pil.length) kegiatan[bd.id] = pil;
+      });
+    }
+    return { jawaban: jawaban, terbuka: terbuka, kosong: kosong, prioritas: prioritas, kegiatan: kegiatan, kebanyakan: kebanyakan };
   }
   function namaKosong(kode) {
     var p = kode.split('_'), bd = bidangDari(p[0]);
@@ -288,8 +361,18 @@
   // Simpan jawaban. Satu responden satu data per periode (mengisi ulang = memperbarui).
   function kirim(jenis, resp, periode) {
     if (!BUTIR[jenis]) return Promise.resolve(false);
+    if (jenis === 'siswa') {
+      return cekKelasSiswa(resp).then(function (c) {
+        if (!c.ok) { toast('Angket siswa hanya untuk kelas 4\u20136.', true); return false; }
+        return kirimInti(jenis, resp, periode);
+      });
+    }
+    return kirimInti(jenis, resp, periode);
+  }
+  function kirimInti(jenis, resp, periode) {
     var f = bacaForm(jenis);
     if (f.kosong.length) { toast('Masih ada ' + f.kosong.length + ' butir belum dijawab (mulai dari ' + namaKosong(f.kosong[0]) + ').', true); return Promise.resolve(false); }
+    if (f.kebanyakan) { toast('Kegiatan di bidang ' + f.kebanyakan + ' maksimal ' + MAKS_KEGIATAN + ' pilihan.', true); return Promise.resolve(false); }
     if (!f.prioritas.p1) { toast('Pilih dulu bidang prioritas (Pilihan 1).', true); return Promise.resolve(false); }
     if (f.prioritas.p2 && f.prioritas.p2 === f.prioritas.p1) { toast('Pilihan 1 dan Pilihan 2 harus bidang yang berbeda.', true); return Promise.resolve(false); }
     return bacaStatus().then(function (st) {
@@ -301,6 +384,10 @@
       var kSimpan = anon ? anonKey(jenis, periode, resp.kunci, true) : kAsli;
       var kLain = anon ? kAsli : anonKey(jenis, periode, resp.kunci, false);
       var data = { nama: anon ? '' : (resp.nama || ''), jenis: jenis, periode: periode, tgl: anon ? new Date().toISOString().slice(0, 10) : new Date().toISOString(), jawaban: f.jawaban, prioritas: f.prioritas, terbuka: f.terbuka };
+      if (Object.keys(f.kegiatan).length) {
+        data.kegiatan = {};
+        Object.keys(f.kegiatan).forEach(function (bid) { var o = {}; f.kegiatan[bid].forEach(function (id, i) { o['p' + (i + 1)] = id; }); data.kegiatan[bid] = o; });
+      }
       return refResp(periode, jenis, kSimpan).set(data).then(function () {
         if (kLain && kLain !== kSimpan) { try { refResp(periode, jenis, kLain).remove().catch(function () {}); } catch (e) {} }
         toast('Terima kasih, angket berhasil dikirim.'); return true;
@@ -308,6 +395,27 @@
         toast('Gagal mengirim angket: ' + (e && e.message ? e.message : e), true); return false;
       });
     });
+  }
+
+  // ---------- pembatasan siswa: hanya kelas 4-6 ----------
+  // Kelas dibaca dari "4", "4A", "Kelas 4 B", "IV", "VI-A". Kelas tak terbaca/tak diketahui = TIDAK diblokir
+  // (tidak bisa dinilai), supaya siswa sah tidak terkunci karena data kelas kosong.
+  var ROMAWI = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+  function angkaKelas(k) {
+    var t = String(k == null ? '' : k).trim(); if (!t) return null;
+    var m = /(\d+)/.exec(t); if (m) return +m[1];
+    m = /^(?:kelas\s*)?(VI|IV|V|III|II|I)(?![A-Za-z])/i.exec(t); return m ? ROMAWI[m[1].toUpperCase()] : null;
+  }
+  function kelasBolehSiswa(k) { var n = angkaKelas(k); return n === null || (n >= 4 && n <= 6); }
+  // Promise<{ok, kelas}>: memakai resp.kelas (wajib dikirim pemanggil; kunci responden di portal berupa hash,
+  // jadi kelas tidak bisa dicari dari database). Kelas kosong = tidak diblokir.
+  function cekKelasSiswa(resp) {
+    var k = resp && resp.kelas;
+    return Promise.resolve({ ok: kelasBolehSiswa(k), kelas: k || '' });
+  }
+  function htmlBukanKelas(kelas) {
+    return '<div class="akq-skala" style="padding:14px;text-align:center;font-size:13px;"><div style="font-size:26px;">🌱</div><b>Angket ini diisi oleh siswa kelas 4, 5, dan 6.</b><br>' +
+      (kelas ? 'Ananda ada di kelas ' + esc(kelas) + '. ' : '') + 'Untuk kelas 1\u20133, cukup Bapak/Ibu yang mengisi angket Orang Tua / Wali.</div>';
   }
 
   // Dipakai halaman staf dan (nanti) portal ortu/siswa.
@@ -323,6 +431,15 @@
         return;
       }
       if (!st.aktif) { w.innerHTML = htmlTutup(); return; }
+      if (jenis === 'siswa') {
+        return cekKelasSiswa(resp).then(function (c) {
+          if (!c.ok) { w.innerHTML = htmlBukanKelas(c.kelas); return; }
+          tampilForm(st);
+        });
+      }
+      tampilForm(st);
+    });
+    function tampilForm(st) {
       var periode = (opsi.periode && POLA_PERIODE.test(opsi.periode)) ? opsi.periode : st.periode;
       var staf = (jenis === 'guru' || jenis === 'kepala');
       w.innerHTML = '<div style="font-size:13px;font-weight:700;margin-bottom:4px;">' + esc(JUDUL[jenis]) + '</div>' +
@@ -337,13 +454,18 @@
         isi.innerHTML = (ada ? '<div class="akq-skala" style="color:#047857;">Anda sudah mengisi angket ini pada ' + esc(new Date(pre.tgl).toLocaleDateString('id-ID')) + '. Mengirim lagi akan memperbarui jawaban sebelumnya.</div>' : '') +
           htmlForm(jenis, pre) + (opsi.izinAnonim ? '<label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:12px;cursor:pointer;"><input type="checkbox" id="akgAnonim_' + jenis + '"' + (anonAwal ? ' checked' : '') + '> <span>Kirim sebagai anonim (identitas tidak disimpan bersama jawaban). <span style="color:#6b7280;">Jawaban anonim hanya bisa diperbarui dari perangkat ini.</span></span></label>' : '') +
           '<div style="margin-top:14px;"><button class="btn btn-primary" id="akgKirim_' + jenis + '" type="button">' + (ada ? 'Perbarui Jawaban' : 'Kirim Angket') + '</button></div>';
+        isi.addEventListener('change', function (e) {
+          var t = e.target; if (!t || !t.name || t.name.indexOf('akgK_') !== 0) return;
+          var n = isi.querySelectorAll('input[name="' + t.name + '"]:checked').length;
+          if (n > MAKS_KEGIATAN) { t.checked = false; toast('Maksimal ' + MAKS_KEGIATAN + ' pilihan kegiatan per bidang.', true); }
+        });
         el('akgKirim_' + jenis).addEventListener('click', function () {
           var b = this; b.disabled = true;
-          var an = el('akgAnonim_' + jenis); var resp2 = { kunci: resp.kunci, nama: resp.nama, anonim: an ? an.checked : !!resp.anonim };
+          var an = el('akgAnonim_' + jenis); var resp2 = { kunci: resp.kunci, nama: resp.nama, kelas: resp.kelas, anonim: an ? an.checked : !!resp.anonim };
           kirim(jenis, resp2, periode).then(function (ok) { b.disabled = false; if (ok) renderForm(idWadah, jenis, resp, opsi); });
         });
       });
-    });
+    }
   }
 
   // ---------- rekap ----------
@@ -374,6 +496,20 @@
       });
     });
     return hasil;
+  }
+  // Jumlah pilihan kegiatan dari orang tua & siswa, per bidang. Hanya ID yang masih ada di daftar yang dihitung.
+  function hitungKegiatan(daftarPerJenis) {
+    return BIDANG.map(function (bd) {
+      var baris = (KEGIATAN[bd.id] || []).map(function (k) {
+        var o = { id: k[0], teks: k[1], ortu: 0, siswa: 0 };
+        ['ortu', 'siswa'].forEach(function (j) {
+          (daftarPerJenis[j] || []).forEach(function (r) { if (idKegiatan(r, bd.id).indexOf(k[0]) >= 0) o[j]++; });
+        });
+        o.total = o.ortu + o.siswa; return o;
+      });
+      baris.sort(function (a, c) { return c.total - a.total; });
+      return { b: bd, baris: baris, ada: baris.some(function (x) { return x.total > 0; }) };
+    });
   }
   function hitungMatriks(daftarPerJenis) {
     var baris = BIDANG.map(function (b) {
@@ -431,6 +567,15 @@
     var prio = hitungPrioritas(per);
     h += '<div class="akq-grup">Pilihan Bidang Prioritas</div><div class="akq-skala">Jumlah responden yang memilih bidang sebagai prioritas. Tidak ikut dijumlahkan ke total skor; dipakai sebagai pembanding.</div><div class="akq-scroll"><table class="akq-tbl"><tr><th>Bidang</th><th>Pilihan 1</th><th>Pilihan 2</th><th>Jumlah</th></tr>' +
       prio.map(function (x) { return '<tr><td>' + esc(x.b.ikon + ' ' + x.b.nama) + '</td><td>' + x.p1 + '</td><td>' + x.p2 + '</td><td>' + (x.p1 + x.p2) + '</td></tr>'; }).join('') + '</table></div>';
+    var keg = hitungKegiatan(per);
+    if (keg.some(function (x) { return x.ada; })) {
+      h += '<div class="akq-grup">Kegiatan yang Diminati (Orang Tua & Siswa)</div><div class="akq-skala">Jumlah responden yang mencentang kegiatan (maksimal ' + MAKS_KEGIATAN + ' per bidang). Dipakai sebagai bahan memilih kegiatan awal, tidak ikut skor.</div>';
+      keg.forEach(function (x) {
+        if (!x.ada) return;
+        h += '<div class="akq-scroll"><table class="akq-tbl"><tr><th>' + esc(x.b.ikon + ' ' + x.b.nama) + '</th><th>Orang Tua</th><th>Siswa</th><th>Total</th></tr>' +
+          x.baris.map(function (q, i) { return '<tr' + (i === 0 && q.total ? ' style="background:#ecfdf5;font-weight:700;"' : '') + '><td>' + esc(q.teks) + '</td><td>' + q.ortu + '</td><td>' + q.siswa + '</td><td>' + q.total + '</td></tr>'; }).join('') + '</table></div>';
+      });
+    }
     var kurang = [];
     if (!(jml.guru + jml.kepala)) kurang.push('SDM, Sarana, dan Potensi dihitung dari guru dan kepala madrasah, yang belum mengisi');
     if (!jml.ortu && !jml.siswa) kurang.push('Minat belum memuat suara orang tua dan siswa');
@@ -479,10 +624,10 @@
     });
     if (!adaTerbuka) h += '<div class="akq-skala">Belum ada jawaban terbuka.</div>';
     h += '<div style="margin-top:12px;"><button type="button" class="btn btn-soft" id="akgCsv">Unduh CSV</button></div>';
-    return { html: h, matriks: m, jml: jml, prio: prio };
+    return { html: h, matriks: m, jml: jml, prio: prio, keg: keg };
   }
 
-  function unduhCsv(periode, matriks, jml, prof, prio) {
+  function unduhCsv(periode, matriks, jml, prof, prio, keg) {
     var q = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
     var kepala = ['Bidang', 'Minat', 'SDM', 'Sarana', 'Potensi', 'Total (maks 16)', 'Peringkat', 'Dimensi yang dikuatkan', 'Skor dimensi profil', 'Pilihan prioritas 1', 'Pilihan prioritas 2'];
     var baris = matriks.map(function (x, ix) {
@@ -490,7 +635,10 @@
       return [x.b.nama, f2(x.minat), f2(x.sdm), f2(x.sarana), f2(x.potensi), f2(x.total), x.rank || '', x.b.dim.map(namaDim).join(' / '), prof ? f2(skorProfilBidang(prof, x.b)) : '', pz.p1, pz.p2];
     });
     var info = [['Periode', labelPeriode(periode)], ['Responden', JENIS.map(function (j) { return JUDUL_JENIS[j] + ': ' + jml[j]; }).join(' | ')], []];
-    var csv = '\ufeff' + info.concat([kepala], baris).map(function (r) { return r.map(q).join(';'); }).join('\r\n');
+    var kegBaris = [];
+    (keg || []).forEach(function (x) { if (x.ada) x.baris.forEach(function (q) { kegBaris.push([x.b.nama, q.teks, q.ortu, q.siswa, q.total]); }); });
+    var tambah = kegBaris.length ? [[], ['Bidang', 'Kegiatan yang diminati', 'Orang Tua', 'Siswa', 'Total']].concat(kegBaris) : [];
+    var csv = '\ufeff' + info.concat([kepala], baris, tambah).map(function (r) { return r.map(q).join(';'); }).join('\r\n');
     var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     var a = document.createElement('a'); a.href = url; a.download = 'angket-keunggulan_' + periode + '.csv';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
@@ -520,7 +668,7 @@
   }
   function pesanOrtu(st, anak) {
     return 'Assalamu\u2019alaikum Bapak/Ibu' + (anak ? ' wali dari ' + anak : ' wali murid') + '.\n\n' +
-      'Angket Keunggulan ' + namaMadrasah() + ' periode ' + labelPeriode(st.periode) + ' sedang dibuka. Mohon Bapak/Ibu dan ananda berkenan mengisinya lewat Portal Wali Murid:\n' + basisUrl() + '?app=ortu\n\n' +
+      'Angket Keunggulan ' + namaMadrasah() + ' periode ' + labelPeriode(st.periode) + ' sedang dibuka. Mohon Bapak/Ibu (dan ananda bila duduk di kelas 4\u20136) berkenan mengisinya lewat Portal Wali Murid:\n' + basisUrl() + '?app=ortu\n\n' +
       infoBatasWa(st) + 'Pengisian hanya beberapa menit dan boleh anonim.\n\nTerima kasih.\n' + namaMadrasah();
   }
   function pesanGuru(st, nama) {
@@ -635,7 +783,7 @@
       if (typeof out === 'string') { w.innerHTML = out; renderWa(periode, r[0].v); return; }
       w.innerHTML = out.html;
       renderWa(periode, r[0].v);
-      var b = el('akgCsv'); if (b) b.addEventListener('click', function () { unduhCsv(periode, out.matriks, out.jml, r[1], out.prio); });
+      var b = el('akgCsv'); if (b) b.addEventListener('click', function () { unduhCsv(periode, out.matriks, out.jml, r[1], out.prio, out.keg); });
     });
   }
 
@@ -764,5 +912,5 @@
   };
 
   window.setupAngketKeunggulanPage = setupPage;
-  window.AngketKeunggulan = { renderForm: renderForm, kirim: kirim, cekAktif: bacaStatus, butir: BUTIR, terbuka: TERBUKA, bidang: BIDANG, periodeSekarang: periodeSekarang };
+  window.AngketKeunggulan = { renderForm: renderForm, kirim: kirim, cekAktif: bacaStatus, kelasBolehSiswa: kelasBolehSiswa, butir: BUTIR, terbuka: TERBUKA, bidang: BIDANG, periodeSekarang: periodeSekarang };
 })();

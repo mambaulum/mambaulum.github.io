@@ -33,6 +33,9 @@
   // ---------- 2) Sisi Admin ----------
   let lmData = [];          // [{ wa, anak:[{nama,kelas}], jumlahLink, terakhir, punyaPin }]
   let lmSibuk = false;
+  // Rules Tahap B: ortu_link & ortu_akun/<wa>/pin hanya terbaca/tertulis oleh Admin yang membawa sesi_admin (kredensial.js).
+  // kredAdminSiap() meminta Kunci Admin sekali per perangkat, lalu diam-diam memperbarui sesi (diingat 5 menit).
+  const adminSiap = () => (typeof window.kredAdminSiap === 'function' ? window.kredAdminSiap() : Promise.resolve(true));
 
   const esc = s => (typeof escapeHtml === 'function' ? escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
   const hashToken = tok => CryptoJS.SHA256(String(tok)).toString(CryptoJS.enc.Hex);
@@ -53,18 +56,25 @@
   // Rules ortu_akun & ortu_link TIDAK mengizinkan baca seluruh node (".read": false di atasnya), jadi dibaca per nomor WA
   // (hanya anak 'pin' dari ortu_akun, dan ortu_link/<wa>). Jumlah baca = 2 x jumlah nomor wali, semuanya kecil.
   async function lmMuat() {
-    const sSiswa = await db.ref('siswa').once('value');
+    // Pakai data siswa yang SUDAH dimuat aplikasi (allSiswa) supaya tidak mengunduh ulang seluruh node siswa (kuota Spark);
+    // baru kalau kosong (belum termuat) baca dari database.
+    let daftarSiswa = (typeof allSiswa !== 'undefined' && Array.isArray(allSiswa)) ? allSiswa : [];
+    if (!daftarSiswa.length) {
+      const sSiswa = await db.ref('siswa').once('value');
+      daftarSiswa = []; sSiswa.forEach(c => { daftarSiswa.push(c.val() || {}); });
+    }
     const peta = {};
-    sSiswa.forEach(c => {
-      const x = c.val() || {};
+    daftarSiswa.forEach(x => {
+      x = x || {};
       if (x.aktif === false) return;   // siswa nonaktif tidak perlu link
       const wa = x.noWaKey || (x.noWaOrtu && typeof ortuWaKey === 'function' ? ortuWaKey(x.noWaOrtu) : null);
-      if (!wa) return;
+      if (!wa || !/^62[0-9]{8,13}$/.test(String(wa))) return;   // nomor harus valid: dipakai di atribut onclick & path database
       (peta[wa] = peta[wa] || { wa, anak: [], jumlahLink: 0, terakhir: null, punyaPin: false }).anak.push({ nama: x.name || '-', kelas: x.kelas || '' });
     });
     const nomor = Object.keys(peta);
     const info = document.getElementById('lmInfo');
-    if (info) info.textContent = `⏳ Memeriksa ${nomor.length} nomor...`;
+    if (!info) return;   // jendela sudah ditutup Admin sebelum data selesai dimuat
+    info.textContent = `⏳ Memeriksa ${nomor.length} nomor...`;
     const hasil = await Promise.all(nomor.map(wa => Promise.all([db.ref('ortu_link/' + wa).once('value'), db.ref('ortu_akun/' + wa + '/pin').once('value')])));
     nomor.forEach((wa, i) => {
       const v = hasil[i][0].val() ? Object.values(hasil[i][0].val()) : [];
@@ -76,7 +86,7 @@
   }
 
   function lmRender() {
-    const box = document.getElementById('lmList'); if (!box) return;
+    const box = document.getElementById('lmList'); if (!box || !document.getElementById('lmCari')) return;
     const q = (document.getElementById('lmCari').value || '').trim().toLowerCase();
     const kelas = document.getElementById('lmKelas').value, stPin = document.getElementById('lmPin').value;
     const rows = lmData.filter(r => (!kelas || r.anak.some(a => a.kelas === kelas)) && (!stPin || (stPin === 'ada') === !!r.punyaPin) &&
@@ -104,6 +114,7 @@
 
   // Buat token baru (link lama TETAP berlaku, jadi mengirim ulang tidak mengeluarkan orang tua yang sudah masuk).
   async function lmBuat(wa) {
+    await adminSiap();
     const tok = tokenBaru();
     await db.ref('ortu_link/' + wa + '/' + hashToken(tok)).set({ dibuat: new Date().toISOString() });
     const r = lmData.find(x => x.wa === wa);
@@ -134,12 +145,16 @@
     finally { lmSibuk = false; }
   };
   window.lmCabut = async function (wa) {
+    if (lmSibuk) return;
     if (!confirm('Cabut SEMUA link untuk nomor ' + tampilNomor(wa) + '?\n\nHP orang tua yang masuk lewat link akan keluar sendiri saat portal dibuka lagi. Mereka bisa diberi link baru.')) return;
+    lmSibuk = true;
     try {
+      await adminSiap();
       await db.ref('ortu_link/' + wa).remove();
       const r = lmData.find(x => x.wa === wa); if (r) { r.jumlahLink = 0; r.terakhir = null; }
       toast('✅ Link dicabut.'); lmRender();
     } catch (e) { toast('❌ Gagal mencabut: ' + ((e && e.message) || e), true); }
+    finally { lmSibuk = false; }
   };
 
   window.tutupLinkMasukOrtu = function () { const m = document.getElementById('linkOrtuModal'); if (m) m.remove(); };
@@ -167,12 +182,14 @@
     m.addEventListener('click', e => { if (e.target === m) tutupLinkMasukOrtu(); });
     document.body.appendChild(m);
     try {
+      await adminSiap();
       await lmMuat();
+      if (!document.getElementById('lmKelas')) return;   // jendela ditutup selagi memuat
       const kls = Array.from(new Set(lmData.flatMap(r => r.anak.map(a => a.kelas)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
       document.getElementById('lmKelas').innerHTML = '<option value="">Semua kelas</option>' + kls.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
       lmRender();
     } catch (e) {
-      document.getElementById('lmInfo').textContent = '❌ Gagal memuat: ' + ((e && e.message) || e);
+      const inf = document.getElementById('lmInfo'); if (inf) inf.textContent = '❌ Gagal memuat: ' + ((e && e.message) || e);
     }
   };
   window.lmRenderUlang = lmRender;

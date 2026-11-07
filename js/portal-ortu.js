@@ -15,18 +15,71 @@
     const ORTU_PIN_ITER = 5000, ORTU_MAX_GAGAL = 5, ORTU_KUNCI_MENIT = 10;
     // PIN pertama hanya boleh dibuat oleh orang tua yang SUDAH masuk lewat link WhatsApp dari madrasah (link membuktikan
     // bahwa nomor itu milik penerimanya). Sebelumnya cukup mengetik nomor WA, sehingga siapa pun yang tahu nomor orang tua
-    // bisa mendaftar lebih dulu. Ubah ke false untuk mengembalikan perilaku lama (tombol di index.html muncul lagi).
+    // bisa mendaftar lebih dulu. JANGAN ubah ke false: Rules Tahap B menolak pembuatan PIN tanpa sesi link, jadi buatPinOrtu/masukPertamaKaliOrtu tidak akan jalan.
     const ORTU_BUAT_PIN_BUTUH_LINK = true;
     const ORTU_PESAN_BUTUH_LINK = 'Untuk keamanan, minta link masuk dari wali kelas/Admin lewat WhatsApp. Setelah masuk, Anda bisa membuat PIN sendiri.';
     let portalOrtuWaKey = null, portalOrtuAnak = [], portalOrtuBusy = false;
+    // Catat terakhirLogin paling sering sekali per 6 jam per perangkat (masuk otomatis terjadi tiap aplikasi dibuka);
+    // dulu ditulis setiap buka. Penandanya disimpan lokal karena isi ortu_akun tidak terbaca klien lagi.
+    function ortuCatatLoginAkun(waKey) {
+      const kunci = 'simambaOrtuLoginTs_' + waKey;
+      try {
+        if (Date.now() - (+localStorage.getItem(kunci) || 0) < 6 * 3600000) return;
+        localStorage.setItem(kunci, String(Date.now()));
+      } catch (e) {}
+      db.ref('ortu_akun/' + waKey).update({ gagal: null, kunciSampai: null, terakhirLogin: new Date().toISOString() }).catch(() => {});
+    }
     function ortuPinValid(pin) { return /^[0-9]{6}$/.test(pin); }
     function ortuPinTerlaluMudah(pin) { return /^(\d)\1{5}$/.test(pin) || '01234567890123456789'.includes(pin) || '98765432109876543210'.includes(pin); }
     // PBKDF2 (bukan SHA-256 polos) supaya menebak PIN 6 angka dari hash yang bocor jauh lebih lambat.
     function ortuHashPin(pin, waKey) {
       return CryptoJS.PBKDF2(String(pin), 'simamba-ortu::' + waKey, { keySize: 256 / 32, iterations: ORTU_PIN_ITER, hasher: CryptoJS.algo.SHA256 }).toString(CryptoJS.enc.Hex);
     }
+    // ---------- Sesi orang tua: ortu_sesi/<uid> ----------
+    // Hash PIN di ortu_akun TIDAK PERNAH dibaca klien. Untuk masuk, klien menulis bukti ke ortu_sesi/<uid>:
+    //   { wa, h }  h = hash PIN        -> Rules mencocokkan dengan ortu_akun/<wa>/pin
+    //   { wa, l }  l = hash token link -> Rules memeriksa ortu_link/<wa>/<l> ada dan belum dicabut
+    // Bukti salah = PERMISSION_DENIED. PIN direset / link dicabut Admin -> bukti tidak lagi cocok.
+    // PENTING: Rules Tahap A (node ortu_sesi) harus sudah dipublish SEBELUM file ini dirilis.
+    function ortuAuthObj() {
+      try { if (typeof firebase !== 'undefined' && firebase.auth) return firebase.auth(); } catch (e) {}
+      try { if (typeof auth !== 'undefined' && auth && typeof auth === 'object') return auth; } catch (e) {}
+      return null;
+    }
+    function ortuUid() {
+      const tunggu = (typeof authReady !== 'undefined' && authReady && typeof authReady.then === 'function') ? authReady.catch(() => {}) : Promise.resolve();
+      return tunggu.then(() => new Promise((ok, gagal) => {
+        let n = 0;
+        const cek = () => {
+          const a = ortuAuthObj(), u = a && a.currentUser;
+          if (u && u.uid) return ok(u.uid);
+          if (++n > 40) return gagal({ tampil: 'Koneksi belum siap. Muat ulang halaman lalu coba lagi.' });
+          setTimeout(cek, 150);
+        };
+        cek();
+      }));
+    }
+    function ortuDitolak(e) { return !!e && (e.code === 'PERMISSION_DENIED' || /permission_denied/i.test(String(e.message || e))); }
+    function ortuBukaSesi(waKey, bukti) {
+      const tulis = () => ortuUid().then(uid => db.ref('ortu_sesi/' + uid).set(Object.assign({ wa: waKey }, bukti)));
+      // PERMISSION_DENIED membuat link/PIN tersimpan DIHAPUS dari perangkat. Ditolak sekali bisa karena token login anonim belum
+      // terpasang, jadi diulang satu kali sebelum dianggap bukti salah. Seluruhnya dibatasi 15 dtk (lihat ortuBatasWaktu).
+      return ortuBatasWaktu(tulis().catch(e => {
+        if (!ortuDitolak(e)) throw e;
+        return new Promise(r => setTimeout(r, 1200)).then(tulis);
+      }), 15000);
+    }
+    function ortuTutupSesi() { return ortuUid().then(uid => db.ref('ortu_sesi/' + uid).remove()).catch(() => {}); }
     function ortuTampilJam(ms) { return new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }
     function ortuPesanError(e) { return '❌ ' + ((e && e.tampil) || ('Gagal: ' + ((e && e.message) || e))); }
+    // Tulis ke Firebase saat sinyal putus bisa menggantung tanpa akhir, dan portalOrtuBusy menahan semua tombol login selama itu.
+    // Pembungkus ini menyerah setelah 15 dtk dengan galat BIASA (bukan PERMISSION_DENIED), jadi link/PIN tersimpan di perangkat TIDAK dihapus.
+    function ortuBatasWaktu(p, ms) {
+      return new Promise((ok, gagal) => {
+        const t = setTimeout(() => gagal({ tampil: 'Koneksi lambat atau terputus. Periksa internet Anda lalu coba lagi.' }), ms || 15000);
+        Promise.resolve(p).then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); gagal(e); });
+      });
+    }
     function bukaPortalOrtuForm() {
       document.getElementById('loginChooser').style.display = 'none';
       document.getElementById('loginPage').style.display = 'none';
@@ -51,10 +104,11 @@
       const tersimpan = ortuPerangkatBaca();
       if (tersimpan && tersimpan.auto && !confirm(`PIN Anda dibuatkan otomatis dan hanya tersimpan di perangkat ini.\n\nPIN Anda: ${tersimpan.pin}\n\nCatat dulu PIN ini. Jika keluar, PIN dihapus dari perangkat ini dan Anda harus mengetik PIN itu untuk masuk lagi.\n\nTetap keluar?`)) return;
       if (ortuLinkBaca() && !confirm('Jika keluar, Anda perlu membuka kembali link dari WhatsApp untuk masuk lagi.\n\nTetap keluar?')) return;
-      ortuPerangkatLupa(); ortuLinkLupa();
+      ortuTutupSesi(); ortuPerangkatLupa(); ortuLinkLupa();
       const infoPin = document.getElementById('portalOrtuPinOtomatis'); if (infoPin) infoPin.remove();
       const kartuBuatPin = document.getElementById('portalOrtuBuatPinLink'); if (kartuBuatPin) kartuBuatPin.remove();
       portalOrtuWaKey = null; portalOrtuAnak = [];
+      Object.keys(_ortuCacheBersama).forEach(k => { delete _ortuCacheBersama[k]; });
       ortuEl('portalOrtuContent').innerHTML = '';
       ['portalOrtuPinLama', 'portalOrtuPinGanti1', 'portalOrtuPinGanti2'].forEach(id => { ortuEl(id).value = ''; });
       kembaliKeChooser();
@@ -67,6 +121,20 @@
     // pemindaian penuh lama -- tapi hanya SEKALI per sesi halaman, supaya salah ketik nomor berulang
     // tidak terus mengunduh semua siswa.
     let _ortuFallbackDipakai = false;
+    // Pemindaian penuh node siswa juga dibatasi 3x per hari per perangkat (salah ketik nomor berulang / muat ulang halaman
+    // tidak lagi mengunduh seluruh siswa tiap kali).
+    function ortuFallbackBoleh() {
+      try {
+        const hari = new Date().toISOString().slice(0, 10), o = JSON.parse(localStorage.getItem('simambaOrtuFallback') || 'null');
+        return !(o && o.d === hari && o.n >= 3);
+      } catch (e) { return true; }
+    }
+    function ortuFallbackCatat() {
+      try {
+        const hari = new Date().toISOString().slice(0, 10), o = JSON.parse(localStorage.getItem('simambaOrtuFallback') || 'null');
+        localStorage.setItem('simambaOrtuFallback', JSON.stringify({ d: hari, n: (o && o.d === hari ? o.n : 0) + 1 }));
+      } catch (e) {}
+    }
     function ortuBentukHasilAnak(snap, waKey, cocokkanManual) {
       const hasil = [];
       snap.forEach(c => {
@@ -79,8 +147,8 @@
     function ortuCariAnak(waKey) {
       return db.ref('siswa').orderByChild('noWaKey').equalTo(waKey).once('value').then(snap => {
         const hasil = ortuBentukHasilAnak(snap, waKey, false);
-        if (hasil.length || _ortuFallbackDipakai) return hasil;
-        _ortuFallbackDipakai = true;
+        if (hasil.length || _ortuFallbackDipakai || !ortuFallbackBoleh()) return hasil;
+        _ortuFallbackDipakai = true; ortuFallbackCatat();
         return db.ref('siswa').once('value').then(semua => ortuBentukHasilAnak(semua, waKey, true));
       });
     }
@@ -103,20 +171,12 @@
       toast(perlu ? ('✅ ' + perlu + ' data siswa diberi noWaKey.') : '✅ Semua data siswa sudah punya noWaKey.');
       return ringkas;
     }
-    // Catat 1x salah PIN di server (bukan cuma di browser) -> terkunci 10 menit setelah 5x salah.
+    // Catat 1x salah PIN ke riwayat login. Penguncian akun (gagal/kunciSampai di ortu_akun) DIHAPUS: Rules tidak bisa
+    // mencatat percobaan yang ditolak, jadi kunci itu hanya hiasan dan bisa dilewati dengan membaca hash langsung.
+    // Pengaman yang berlaku: hash tidak lagi terbaca klien, App Check, dan link WhatsApp sebagai jalur utama.
     function ortuCatatGagal(waKey) {
-      return db.ref('ortu_akun/' + waKey).transaction(cur => {
-        if (!cur) return cur;
-        const n = (cur.gagal || 0) + 1;
-        if (n >= ORTU_MAX_GAGAL) { cur.gagal = 0; cur.kunciSampai = Date.now() + ORTU_KUNCI_MENIT * 60000; }
-        else { cur.gagal = n; }
-        return cur;
-      }).then(res => {
-        const v = res.snapshot.val() || {};
-        ortuCatatRiwayatLogin(waKey, 'pin', 'gagal', null, (v.kunciSampai && v.kunciSampai > Date.now()) ? 'PIN salah, akun terkunci' : 'PIN salah');
-        if (v.kunciSampai && v.kunciSampai > Date.now()) return { tampil: `PIN salah terlalu sering. Akun dikunci sampai pukul ${ortuTampilJam(v.kunciSampai)}.` };
-        return { tampil: `PIN salah. Sisa percobaan: ${Math.max(0, ORTU_MAX_GAGAL - (v.gagal || 0))}.` };
-      }).catch(() => ({ tampil: 'PIN salah.' }));
+      ortuCatatRiwayatLogin(waKey, 'pin', 'gagal', null, 'PIN salah');
+      return Promise.resolve({ tampil: 'PIN salah, atau nomor ini belum punya PIN. Minta link masuk ke wali kelas/Admin bila perlu.' });
     }
     // ---------- Riwayat login orang tua -> node ortu_login_log (dibaca Admin: js/riwayat-login-ortu.js) ----------
     // Dicatat: login berhasil (cara: pin / pertama / otomatis / link) dan PIN salah (termasuk yang memicu kunci akun).
@@ -156,18 +216,16 @@
       if (!waKey) { errEl.textContent = '⚠️ Nomor WhatsApp tidak valid.'; return; }
       if (!ortuPinValid(pin)) { errEl.textContent = '⚠️ PIN harus 6 angka.'; return; }
       portalOrtuBusy = true; errEl.textContent = '⏳ Memeriksa...';
-      db.ref('ortu_akun/' + waKey).once('value').then(snap => {
-        const akun = snap.val();
-        if (!akun || !akun.pin) throw { tampil: 'Belum ada PIN untuk nomor ini. Klik "Belum punya PIN? Buat PIN".' };
-        if (akun.kunciSampai && akun.kunciSampai > Date.now()) throw { tampil: `Akun dikunci karena PIN salah terlalu sering. Coba lagi pukul ${ortuTampilJam(akun.kunciSampai)}, atau minta Admin mereset PIN.` };
-        if (ortuHashPin(pin, waKey) !== akun.pin) return ortuCatatGagal(waKey).then(pesan => { throw pesan; });
-        db.ref('ortu_akun/' + waKey).update({ gagal: 0, kunciSampai: null, terakhirLogin: new Date().toISOString() }).catch(() => {});
-        return ortuCariAnak(waKey).then(anak => {
-          if (!anak.length) throw { tampil: 'Nomor ini tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
-          ortuIngatSetelahMasuk(waKey, pin, 'ortuIngatPerangkat');
-          bukaDashboardPortalOrtu(waKey, anak, 'pin');
-        });
-      }).catch(e => { errEl.textContent = ortuPesanError(e); })
+      ortuBukaSesi(waKey, { h: ortuHashPin(pin, waKey) })
+        .catch(e => { if (ortuDitolak(e)) return ortuCatatGagal(waKey).then(pesan => { throw pesan; }); throw e; })
+        .then(() => {
+          ortuCatatLoginAkun(waKey);
+          return ortuCariAnak(waKey).then(anak => {
+            if (!anak.length) throw { tampil: 'Nomor ini tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
+            ortuIngatSetelahMasuk(waKey, pin, 'ortuIngatPerangkat');
+            bukaDashboardPortalOrtu(waKey, anak, 'pin');
+          });
+        }).catch(e => { errEl.textContent = ortuPesanError(e); })
         .finally(() => { portalOrtuBusy = false; });
     }
     function buatPinOrtu() {
@@ -241,20 +299,17 @@
       ortuEl('portalOrtuNoWa').value = '0' + c.wa.slice(2);
       portalOrtuBusy = true; errEl.textContent = dariUrl ? '⏳ Membuka dengan link Anda...' : '⏳ Masuk otomatis...';
       let coba = false;   // link tersimpan sudah dicabut -> lanjut coba PIN tersimpan (kalau ada)
-      db.ref('ortu_link/' + c.wa + '/' + ortuLinkHash(c.tok)).once('value').then(snap => {
-        const v = snap.val();
-        if (!v || v.dicabut) {
-          ortuLinkLupa();
-          ortuCatatRiwayatLogin(c.wa, 'link', 'gagal', null, dariUrl ? 'Link tidak berlaku' : 'Link tersimpan sudah dicabut');
-          if (dariUrl) ortuLinkBersihkanUrl(); else coba = true;
-          throw { tampil: 'Link ini sudah tidak berlaku. Minta link baru ke wali kelas/Admin, atau masuk dengan PIN.' };
-        }
-        return ortuCariAnak(c.wa).then(anak => {
-          if (!anak.length) throw { tampil: 'Nomor ini belum/tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
-          ortuLinkSimpan(c.wa, c.tok);
-          if (dariUrl) ortuLinkBersihkanUrl();
-          bukaDashboardPortalOrtu(c.wa, anak, dariUrl ? 'link' : 'otomatis');
-        });
+      ortuBukaSesi(c.wa, { l: ortuLinkHash(c.tok) }).catch(e => {
+        if (!ortuDitolak(e)) throw e;
+        ortuLinkLupa();
+        ortuCatatRiwayatLogin(c.wa, 'link', 'gagal', null, dariUrl ? 'Link tidak berlaku' : 'Link tersimpan sudah dicabut');
+        if (dariUrl) ortuLinkBersihkanUrl(); else coba = true;
+        throw { tampil: 'Link ini sudah tidak berlaku. Minta link baru ke wali kelas/Admin, atau masuk dengan PIN.' };
+      }).then(() => ortuCariAnak(c.wa)).then(anak => {
+        if (!anak.length) throw { tampil: 'Nomor ini belum/tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
+        ortuLinkSimpan(c.wa, c.tok);
+        if (dariUrl) ortuLinkBersihkanUrl();
+        bukaDashboardPortalOrtu(c.wa, anak, dariUrl ? 'link' : 'otomatis');
       }).catch(e => { errEl.textContent = ortuPesanError(e); })   // gagal jaringan: kredensial perangkat TIDAK dihapus
         .finally(() => { portalOrtuBusy = false; if (coba) ortuMasukOtomatis(); });
     }
@@ -316,18 +371,16 @@
       const errEl = ortuEl('portalOrtuError');
       ortuEl('portalOrtuNoWa').value = '0' + p.wa.slice(2);
       portalOrtuBusy = true; errEl.textContent = '⏳ Masuk otomatis...';
-      db.ref('ortu_akun/' + p.wa).once('value').then(snap => {
-        const akun = snap.val();
-        const basi = { tampil: 'PIN yang tersimpan di perangkat ini sudah tidak berlaku (mungkin diganti atau direset Admin). Silakan masuk dengan PIN.' };
-        if (!akun || !akun.pin) { ortuPerangkatLupa(); throw basi; }
-        if (akun.kunciSampai && akun.kunciSampai > Date.now()) throw { tampil: `Akun dikunci karena PIN salah terlalu sering. Coba lagi pukul ${ortuTampilJam(akun.kunciSampai)}, atau minta Admin mereset PIN.` };
-        if (ortuHashPin(p.pin, p.wa) !== akun.pin) { ortuPerangkatLupa(); throw basi; }
-        db.ref('ortu_akun/' + p.wa).update({ gagal: 0, kunciSampai: null, terakhirLogin: new Date().toISOString() }).catch(() => {});
-        return ortuCariAnak(p.wa).then(anak => {
-          if (!anak.length) throw { tampil: 'Nomor ini tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
-          bukaDashboardPortalOrtu(p.wa, anak, 'otomatis');
-        });
-      }).catch(e => { errEl.textContent = ortuPesanError(e); })
+      const basi = { tampil: 'PIN yang tersimpan di perangkat ini sudah tidak berlaku (mungkin diganti atau direset Admin). Silakan masuk dengan PIN.' };
+      ortuBukaSesi(p.wa, { h: ortuHashPin(p.pin, p.wa) })
+        .catch(e => { if (ortuDitolak(e)) { ortuPerangkatLupa(); throw basi; } throw e; })
+        .then(() => {
+          ortuCatatLoginAkun(p.wa);
+          return ortuCariAnak(p.wa).then(anak => {
+            if (!anak.length) throw { tampil: 'Nomor ini tidak lagi terdaftar di data siswa. Hubungi wali kelas/Admin.' };
+            bukaDashboardPortalOrtu(p.wa, anak, 'otomatis');
+          });
+        }).catch(e => { errEl.textContent = ortuPesanError(e); })
         .finally(() => { portalOrtuBusy = false; });
     }
     function bukaDashboardPortalOrtu(waKey, anak, cara) {
@@ -348,14 +401,14 @@
       renderPortalOrtuDashboard(anak[0]);
     }
     // ---------- Buat PIN sendiri setelah masuk lewat link WhatsApp ----------
-    function ortuPunyaLinkValid(waKey) {
-      const c = ortuLinkBaca();
-      if (!c || c.wa !== waKey) return Promise.resolve(false);
-      return db.ref('ortu_link/' + c.wa + '/' + ortuLinkHash(c.tok)).once('value').then(sn => { const v = sn.val(); return !!v && !v.dicabut; }, () => false);
-    }
     function ortuTampilBuatPinLink(waKey) {
-      db.ref('ortu_akun/' + waKey).once('value').then(sn => {
-        if (sn.exists() || portalOrtuWaKey !== waKey || document.getElementById('portalOrtuBuatPinLink')) return;   // sudah punya PIN / sudah keluar
+      db.ref('ortu_akun/' + waKey + '/v').once('value').then(sn => {   // hanya penanda ada/tidaknya akun; hash PIN tidak terbaca
+        if (portalOrtuWaKey !== waKey) return;   // sudah keluar
+        if (sn.exists()) {   // PIN sudah pernah dibuat (mis. lewat kartu ini lalu portal dibuka ulang lewat link): tombol Ganti PIN harus tampil
+          document.querySelectorAll('#portalOrtuDashboard [onclick="toggleGantiPinOrtu()"]').forEach(b => { b.style.display = ''; });
+          return;
+        }
+        if (document.getElementById('portalOrtuBuatPinLink')) return;
         const content = ortuEl('portalOrtuContent'); if (!content || !content.parentNode) return;
         const box = document.createElement('div'); box.id = 'portalOrtuBuatPinLink'; box.className = 'card'; box.style.cssText = 'margin-bottom:12px;border-left:4px solid #059669;';
         box.innerHTML = `<p style="font-weight:700;margin-bottom:4px;">🔑 Buat PIN (opsional)</p>
@@ -379,15 +432,18 @@
       if (p1 !== p2) { msg.textContent = '⚠️ Ulangi PIN tidak sama.'; return; }
       const waKey = portalOrtuWaKey;
       portalOrtuBusy = true; msg.textContent = '⏳ Menyimpan...';
-      ortuPunyaLinkValid(waKey).then(ok => {
-        if (!ok) throw { tampil: 'Link masuk Anda sudah tidak berlaku. Minta link baru ke wali kelas/Admin.' };
-        const hash = ortuHashPin(p1, waKey), sekarang = new Date().toISOString();
-        return db.ref('ortu_akun/' + waKey).transaction(cur => cur ? undefined : { pin: hash, v: 1, dibuat: sekarang, terakhirLogin: sekarang }).then(res => {
-          if (!res.committed) throw { tampil: 'Nomor ini sudah punya PIN. Lupa PIN? Hubungi Admin untuk reset.' };
-          const k = document.getElementById('portalOrtuBuatPinLink'); if (k) k.remove();
-          document.querySelectorAll('#portalOrtuDashboard [onclick="toggleGantiPinOrtu()"]').forEach(b => { b.style.display = ''; });
-          toast('✅ PIN berhasil dibuat. Bisa dipakai untuk masuk dari HP lain.');
-        });
+      const hash = ortuHashPin(p1, waKey), sekarang = new Date().toISOString();
+      // Rules hanya mengizinkan pembuatan bila akun belum ada DAN sesi ini terbukti lewat link yang masih berlaku.
+      db.ref('ortu_akun/' + waKey + '/v').once('value').then(sn => {
+        if (sn.exists()) throw { tampil: 'Nomor ini sudah punya PIN. Lupa PIN? Hubungi Admin untuk reset.' };
+        return db.ref('ortu_akun/' + waKey).set({ pin: hash, v: 1, dibuat: sekarang, terakhirLogin: sekarang });
+      }).catch(e => {
+        if (ortuDitolak(e)) throw { tampil: 'Nomor ini sudah punya PIN, atau link masuk Anda sudah tidak berlaku. Lupa PIN? Hubungi Admin untuk reset.' };
+        throw e;
+      }).then(() => ortuBukaSesi(waKey, { h: hash })).then(() => {
+        const k = document.getElementById('portalOrtuBuatPinLink'); if (k) k.remove();
+        document.querySelectorAll('#portalOrtuDashboard [onclick="toggleGantiPinOrtu()"]').forEach(b => { b.style.display = ''; });
+        toast('✅ PIN berhasil dibuat. Bisa dipakai untuk masuk dari HP lain.');
       }).catch(e => { msg.style.color = '#dc2626'; msg.textContent = ortuPesanError(e); })
         .finally(() => { portalOrtuBusy = false; });
     }
@@ -412,19 +468,18 @@
       if (baru1 !== baru2) { msg.textContent = '⚠️ Ulangi PIN baru tidak sama.'; return; }
       const waKey = portalOrtuWaKey;
       portalOrtuBusy = true; msg.textContent = '⏳ Menyimpan...';
-      db.ref('ortu_akun/' + waKey).once('value').then(snap => {
-        const akun = snap.val();
-        if (!akun || !akun.pin) throw { tampil: 'Akun tidak ditemukan (mungkin sudah direset Admin). Silakan masuk ulang.' };
-        if (akun.kunciSampai && akun.kunciSampai > Date.now()) throw { tampil: `Akun dikunci sampai pukul ${ortuTampilJam(akun.kunciSampai)}.` };
-        if (ortuHashPin(lama, waKey) !== akun.pin) return ortuCatatGagal(waKey).then(pesan => { throw pesan; });
-        return db.ref('ortu_akun/' + waKey).update({ pin: ortuHashPin(baru1, waKey), diubah: new Date().toISOString(), gagal: 0, kunciSampai: null }).then(() => {
+      const hBaru = ortuHashPin(baru1, waKey);
+      ortuBukaSesi(waKey, { h: ortuHashPin(lama, waKey) })   // membuktikan PIN lama ke Rules
+        .catch(e => { if (ortuDitolak(e)) throw { tampil: 'PIN lama salah, atau akun sudah direset Admin. Silakan masuk ulang.' }; throw e; })
+        .then(() => db.ref('ortu_akun/' + waKey).update({ pin: hBaru, diubah: new Date().toISOString(), gagal: null, kunciSampai: null }))
+        .then(() => ortuBukaSesi(waKey, { h: hBaru }))
+        .then(() => {
           msg.style.color = '#059669'; msg.textContent = '✅ PIN berhasil diganti.';
           const tersimpan = ortuPerangkatBaca();
           if (tersimpan && tersimpan.wa === waKey) ortuPerangkatSimpan(waKey, baru1, false);   // PIN pilihan sendiri: tidak lagi "otomatis"
           const infoPin = document.getElementById('portalOrtuPinOtomatis'); if (infoPin) infoPin.remove();
           ['portalOrtuPinLama', 'portalOrtuPinGanti1', 'portalOrtuPinGanti2'].forEach(id => { ortuEl(id).value = ''; });
-        });
-      }).catch(e => { msg.style.color = '#dc2626'; msg.textContent = ortuPesanError(e); })
+        }).catch(e => { msg.style.color = '#dc2626'; msg.textContent = ortuPesanError(e); })
         .finally(() => { portalOrtuBusy = false; });
     }
 
@@ -546,6 +601,16 @@
     // Satu query ditolak (Rules/jaringan) tidak lagi menggagalkan seluruh dashboard: node itu dianggap kosong
     // dan namanya dicatat di `gagal` supaya orang tua diberi tahu bahwa sebagian data belum termuat.
     const ORTU_SNAP_KOSONG = { forEach() { return false; }, numChildren() { return 0; }, val() { return null; }, exists() { return false; } };
+    // Data yang SAMA untuk semua anak di kelas yang sama (absensi kelas, materi, tugas, jurnal hari ini, kalender, acara, ujian)
+    // disimpan di memori 5 menit. Tanpa ini setiap ganti anak / kumpul tugas / buka ulang dasbor mengunduh ulang semuanya.
+    // Hanya hidup selama halaman terbuka (hilang saat muat ulang atau Keluar), jadi tidak pernah basi lintas hari.
+    const ORTU_CACHE_MS = 5 * 60000, _ortuCacheBersama = {};
+    function ortuBacaBersama(kunci, ref, nama, gagal) {
+      const c = _ortuCacheBersama[kunci];
+      if (c && Date.now() - c.t < ORTU_CACHE_MS) return Promise.resolve(c.snap);
+      return ref.once('value').then(snap => { _ortuCacheBersama[kunci] = { t: Date.now(), snap }; return snap; })
+        .catch(e => { gagal.push(nama); console.warn('[SI MAMBA] Portal Ortu: gagal membaca ' + nama + ':', (e && e.message) || e); return ORTU_SNAP_KOSONG; });
+    }
     function ortuBacaAman(ref, nama, gagal) {
       return ref.once('value').catch(e => { gagal.push(nama); console.warn('[SI MAMBA] Portal Ortu: gagal membaca ' + nama + ':', (e && e.message) || e); return ORTU_SNAP_KOSONG; });
     }
@@ -565,15 +630,18 @@
         ortuBacaAman(db.ref('iuran_siswa').orderByChild('siswaKey').equalTo(siswa.key), 'iuran_siswa', gagalMuat),
         ortuBacaAman(db.ref('buku_penghubung').orderByChild('siswaKey').equalTo(siswa.key), 'buku_penghubung', gagalMuat),
         // Hanya absensi BULAN INI + BULAN LALU (cadangan saat awal bulan belum ada absensi; dulu seluruh riwayat kelas, semua tahun). Filter kelas dilakukan di bawah.
-        ortuBacaAman(db.ref('attendance').orderByChild('tanggal').startAt(prevMonthStr + '-01').endAt(monthStr + '-31'), 'attendance', gagalMuat),
-        ortuBacaAman(db.ref('materi_belajar').orderByChild('kelas').equalTo(siswa.kelas), 'materi_belajar', gagalMuat),
-        ortuBacaAman(db.ref('tugas').orderByChild('kelas').equalTo(siswa.kelas), 'tugas', gagalMuat),
+        // HEMAT KUOTA: dulu absensi SEMUA kelas selama 2 bulan diunduh lalu disaring di browser (tiap catatan memuat status seluruh
+        // siswa kelas). Sekarang hanya 80 catatan terakhir KELAS ANAK ini (indexOn kelas sudah ada di Rules); kunci push berurutan
+        // waktu, 80 catatan menutup lebih dari 2 bulan hari sekolah. Penyaringan bulan & kelas di bawah tetap berlaku.
+        ortuBacaBersama('absen|' + siswa.kelas, db.ref('attendance').orderByChild('kelas').equalTo(siswa.kelas).limitToLast(80), 'attendance', gagalMuat),
+        ortuBacaBersama('materi|' + siswa.kelas, db.ref('materi_belajar').orderByChild('kelas').equalTo(siswa.kelas), 'materi_belajar', gagalMuat),
+        ortuBacaBersama('tugas|' + siswa.kelas, db.ref('tugas').orderByChild('kelas').equalTo(siswa.kelas), 'tugas', gagalMuat),
         ortuBacaAman(db.ref('tugas_submission').orderByChild('siswaKey').equalTo(siswa.key), 'tugas_submission', gagalMuat),
         // Hanya jurnal HARI INI (dulu seluruh riwayat jurnal kelas). Filter kelas dilakukan di bawah.
-        ortuBacaAman(db.ref('journal').orderByChild('tanggal').equalTo(tglLokal()), 'journal', gagalMuat),
-        ortuBacaAman(db.ref('kalender_akademik'), 'kalender_akademik', gagalMuat),
-        ortuBacaAman(db.ref('events').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'events', gagalMuat),
-        ortuBacaAman(db.ref('ujian').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'ujian', gagalMuat)
+        ortuBacaBersama('jurnal|' + tglLokal(), db.ref('journal').orderByChild('tanggal').equalTo(tglLokal()), 'journal', gagalMuat),
+        ortuBacaBersama('kalender', db.ref('kalender_akademik'), 'kalender_akademik', gagalMuat),
+        ortuBacaBersama('events|' + tglLokal(), db.ref('events').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'events', gagalMuat),
+        ortuBacaBersama('ujian|' + tglLokal(), db.ref('ujian').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'ujian', gagalMuat)
       ]).then(([gradesSnap, sikapSnap, iuranSnap, bukuSnap, absenSnap, materiSnap, tugasSnap, submissionSnap, journalSnap, kalenderSnap, eventsSnap, ujianSnap]) => {
         // Semua query di atas cuma bisa orderByChild SATU field di Firebase RTDB (siswaKey/kelas),
         // jadi filter tahunAjaran-nya WAJIB ditambahkan manual di sini -- tanpa ini, portal ortu
@@ -728,7 +796,7 @@
             <summary><span>${poID('💬 Saran &amp; Kritik untuk Madrasah')}</span></summary>
             <div class="po-acc-body">
             <p class="text-muted" style="font-size:12px;margin-bottom:8px;">Masukan Bapak/Ibu membantu madrasah menjadi lebih baik. Bisa dikirim dengan nama, atau anonim kalau memang lebih nyaman.</p>
-            <textarea id="saranKritikTeks" class="field" rows="3" placeholder="Tulis saran atau kritik di sini..."></textarea>
+            <textarea id="saranKritikTeks" class="field" rows="3" maxlength="1000" placeholder="Tulis saran atau kritik di sini..."></textarea>
             <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0;cursor:pointer;">
               <input type="checkbox" id="saranKritikAnonim"> Kirim sebagai anonim (nama &amp; kelas tidak disertakan)
             </label>
@@ -785,11 +853,13 @@
     function angketSiswaMuat(siswa) { angketPortalMuat('siswa', siswa); }
     // ---------- Angket Keunggulan Madrasah untuk orang tua / siswa (modul: js/angket-keunggulan.js) ----------
     // Sama dengan Angket Kurikulum di atas: kartu muncul hanya saat angket keunggulan DIBUKA (ON), kunci data = hash
-    // (tanpa No. WA), isian anonim tidak bisa ditelusuri. Hanya sisi Minat (3 butir per bidang) + pilihan bidang prioritas. Path data: angket_keunggulan/...
+    // (tanpa No. WA), isian anonim tidak bisa ditelusuri. Hanya sisi Minat (3 butir per bidang) + pilihan bidang prioritas; kartu siswa hanya untuk kelas 4-6. Path data: angket_keunggulan/...
     function angketKeunggulanMuat(jenis, siswa) {
       const ortu = jenis === 'ortu';
       const slotId = ortu ? 'angketKeunggulanOrtuSlot' : 'angketKeunggulanSiswaSlot';
       if (!document.getElementById(slotId) || typeof AngketKeunggulan === 'undefined') return;
+      // Angket siswa hanya untuk kelas 4-6 (kelas 1-3 cukup lewat orang tua). Kelas kosong/tak terbaca = tetap tampil.
+      if (!ortu && AngketKeunggulan.kelasBolehSiswa && !AngketKeunggulan.kelasBolehSiswa(siswa.kelas)) return;
       const kunci = angketOrtuKunci(ortu ? portalOrtuWaKey : 'siswa:' + siswa.key);
       const accId = ortu ? 'angketKeunggulanOrtuAcc' : 'angketKeunggulanSiswaAcc', wadahId = ortu ? 'angketKeunggulanOrtuWadah' : 'angketKeunggulanSiswaWadah';
       AngketKeunggulan.cekAktif().then(st => {
@@ -806,7 +876,7 @@
           acc.addEventListener('toggle', () => {
             if (!acc.open || dimuat) return; dimuat = true;
             const nama = ortu ? 'Wali dari ' + (siswa.name || '-') + ' (' + (siswa.kelas || '-') + ')' : (siswa.name || '-') + ' (' + (siswa.kelas || '-') + ')';
-            AngketKeunggulan.renderForm(wadahId, jenis, { kunci, nama }, { izinAnonim: true });
+            AngketKeunggulan.renderForm(wadahId, jenis, { kunci, nama, kelas: siswa.kelas }, { izinAnonim: true });
           });
         });
       }).catch(() => {});
@@ -817,7 +887,7 @@
     // TIDAK anonim -- kalau anonim, field itu sengaja null (Admin tidak akan tahu identitasnya).
     function kirimSaranKritik(siswaKey, siswaNama, kelas) {
       if (isBusy('kirimSaranKritik')) return;
-      const teks = document.getElementById('saranKritikTeks').value.trim();
+      const teks = document.getElementById('saranKritikTeks').value.trim().slice(0, 1000);   // Rules: pesan maks. 1000 karakter
       const anonim = document.getElementById('saranKritikAnonim').checked;
       const statusEl = document.getElementById('saranKritikStatus');
       if (!teks) { statusEl.innerHTML = '<span style="color:#dc2626;">⚠️ Tulis dulu saran/kritiknya.</span>'; return; }
@@ -835,7 +905,7 @@
         status: 'baru'
       }, err => {
         clearBusy('kirimSaranKritik', btnKirimSaran);
-        if (err) { statusEl.innerHTML = `<span style="color:#dc2626;">❌ Gagal mengirim: ${err.message}</span>`; return; }
+        if (err) { statusEl.innerHTML = `<span style="color:#dc2626;">❌ Gagal mengirim: ${escapeHtml(err.message)}</span>`; return; }
         statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Terkirim, terima kasih atas masukannya!</span>';
         document.getElementById('saranKritikTeks').value = '';
         document.getElementById('saranKritikAnonim').checked = false;
@@ -846,13 +916,20 @@
     // acara/ujian, supaya tidak membengkak di database. Key deterministik (tugasKey_siswaKey)
     // supaya kumpul ulang otomatis MENGGANTIKAN jawaban sebelumnya (bukan menumpuk).
     function kumpulTugasOrtu(tugasKey, siswaKey, siswaNama, kelas) {
+      const kunciBusy = 'kumpulTugasOrtu_' + tugasKey + '_' + siswaKey;
+      if (isBusy(kunciBusy)) { toast('⏳ Sedang mengirim, mohon tunggu...', false, 1500); return; }
       const jawabanTeks = (document.getElementById('jawabanTeks_'+tugasKey).value || '').trim();
       const fileInput = document.getElementById('jawabanFoto_'+tugasKey);
       const file = fileInput.files && fileInput.files[0];
       if (!jawabanTeks && !file) { toast('⚠️ Isi jawaban teks atau lampirkan foto dulu.', true); return; }
+      if (file && !/^image\//.test(file.type)) { toast('⚠️ File harus berupa gambar!', true); return; }
+      setBusy(kunciBusy, null);
+      const lepas = () => clearBusy(kunciBusy, null);
+      setTimeout(lepas, 30000);   // cadangan bila sinyal sangat lemah supaya tombol tidak macet
       const simpanKumpul = (fotoDataUrl) => {
         const ref = db.ref(`tugas_submission/${tugasKey}_${siswaKey}`);
         ref.set({ tugasKey, siswaKey, siswaNama, kelas, jawabanTeks: jawabanTeks || null, hasFoto: !!fotoDataUrl, waktuKumpul: new Date().toISOString(), tahunAjaran: currentTahunAjaran }, err => {
+          lepas();
           if (err) { toast('❌ Gagal mengumpulkan: ' + err.message, true); return; }
           simpanFotoTerpisah('tugas_submission', tugasKey + '_' + siswaKey, fotoDataUrl); // set / hapus foto (kumpul ulang tanpa foto = foto lama dihapus)
           toast('✅ Tugas berhasil dikumpulkan!');
@@ -861,7 +938,6 @@
         });
       };
       if (!file) { simpanKumpul(null); return; }
-      if (!/^image\//.test(file.type)) { toast('⚠️ File harus berupa gambar!', true); return; }
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
@@ -873,9 +949,9 @@
           canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
           simpanKumpul(canvas.toDataURL('image/jpeg', 0.5));
         };
-        img.onerror = () => toast('Gagal memproses foto.', true);
+        img.onerror = () => { lepas(); toast('Gagal memproses foto.', true); };
         img.src = e.target.result;
       };
-      reader.onerror = () => toast('Gagal membaca file.', true);
+      reader.onerror = () => { lepas(); toast('Gagal membaca file.', true); };
       reader.readAsDataURL(file);
     }
