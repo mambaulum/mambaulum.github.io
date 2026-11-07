@@ -109,9 +109,9 @@
     // Isi node ortu_login_log bisa ditulis siapa pun yang login anonim, jadi sel yang diawali = + - @ (atau tab/CR) diberi
     // apostrof di depan supaya Excel tidak menjalankannya sebagai rumus.
     var q = function (v) { var t = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
-    var baris = [['Waktu', 'Hasil', 'Cara', 'Perangkat', 'Anak', 'Kelas', 'Nomor WA (disamarkan)', 'Keterangan'].map(q).join(',')];
+    var baris = [['Waktu', 'Hasil', 'Cara', 'Perangkat', 'Versi', 'Anak', 'Kelas', 'Nomor WA (disamarkan)', 'Keterangan'].map(q).join(',')];
     saring(peta).forEach(function (x) {
-      baris.push([waktuTeks(x.waktu), x.hasil, CARA[x.cara] || x.cara, x.perangkat, namaAnak(x, peta), x.kelas, samar(x.wa), x.detail].map(q).join(','));
+      baris.push([waktuTeks(x.waktu), x.hasil, CARA[x.cara] || x.cara, x.perangkat, x.versi, namaAnak(x, peta), x.kelas, samar(x.wa), x.detail].map(q).join(','));
     });
     var blob = new Blob(['\ufeff' + baris.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     var a = document.createElement('a');
@@ -144,6 +144,7 @@
     var admin = adminAktif();
     kartu.style.display = admin ? 'block' : 'none';
     if (!admin) return;
+    pasangKartuVersi();
     if (!terikat) {
       terikat = true;
       var on = function (id, ev, fn) { var e = el(id); if (e) e.addEventListener(ev, fn); };
@@ -155,5 +156,128 @@
     }
     if (sudahMuat) render(); else muat();
   }
+  // ---------- Pembaruan Aplikasi Wali: pantau versi dari log + pengingat WhatsApp ----------
+  // Tiap catatan login membawa versi aplikasi (v8.<build>). Perangkat = nomor WA + jenis perangkat; yang dihitung "sudah" bila
+  // catatan TERBARU perangkat itu berversi >= BUILD_MIN. Wali yang belum memuat versi baru tidak mengirim versi, jadi tampil "belum".
+  // Syarat memasang Rules Tahap B: daftar "belum" kosong (atau tinggal wali yang memang sudah tidak dipakai).
+  // Pengingat TIDAK terkirim otomatis: tombol membuka WhatsApp (wa.me) dengan pesan terisi, pengirim menekan Kirim.
+  // Tanda "diingatkan" disimpan di perangkat Admin ini saja.
+  var BUILD_MIN = 378, vHasil = null, vTampil = 30;
+  function buildDari(v) { var m = String(v == null ? '' : v).match(/(\d+)$/); return m ? parseInt(m[1], 10) : 0; }
+  function digitWa(wa) { return String(wa == null ? '' : wa).replace(/\D/g, ''); }
+  function namaMadrasah() { try { if (typeof MADRASAH !== 'undefined' && MADRASAH && MADRASAH.nama) return MADRASAH.nama; } catch (e) {} return 'Madrasah'; }
+  function basisUrl() { return location.origin + location.pathname.replace(/[^\/]*$/, ''); }
+  // daftar catatan -> { perangkat, sudah, belum, akunBelum:[{wa, anak, kelas, perangkat:[..], terakhir}], akunTotal }
+  function hitungVersi(daftar, buildMin) {
+    var unit = {};
+    daftar.forEach(function (x) {
+      if (!x || !x.wa) return;
+      var k = x.wa + '|' + (x.perangkat || '-');
+      if (!unit[k] || String(x.waktu) > String(unit[k].waktu)) unit[k] = x;
+    });
+    var akun = {}, sudah = 0, belum = 0;
+    Object.keys(unit).forEach(function (k) {
+      var x = unit[k], baru = buildDari(x.versi) >= buildMin;
+      if (baru) sudah++; else belum++;
+      var a = akun[x.wa] = akun[x.wa] || { wa: x.wa, anak: '', kelas: '', perangkat: [], terakhir: '', adaBelum: false };
+      if (x.anak && !a.anak) a.anak = x.anak;
+      if (x.kelas && !a.kelas) a.kelas = x.kelas;
+      if (!baru) { a.adaBelum = true; a.perangkat.push(x.perangkat || '-'); }
+      if (String(x.waktu) > String(a.terakhir)) a.terakhir = x.waktu;
+    });
+    var daftarAkun = Object.keys(akun).map(function (k) { return akun[k]; });
+    return { perangkat: sudah + belum, sudah: sudah, belum: belum, akunTotal: daftarAkun.length,
+      akunBelum: daftarAkun.filter(function (a) { return a.adaBelum; }).sort(function (a, b) { return String(b.terakhir).localeCompare(String(a.terakhir)); }) };
+  }
+  function pesanPribadi(anak) {
+    return 'Assalamu\u2019alaikum Bapak/Ibu' + (anak ? ' wali dari ' + anak : ' wali murid') + '.\n\n' +
+      'Aplikasi Portal Wali Murid SI MAMBA ada pembaruan keamanan. Mohon buka aplikasi dengan internet aktif, lalu tekan "Perbarui aplikasi" bila muncul (atau tutup aplikasi lalu buka kembali):\n' + basisUrl() + '?app=ortu\n\n' +
+      'Bila setelah itu tidak bisa masuk, mohon hubungi madrasah agar dikirimi link masuk yang baru.\n\nTerima kasih.\n' + namaMadrasah();
+  }
+  function pesanGrup() {
+    return 'Assalamu\u2019alaikum Bapak/Ibu wali murid ' + namaMadrasah() + '.\n\n' +
+      'Portal Wali Murid SI MAMBA diperbarui demi keamanan data. Mohon semua wali:\n' +
+      '1. Buka aplikasi dengan internet aktif.\n' +
+      '2. Tekan "Perbarui aplikasi" bila muncul, atau tutup aplikasi lalu buka kembali.\n\n' +
+      'Alamat: ' + basisUrl() + '?app=ortu\n\n' +
+      'Setelah diperbarui, bila tidak bisa masuk, silakan hubungi madrasah agar dikirimi link masuk yang baru.\n\nTerima kasih.\n' + namaMadrasah();
+  }
+  function tandaIngat(wa) { try { return +localStorage.getItem('rloIngat_' + wa) || 0; } catch (e) { return 0; } }
+  function setIngat(wa) { try { localStorage.setItem('rloIngat_' + wa, String(Date.now())); } catch (e) {} }
+  function bukaWa(nomor, teks) { window.open('https://wa.me/' + (nomor || '') + '?text=' + encodeURIComponent(teks), '_blank', 'noopener'); }
+
+  function renderVersi() {
+    var w = el('rloVersiHasil'); if (!w) return;
+    if (!vHasil) { w.innerHTML = ''; return; }
+    var r = vHasil, peta = petaNama();
+    var aman = r.belum === 0;
+    var h = '<div style="font-size:13px;margin:8px 0;">Dari <b>' + r.akunTotal + '</b> akun (<b>' + r.perangkat + '</b> perangkat) yang masuk dalam ' + esc(vHasil.hari) + ' hari terakhir: ' +
+      '<b style="color:#047857;">' + r.sudah + ' sudah</b> memakai versi terbaru, <b style="color:' + (aman ? '#047857' : '#b45309') + ';">' + r.belum + ' belum</b>.</div>';
+    h += aman && r.perangkat ? '<div style="font-size:13px;margin:6px 0;padding:8px 10px;border-radius:10px;background:#ecfdf5;border:1px solid #a7f3d0;">Semua perangkat yang aktif sudah memakai versi terbaru. Aman memasang Rules Tahap B.</div>'
+      : r.belum ? '<div style="font-size:13px;margin:6px 0;padding:8px 10px;border-radius:10px;background:#fffbeb;border:1px solid #fcd34d;">Tahap B sebaiknya menunggu sampai daftar "belum" di bawah kosong. Wali yang belum memperbarui tidak bisa masuk setelah Tahap B.</div>' : '';
+    if (!r.perangkat) h += '<div style="font-size:13px;color:#6b7280;">Tidak ada catatan login pada rentang ini.</div>';
+    // pengingat grup
+    h += '<div style="margin:10px 0 4px;font-weight:700;font-size:13px;">Pengingat untuk grup WhatsApp</div>' +
+      '<textarea id="rloPesanGrup" class="field" readonly style="width:100%;min-height:150px;font-size:12px;">' + esc(pesanGrup()) + '</textarea>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px;"><button class="btn btn-soft" type="button" id="rloSalinGrup">📋 Salin pesan</button>' +
+      '<button class="btn btn-primary" type="button" id="rloWaGrup">💬 Buka WhatsApp (pilih grup)</button></div>';
+    // pengingat pribadi
+    if (r.belum) {
+      h += '<div style="margin:6px 0 4px;font-weight:700;font-size:13px;">Belum memperbarui (' + r.akunBelum.length + ' akun)</div>';
+      h += r.akunBelum.slice(0, vTampil).map(function (a, i) {
+        var nama = a.anak || (peta[a.wa] ? peta[a.wa].join(', ') : ''), judul = nama ? esc(nama) + (a.kelas ? ' (' + esc(a.kelas) + ')' : '') : 'No. ' + esc(samar(a.wa));
+        var t = tandaIngat(a.wa), sub = [a.perangkat.join(', '), nama ? samar(a.wa) : '', 'terakhir ' + waktuTeks(a.terakhir), t ? 'diingatkan ' + waktuTeks(new Date(t).toISOString()) : ''].filter(Boolean).map(esc).join(' · ');
+        return '<div class="log-item" style="align-items:center;"><span style="flex:1;"><span class="log-user">' + judul + '</span><div style="font-size:12px;color:#6b7280;">' + sub + '</div></span>' +
+          '<button class="btn ' + (t ? 'btn-soft' : 'btn-primary') + '" type="button" data-rlo-ingat="' + i + '" style="padding:3px 10px;font-size:12px;">💬 ' + (t ? 'Ingatkan lagi' : 'Ingatkan') + '</button></div>';
+      }).join('');
+      if (r.akunBelum.length > vTampil) h += '<button class="btn btn-soft" id="rloVersiLagi" type="button" style="margin:8px 0;">Tampilkan lebih banyak (' + (r.akunBelum.length - vTampil) + ')</button>';
+    }
+    w.innerHTML = h;
+    var salin = el('rloSalinGrup'); if (salin) salin.addEventListener('click', function () {
+      var ta = el('rloPesanGrup'), teks = ta ? ta.value : pesanGrup();
+      var ok = function () { toast('Pesan disalin. Tempel di grup WhatsApp.'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(teks).then(ok, function () { ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} });
+      else { ta.select(); try { document.execCommand('copy'); ok(); } catch (e) { toast('Salin manual dari kotak pesan.', true); } }
+    });
+    var wg = el('rloWaGrup'); if (wg) wg.addEventListener('click', function () { bukaWa('', pesanGrup()); });
+    Array.prototype.forEach.call(w.querySelectorAll('[data-rlo-ingat]'), function (b) {
+      b.addEventListener('click', function () {
+        var a = r.akunBelum[+b.getAttribute('data-rlo-ingat')]; if (!a) return;
+        var nomor = digitWa(a.wa); if (!nomor) return toast('Nomor WA tidak valid.', true);
+        var nama = a.anak || (peta[a.wa] ? peta[a.wa].join(', ') : '');
+        bukaWa(nomor, pesanPribadi(nama)); setIngat(a.wa); renderVersi();
+      });
+    });
+    var lg = el('rloVersiLagi'); if (lg) lg.addEventListener('click', function () { vTampil += 30; renderVersi(); });
+  }
+
+  function periksaVersi() {
+    if (!adminAktif() || typeof db === 'undefined') return;
+    if (navigator.onLine === false) return toast('📡 Butuh koneksi internet.', true);
+    var hari = parseInt((el('rloVersiHari') || {}).value, 10) || 14, w = el('rloVersiHasil'), b = el('rloVersiCek');
+    if (b) b.disabled = true;
+    if (w) w.innerHTML = '<p style="font-size:13px;color:#6b7280;padding:8px;">Memeriksa...</p>';
+    var sejak = new Date(Date.now() - hari * 86400000).toISOString();
+    db.ref('ortu_login_log').orderByChild('waktu').startAt(sejak).limitToLast(3000).once('value').then(function (snap) {
+      var daftar = []; snap.forEach(function (c) { var v = c.val(); if (v) daftar.push(v); });
+      vHasil = hitungVersi(daftar, BUILD_MIN); vHasil.hari = hari; vHasil.terpotong = daftar.length >= 3000; vTampil = 30;
+      renderVersi();
+      if (vHasil.terpotong && w) w.insertAdjacentHTML('afterbegin', '<div style="font-size:12px;color:#b45309;">Catatan: ada lebih dari 3000 catatan pada rentang ini, hanya 3000 terbaru yang dihitung. Persempit rentang hari.</div>');
+    }).catch(function (e) {
+      console.error('[SI MAMBA] Gagal memeriksa versi wali:', e);
+      if (w) w.innerHTML = '<p style="font-size:13px;color:#b91c1c;padding:8px;">Gagal membaca riwayat login. Periksa koneksi atau Rules ortu_login_log.</p>';
+    }).then(function () { var b2 = el('rloVersiCek'); if (b2) b2.disabled = false; });
+  }
+  function pasangKartuVersi() {
+    var kartu = el('riwayatLoginOrtuCard'); if (!kartu || el('rloVersi')) return;
+    var d = document.createElement('div'); d.id = 'rloVersi'; d.style.cssText = 'margin-bottom:14px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:12px;';
+    d.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:2px;">📲 Pembaruan Aplikasi Wali</div>' +
+      '<div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Memantau wali yang sudah memuat versi terbaru (v8.' + BUILD_MIN + ' ke atas) dari catatan login, sebagai syarat memasang Rules Tahap B. Wali yang belum membuka aplikasi sejak pembaruan tampil sebagai "belum".</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><select id="rloVersiHari" class="field" style="width:auto;"><option value="7">7 hari terakhir</option><option value="14" selected>14 hari terakhir</option><option value="30">30 hari terakhir</option></select>' +
+      '<button class="btn btn-primary" type="button" id="rloVersiCek">🔍 Periksa versi wali</button></div><div id="rloVersiHasil"></div>';
+    var ringkas = el('rloRingkas'); if (ringkas && ringkas.parentNode === kartu) kartu.insertBefore(d, ringkas); else kartu.appendChild(d);
+    el('rloVersiCek').addEventListener('click', periksaVersi);
+  }
+
   window.setupRiwayatLoginOrtu = setupRiwayatLoginOrtu;
 })();

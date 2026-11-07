@@ -181,6 +181,9 @@
     // ---------- Riwayat login orang tua -> node ortu_login_log (dibaca Admin: js/riwayat-login-ortu.js) ----------
     // Dicatat: login berhasil (cara: pin / pertama / otomatis / link) dan PIN salah (termasuk yang memicu kunci akun).
     // Tidak menyimpan PIN. Gagal menulis TIDAK mengganggu login (semua dibungkus try/catch).
+    // Nomor build aplikasi Portal Ortu. Ditulis ke tiap catatan login (field versi) supaya Admin bisa memantau wali yang sudah
+    // memakai versi terbaru (kartu Riwayat Login Orang Tua > Pembaruan Aplikasi Wali). NAIKKAN angka ini tiap rilis berikutnya.
+    const ORTU_BUILD = 378, ORTU_VERSI = 'v8.' + ORTU_BUILD;
     function ortuPerangkatRingkas() {
       const ua = navigator.userAgent || '';
       if (/Android/i.test(ua)) return 'Android';
@@ -194,11 +197,12 @@
       try {
         if (!waKey || typeof db === 'undefined') return;
         if (cara === 'otomatis' && hasil === 'berhasil') {   // masuk otomatis terjadi tiap aplikasi dibuka: catat paling sering 1x/30 menit per nomor di perangkat ini
-          const kunci = 'simambaOrtuLogTs_' + waKey, now = Date.now();
-          try { if (now - (+localStorage.getItem(kunci) || 0) < 30 * 60000) return; localStorage.setItem(kunci, String(now)); } catch (e) {}
+          const kunci = 'simambaOrtuLogTs_' + waKey, kv = 'simambaOrtuLogVer_' + waKey, now = Date.now();
+          // Versi baru pertama kali dibuka di perangkat ini selalu dicatat (tanpa menunggu 30 menit), agar langsung terpantau.
+          try { if (localStorage.getItem(kv) === ORTU_VERSI && now - (+localStorage.getItem(kunci) || 0) < 30 * 60000) return; localStorage.setItem(kunci, String(now)); localStorage.setItem(kv, ORTU_VERSI); } catch (e) {}
         }
         const daftar = Array.isArray(anak) ? anak : [];
-        const entri = { wa: String(waKey), cara: String(cara), hasil: String(hasil), perangkat: ortuPerangkatRingkas(), waktu: new Date().toISOString() };
+        const entri = { wa: String(waKey), cara: String(cara), hasil: String(hasil), perangkat: ortuPerangkatRingkas(), versi: ORTU_VERSI, waktu: new Date().toISOString() };
         const nama = daftar.map(a => a && a.name).filter(Boolean).join(', ').slice(0, 120);
         const kelas = Array.from(new Set(daftar.map(a => a && a.kelas).filter(Boolean))).join(', ').slice(0, 40);
         if (nama) entri.anak = nama;
