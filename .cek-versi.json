@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.378",
-  "disimpan": "2026-11-07T23:22:54.129Z",
+  "appVersion": "v8.385",
+  "disimpan": "2026-11-08T01:22:35.827Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=155",
-      "hash": "6c3ebbd8712173c43b6527fb6ea690ab60c1f799"
+      "v": "v=158",
+      "hash": "e7ded7415cc43ebc68220b1509aff368b19f56e3"
     },
     "js/portal-ortu.js": {
       "v": "v=31",
@@ -107,8 +107,8 @@
       "hash": "4c777afa2466bbc300634e13168f9556e0350d6d"
     },
     "js/pengingat-absen-guru.js": {
-      "v": "v=1",
-      "hash": "195a226359bbeeb1a04cdff8a9bcc2254d91238f"
+      "v": "v=4",
+      "hash": "57784807e93230a093c8dc63f3afc5fb2de5f077"
     },
     "js/v4-tahfidz-pramuka-ekskul.js": {
       "v": "v=5",
@@ -139,8 +139,8 @@
       "hash": "5dd402f3971b41a4e9c813c3661d0f27bdb980a0"
     },
     "js/kpi.js": {
-      "v": "v=8",
-      "hash": "e38dba2b7f5a51f8e996a48ba107c669a6bb63c2"
+      "v": "v=11",
+      "hash": "5b3a19d7ef11ae5c8ec71d0ac54a0df12e56589a"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
