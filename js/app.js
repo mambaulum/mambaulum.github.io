@@ -6176,7 +6176,11 @@
         if (_sudahLewatJam8C) {
           const _adaCatatanC = new Set();
           _catatanHariC.forEach(a => { if (a.guruKey) _adaCatatanC.add(a.guruKey); if (a.guru) _adaCatatanC.add(a.guru); });
+          // Guru yang memang tidak wajib hadir pada tanggal itu (Minggu/tanggal merah, atau punya jadwal tetapi bukan hari ini)
+          // tidak dihitung "tidak hadir" hanya karena belum punya catatan.
+          const _liburC = hariLiburSinkron(tanggal), _namaHariC = NAMA_HARI_ID[new Date(tanggal + 'T00:00:00Z').getUTCDay()];
           (allGuru || []).filter(g => (g.role === 'guru' || g.role === 'wali_kelas') && g.key !== currentUser.key).forEach(g => {
+            if (_liburC || !guruWajibHadirHari(g, _namaHariC)) return;
             if (!_adaCatatanC.has(g.key) && !_adaCatatanC.has(g.name)) guruTidakHadirC.add(g.key || g.name);
           });
         }
@@ -6777,6 +6781,55 @@
     }
     // [Dipindah ke js/pengingat-absen-guru.js] tabel absen guru Admin.
     // [Dipindah ke js/pengingat-absen-guru.js] pengingat otomatis/massal, Belum Absen, watchMyReminders.
+    // ------------------------------------------------------------
+    // KEBIJAKAN ALPHA OTOMATIS & PENGINGAT
+    // false = semua guru wajib hadir setiap hari sekolah (Senin-Sabtu, bukan libur) -> perilaku lama.
+    // true  = guru yang PUNYA jadwal mengajar hanya wajib hadir pada hari ia punya jadwal (di luar itu tidak
+    //         ditandai Alpha & tidak diingatkan). Guru yang sama sekali tidak punya jadwal (piket, non-mengajar)
+    //         tetap wajib hadir setiap hari sekolah.
+    // ------------------------------------------------------------
+    const ALPHA_HANYA_HARI_ADA_JADWAL = true;
+    const NAMA_HARI_ID = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    // Daftar rentang libur Kalender Akademik terakhir yang berhasil dibaca (dipakai juga oleh bersihkanAlphaKeliru).
+    let liburKalenderTerakhir = null;
+    // Baca rentang libur dari Firebase. Hasil: array [{mulai, selesai}] atau undefined kalau gagal/timeout.
+    function muatLiburKalender() {
+      return fbTimeout(db.ref('kalender_akademik').orderByChild('jenis').equalTo('libur').once('value').then(snap => {
+        const out = [];
+        snap.forEach(c => { const r = rentangLiburValid(c.val() || {}); if (r) out.push(r); });
+        return out;
+      }), undefined, 'kalender_libur_alpha');
+    }
+    // Validasi satu entri libur Kalender Akademik (sama dengan tanggalLiburKalender() di honor-guru.js): format YYYY-MM-DD,
+    // selesai >= mulai, rentang maksimal 62 hari (lebih panjang hampir pasti salah ketik). Hasil {mulai, selesai} atau null.
+    function rentangLiburValid(k) {
+      const murni = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+      const mulai = k && k.tanggalMulai, akhir = k && (k.tanggalSelesai || k.tanggalMulai);
+      if (!murni(mulai) || !murni(akhir) || akhir < mulai) return null;
+      if ((Date.parse(akhir + 'T00:00:00Z') - Date.parse(mulai + 'T00:00:00Z')) / 86400000 > 62) { console.warn('[SI MAMBA] Entri libur dilewati (rentang > 62 hari):', k); return null; }
+      return { mulai: mulai, selesai: akhir };
+    }
+    // Versi SINKRON: apakah tgl hari Minggu atau tanggal merah? Memakai data yang sudah ada di memori (tidak membaca Firebase);
+    // kalau datanya belum ada, dianggap hari sekolah (false).
+    function hariLiburSinkron(tgl) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl || '')) return false;
+      if (new Date(tgl + 'T00:00:00Z').getUTCDay() === 0) return true;
+      const daftar = (liburKalenderTerakhir || []).concat((allKalenderAkademik || []).filter(k => k && k.jenis === 'libur').map(rentangLiburValid).filter(Boolean));
+      return tglDalamLibur(tgl, daftar);
+    }
+    function tglDalamLibur(tgl, liburList) { return (liburList || []).some(r => tgl >= r.mulai && tgl <= r.selesai); }
+    // Apakah guru g punya jadwal mengajar pada nama hari tertentu (cocok lewat guruKey, fallback nama untuk jadwal lama).
+    function guruPunyaJadwalHari(g, namaHari) {
+      return (allJadwal || []).some(j => j && j.hari === namaHari && (j.guruKey ? j.guruKey === g.key : samaNamaGuru(j.guru, g.name)));
+    }
+    // Wajib hadir pada hari itu? Tanpa kebijakan jadwal -> selalu ya. Dengan kebijakan: guru tanpa jadwal sama sekali
+    // -> ya (tiap hari sekolah); guru yang punya jadwal -> hanya kalau hari itu ada jadwalnya.
+    function guruWajibHadirHari(g, namaHari) {
+      if (!ALPHA_HANYA_HARI_ADA_JADWAL) return true;
+      const punyaJadwalApapun = (allJadwal || []).some(j => j && (j.guruKey ? j.guruKey === g.key : samaNamaGuru(j.guru, g.name)));
+      if (!punyaJadwalApapun) return true;
+      return guruPunyaJadwalHari(g, namaHari);
+    }
     function tanganiGagalAlpha(onDone) {
       if (alphaAutoCheckedThisSession || alphaRetryTimer) return;
       if (alphaRetryCount >= ALPHA_RETRY_DELAYS_MS.length) {
@@ -6791,9 +6844,23 @@
         autoMarkAlphaGuru(onDone);
       }, tunda);
     }
+    // Pembungkus: baca libur Kalender Akademik dulu. Kalau gagal dibaca, JANGAN menandai Alpha (bisa jadi hari itu libur)
+    // dan checkpoint tidak maju -> dicoba lagi lewat tanganiGagalAlpha (idempotent).
     function autoMarkAlphaGuru(onDone) {
       if (!isAdmin()) return;
       if (alphaAutoCheckRunning) return; // sudah ada proses lain yang jalan, jangan tumpang tindih
+      alphaAutoCheckRunning = true;
+      muatLiburKalender().then(liburList => {
+        alphaAutoCheckRunning = false; // dilepas sinkron tepat sebelum fungsi inti mengambilnya lagi
+        if (!liburList) { console.warn('[SI MAMBA] Kalender Akademik gagal dibaca; Alpha otomatis ditunda.'); tanganiGagalAlpha(onDone); return; }
+        if (ALPHA_HANYA_HARI_ADA_JADWAL && (!allJadwal || allJadwal.length === 0)) { console.warn('[SI MAMBA] Data jadwal belum termuat; Alpha otomatis ditunda.'); tanganiGagalAlpha(onDone); return; }
+        liburKalenderTerakhir = liburList;
+        autoMarkAlphaGuruInti(onDone, liburList);
+      });
+    }
+    function autoMarkAlphaGuruInti(onDone, liburList) {
+      if (!isAdmin()) return;
+      if (alphaAutoCheckRunning) return;
       alphaAutoCheckRunning = true;
       // Flag dilepas oleh .finally() di ujung Promise.all (menungguAsync=true). Semua jalur lain -- early return
       // maupun EXCEPTION SINKRON sebelum Promise.all terbentuk (mis. localStorage diblokir, ref.set() melempar
@@ -6820,13 +6887,16 @@
       const tanggalList = [];
       for (let tgl = startStr; tgl < todayStr; tgl = tambahHari(tgl, 1)) { // strictly < hari ini (WIB)
         if (new Date(tgl + 'T00:00:00Z').getUTCDay() === 0) continue; // lewati hari Minggu
+        if (tglDalamLibur(tgl, liburList)) continue; // lewati libur Kalender Akademik
         tanggalList.push(tgl);
       }
       if (tanggalList.length === 0) { localStorage.setItem('alphaCheckLastDate', tglLokal(new Date(today.getTime() - 86400000))); alphaAutoCheckRunning = false; if (onDone) onDone(); return; }
       let jumlahDitandai = 0;
       const tugas = [];
       tanggalList.forEach(tgl => {
+        const namaHariTgl = NAMA_HARI_ID[new Date(tgl + 'T00:00:00Z').getUTCDay()];
         guruAktif.forEach(g => {
+          if (!guruWajibHadirHari(g, namaHariTgl)) return; // punya jadwal tapi bukan hari jadwalnya -> bukan Alpha
           // FIX: dulu fallback ke cocokkan lewat NAMA kalau catatan absensi (a) tidak punya
           // guruKey -- ini cuma melihat sisi record lama, bukan sisi guru g yang sedang diproses.
           // Kalau ada 2 guru bernama sama (g.key beda) dan salah satunya SUDAH punya catatan hari
@@ -6877,7 +6947,7 @@
     // Membersihkan catatan Alpha OTOMATIS yang keliru (warisan bug lama): (a) Alpha bertanggal hari ini atau
     // sesudahnya, (b) Alpha pada tanggal yang guru itu ternyata punya catatan Datang/Pulang/Izin/Sakit.
     // Hanya menyentuh catatan buatan sistem (keterangan "ditandai otomatis sistem", key ..._Alpha, tanpa field metode);
-    // koreksi manual Admin tidak pernah dihapus.
+    // koreksi manual Admin tidak pernah dihapus. Juga membersihkan Alpha otomatis yang jatuh di hari Minggu atau tanggal merah (c).
     function bersihkanAlphaKeliru() {
       if (!isAdmin() || !isReallyOnline()) return;
       try {
@@ -6888,6 +6958,17 @@
         const hapus = allTeacherAttendance.filter(a => a.type === 'Alpha' && a.key && /_Alpha$/.test(String(a.key)) && !a.metode &&
           String(a.keterangan || '').indexOf('ditandai otomatis sistem') >= 0 &&
           ((a.tanggal || '') >= todayStr || adaCatatanLain.has(a.tanggal + '|' + idGuru(a))));
+        // (c) Alpha otomatis yang jatuh pada hari MINGGU atau tanggal merah (libur Kalender Akademik) -- warisan sebelum libur
+        // diperhitungkan. HANYA dua kategori ini; Alpha di hari efektif (Senin-Sabtu non-libur) tidak pernah dihapus oleh blok ini,
+        // termasuk bila guru tidak punya jadwal hari itu.
+        const liburList = liburKalenderTerakhir || [];
+        const hariMinggu = tgl => /^\d{4}-\d{2}-\d{2}$/.test(tgl || '') && new Date(tgl + 'T00:00:00Z').getUTCDay() === 0;
+        const sudahDipilih = new Set(hapus.map(a => a.key));
+        allTeacherAttendance.forEach(a => {
+          if (a.type === 'Alpha' && a.key && /_Alpha$/.test(String(a.key)) && !sudahDipilih.has(a.key) &&
+              (!a.metode || a.metode === 'otomatis_sistem') &&
+              String(a.keterangan || '').indexOf('ditandai otomatis sistem') >= 0 && (hariMinggu(a.tanggal) || tglDalamLibur(a.tanggal || '', liburList))) hapus.push(a);
+        });
         if (hapus.length === 0) return;
         const updates = {}; hapus.forEach(a => { updates[a.key] = null; });
         adminSesiSiap(true).then(() => db.ref('teacher_attendance').update(updates)).then(() => {

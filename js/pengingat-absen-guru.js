@@ -13,11 +13,13 @@
       if (!list) return;
       if (!isAdmin() && !isKepsek()) return;
       const today = tglLokal();
+      const libur = liburHariIniUntukTampilan(today, renderAdminTeacherAttendance);
+      const namaHariIni = NAMA_HARI_ID[hariWIB()];
       const guruAktif = (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas');
       if (guruAktif.length === 0) { list.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada data guru.</p>'; return; }
 
       let html = '';
-      let sudahHadir = 0, belumHadir = 0;
+      let sudahHadir = 0, belumHadir = 0, tidakWajib = 0;
 
       guruAktif.forEach(g => {
         const absenHariIni = allTeacherAttendance.find(a => a.tanggal === today && (a.guruKey ? a.guruKey === g.key : a.guru === g.name));
@@ -31,17 +33,24 @@
           const border = type === 'Izin' || type === 'Sakit' ? '#d97706' : (absenHariIni.keterangan ? '#dc2626' : '#059669');
           const icon = type === 'Izin' ? '📝' : (type === 'Sakit' ? '🤒' : (absenHariIni.keterangan ? '⚠️' : '✅'));
           html += `<div style="padding:8px 12px;background:${bg};border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid ${border};"><span>${icon} ${escapeHtml(g.name)}</span><span style="color:#065f46;font-weight:600;">${escapeHtml(type)} ${escapeHtml(waktu)} ${escapeHtml(metode)}${telat}</span></div>`;
+        } else if (libur === true || !guruWajibHadirHari(g, namaHariIni)) {
+          // Libur (Minggu/tanggal merah) atau guru berjadwal yang tidak mengajar hari ini: bukan "Belum Absen".
+          tidakWajib++;
+          const alasan = libur === true ? '🏖️ Libur' : '📭 Tidak ada jadwal hari ini';
+          html += `<div style="padding:8px 12px;background:#f3f4f6;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid #9ca3af;"><span>👤 ${escapeHtml(g.name)}</span><span style="color:#6b7280;font-weight:600;">${alasan}</span></div>`;
         } else {
           belumHadir++;
           html += `<div style="padding:8px 12px;background:#fee2f2;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid #dc2626;"><span>👤 ${escapeHtml(g.name)}</span><span style="color:#991b1b;font-weight:600;">❌ Belum Absen</span></div>`;
         }
       });
 
+      if (libur === true) html = '<div style="padding:8px 12px;background:#eff6ff;border-radius:8px;margin-bottom:8px;font-size:13px;color:#1e40af;">🏖️ Hari ini libur (Minggu / Kalender Akademik) — absen guru tidak diwajibkan.</div>' + html;
       list.innerHTML = html;
       if (summary) {
         summary.innerHTML = `
           <span style="background:#f0fdf4;padding:4px 12px;border-radius:20px;color:#065f46;font-weight:600;">✅ Hadir: ${sudahHadir}</span>
           <span style="background:#fee2f2;padding:4px 12px;border-radius:20px;color:#991b1b;font-weight:600;">❌ Belum: ${belumHadir}</span>
+          ${tidakWajib ? `<span style="background:#f3f4f6;padding:4px 12px;border-radius:20px;color:#6b7280;font-weight:600;">🏖️ Tidak wajib: ${tidakWajib}</span>` : ''}
           <span class="text-strong" style="background:#f3f4f6;padding:4px 12px;border-radius:20px;font-weight:600;">📊 Total: ${guruAktif.length}</span>
         `;
       }
@@ -54,6 +63,42 @@
     // per jenis, meski ada beberapa orang buka app di jam yang sama.
     // ============================================================
     const SISTEM_OTOMATIS_LABEL = '🤖 Sistem Otomatis';
+    // Hari libur untuk pengingat otomatis: Minggu atau tanggal yang masuk entri jenis 'libur' di Kalender Akademik
+    // (kalender_akademik, rentang tanggalMulai..tanggalSelesai; tanpa tanggalSelesai = satu hari). Sabtu tetap hari sekolah.
+    // Hasil di-cache per tanggal, jadi pembacaan Firebase hanya sekali sehari per sesi.
+    // Resolve: true = libur, false = hari sekolah, null = gagal membaca kalender (pemanggil melewati dulu, dicoba lagi
+    // oleh scheduler 2 menit berikutnya; kegagalan TIDAK di-cache).
+    let liburCache = { tgl: null, hasil: null, proses: null };
+    function hariIniLiburSekolah(today) {
+      if (liburCache.tgl === today) {
+        if (liburCache.hasil !== null) return Promise.resolve(liburCache.hasil);
+        if (liburCache.proses) return liburCache.proses; // pembacaan sedang berjalan (Datang & Pulang memanggil bersamaan)
+      }
+      if (new Date(today + 'T12:00:00').getDay() === 0) { liburCache = { tgl: today, hasil: true, proses: null }; return Promise.resolve(true); }
+      const proses = db.ref('kalender_akademik').orderByChild('jenis').equalTo('libur').once('value').then(snap => {
+        let libur = false;
+        snap.forEach(c => {
+          const r = rentangLiburValid(c.val() || {}); // validasi format & maks. 62 hari (lihat app.js)
+          if (r && today >= r.mulai && today <= r.selesai) libur = true;
+        });
+        liburCache = { tgl: today, hasil: libur, proses: null };
+        return libur;
+      }).catch(e => {
+        console.warn('[SI MAMBA] Gagal membaca kalender_akademik untuk pengingat:', e && e.message ? e.message : e);
+        if (liburCache.proses === proses) liburCache = { tgl: null, hasil: null, proses: null }; // kegagalan tidak di-cache
+        return null;
+      });
+      liburCache = { tgl: today, hasil: null, proses };
+      return proses;
+    }
+    // Status libur hari ini untuk TAMPILAN (sinkron). true = libur, false = hari sekolah, null = belum diketahui
+    // (pembacaan kalender dipicu; begitu selesai, rerender() dipanggil sekali).
+    function liburHariIniUntukTampilan(today, rerender) {
+      if (new Date(today + 'T12:00:00').getDay() === 0) return true;
+      if (liburCache.tgl === today && liburCache.hasil !== null) return liburCache.hasil;
+      hariIniLiburSekolah(today).then(h => { if (h !== null && typeof rerender === 'function') rerender(); });
+      return null;
+    }
     function cekDanKirimPengingatOtomatis() {
       if (!currentUser) return;
       const now = new Date(), sekarangMenit = now.getHours() * 60 + now.getMinutes();
@@ -63,20 +108,30 @@
         const selesai = window_.selesai.split(':');
         const bufferMenit = parseInt(selesai[0]) * 60 + parseInt(selesai[1]) + 5;
         if (sekarangMenit < bufferMenit) return;
-        const markerRef = db.ref('auto_reminder_sent/' + today + '/' + jenis);
-        markerRef.transaction(current => {
-          if (current) return; // batalkan, sudah pernah dikirim hari ini
-          return { sentAt: new Date().toISOString(), sentBy: currentUser.name };
-        }, (err, committed) => {
-          if (err || !committed) return; // gagal, atau kalah cepat dari sesi lain
-          kirimPengingatMassal(jenis);
+        // Hari libur (Minggu / Kalender Akademik): tidak ada pengingat otomatis dan marker TIDAK ditulis.
+        hariIniLiburSekolah(today).then(libur => {
+          if (libur !== false) return; // true = libur, null = kalender gagal dibaca (dicoba lagi 2 menit lagi)
+          // Kebijakan jadwal aktif tapi data jadwal belum termuat: JANGAN menulis marker. Marker hanya sekali per hari, jadi kalau
+          // ditulis sekarang, pengingat terkirim ke SEMUA guru (termasuk yang tidak berjadwal hari ini) dan tidak bisa diulang.
+          // Dicoba lagi oleh scheduler 2 menit berikutnya.
+          if (typeof ALPHA_HANYA_HARI_ADA_JADWAL !== 'undefined' && ALPHA_HANYA_HARI_ADA_JADWAL && (!allJadwal || allJadwal.length === 0)) return;
+          const markerRef = db.ref('auto_reminder_sent/' + today + '/' + jenis);
+          markerRef.transaction(current => {
+            if (current) return; // batalkan, sudah pernah dikirim hari ini
+            return { sentAt: new Date().toISOString(), sentBy: currentUser.name };
+          }, (err, committed) => {
+            if (err || !committed) return; // gagal, atau kalah cepat dari sesi lain
+            kirimPengingatMassal(jenis);
+          });
         });
       });
     }
     function kirimPengingatMassal(jenis) {
       const guruAktif = (allGuru || []).filter(g => g.role === 'guru' || g.role === 'wali_kelas');
       const today = tglLokal();
+      const namaHariIni = NAMA_HARI_ID[hariWIB()];
       guruAktif.forEach(g => {
+        if (!guruWajibHadirHari(g, namaHariIni)) return; // punya jadwal tapi bukan hari jadwalnya -> tidak diingatkan
         const recs = allTeacherAttendanceToday.filter(a => (a.guruKey ? a.guruKey === g.key : a.guru === g.name));
         if (recs.find(a => a.type === 'Izin' || a.type === 'Sakit')) return;
         if (recs.find(a => a.type === jenis)) return;
@@ -95,12 +150,14 @@
 
       section.style.display = 'block';
       const now = new Date(), sekarangMenit = now.getHours() * 60 + now.getMinutes();
+      const libur = liburHariIniUntukTampilan(tglLokal(), renderBelumAbsen);
+      const namaHariIni = NAMA_HARI_ID[hariWIB()];
       const winPulang = getJamAbsenWindow('Pulang');
       const pulangMulai = winPulang.mulai.split(':'), pulangMulaiMenit = parseInt(pulangMulai[0]) * 60 + parseInt(pulangMulai[1]);
       const sudahMasukJamPulang = sekarangMenit >= pulangMulaiMenit;
 
       let html = '';
-      let selesai = 0, prosesBelumPulang = 0, belumDatang = 0;
+      let selesai = 0, prosesBelumPulang = 0, belumDatang = 0, tidakWajib = 0;
 
       guruAktif.forEach(g => {
         const recs = allTeacherAttendanceToday.filter(a => (a.guruKey ? a.guruKey === g.key : a.guru === g.name));
@@ -114,6 +171,13 @@
         }
         const datangRec = recs.find(a => a.type === 'Datang');
         const pulangRec = recs.find(a => a.type === 'Pulang');
+        if (!datangRec && !pulangRec && (libur === true || !guruWajibHadirHari(g, namaHariIni))) {
+          // Tidak wajib hadir hari ini (libur / bukan hari jadwalnya) dan memang tidak absen: tanpa tombol 🔔, tidak dihitung "Blm Datang".
+          tidakWajib++;
+          const alasan = libur === true ? '🏖️ Libur' : '📭 Tidak ada jadwal hari ini';
+          html += `<div style="padding:8px 12px;background:#f3f4f6;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid #9ca3af;"><span>👤 ${escapeHtml(g.name)}</span><span style="color:#6b7280;font-weight:600;">${alasan}</span></div>`;
+          return;
+        }
         const isSelf = g.key === currentUser.key;
         let statusDatang, statusPulang;
         if (datangRec) {
@@ -143,10 +207,12 @@
         <span style="background:#f0fdf4;padding:4px 12px;border-radius:20px;color:#065f46;font-weight:600;">✅ Selesai: ${selesai}</span>
         <span style="background:#fef3c7;padding:4px 12px;border-radius:20px;color:#92400e;font-weight:600;">🕒 Blm Pulang: ${prosesBelumPulang}</span>
         <span style="background:#fee2f2;padding:4px 12px;border-radius:20px;color:#991b1b;font-weight:600;">❌ Blm Datang: ${belumDatang}</span>
+        ${tidakWajib ? `<span style="background:#f3f4f6;padding:4px 12px;border-radius:20px;color:#6b7280;font-weight:600;">🏖️ Tidak wajib: ${tidakWajib}</span>` : ''}
         <span class="text-strong" style="background:#f3f4f6;padding:4px 12px;border-radius:20px;font-weight:600;">📊 Total: ${guruAktif.length}</span>
       </div>`;
+      const bannerLibur = libur === true ? '<div style="padding:8px 12px;background:#eff6ff;border-radius:8px;margin-bottom:8px;font-size:13px;color:#1e40af;">🏖️ Hari ini libur (Minggu / Kalender Akademik) — absen guru tidak diwajibkan.</div>' : '';
 
-      list.innerHTML = ringkasan + html;
+      list.innerHTML = bannerLibur + ringkasan + html;
     }
     function kirimIngatkan(namaGuru, guruKeyTarget, jenis) {
       if (!currentUser) return;

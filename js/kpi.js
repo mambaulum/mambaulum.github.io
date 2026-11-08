@@ -73,22 +73,41 @@
   }
 
   // Jurnal. hariList = tanggal hari sekolah yang sudah lewat (tanpa hari ini).
-  function hitungJurnal(jadwal, journals, hariList) {
-    var idx = {};
-    (journals || []).forEach(function (j) {
-      if (!j || (j.status && j.status !== 'approved')) return;
-      idx[j.tanggal + '|' + j.kelas + '|' + String(j.jam_ke)] = j;
+  // teacherAtt (opsional) = absensi guru: jam terjadwal pada hari guru itu tercatat Izin/Sakit DIKECUALIKAN (tidak masuk terjadwal
+  // maupun terisi), karena ketidakhadirannya sah. Tanpa teacherAtt semua jam dihitung (perilaku lama).
+  function hitungJurnal(jadwal, journals, hariList, teacherAtt) {
+    var normNama = function (x) { return String(x || '').toLowerCase().replace(/[\s.,]+/g, ''); };
+    var izinKey = {}, izinNamaTanpaKey = {}, izinNamaSemua = {};
+    (teacherAtt || []).forEach(function (a) {
+      if (!a || !a.tanggal || (a.type !== 'Izin' && a.type !== 'Sakit')) return;
+      var n = normNama(a.guru);
+      if (a.guruKey) izinKey[a.tanggal + '|' + a.guruKey] = true; else if (n) izinNamaTanpaKey[a.tanggal + '|' + n] = true;
+      if (n) izinNamaSemua[a.tanggal + '|' + n] = true;
     });
-    var tot = { exp: 0, fill: 0, tepat: 0, tepatDen: 0 }, guru = {};
+    function guruIzinSakit(d, s) {
+      if (s.guruKey) return !!(izinKey[d + '|' + s.guruKey] || izinNamaTanpaKey[d + '|' + normNama(s.guru)]);   // slot punya key: jangan cocokkan nama dengan guru lain yang berkey
+      return !!izinNamaSemua[d + '|' + normNama(s.guru)];
+    }
+    var idx = {}, idxMenunggu = {};
+    (journals || []).forEach(function (j) {
+      if (!j) return;
+      var kunciJ = j.tanggal + '|' + j.kelas + '|' + String(j.jam_ke);
+      if (j.status === 'pending') { idxMenunggu[kunciJ] = true; return; }   // sudah diisi guru, belum disetujui: dihitung terpisah
+      if (j.status && j.status !== 'approved') return;
+      idx[kunciJ] = j;
+    });
+    var tot = { exp: 0, fill: 0, tepat: 0, tepatDen: 0, menunggu: 0, kecuali: 0 }, guru = {};
     hariList.forEach(function (d) {
       var h = namaHari(d);
       (jadwal || []).forEach(function (s) {
         if (!s || s.hari !== h) return;
+        if (guruIzinSakit(d, s)) { tot.kecuali++; return; }   // guru Izin/Sakit: jam ini tidak dihitung
         var kunci = s.guruKey || s.guru || '-';
-        var g = guru[kunci] || (guru[kunci] = { nama: s.guru || '-', exp: 0, fill: 0 });
+        var g = guru[kunci] || (guru[kunci] = { nama: s.guru || '-', exp: 0, fill: 0, menunggu: 0 });
         tot.exp++; g.exp++;
-        var j = idx[d + '|' + s.kelas + '|' + String(s.jam)];
-        if (!j) return;
+        var kunciS = d + '|' + s.kelas + '|' + String(s.jam);
+        var j = idx[kunciS];
+        if (!j) { if (idxMenunggu[kunciS]) { tot.menunggu++; g.menunggu++; } return; }
         tot.fill++; g.fill++;
         if (j.dibuat) { tot.tepatDen++; if (tglDariIso(j.dibuat) === d) tot.tepat++; }
       });
@@ -97,21 +116,29 @@
   }
 
   // Absensi guru. hariSet = {tanggal:true} hari sekolah bulan itu (<= hari ini).
+  // Penyebut kehadiran = HARI WAJIB HADIR tiap guru (sama dengan aturan Alpha otomatis & pengingat di app.js):
+  // Minggu / tanggal merah tidak dihitung; guru yang punya jadwal hanya dihitung di hari jadwalnya; guru tanpa jadwal sama sekali
+  // dihitung semua hari sekolah. Kalau fungsi aturan itu tidak ada, semua hari sekolah dianggap wajib (perilaku lama).
+  function wajibHadirHari(g, tgl) {
+    try { if (typeof hariLiburSinkron === 'function' && hariLiburSinkron(tgl)) return false; } catch (e) {}
+    try { return typeof guruWajibHadirHari === 'function' ? !!guruWajibHadirHari(g, namaHari(tgl)) : true; } catch (e) { return true; }
+  }
   function hitungGuru(teacherAtt, guruList, ym, hariSet) {
-    var jmlHari = Object.keys(hariSet).length, baris = [], sumHadir = 0, sumDatang = 0, sumTelat = 0;
+    var hariSemua = Object.keys(hariSet), jmlHari = hariSemua.length, baris = [], sumHadir = 0, sumWajib = 0, sumDatang = 0, sumTelat = 0;
     guruList.forEach(function (g) {
-      var hadir = {}, telat = 0, izin = 0, sakit = 0, alpha = 0;
+      var wajib = {}, hadir = {}, telat = 0, izin = 0, sakit = 0, alpha = 0;
+      hariSemua.forEach(function (d) { if (wajibHadirHari(g, d)) wajib[d] = true; });
       (teacherAtt || []).forEach(function (a) {
-        if (!a || !a.tanggal || String(a.tanggal).indexOf(ym) !== 0 || !hariSet[a.tanggal]) return;
+        if (!a || !a.tanggal || String(a.tanggal).indexOf(ym) !== 0 || !hariSet[a.tanggal] || !wajib[a.tanggal]) return;
         if (!(a.guruKey ? a.guruKey === g.key : a.guru === g.name)) return;
         if (a.type === 'Datang') { hadir[a.tanggal] = true; if (/telat/i.test(a.keterangan || '')) telat++; }
         else if (a.type === 'Izin') izin++; else if (a.type === 'Sakit') sakit++; else if (a.type === 'Alpha') alpha++;
       });
-      var n = Object.keys(hadir).length;
-      sumHadir += n; sumDatang += n; sumTelat += telat;
-      baris.push({ nama: g.name, hadir: n, hari: jmlHari, telat: telat, izin: izin, sakit: sakit, alpha: alpha });
+      var n = Object.keys(hadir).length, nWajib = Object.keys(wajib).length;
+      sumHadir += n; sumWajib += nWajib; sumDatang += n; sumTelat += telat;
+      baris.push({ nama: g.name, hadir: n, hari: nWajib, telat: telat, izin: izin, sakit: sakit, alpha: alpha });
     });
-    return { baris: baris, hadirPct: pct(sumHadir, guruList.length * jmlHari), telatPct: pct(sumTelat, sumDatang), hari: jmlHari };
+    return { baris: baris, hadirPct: pct(sumHadir, sumWajib), telatPct: pct(sumTelat, sumDatang), hari: jmlHari };
   }
 
   // Orang tua aktif: nomor WA unik (dari noWaOrtu siswa aktif) yang punya login BERHASIL dalam 30 hari terakhir di ortu_login_log.
@@ -241,7 +268,7 @@
       inf = hitungInfaq(allInfaqSiswa, allSiswa, KELAS_LIST, weeks, iuranGratis);
       if (weeks.length) infaqBerjalan = tglLokal(mingguKeTanggal(weeks[weeks.length - 1]).minggu) >= today;   // minggu terakhir belum selesai
     } catch (e) { inf = null; }
-    var jur = hitungJurnal(allJadwal, allJournals, hariLalu);
+    var jur = hitungJurnal(allJadwal, allJournals, hariLalu, allTeacherAttendance);
     if (!adaDaftarGuru()) pastikanDaftarGuru();
     var guruList = (adaDaftarGuru() ? allGuru : guruCadangan.data).filter(function (g) { return g.role === 'guru' || g.role === 'wali_kelas' || !g.role; })
       .sort(function (a, c) { return String(a.name || '').localeCompare(String(c.name || ''), 'id'); });
@@ -266,7 +293,7 @@
       '<div class="kpi-grid">' +
       kartu('Kehadiran siswa', pSiswa, KPI_TARGET.hadirSiswa, 'min', 'Alfa: ' + sis.total.A + ' siswa-hari') +
       kartu('Infaq lunas', pInfaq, KPI_TARGET.infaq, 'min', inf ? inf.minggu + ' minggu dihitung' + (infaqBerjalan ? ' (termasuk minggu berjalan, belum selesai)' : '') : 'Data infaq belum termuat') +
-      kartu('Jurnal terisi', pJur, KPI_TARGET.jurnal, 'min', jur.total.fill + ' dari ' + jur.total.exp + ' jam terjadwal') +
+      kartu('Jurnal terisi', pJur, KPI_TARGET.jurnal, 'min', jur.total.fill + ' dari ' + jur.total.exp + ' jam terjadwal' + (jur.total.menunggu ? ' · ' + jur.total.menunggu + ' jam menunggu persetujuan (belum dihitung)' : '') + (jur.total.kecuali ? ' · ' + jur.total.kecuali + ' jam dikecualikan (guru izin/sakit)' : '')) +
       kartu('Jurnal di hari yang sama', pJurHari, KPI_TARGET.jurnalHariSama, 'min', 'dari jurnal yang tercatat waktu buatnya') +
       kartu('Kehadiran guru', gr.hadirPct, KPI_TARGET.hadirGuru, 'min', ketGuru || (guruList.length + ' guru, ' + gr.hari + ' hari tanpa hari ini')) +
       kartu('Guru datang terlambat', gr.telatPct, KPI_TARGET.telatGuru, 'max', ketGuru || 'dari semua catatan Datang') +
@@ -282,17 +309,17 @@
       }).join('') + '</table></div>';
 
     // jurnal per guru (terendah dulu)
-    var jg = Object.keys(jur.guru).map(function (k) { var g = jur.guru[k]; return { nama: g.nama, exp: g.exp, fill: g.fill, p: pct(g.fill, g.exp) }; })
+    var jg = Object.keys(jur.guru).map(function (k) { var g = jur.guru[k]; return { nama: g.nama, exp: g.exp, fill: g.fill, menunggu: g.menunggu || 0, p: pct(g.fill, g.exp) }; })
       .sort(function (a, c) { return (a.p == null ? 101 : a.p) - (c.p == null ? 101 : c.p); });
-    h += '<div class="kpi-h">Jurnal per Guru</div><details open><summary style="cursor:pointer;font-size:12px;">' + jg.length + ' guru terjadwal (terendah di atas)</summary><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Guru</th><th>Terisi</th><th>Terjadwal</th><th>%</th></tr>' +
-      jg.map(function (g) { return '<tr><td>' + esc(g.nama) + '</td><td>' + g.fill + '</td><td>' + g.exp + '</td><td style="color:' + warna(g.p, KPI_TARGET.jurnal, 'min') + ';font-weight:700;">' + f1(g.p) + '</td></tr>'; }).join('') + '</table></div></details>' +
-      '<div class="kpi-cat">Jam terjadwal dihitung untuk hari sekolah yang sudah lewat. Jurnal dianggap terisi bila ada jurnal berstatus disetujui untuk kelas, tanggal, dan jam ke yang sama.</div>';
+    h += '<div class="kpi-h">Jurnal per Guru</div><details open><summary style="cursor:pointer;font-size:12px;">' + jg.length + ' guru terjadwal (terendah di atas)</summary><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Guru</th><th>Terisi</th><th>Menunggu</th><th>Terjadwal</th><th>%</th></tr>' +
+      jg.map(function (g) { return '<tr><td>' + esc(g.nama) + '</td><td>' + g.fill + '</td><td>' + (g.menunggu || 0) + '</td><td>' + g.exp + '</td><td style="color:' + warna(g.p, KPI_TARGET.jurnal, 'min') + ';font-weight:700;">' + f1(g.p) + '</td></tr>'; }).join('') + '</table></div></details>' +
+      '<div class="kpi-cat">Jam terjadwal dihitung untuk hari sekolah yang sudah lewat. Jurnal dianggap terisi bila ada jurnal berstatus disetujui untuk kelas, tanggal, dan jam ke yang sama. Jam saat guru tercatat Izin/Sakit dikecualikan dari hitungan. Kolom Menunggu = jurnal sudah diisi guru tetapi belum disetujui (belum dihitung terisi; akan naik begitu disetujui).</div>';
 
     // guru
     var gb = gr.baris.slice().sort(function (a, c) { return (pct(a.hadir, a.hari) == null ? 101 : pct(a.hadir, a.hari)) - (pct(c.hadir, c.hari) == null ? 101 : pct(c.hadir, c.hari)); });
     h += '<div class="kpi-h">Kehadiran Guru</div><details><summary style="cursor:pointer;font-size:12px;">' + gb.length + ' guru (terendah di atas)</summary><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Guru</th><th>Hadir</th><th>Telat</th><th>Izin</th><th>Sakit</th><th>Alpha</th></tr>' +
       gb.map(function (g) { var pg = pct(g.hadir, g.hari); return '<tr><td>' + esc(g.nama) + '</td><td style="color:' + warna(pg, KPI_TARGET.hadirGuru, 'min') + ';font-weight:700;">' + g.hadir + '/' + g.hari + ' (' + f1(pg) + ')</td><td>' + g.telat + '</td><td>' + g.izin + '</td><td>' + g.sakit + '</td><td>' + g.alpha + '</td></tr>'; }).join('') + '</table></div></details>' +
-      '<div class="kpi-cat">Kehadiran guru dihitung dari catatan Datang dibanding hari sekolah yang sudah lewat (hari ini belum dihitung). Izin, sakit, dan alpha ditampilkan terpisah.</div>';
+      '<div class="kpi-cat">Kehadiran guru dihitung dari catatan Datang dibanding hari wajib hadir guru (hari sekolah yang sudah lewat; guru berjadwal hanya dihitung di hari jadwalnya; Minggu/tanggal merah tidak dihitung; hari ini belum dihitung). Izin, sakit, dan alpha ditampilkan terpisah.</div>';
     h += '</div>';
     p.innerHTML = h;
     el('kpiBulan').addEventListener('change', render);
