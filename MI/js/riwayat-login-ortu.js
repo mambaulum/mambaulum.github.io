@@ -145,6 +145,7 @@
     kartu.style.display = admin ? 'block' : 'none';
     if (!admin) return;
     pasangKartuVersi();
+    pasangKartuAktif();
     if (!terikat) {
       terikat = true;
       var on = function (id, ev, fn) { var e = el(id); if (e) e.addEventListener(ev, fn); };
@@ -277,6 +278,100 @@
       '<button class="btn btn-primary" type="button" id="rloVersiCek">🔍 Periksa versi wali</button></div><div id="rloVersiHasil"></div>';
     var ringkas = el('rloRingkas'); if (ringkas && ringkas.parentNode === kartu) kartu.insertBefore(d, ringkas); else kartu.appendChild(d);
     el('rloVersiCek').addEventListener('click', periksaVersi);
+  }
+
+  // ---------- Keaktifan Orang Tua (30 hari): tiga kelompok ----------
+  // 1) belum punya nomor WA wali, 2) punya nomor tapi tidak ada login berhasil <= 30 hari, 3) sudah aktif.
+  // Dihitung per nomor WA unik (saudara kandung digabung); siswa tanpa nomor dihitung per siswa. Data dibaca HANYA saat tombol ditekan
+  // (maks. 20000 catatan terbaru dalam 30 hari, memakai indeks waktu yang sama dengan Riwayat), hasilnya tidak disimpan.
+  var AKTIF_HARI = 30, BATAS_AKTIF = 20000, aHasil = null;
+  function kunciWaSiswa(s) {
+    if (s.noWaKey) return String(s.noWaKey);
+    if (!s.noWaOrtu) return '';
+    try { if (typeof ortuWaKey === 'function') return ortuWaKey(s.noWaOrtu) || ''; if (typeof formatNomorWa === 'function') return formatNomorWa(s.noWaOrtu) || ''; } catch (e) {}
+    return '';
+  }
+  function hitungAktif(daftar, siswa, sekarang) {
+    var target = {}, tanpa = [];
+    (siswa || []).forEach(function (s) {
+      if (!s || s.aktif === false) return;
+      var nm = s.name || s.nama || '-', k = kunciWaSiswa(s);
+      if (k) (target[k] = target[k] || { wa: k, anak: [] }).anak.push({ nama: nm, kelas: s.kelas || '' });
+      else tanpa.push({ nama: nm, kelas: s.kelas || '' });
+    });
+    var batas = sekarang - AKTIF_HARI * 86400000, aktif = {};
+    daftar.forEach(function (l) {
+      if (!l || l.hasil !== 'berhasil' || !l.wa) return;
+      var t = Date.parse(l.waktu); if (isNaN(t) || t < batas) return;
+      aktif[String(l.wa)] = true;
+    });
+    var a = [], b = [];
+    Object.keys(target).forEach(function (k) { (aktif[k] ? a : b).push(target[k]); });
+    var kls = function (x) { return x.anak ? x.anak[0].kelas : x.kelas; }, nm = function (x) { return x.anak ? x.anak[0].nama : x.nama; };
+    var urut = function (x, y) { return String(kls(x)).localeCompare(String(kls(y)), 'id', { numeric: true }) || String(nm(x)).localeCompare(String(nm(y)), 'id'); };
+    tanpa.sort(urut); a.sort(urut); b.sort(urut);
+    return { tanpa: tanpa, belum: b, aktif: a, total: a.length + b.length };
+  }
+  function anakTeks(e) { return e.anak.map(function (x) { return esc(x.nama) + (x.kelas ? ' (' + esc(x.kelas) + ')' : ''); }).join(', '); }
+  function pesanMasuk(nama) {
+    return 'Assalamu\u2019alaikum Bapak/Ibu' + (nama ? ' wali dari ' + nama : ' wali murid') + '.\n\nPortal Wali Murid ' + namaMadrasah() + ' bisa dipakai untuk melihat kehadiran, nilai, dan kabar anak. Silakan buka:\n' + basisUrl() + '?app=ortu\n\nBila ada kendala masuk, hubungi madrasah agar dikirimi link masuk pribadi.\n\nTerima kasih.';
+  }
+  function renderAktif() {
+    var w = el('rloAktifHasil'); if (!w) return;
+    if (!aHasil) { w.innerHTML = ''; return; }
+    var r = aHasil, pct = r.total ? Math.round(r.aktif.length / r.total * 1000) / 10 : 0;
+    var grup = function (judul, warna, n, isi, buka) {
+      return '<details' + (buka ? ' open' : '') + ' style="margin-top:6px;"><summary style="cursor:pointer;font-size:13px;"><b style="color:' + warna + ';">' + judul + ': ' + n + '</b></summary>' +
+        '<div style="margin-top:4px;max-height:280px;overflow:auto;font-size:12px;line-height:1.7;">' + (isi || '<i>Tidak ada.</i>') + '</div></details>';
+    };
+    var l1 = r.tanpa.map(function (e) { return '<div>' + esc(e.nama) + (e.kelas ? ' (' + esc(e.kelas) + ')' : '') + '</div>'; }).join('');
+    var l2 = r.belum.map(function (e, i) {
+      var t = tandaIngat(e.wa);
+      return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="flex:1;min-width:0;">' + anakTeks(e) + ' <span style="color:#6b7280;">' + esc(samar(e.wa)) + (t ? ' · diingatkan ' + esc(waktuTeks(new Date(t).toISOString())) : '') + '</span></span>' +
+        '<button class="btn ' + (t ? 'btn-soft' : 'btn-primary') + '" type="button" data-rlo-aw="' + i + '" style="padding:3px 10px;font-size:12px;">💬 ' + (t ? 'Ingatkan lagi' : 'Kirim link/WA') + '</button></div>';
+    }).join('');
+    var l3 = r.aktif.map(function (e) { return '<div>' + anakTeks(e) + ' <span style="color:#6b7280;">' + esc(samar(e.wa)) + '</span></div>'; }).join('');
+    w.innerHTML = '<div style="font-size:13px;margin:8px 0;"><b>' + r.aktif.length + '</b> dari <b>' + r.total + '</b> nomor WA wali aktif (<b>' + String(pct).replace('.', ',') + '%</b>) dalam ' + AKTIF_HARI + ' hari terakhir. Satu nomor = satu baris (saudara digabung).' +
+      (r.terpotong ? '<div style="color:#b45309;margin-top:4px;">Catatan: lebih dari ' + BATAS_AKTIF + ' catatan, hanya yang terbaru dibaca; angka "belum masuk" bisa terlalu besar.</div>' : '') + '</div>' +
+      grup('Belum punya nomor WA wali', '#dc2626', r.tanpa.length + ' siswa', l1, false) +
+      grup('Punya nomor, belum pernah masuk', '#d97706', r.belum.length + ' nomor', l2, r.belum.length > 0 && r.belum.length <= 15) +
+      grup('Sudah aktif', '#059669', r.aktif.length + ' nomor', l3, false);
+    Array.prototype.forEach.call(w.querySelectorAll('[data-rlo-aw]'), function (b) {
+      b.addEventListener('click', function () {
+        var e = r.belum[+b.getAttribute('data-rlo-aw')]; if (!e) return;
+        if (!/^62[0-9]{8,13}$/.test(String(e.wa))) return toast('Nomor WA tidak valid. Perbaiki di Data Siswa.', true);
+        // Bila link-ortu.js termuat: buat link masuk pribadi (tanpa PIN) dan buka WhatsApp; kalau tidak, pesan biasa berisi alamat portal.
+        if (typeof window.lmKirim === 'function') window.lmKirim(e.wa);
+        else bukaWa(e.wa, pesanMasuk(e.anak.map(function (x) { return x.nama; }).join(' & ')));
+        setIngat(e.wa); setTimeout(renderAktif, 600);
+      });
+    });
+  }
+  function periksaAktif() {
+    if (!adminAktif() || typeof db === 'undefined') return;
+    if (navigator.onLine === false) return toast('📡 Butuh koneksi internet.', true);
+    var w = el('rloAktifHasil'), b = el('rloAktifCek');
+    if (b) b.disabled = true;
+    if (w) w.innerHTML = '<p style="font-size:13px;color:#6b7280;padding:8px;">Memeriksa...</p>';
+    var sejak = new Date(Date.now() - AKTIF_HARI * 86400000).toISOString();
+    db.ref('ortu_login_log').orderByChild('waktu').startAt(sejak).limitToLast(BATAS_AKTIF).once('value').then(function (snap) {
+      var daftar = []; snap.forEach(function (c) { var v = c.val(); if (v) daftar.push(v); });
+      aHasil = hitungAktif(daftar, typeof allSiswa !== 'undefined' ? allSiswa : [], Date.now());
+      aHasil.terpotong = daftar.length >= BATAS_AKTIF;
+      renderAktif();
+    }).catch(function (e) {
+      console.error('[SI MAMBA] Gagal memeriksa keaktifan ortu:', e);
+      if (w) w.innerHTML = '<p style="font-size:13px;color:#b91c1c;padding:8px;">Gagal membaca riwayat login. Periksa koneksi atau Rules ortu_login_log.</p>';
+    }).then(function () { var b2 = el('rloAktifCek'); if (b2) b2.disabled = false; });
+  }
+  function pasangKartuAktif() {
+    var kartu = el('riwayatLoginOrtuCard'); if (!kartu || el('rloAktif')) return;
+    var d = document.createElement('div'); d.id = 'rloAktif'; d.style.cssText = 'margin-bottom:14px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:12px;';
+    d.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:2px;">👪 Keaktifan Orang Tua (' + AKTIF_HARI + ' hari)</div>' +
+      '<div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Memisahkan wali yang belum punya nomor WA, yang punya nomor tetapi belum pernah masuk, dan yang sudah aktif. Data dibaca hanya saat tombol ditekan.</div>' +
+      '<button class="btn btn-primary" type="button" id="rloAktifCek">🔍 Periksa keaktifan</button><div id="rloAktifHasil"></div>';
+    var v = el('rloVersi'); if (v && v.parentNode === kartu) kartu.insertBefore(d, v); else { var rg = el('rloRingkas'); if (rg && rg.parentNode === kartu) kartu.insertBefore(d, rg); else kartu.appendChild(d); }
+    el('rloAktifCek').addEventListener('click', periksaAktif);
   }
 
   window.setupRiwayatLoginOrtu = setupRiwayatLoginOrtu;
