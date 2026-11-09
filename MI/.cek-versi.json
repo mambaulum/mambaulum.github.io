@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.388",
-  "disimpan": "2026-11-08T14:43:23.200Z",
+  "appVersion": "v8.391",
+  "disimpan": "2026-11-09T00:32:06.359Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -139,16 +139,16 @@
       "hash": "5dd402f3971b41a4e9c813c3661d0f27bdb980a0"
     },
     "js/kpi.js": {
-      "v": "v=13",
-      "hash": "9e994411e4f959b1db066331fb90c07d19df2d07"
+      "v": "v=16",
+      "hash": "2bf7a5503852cf332831b0a41731adc318eb3d23"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
       "hash": "4d551dc877277e5b6dc531c3cc8448404e06d258"
     },
     "js/riwayat-login-ortu.js": {
-      "v": "v=5",
-      "hash": "734df726ac5ec08295f36e4ffb1773abe4459542"
+      "v": "v=6",
+      "hash": "af032fa609acb035daadd62a223d6bdda0b9c7a4"
     },
     "js/ortu-akun-admin.js": {
       "v": "v=4",
