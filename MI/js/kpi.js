@@ -234,7 +234,21 @@
     '.kpi-h{font-size:14px;font-weight:700;margin:16px 0 6px;}' +
     '.kpi-tbl{width:100%;border-collapse:collapse;font-size:12px;}' +
     '.kpi-tbl th,.kpi-tbl td{border:1px solid rgba(128,128,128,.3);padding:6px 8px;text-align:left;}' +
-    '.kpi-scroll{overflow-x:auto;}.kpi-cat{font-size:11px;opacity:.7;margin:6px 0;line-height:1.5;}';
+    '.kpi-scroll{overflow-x:auto;}.kpi-cat{font-size:11px;opacity:.7;margin:6px 0;line-height:1.5;}' +
+    /* v8.395: rapikan toolbar, keterangan, dan formulir Tindak Lanjut */
+    '.kpi-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 10px;}' +
+    '.kpi-bar .kpi-per{flex:1 1 100%;display:flex;align-items:center;gap:8px;font-size:12px;}.kpi-bar .kpi-per select{flex:1;min-width:0;font-size:14px;min-height:40px;padding:6px 10px;border:1px solid rgba(128,128,128,.4);border-radius:10px;}' +
+    '.kpi-bar .btn{flex:1 1 0;min-width:0;padding:8px 10px;font-size:13px;white-space:normal;line-height:1.25;}' +
+    '.kpi-bar .kpi-chk{flex:1 1 100%;font-size:12px;display:flex;align-items:center;gap:6px;}.kpi-bar .kpi-chk input{width:18px;height:18px;margin:0;}' +
+    '.kpi-info{margin:4px 0 8px;border:1px solid rgba(128,128,128,.25);border-radius:10px;padding:0 10px;}.kpi-info>summary{cursor:pointer;font-size:12px;font-weight:600;padding:8px 0;list-style:none;}.kpi-info>summary::-webkit-details-marker{display:none;}.kpi-info>summary::before{content:"ⓘ ";}.kpi-info[open]>summary{border-bottom:1px solid rgba(128,128,128,.2);margin-bottom:4px;}' +
+    '.kpi-tl{margin-bottom:10px;}.kpi-tl-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:14px;line-height:1.35;}.kpi-tl-head .kpi-badge{margin-top:0;}.kpi-tl-head .kpi-tl-val{opacity:.8;font-size:12px;flex:1 1 100%;}' +
+    '.kpi-tl-form{display:grid;gap:10px;margin-top:10px;}.kpi-tl-form label{display:block;font-size:12px;font-weight:600;}.kpi-tl-form .field{display:block;width:100%;box-sizing:border-box;margin-top:4px;font-size:14px;font-weight:400;line-height:1.4;}' +
+    '.kpi-tl-form textarea.field{min-height:64px;resize:vertical;overflow:hidden;}' +
+    '.kpi-tl-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}@media (max-width:340px){.kpi-tl-row{grid-template-columns:1fr;}}' +
+    '.kpi-tl-act{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}.kpi-tl-act .btn{padding:8px 16px;font-size:13px;}' +
+    '.kpi-tl-draf{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:8px 0 12px;}.kpi-tl-draf .btn{padding:8px 14px;font-size:13px;}' +
+    '.kpi-tabn{display:inline-block;min-width:18px;box-sizing:border-box;margin-left:5px;padding:0 6px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;}' +
+    '.card .btn.kpi-tl-mini{padding:4px 12px !important;min-height:32px !important;font-size:12px !important;margin-top:6px;}';
   function pasangCss() {
     if (el('kpiCss')) return;
     var s = document.createElement('style'); s.id = 'kpiCss'; s.textContent = CSS; document.head.appendChild(s);
@@ -514,9 +528,10 @@
   ];
 
   var kpiTab = 'ringkasan';   // tab aktif halaman KPI: 'ringkasan' | 'bulan' | 'kelas' | 'jurnal' | 'guru' (bertahan saat render ulang)
-  var TAB_KPI = [['ringkasan', 'Ringkasan'], ['bulan', 'Per Bulan'], ['kelas', 'Kelas'], ['jurnal', 'Jurnal'], ['guru', 'Guru']];
-  var NAMA_TAB = { ringkasan: 'Ringkasan', bulan: 'Per Bulan', kelas: 'Kelas', jurnal: 'Jurnal', guru: 'Guru' };
-  function labelPdf() { return 'Unduh PDF · ' + (NAMA_TAB[kpiTab] || 'Ringkasan'); }
+  var TAB_KPI = [['ringkasan', 'Ringkasan'], ['tindak', 'Tindak Lanjut'], ['bulan', 'Per Bulan'], ['kelas', 'Kelas'], ['jurnal', 'Jurnal'], ['guru', 'Guru'], ['target', 'Target']];
+  var NAMA_TAB = { ringkasan: 'Ringkasan', tindak: 'Tindak Lanjut', bulan: 'Per Bulan', kelas: 'Kelas', jurnal: 'Jurnal', guru: 'Guru', target: 'Target' };
+  function tabPdf() { return (kpiTab === 'tindak' || kpiTab === 'target') ? 'ringkasan' : kpiTab; }   // tab Tindak Lanjut/Target: PDF = laporan lengkap (sudah memuat Tindak Lanjut)
+  function labelPdf() { return 'Unduh PDF · ' + (NAMA_TAB[tabPdf()] || 'Ringkasan'); }
   function pane(k, isi) { return '<div id="kpiTab_' + k + '" data-kpane="' + k + '"' + (kpiTab === k ? '' : ' style="display:none;"') + '>' + isi + '</div>'; }
   function pilihTab(k) {   // pindah tab tanpa render ulang (data tidak dimuat ulang); tombol PDF ikut berubah
     if (!NAMA_TAB[k] || !el('kpiTab_' + k)) return;
@@ -524,6 +539,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('#page-kpi [data-kpane]'), function (d) { d.style.display = d.getAttribute('data-kpane') === kpiTab ? '' : 'none'; });
     Array.prototype.forEach.call(document.querySelectorAll('#kpiTabs [data-ktab]'), function (b) { b.className = 'btn ' + (b.getAttribute('data-ktab') === kpiTab ? 'btn-primary' : 'btn-soft'); });
     var bp = el('kpiPdf'); if (bp && !bp.disabled) bp.textContent = labelPdf();
+    if (k === 'tindak') autoTinggi(el('kpiTindak'));
   }
   function render() {
     var p = el('page-kpi'); if (!p) return;
@@ -558,17 +574,19 @@
     arsipOtomatis(dp, today, nonaktif, guruList);
 
     var h = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📊 Indikator Kinerja Utama Madrasah</h3>' +
-      '<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Dihitung otomatis dari data aplikasi. Periode: <select id="kpiPeriode">' +
+      '<p class="text-muted" style="font-size:12px;margin-bottom:4px;">Dihitung otomatis dari data aplikasi.</p>' +
+      '<div class="kpi-bar"><label class="kpi-per">Periode <select id="kpiPeriode">' +
       '<optgroup label="Per bulan">' + dp.bulanList.map(function (x) { return '<option value="' + x.kode + '"' + (x.kode === per.kode ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</optgroup>' +
       (dp.lain.length ? '<optgroup label="Semester dan tahun ajaran">' + dp.lain.map(function (x) { return '<option value="' + x.kode + '"' + (x.kode === per.kode ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</optgroup>' : '') +
-      '</select> ' +
-      '<button type="button" class="btn btn-soft" id="kpiPdf" title="PDF mengikuti tab yang sedang dibuka. Tab Ringkasan = laporan lengkap untuk Kepala Madrasah">' + labelPdf() + '</button> ' +
-      '<label style="font-size:12px;white-space:nowrap;"><input type="checkbox" id="kpiPdfNama"> sertakan nama guru di PDF</label> ' +
-      '<button type="button" class="btn btn-soft" id="kpiCsv" title="CSV = Comma-Separated Values">Unduh CSV</button></p>' +
+      '</select></label>' +
+      '<button type="button" class="btn btn-soft" id="kpiPdf" title="PDF mengikuti tab yang sedang dibuka. Tab Ringkasan = laporan lengkap untuk Kepala Madrasah">' + labelPdf() + '</button>' +
+      '<button type="button" class="btn btn-soft" id="kpiCsv" title="CSV = Comma-Separated Values">Unduh CSV</button>' +
+      '<label class="kpi-chk"><input type="checkbox" id="kpiPdfNama"> Sertakan nama guru di PDF</label></div>' +
+      '<details class="kpi-info"><summary>Keterangan singkatan, hari sekolah, dan panah</summary>' +
       '<div class="kpi-cat">Singkatan: <b>KPI</b> (nama di menu) = Key Performance Indicator, yaitu Indikator Kinerja Utama; <b>CSV</b> = Comma-Separated Values (berkas tabel yang bisa dibuka di Excel); <b>PDF</b> = Portable Document Format; <b>WA</b> = WhatsApp.</div>' +
-      (dataSiap ? '' : '<div class="kpi-cat" style="color:#b45309;">Data belum termuat sepenuhnya. Tunggu sebentar atau muat ulang aplikasi.</div>') +
       '<div class="kpi-cat">Hari sekolah pada periode ini (ada absensi siswa): <b>' + sis.hariSekolah.length + '</b> hari. Siswa non aktif tidak dihitung.</div>' +
-      '<div class="kpi-cat">' + (pemb ? 'Panah ▲▼ = selisih dalam poin persen terhadap <b>' + esc(pemb.label) + '</b>. Hijau = membaik, merah = memburuk (untuk indikator yang makin kecil makin baik, turun berarti membaik). Periode berjalan dibandingkan dengan periode pembanding yang sudah penuh.' : esc(pbr.alasan || 'Pembanding tidak tersedia untuk periode ini.')) + '</div>' +
+      '<div class="kpi-cat">' + (pemb ? 'Panah ▲▼ = selisih dalam poin persen terhadap <b>' + esc(pemb.label) + '</b>. Hijau = membaik, merah = memburuk (untuk indikator yang makin kecil makin baik, turun berarti membaik). Periode berjalan dibandingkan dengan periode pembanding yang sudah penuh.' : esc(pbr.alasan || 'Pembanding tidak tersedia untuk periode ini.')) + '</div></details>' +
+      (dataSiap ? '' : '<div class="kpi-cat" style="color:#b45309;">Data belum termuat sepenuhnya. Tunggu sebentar atau muat ulang aplikasi.</div>') +
       (arsip.galat ? '<div class="kpi-cat" style="color:#b45309;">Target tersimpan dan arsip KPI belum bisa dibaca (' + esc(arsip.galat) + '). Tambahkan blok Rules kpi_v4 (lihat catatan deploy); sementara dipakai target bawaan dan tanpa pembanding lintas tahun.</div>' : '') +
       (arsip.gagalTulis ? '<div class="kpi-cat" style="color:#b45309;">Arsip bulanan gagal disimpan (' + esc(arsip.gagalTulis) + '). Periksa Rules kpi_v4 dan sesi Admin.</div>' : '') +
       '<div id="kpiTabs" class="kpi-tabs">' + TAB_KPI.filter(function (x) { return x[0] !== 'bulan' || adaBulan; }).map(function (x) { return '<button type="button" class="btn ' + (kpiTab === x[0] ? 'btn-primary' : 'btn-soft') + '" data-ktab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
@@ -583,8 +601,7 @@
       kartu('Guru tidak absen pulang', cur.pTanpaPulang, KPI_TARGET.tanpaPulang, 'max', ketGuru || (gr.tanpaPulang + ' dari ' + gr.hadirTotal + ' hari hadir tanpa catatan Pulang'), pb('pTanpaPulang')) +
       '<div class="kpi-card" id="kpiOrtuKartu"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Memuat...</div></div>' +
       '</div>' +
-      '<div id="kpiOrtu"></div>' +
-      '<div id="kpiTindak"></div></div>';
+      '<div id="kpiOrtu"></div></div>' + pane('tindak', '<div id="kpiTindak"></div>');
     var hBulan = '';
 
     // rincian per bulan (semester / tahun ajaran)
@@ -622,11 +639,12 @@
       gb.map(function (g, ix) { var pg = pct(g.hadir, g.hari); return '<tr><td>' + esc(g.nama) + '</td><td style="color:' + warna(pg, KPI_TARGET.hadirGuru, 'min') + ';font-weight:700;">' + g.hadir + '/' + g.hari + ' (' + f1(pg) + ')</td><td>' + g.telat + '</td><td>' + g.tanpaPulang + '</td><td>' + g.izin + '</td><td>' + g.sakit + '</td><td>' + g.alpha + '</td><td>' + (g.tanpaPulang > 0 ? '<button type="button" class="btn btn-soft" data-wa="' + ix + '" title="Kirim pengingat lewat WhatsApp">WA</button>' : '-') + '</td></tr>'; }).join('') + '</table></div></details>' +
       '<div class="kpi-cat">Kehadiran guru dihitung dari catatan Datang dibanding hari wajib hadir guru (hari sekolah yang sudah lewat; guru berjadwal hanya dihitung di hari jadwalnya; Minggu/tanggal merah tidak dihitung; hari ini belum dihitung). Tidak absen pulang = hari hadir (ada catatan Datang) tanpa catatan Pulang. Izin, sakit, dan alpha ditampilkan terpisah.</div>';
     h += (adaBulan ? pane('bulan', hBulan) : '') + pane('kelas', hKelas) + pane('jurnal', hJurnal) + pane('guru', hGuru);
-    h += htmlPengaturan(tg);
+    h += pane('target', htmlPengaturan(tg));
     h += '</div>';
     p.innerHTML = h;
     el('kpiPeriode').addEventListener('change', render);
     terakhir = { per: per, pemb: pemb, cur: cur, prev: prev, rincian: rincian, ortu: null, gb: gb, jg: jg };
+    try { tandaiTabTindak(); } catch (eT) {}
     el('page-kpi').onclick = function (ev) {   // satu penangan klik untuk tombol WA di tabel guru
       var b = ev.target && ev.target.closest ? ev.target.closest('[data-wa]') : null;
       if (b) { ingatkanWa(+b.getAttribute('data-wa')); return; }
@@ -699,7 +717,7 @@
     var admin = isAdminKpi();
     var h = '<div class="kpi-h">Target KPI dan Arsip</div><div class="kpi-cat">Target yang dipakai pada periode ini: <b>' + (tg.ada ? 'disesuaikan' : 'bawaan') + '</b> (berlaku untuk ' + (tg.kode === 'umum' ? 'seluruh periode' : 'Semester ' + tg.kode.slice(1)) + ').</div>';
     if (!admin) return h + '<div class="kpi-cat">Target hanya dapat diubah oleh Admin.</div>';
-    h += '<details><summary style="cursor:pointer;font-size:12px;">⚙️ Atur target dan arsip (Admin)</summary><div style="margin-top:8px;">' +
+    h += '<details open><summary style="cursor:pointer;font-size:12px;">⚙️ Atur target dan arsip (Admin)</summary><div style="margin-top:8px;">' +
       '<div class="kpi-cat">Kosongkan kolom untuk memakai nilai bawaan / nilai "Semua periode". Target Semester 1 atau 2 menimpa target "Semua periode".</div>' +
       '<p style="font-size:12px;margin:6px 0;">Berlaku untuk: <select id="kpiTScope"><option value="umum">Semua periode</option><option value="s1">Semester 1 (Jul-Des)</option><option value="s2">Semester 2 (Jan-Jun)</option></select></p>' +
       '<div class="kpi-grid">' + LABEL_TARGET.map(function (x) { return '<label style="font-size:12px;display:block;">' + esc(x[1]) + '<input type="number" min="0" max="100" step="0.5" inputmode="decimal" id="kpiT_' + x[0] + '" style="width:100%;margin-top:2px;"></label>'; }).join('') + '</div>' +
@@ -751,6 +769,26 @@
   var tDraft = {};
   function tindakPeriode(kode) { var d = arsip.data; return (d && d.tindak && d.tindak[kode]) || {}; }
   function tglId(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? (+p[2]) + ' ' + NAMA_BULAN[+p[1] - 1] + ' ' + p[0] : ''; }
+  var PJ_TL = { pSiswa: 'Wali kelas', pInfaq: 'Wali kelas' };   // peran (bukan nama orang, karena ikut tercetak di PDF); selain ini = Admin. Bisa diubah di formulir.
+  // Jumlah indikator merah yang belum punya catatan tersimpan (penanda di tab Tindak Lanjut).
+  function jumlahPerluTindak() {
+    if (!terakhir || arsip.galat || arsip.data == null) return 0;
+    var notes = tindakPeriode(terakhir.per.kode);
+    var hari = hariIniStr();
+    return barisTindak(terakhir).filter(function (b) {
+      var n = notes[b.key];
+      if (n) return n.status !== 'selesai' && n.batas && n.batas < hari;   // catatan lewat batas waktu
+      return b.v != null && status(b.v, b.target, b.mode).t === 'Belum tercapai';   // belum ada catatan
+    }).length;
+  }
+  function autoTinggi(root) {   // kotak teks menyesuaikan isi (hanya bila sedang tampil; tersembunyi = tinggi 0)
+    if (!root) return;
+    Array.prototype.forEach.call(root.querySelectorAll('textarea.field'), function (t) { t.style.height = 'auto'; if (t.scrollHeight > 10) t.style.height = (t.scrollHeight + 2) + 'px'; });
+  }
+  function tandaiTabTindak() {
+    var b = document.querySelector('#kpiTabs [data-ktab="tindak"]'); if (!b) return;
+    var n = jumlahPerluTindak(); b.innerHTML = 'Tindak Lanjut' + (n ? '<span class="kpi-tabn" title="' + n + ' indikator perlu ditindaklanjuti (belum ada catatan atau lewat batas waktu)">' + n + '</span>' : '');
+  }
   function barisTindak(t) {
     var out = ENTRI_INDIKATOR.map(function (e) { return { key: e.k, nama: e.nama, v: t.cur[e.k], target: KPI_TARGET[e.target], mode: e.mode }; });
     if (t.ortu) out.push({ key: 'ortu', nama: 'Orang tua aktif (30 hari terakhir)', v: t.ortu.pct, target: KPI_TARGET.ortuAktif, mode: 'min' });
@@ -800,46 +838,80 @@
 
   function renderTindak() {
     var w = el('kpiTindak'); if (!w || !terakhir) return;
+    try { tandaiTabTindak(); } catch (eT) {}
     if (arsip.galat || arsip.data == null) { w.innerHTML = ''; return; }
     var per = terakhir.per, admin = isAdminKpi(), notes = tindakPeriode(per.kode);
     var prevKode = per.jenis === 'bulan' ? 'b:' + ymSebelum(per.bulan[0].ym) : null, prevNotes = prevKode ? tindakPeriode(prevKode) : {};
     var baris = barisTindak(terakhir).filter(function (b) { return notes[b.key] || (b.v != null && status(b.v, b.target, b.mode).t === 'Belum tercapai'); });
     if (!baris.length) { w.innerHTML = '<div class="kpi-h">Tindak Lanjut</div><div class="kpi-cat">Tidak ada indikator yang berstatus belum tercapai pada periode ini.</div>'; return; }
+    if (admin) baris.forEach(function (b) {   // isi otomatis (hanya di layar; BELUM tersimpan sebelum Admin menekan Simpan)
+      var kk = per.kode + '|' + b.key; if (notes[b.key] || tDraft[kk]) return;
+      var sg = saranTindak(b.key); if (!sg) return;
+      var pv0 = prevNotes[b.key], lanjut0 = pv0 && pv0.status !== 'selesai' && (pv0.tindakan || pv0.penyebab);
+      tDraft[kk] = { penyebab: sg.penyebab.slice(0, 300), tindakan: ((lanjut0 && pv0.tindakan) || sg.tindakan).slice(0, 300), pj: ((lanjut0 && pv0.pj) || PJ_TL[b.key] || 'Admin').slice(0, 80), batas: tambahHari(hariIniStr(), 14), status: lanjut0 ? 'jalan' : 'rencana' };
+    });
+    var nBelum = baris.filter(function (b) { return !notes[b.key]; }).length;
     var h = '<div class="kpi-h">Tindak Lanjut Indikator Belum Tercapai</div><div class="kpi-cat">Catat penyebab, tindakan, penanggung jawab, dan batas waktu. ' +
       (admin ? 'Isian tersimpan per periode dan ikut tercetak di bagian "Tindak Lanjut" PDF.' : 'Hanya Admin yang dapat mengisi; Kepala Madrasah dapat membaca.') + '</div>' +
-      (admin && baris.some(function (b) { return !notes[b.key]; }) ? '<p style="margin:6px 0;"><button type="button" class="btn btn-soft" data-tdraf="1">✨ Isi draf otomatis</button> <span class="kpi-sub">Mengisi kolom kosong dari data (tanpa nama guru) dan batas waktu 14 hari. Periksa dulu, lalu tekan Simpan di tiap indikator.</span></p>' : '');
+      (admin && nBelum ? '<div class="kpi-tl-draf"><span class="kpi-sub">✨ Terisi otomatis dari data (penyebab tanpa nama guru, tindakan baku, penanggung jawab berupa peran, batas 14 hari; catatan bulan lalu yang belum selesai diteruskan). Belum tersimpan: periksa dan ubah bila perlu.</span>' +
+        '<div class="kpi-tl-act"><button type="button" class="btn btn-primary" data-tsemua="1">Simpan semua draf (' + nBelum + ')</button><button type="button" class="btn btn-soft" data-tdraf="1">Isi ulang yang kosong</button></div></div>' : '');
     baris.forEach(function (b) {
       var st = status(b.v, b.target, b.mode), n = notes[b.key] || {}, d = tDraft[per.kode + '|' + b.key] || n, pv = prevNotes[b.key];
       var telat = n.batas && n.status !== 'selesai' && n.batas < hariIniStr(), sudahOk = notes[b.key] && st.t === 'Tercapai' && n.status !== 'selesai';
       var lanjut = admin && !notes[b.key] && !tDraft[per.kode + '|' + b.key] && pv && pv.status !== 'selesai' && (pv.tindakan || pv.penyebab);
-      var ekstra = (sudahOk ? '<div class="kpi-sub" style="color:#059669;">Indikator ini sudah tercapai. ' + (admin ? '<button type="button" class="btn btn-soft" data-tselesai="' + esc(b.key) + '" style="padding:4px 10px;font-size:12px;">Tandai selesai</button>' : '') + '</div>' : '') +
-        (lanjut ? '<div style="margin-top:6px;"><button type="button" class="btn btn-soft" data-tlanjut="' + esc(b.key) + '" style="padding:4px 10px;font-size:12px;">Lanjutkan dari periode sebelumnya</button></div>' : '');
+      var ekstra = (sudahOk ? '<div class="kpi-sub" style="color:#059669;">Indikator ini sudah tercapai. ' + (admin ? '<button type="button" class="btn btn-soft kpi-tl-mini" data-tselesai="' + esc(b.key) + '">Tandai selesai</button>' : '') + '</div>' : '') +
+        (lanjut ? '<div><button type="button" class="btn btn-soft kpi-tl-mini" data-tlanjut="' + esc(b.key) + '">Lanjutkan dari periode sebelumnya</button></div>' : '');
       var pvTeks = pv && (pv.tindakan || pv.penyebab) ? '<div class="kpi-sub">Periode sebelumnya: ' + esc(pv.tindakan || pv.penyebab) + ' (' + esc(STATUS_TL[pv.status] || '-') + ')</div>' : '';
-      h += '<div class="kpi-card" style="margin-bottom:8px;" data-row="' + esc(b.key) + '"><div style="font-size:13px;"><b>' + esc(b.nama) + '</b> · ' + f1(b.v) + ' (target ' + (b.mode === 'max' ? 'maks. ' : 'min. ') + b.target + '%) ' +
-        '<span class="kpi-badge" style="background:' + st.w + ';">' + st.t + '</span>' + (telat ? ' <span class="kpi-badge" style="background:#dc2626;">Lewat batas waktu</span>' : '') + '</div>' + pvTeks + ekstra;
+      h += '<div class="kpi-card kpi-tl" data-row="' + esc(b.key) + '"><div class="kpi-tl-head"><b>' + esc(b.nama) + '</b>' +
+        '<span class="kpi-badge" style="background:' + st.w + ';">' + st.t + '</span>' + (telat ? '<span class="kpi-badge" style="background:#dc2626;">Lewat batas waktu</span>' : '') + (admin && !notes[b.key] ? '<span class="kpi-badge" style="background:#6b7280;">Draf belum disimpan</span>' : '') +
+        '<span class="kpi-tl-val">Capaian <b>' + f1(b.v) + '</b> · target ' + (b.mode === 'max' ? 'maks. ' : 'min. ') + b.target + '%</span></div>' + pvTeks + ekstra;
       if (admin) {
-        h += '<div style="display:grid;gap:6px;margin-top:6px;">' +
-          '<label style="font-size:12px;">Penyebab<textarea class="field tPenyebab" rows="2" maxlength="300" style="width:100%;">' + esc(d.penyebab || '') + '</textarea></label>' +
-          '<label style="font-size:12px;">Tindakan<textarea class="field tTindakan" rows="2" maxlength="300" style="width:100%;">' + esc(d.tindakan || '') + '</textarea></label>' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-          '<label style="font-size:12px;flex:1;min-width:130px;">Penanggung jawab<input class="field tPj" maxlength="80" style="width:100%;" value="' + esc(d.pj || '') + '"></label>' +
-          '<label style="font-size:12px;">Batas waktu<input type="date" class="field tBatas" style="width:100%;" value="' + esc(d.batas || '') + '"></label>' +
-          '<label style="font-size:12px;">Status<select class="field tStatus" style="width:100%;">' + Object.keys(STATUS_TL).map(function (s) { return '<option value="' + s + '"' + ((d.status || 'rencana') === s ? ' selected' : '') + '>' + STATUS_TL[s] + '</option>'; }).join('') + '</select></label></div>' +
-          '<div><button type="button" class="btn btn-primary" data-tsimpan="' + esc(b.key) + '" style="padding:6px 12px;font-size:12px;">Simpan</button> ' +
-          (notes[b.key] ? '<button type="button" class="btn btn-soft" data-thapus="' + esc(b.key) + '" style="padding:6px 12px;font-size:12px;">Hapus catatan</button> <span class="kpi-sub">Tersimpan ' + esc(tglId(String(n.ts || '').slice(0, 10))) + '</span>' : '') + '</div></div>';
+        h += '<div class="kpi-tl-form">' +
+          '<label>Penyebab<textarea class="field tPenyebab" rows="2" maxlength="300">' + esc(d.penyebab || '') + '</textarea></label>' +
+          '<label>Tindakan<textarea class="field tTindakan" rows="2" maxlength="300">' + esc(d.tindakan || '') + '</textarea></label>' +
+          '<div class="kpi-tl-row">' +
+          '<label>Penanggung jawab<input class="field tPj" maxlength="80" value="' + esc(d.pj || '') + '"></label>' +
+          '<label>Batas waktu<input type="date" class="field tBatas" value="' + esc(d.batas || '') + '"></label>' +
+          '</div><label>Status<select class="field tStatus">' + Object.keys(STATUS_TL).map(function (s) { return '<option value="' + s + '"' + ((d.status || 'rencana') === s ? ' selected' : '') + '>' + STATUS_TL[s] + '</option>'; }).join('') + '</select></label>' +
+          '<div class="kpi-tl-act"><button type="button" class="btn btn-primary" data-tsimpan="' + esc(b.key) + '">Simpan</button>' +
+          (notes[b.key] ? '<button type="button" class="btn btn-soft" data-thapus="' + esc(b.key) + '">Hapus catatan</button><span class="kpi-sub" style="margin:0;">Tersimpan ' + esc(tglId(String(n.ts || '').slice(0, 10))) + '</span>' : '') + '</div></div>';
       } else if (notes[b.key]) {
         h += '<div class="kpi-sub" style="margin-top:6px;">Penyebab: ' + esc(n.penyebab || '-') + '<br>Tindakan: ' + esc(n.tindakan || '-') + '<br>Penanggung jawab: ' + esc(n.pj || '-') + ' · Batas: ' + esc(tglId(n.batas) || '-') + ' · ' + esc(STATUS_TL[n.status] || '-') + '</div>';
       } else h += '<div class="kpi-sub" style="margin-top:6px;">Belum ada catatan tindak lanjut.</div>';
       h += '</div>';
     });
-    w.innerHTML = h;
+    w.innerHTML = h; autoTinggi(w);
     var kode = per.kode;
     var simpanDraf = function (ev) { var r = ev.target && ev.target.closest ? ev.target.closest('[data-row]') : null; if (r) tDraft[kode + '|' + r.getAttribute('data-row')] = bacaBaris(r); };
     if (w.__tl) return;   // renderTindak dipanggil beberapa kali pada elemen yang sama: pasang penangan sekali saja (cegah simpan ganda)
     w.__tl = true;
     w.addEventListener('input', simpanDraf); w.addEventListener('change', simpanDraf);
+    w.addEventListener('input', function (ev) { if (ev.target && ev.target.tagName === 'TEXTAREA') autoTinggi(ev.target.parentNode); });
     w.addEventListener('click', function (ev) {
       var cl = function (a) { return ev.target && ev.target.closest ? ev.target.closest('[' + a + ']') : null; };
+      var ba = cl('data-tsemua');
+      if (ba) {   // simpan semua draf yang belum tersimpan, berurutan
+        if (!isAdminKpi()) return pesan('Hanya Admin yang dapat mengubah catatan.', true);
+        var nt0 = tindakPeriode(kode), todo = [];
+        Array.prototype.forEach.call(w.querySelectorAll('[data-row]'), function (r) { var k = r.getAttribute('data-row'); if (nt0[k]) return; var dd = bacaBaris(r); if (dd.penyebab || dd.tindakan) todo.push({ k: k, d: dd }); });
+        if (!todo.length) return pesan('Tidak ada draf yang bisa disimpan.', true);
+        ba.disabled = true;
+        var ok = 0, gagal = '', ts = new Date().toISOString(), oleh = '';
+        try { oleh = String((currentUser && (currentUser.name || currentUser.username)) || '').slice(0, 60); } catch (e5) {}
+        var lanjutSimpan = function (i) {
+          if (i >= todo.length || gagal) {
+            pesan(gagal ? ok + ' catatan tersimpan, lalu gagal: ' + gagal + '. Periksa Rules kpi_v4.' : ok + ' catatan tersimpan.', !!gagal);
+            try { if (ok && typeof addLog === 'function') addLog('kpi_tindak_lanjut', 'simpan semua (' + ok + ') ' + kode); } catch (e6) {}
+            renderTindak(); return;
+          }
+          var x = todo[i]; x.d.ts = ts; x.d.oleh = oleh;
+          tulisKpi('kpi_v4/tindak/' + kode + '/' + x.k, x.d, function (err) {
+            if (err) gagal = (err && err.message) || String(err); else { ok++; delete tDraft[kode + '|' + x.k]; }
+            lanjutSimpan(i + 1);
+          });
+        };
+        lanjutSimpan(0); return;
+      }
       var bd = cl('data-tdraf'), bl = cl('data-tlanjut'), bt = cl('data-tselesai');
       if (bd || bl || bt) {
         if (!isAdminKpi()) return pesan('Hanya Admin yang dapat mengubah catatan.', true);
@@ -996,7 +1068,7 @@
   function unduhPdf() {
     var t = terakhir; if (!t) return;
     var btn = el('kpiPdf');
-    t.tab = kpiTab;   // PDF mengikuti tab yang sedang dibuka
+    t.tab = tabPdf();   // PDF mengikuti tab yang sedang dibuka
     t.nama = !!(el('kpiPdfNama') && el('kpiPdfNama').checked);   // nama guru di bagian Perlu Perhatian: default tidak dicetak
     function selesai() { if (btn) { btn.disabled = false; btn.textContent = labelPdf(); } }
     if (btn) { btn.disabled = true; btn.textContent = 'Menyiapkan PDF...'; }
