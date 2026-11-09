@@ -223,7 +223,7 @@
   var CSS = '.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 16px;}' +
     '@media (max-width:640px){.kpi-grid{grid-template-columns:repeat(2,1fr);}.kpi-grid>.kpi-card:last-child:nth-child(odd){grid-column:1/-1;}}' +
     '#kpiOrtu .kpi-card{margin-bottom:10px;}' +
-    '.kpi-tabs{display:flex;gap:6px;margin:10px 0 4px;overflow-x:auto;white-space:nowrap;}.kpi-tabs .btn{padding:6px 14px;font-size:13px;flex:0 0 auto;}' +
+    '.kpi-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px;}.kpi-tabs .btn{padding:6px 12px;font-size:13px;flex:1 1 auto;min-height:36px !important;white-space:nowrap;}' +
     '.kpi-card{border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:12px;display:flex;flex-direction:column;}' +
     '.kpi-nama{font-size:12px;opacity:.75;margin-bottom:4px;}' +
     '.kpi-val{font-size:26px;font-weight:800;line-height:1.1;}' +
@@ -234,6 +234,7 @@
     '.kpi-h{font-size:14px;font-weight:700;margin:16px 0 6px;}' +
     '.kpi-tbl{width:100%;border-collapse:collapse;font-size:12px;}' +
     '.kpi-tbl th,.kpi-tbl td{border:1px solid rgba(128,128,128,.3);padding:6px 8px;text-align:left;}' +
+    '@media (max-width:480px){.kpi-tbl{font-size:11px;}.kpi-tbl th,.kpi-tbl td{padding:5px 4px;}.kpi-tbl td:first-child{word-break:break-word;}}' + +
     '.kpi-scroll{overflow-x:auto;}.kpi-cat{font-size:11px;opacity:.7;margin:6px 0;line-height:1.5;}' +
     /* v8.395: rapikan toolbar, keterangan, dan formulir Tindak Lanjut */
     '.kpi-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 10px;}' +
@@ -574,7 +575,7 @@
     arsipOtomatis(dp, today, nonaktif, guruList);
 
     var h = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📊 Indikator Kinerja Utama Madrasah</h3>' +
-      '<p class="text-muted" style="font-size:12px;margin-bottom:4px;">Dihitung otomatis dari data aplikasi.</p>' +
+      '<div class="text-muted" style="font-size:12px;margin-bottom:4px;">Dihitung otomatis dari data aplikasi.</div>' +
       '<div class="kpi-bar"><label class="kpi-per">Periode <select id="kpiPeriode">' +
       '<optgroup label="Per bulan">' + dp.bulanList.map(function (x) { return '<option value="' + x.kode + '"' + (x.kode === per.kode ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</optgroup>' +
       (dp.lain.length ? '<optgroup label="Semester dan tahun ajaran">' + dp.lain.map(function (x) { return '<option value="' + x.kode + '"' + (x.kode === per.kode ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</optgroup>' : '') +
@@ -719,8 +720,8 @@
     if (!admin) return h + '<div class="kpi-cat">Target hanya dapat diubah oleh Admin.</div>';
     h += '<details open><summary style="cursor:pointer;font-size:12px;">⚙️ Atur target dan arsip (Admin)</summary><div style="margin-top:8px;">' +
       '<div class="kpi-cat">Kosongkan kolom untuk memakai nilai bawaan / nilai "Semua periode". Target Semester 1 atau 2 menimpa target "Semua periode".</div>' +
-      '<p style="font-size:12px;margin:6px 0;">Berlaku untuk: <select id="kpiTScope"><option value="umum">Semua periode</option><option value="s1">Semester 1 (Jul-Des)</option><option value="s2">Semester 2 (Jan-Jun)</option></select></p>' +
-      '<div class="kpi-grid">' + LABEL_TARGET.map(function (x) { return '<label style="font-size:12px;display:block;">' + esc(x[1]) + '<input type="number" min="0" max="100" step="0.5" inputmode="decimal" id="kpiT_' + x[0] + '" style="width:100%;margin-top:2px;"></label>'; }).join('') + '</div>' +
+      '<label style="font-size:12px;display:block;margin:8px 0;font-weight:600;">Berlaku untuk<select id="kpiTScope" class="field" style="display:block;width:100%;margin-top:4px;font-size:14px;font-weight:400;"><option value="umum">Semua periode</option><option value="s1">Semester 1 (Jul-Des)</option><option value="s2">Semester 2 (Jan-Jun)</option></select></label>' +
+      '<div class="kpi-grid">' + LABEL_TARGET.map(function (x) { return '<label style="font-size:12px;display:block;font-weight:600;">' + esc(x[1]) + '<input type="number" min="0" max="100" step="0.5" inputmode="decimal" id="kpiT_' + x[0] + '" class="field" style="display:block;width:100%;box-sizing:border-box;margin-top:4px;font-size:14px;font-weight:400;"></label>'; }).join('') + '</div>' +
       '<p style="margin-top:8px;"><button type="button" class="btn btn-primary" id="kpiTSimpan">Simpan target</button> <button type="button" class="btn btn-soft" id="kpiTReset">Kembalikan ke bawaan</button></p>' +
       '<div class="kpi-cat" style="margin-top:10px;">Arsip bulanan tersimpan otomatis untuk bulan yang sudah lewat saat Admin membuka halaman ini, dan dipakai sebagai pembanding Juli, Semester 1, dan tahun ajaran berikutnya.</div>' +
       '<p><button type="button" class="btn btn-soft" id="kpiArsipUlang">Timpa arsip bulan yang sudah lewat</button></p></div></details>';
