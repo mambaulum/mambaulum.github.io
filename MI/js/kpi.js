@@ -163,20 +163,52 @@
   // waFn = fungsi normalisasi nomor (ortuWaKey dari portal-ortu.js); tanpa itu dipakai noWaKey / nomor apa adanya.
   function hitungOrtu(logs, siswa, sekarang, waFn) {
     var norm = function (x) { try { return waFn ? (waFn(x) || '') : String(x || ''); } catch (e) { return ''; } };
-    var target = {}, tanpaWa = 0;
+    var target = {}, tanpaWaList = [];
     (siswa || []).forEach(function (s) {
-      var k = s.noWaKey || norm(s.noWaOrtu);
-      if (k) target[k] = true; else tanpaWa++;
+      var nm = s.nama || s.name || '-', k = s.noWaKey || norm(s.noWaOrtu);
+      if (k) { (target[k] = target[k] || { wa: k, noWa: s.noWaOrtu || k, anak: [] }).anak.push({ nama: nm, kelas: s.kelas || '' }); }
+      else tanpaWaList.push({ nama: nm, kelas: s.kelas || '' });
     });
-    var batas = sekarang - ORTU_AKTIF_HARI * 86400000, aktif = {};
+    var batas = sekarang - ORTU_AKTIF_HARI * 86400000, aktifSet = {};
     (logs || []).forEach(function (l) {
       if (!l || l.hasil !== 'berhasil' || !l.wa) return;
       var t = Date.parse(l.waktu); if (isNaN(t) || t < batas) return;
-      aktif[String(l.wa)] = true;
+      aktifSet[String(l.wa)] = true;
     });
-    var total = Object.keys(target).length, n = 0;
-    Object.keys(aktif).forEach(function (k) { if (target[k]) n++; });
-    return { total: total, aktif: n, tanpaWa: tanpaWa, pct: pct(n, total) };
+    var aktifList = [], belumList = [];
+    Object.keys(target).forEach(function (k) { (aktifSet[k] ? aktifList : belumList).push(target[k]); });
+    var byKelas = function (x, y) { return (x.anak ? x.anak[0].kelas : x.kelas).localeCompare(y.anak ? y.anak[0].kelas : y.kelas) || (x.anak ? x.anak[0].nama : x.nama).localeCompare(y.anak ? y.anak[0].nama : y.nama); };
+    tanpaWaList.sort(byKelas); belumList.sort(byKelas); aktifList.sort(byKelas);
+    var total = aktifList.length + belumList.length;
+    return { total: total, aktif: aktifList.length, belum: belumList.length, tanpaWa: tanpaWaList.length, pct: pct(aktifList.length, total),
+      tanpaWaList: tanpaWaList, belumList: belumList, aktifList: aktifList };
+  }
+
+  // Tiga kelompok orang tua (hanya layar Admin/Kepala; nama anak TIDAK masuk CSV/PDF).
+  function htmlKelompokOrtu(r) {
+    var anakTeks = function (e) { return e.anak.map(function (a) { return esc(a.nama) + ' (' + esc(a.kelas) + ')'; }).join(', '); };
+    var grup = function (judul, warnaX, n, isi, buka) {
+      return '<details' + (buka ? ' open' : '') + ' style="margin-top:6px;"><summary style="cursor:pointer;font-size:12px;"><b style="color:' + warnaX + ';">' + judul + ': ' + n + '</b></summary>' +
+        '<div class="kpi-scroll" style="margin-top:4px;font-size:12px;line-height:1.6;max-height:260px;overflow:auto;">' + (isi || '<i>Tidak ada.</i>') + '</div></details>';
+    };
+    var l1 = r.tanpaWaList.map(function (e) { return '<div>' + esc(e.nama) + ' (' + esc(e.kelas) + ')</div>'; }).join('');
+    var l2 = r.belumList.map(function (e, i) { return '<div>' + anakTeks(e) + ' <button type="button" class="btn btn-soft" data-owa="' + i + '" title="Ingatkan lewat WhatsApp">WA</button></div>'; }).join('');
+    var l3 = r.aktifList.map(function (e) { return '<div>' + anakTeks(e) + '</div>'; }).join('');
+    return '<div class="kpi-card" style="grid-column:1/-1;"><div class="kpi-nama">Orang tua menurut keaktifan (30 hari terakhir)</div>' +
+      '<div class="kpi-sub">Satu baris = satu nomor WA (saudara kandung digabung). Penyebut persen hanya nomor yang ada.</div>' +
+      grup('Belum punya nomor WA wali', '#dc2626', r.tanpaWa + ' siswa', l1, false) +
+      grup('Punya nomor, belum pernah masuk', '#d97706', r.belum + ' nomor', l2, r.belum > 0 && r.belum <= 15) +
+      grup('Sudah aktif', '#059669', r.aktif + ' nomor', l3, false) + '</div>';
+  }
+
+  function ingatkanOrtu(ix) {
+    var r = terakhir && terakhir.ortu, e = r && r.belumList && r.belumList[ix]; if (!e) return;
+    var n = (typeof formatNomorWa === 'function') ? formatNomorWa(e.noWa) : String(e.noWa).replace(/\D/g, '');
+    if (String(n).length < 10) { pesan('Nomor WhatsApp wali ' + e.anak[0].nama + ' tidak valid. Perbaiki di Data Siswa.', true); return; }
+    var M = (typeof MADRASAH !== 'undefined') ? MADRASAH : {};
+    var msg = 'Assalamu\'alaikum Bapak/Ibu wali dari ' + e.anak.map(function (a) { return a.nama; }).join(' & ') + ', ini pesan dari ' + (M.nama || 'madrasah') + '.\n\nPortal Orang Tua madrasah sudah bisa dibuka untuk melihat kehadiran, nilai, dan kabar anak. Silakan masuk dengan nomor WhatsApp ini. Jika ada kendala, kabari kami.\n\nTerima kasih.';
+    window.open('https://wa.me/' + n + '?text=' + encodeURIComponent(msg), '_blank');
+    try { if (typeof addLog === 'function') addLog('kpi_ingatkan_wa_ortu', e.anak[0].nama); } catch (x) {}
   }
 
   // ---------- status warna ----------
@@ -530,7 +562,8 @@
       kartu('Guru datang terlambat', cur.pTelat, KPI_TARGET.telatGuru, 'max', ketGuru || 'dari semua catatan Datang', pb('pTelat')) +
       kartu('Guru tidak absen pulang', cur.pTanpaPulang, KPI_TARGET.tanpaPulang, 'max', ketGuru || (gr.tanpaPulang + ' dari ' + gr.hadirTotal + ' hari hadir tanpa catatan Pulang'), pb('pTanpaPulang')) +
       '</div>' +
-      '<div id="kpiOrtu" class="kpi-grid"><div class="kpi-card"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Memuat...</div></div></div>';
+      '<div id="kpiOrtu" class="kpi-grid"><div class="kpi-card"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Memuat...</div></div></div>' +
+      '<div id="kpiTindak"></div>';
 
     // rincian per bulan (semester / tahun ajaran)
     var rincian = null;
@@ -573,11 +606,14 @@
     terakhir = { per: per, pemb: pemb, cur: cur, prev: prev, rincian: rincian, ortu: null, gb: gb };
     el('page-kpi').onclick = function (ev) {   // satu penangan klik untuk tombol WA di tabel guru
       var b = ev.target && ev.target.closest ? ev.target.closest('[data-wa]') : null;
-      if (b) ingatkanWa(+b.getAttribute('data-wa'));
+      if (b) { ingatkanWa(+b.getAttribute('data-wa')); return; }
+      var o = ev.target && ev.target.closest ? ev.target.closest('[data-owa]') : null;
+      if (o) ingatkanOrtu(+o.getAttribute('data-owa'));
     };
     pasangPengaturan(tg, dp, today, nonaktif, guruList);
     el('kpiCsv').addEventListener('click', unduhCsv);
     el('kpiPdf').addEventListener('click', unduhPdf);
+    renderTindak();
     muatOrtu();
   }
 
@@ -591,10 +627,12 @@
 
   var ortuCache = null;   // hasil baca log login disimpan 2 menit: render() bisa terpanggil berkali-kali (periode, muat data guru, arsip)
   function ambilOrtu() {
-    var akunP = db.ref('ortu_login_log').orderByKey().startAt(kunciDariWaktu(Date.now() - (ORTU_AKTIF_HARI + 1) * 86400000)).limitToLast(20000).once('value').then(function (sn) {
+    var bs = window.__ortuLog30, segar = bs && Date.now() - bs.t < 120000 && bs.daftar;
+    var akunP = (segar ? Promise.resolve(hitungOrtu(bs.daftar, allSiswa, Date.now(), (typeof ortuWaKey === 'function') ? ortuWaKey : null)) : db.ref('ortu_login_log').orderByKey().startAt(kunciDariWaktu(Date.now() - (ORTU_AKTIF_HARI + 1) * 86400000)).limitToLast(20000).once('value').then(function (sn) {
       var logs = []; sn.forEach(function (c) { logs.push(c.val()); });
+      window.__ortuLog30 = { t: Date.now(), daftar: logs.filter(Boolean), terpotong: logs.length >= 20000 };   // dipakai juga kartu Keaktifan di Riwayat Login (2 menit)
       return hitungOrtu(logs, allSiswa, Date.now(), (typeof ortuWaKey === 'function') ? ortuWaKey : null);
-    }, function () { return null; });
+    }, function () { return null; }));
     var angketP = db.ref('angket_keunggulan_status').once('value').then(function (sn) {
       var per = (sn.val() || {}).periode; if (!per) return null;
       return db.ref('angket_keunggulan/' + per).once('value').then(function (s2) {
@@ -610,12 +648,14 @@
     pr.then(function (r) {
       if (el('kpiOrtu') !== w) return;
       if (terakhir) terakhir.ortu = r[0];
+      renderTindak();
       if (r[0]) simpanOrtuSnap(r[0]);
       // pembanding: nilai terakhir yang tersimpan di arsip untuk bulan lalu (dibandingkan dengan angka 30 hari terakhir sekarang)
       var ymL = ymSebelum(hariIniStr().slice(0, 7)), sn0 = arsipOrtu(ymL);
       var pbO = (arsip.data != null && !arsip.galat) ? { ada: true, label: 'akhir ' + labelYm(ymL), prev: sn0 ? sn0.pct : null } : null;
-      var h = r[0] ? kartu('Orang tua aktif', r[0].pct, KPI_TARGET.ortuAktif, 'min', r[0].aktif + ' dari ' + r[0].total + ' nomor WhatsApp (WA) login ≤ ' + ORTU_AKTIF_HARI + ' hari' + (r[0].tanpaWa ? ' (' + r[0].tanpaWa + ' siswa belum punya nomor WA)' : '') + ' · selalu 30 hari terakhir, tidak mengikuti periode', pbO) :
+      var h = r[0] ? kartu('Orang tua aktif', r[0].pct, KPI_TARGET.ortuAktif, 'min', r[0].aktif + ' dari ' + r[0].total + ' nomor WhatsApp (WA) login ≤ ' + ORTU_AKTIF_HARI + ' hari' + (r[0].tanpaWa ? ' · ' + r[0].tanpaWa + ' siswa belum punya nomor WA' : '') + ' · selalu 30 hari terakhir, tidak mengikuti periode', pbO) :
         '<div class="kpi-card"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Riwayat login orang tua tidak bisa dibaca (izin akses).</div></div>';
+      if (r[0]) h += htmlKelompokOrtu(r[0]);
       var a = r[1];
       h += a ? '<div class="kpi-card"><div class="kpi-nama">Angket Keunggulan</div><div class="kpi-val">' + (a.guru + a.kepala + a.ortu + a.siswa) + '</div><div class="kpi-sub">responden<br>Guru ' + a.guru + ' · Kepala ' + a.kepala + '<br>Orang tua ' + a.ortu + ' · Siswa ' + a.siswa + '</div></div>' :
         '<div class="kpi-card"><div class="kpi-nama">Angket Keunggulan</div><div class="kpi-sub">Belum ada data atau tidak bisa dibaca.</div></div>';
@@ -672,6 +712,79 @@
     el('kpiArsipUlang').addEventListener('click', function () { arsipkanUlang(dp, today, nonaktif, guruList, el('kpiArsipUlang')); });
   }
 
+  // ---------- Catatan tindak lanjut (indikator belum tercapai) ----------
+  // Disimpan di kpi_v4/tindak/{kodePeriode}/{kunciIndikator} = { penyebab, tindakan, pj, batas:'YYYY-MM-DD', status:'rencana|jalan|selesai', ts, oleh }.
+  // Hanya Admin yang menulis (Rules kpi_v4 yang sama, tanpa Rules baru); Kepala Madrasah membaca. Draf yang sedang diketik dijaga di tDraft
+  // supaya render ulang halaman (data baru masuk) tidak menghapus isian.
+  var STATUS_TL = { rencana: 'Direncanakan', jalan: 'Sedang dijalankan', selesai: 'Selesai' };
+  var tDraft = {};
+  function tindakPeriode(kode) { var d = arsip.data; return (d && d.tindak && d.tindak[kode]) || {}; }
+  function tglId(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? (+p[2]) + ' ' + NAMA_BULAN[+p[1] - 1] + ' ' + p[0] : ''; }
+  function barisTindak(t) {
+    var out = ENTRI_INDIKATOR.map(function (e) { return { key: e.k, nama: e.nama, v: t.cur[e.k], target: KPI_TARGET[e.target], mode: e.mode }; });
+    if (t.ortu) out.push({ key: 'ortu', nama: 'Orang tua aktif (30 hari terakhir)', v: t.ortu.pct, target: KPI_TARGET.ortuAktif, mode: 'min' });
+    return out;
+  }
+  function bacaBaris(rowEl) {
+    var g = function (c) { var x = rowEl.querySelector('.' + c); return x ? String(x.value || '').trim() : ''; };
+    return { penyebab: g('tPenyebab').slice(0, 300), tindakan: g('tTindakan').slice(0, 300), pj: g('tPj').slice(0, 80), batas: g('tBatas'), status: STATUS_TL[g('tStatus')] ? g('tStatus') : 'rencana' };
+  }
+  function renderTindak() {
+    var w = el('kpiTindak'); if (!w || !terakhir) return;
+    if (arsip.galat || arsip.data == null) { w.innerHTML = ''; return; }
+    var per = terakhir.per, admin = isAdminKpi(), notes = tindakPeriode(per.kode);
+    var prevKode = per.jenis === 'bulan' ? 'b:' + ymSebelum(per.bulan[0].ym) : null, prevNotes = prevKode ? tindakPeriode(prevKode) : {};
+    var baris = barisTindak(terakhir).filter(function (b) { return notes[b.key] || (b.v != null && status(b.v, b.target, b.mode).t === 'Belum tercapai'); });
+    if (!baris.length) { w.innerHTML = '<div class="kpi-h">Tindak Lanjut</div><div class="kpi-cat">Tidak ada indikator yang berstatus belum tercapai pada periode ini.</div>'; return; }
+    var h = '<div class="kpi-h">Tindak Lanjut Indikator Belum Tercapai</div><div class="kpi-cat">Catat penyebab, tindakan, penanggung jawab, dan batas waktu. ' +
+      (admin ? 'Isian tersimpan per periode dan ikut tercetak di bagian "Tindak Lanjut" PDF.' : 'Hanya Admin yang dapat mengisi; Kepala Madrasah dapat membaca.') + '</div>';
+    baris.forEach(function (b) {
+      var st = status(b.v, b.target, b.mode), n = notes[b.key] || {}, d = tDraft[per.kode + '|' + b.key] || n, pv = prevNotes[b.key];
+      var pvTeks = pv && (pv.tindakan || pv.penyebab) ? '<div class="kpi-sub">Periode sebelumnya: ' + esc(pv.tindakan || pv.penyebab) + ' (' + esc(STATUS_TL[pv.status] || '-') + ')</div>' : '';
+      h += '<div class="kpi-card" style="margin-bottom:8px;" data-row="' + esc(b.key) + '"><div style="font-size:13px;"><b>' + esc(b.nama) + '</b> · ' + f1(b.v) + ' (target ' + (b.mode === 'max' ? 'maks. ' : 'min. ') + b.target + '%) ' +
+        '<span class="kpi-badge" style="background:' + st.w + ';">' + st.t + '</span></div>' + pvTeks;
+      if (admin) {
+        h += '<div style="display:grid;gap:6px;margin-top:6px;">' +
+          '<label style="font-size:12px;">Penyebab<textarea class="field tPenyebab" rows="2" maxlength="300" style="width:100%;">' + esc(d.penyebab || '') + '</textarea></label>' +
+          '<label style="font-size:12px;">Tindakan<textarea class="field tTindakan" rows="2" maxlength="300" style="width:100%;">' + esc(d.tindakan || '') + '</textarea></label>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+          '<label style="font-size:12px;flex:1;min-width:130px;">Penanggung jawab<input class="field tPj" maxlength="80" style="width:100%;" value="' + esc(d.pj || '') + '"></label>' +
+          '<label style="font-size:12px;">Batas waktu<input type="date" class="field tBatas" style="width:100%;" value="' + esc(d.batas || '') + '"></label>' +
+          '<label style="font-size:12px;">Status<select class="field tStatus" style="width:100%;">' + Object.keys(STATUS_TL).map(function (s) { return '<option value="' + s + '"' + ((d.status || 'rencana') === s ? ' selected' : '') + '>' + STATUS_TL[s] + '</option>'; }).join('') + '</select></label></div>' +
+          '<div><button type="button" class="btn btn-primary" data-tsimpan="' + esc(b.key) + '" style="padding:6px 12px;font-size:12px;">Simpan</button> ' +
+          (notes[b.key] ? '<button type="button" class="btn btn-soft" data-thapus="' + esc(b.key) + '" style="padding:6px 12px;font-size:12px;">Hapus catatan</button> <span class="kpi-sub">Tersimpan ' + esc(tglId(String(n.ts || '').slice(0, 10))) + '</span>' : '') + '</div></div>';
+      } else if (notes[b.key]) {
+        h += '<div class="kpi-sub" style="margin-top:6px;">Penyebab: ' + esc(n.penyebab || '-') + '<br>Tindakan: ' + esc(n.tindakan || '-') + '<br>Penanggung jawab: ' + esc(n.pj || '-') + ' · Batas: ' + esc(tglId(n.batas) || '-') + ' · ' + esc(STATUS_TL[n.status] || '-') + '</div>';
+      } else h += '<div class="kpi-sub" style="margin-top:6px;">Belum ada catatan tindak lanjut.</div>';
+      h += '</div>';
+    });
+    w.innerHTML = h;
+    var kode = per.kode;
+    var simpanDraf = function (ev) { var r = ev.target && ev.target.closest ? ev.target.closest('[data-row]') : null; if (r) tDraft[kode + '|' + r.getAttribute('data-row')] = bacaBaris(r); };
+    if (w.__tl) return;   // renderTindak dipanggil beberapa kali pada elemen yang sama: pasang penangan sekali saja (cegah simpan ganda)
+    w.__tl = true;
+    w.addEventListener('input', simpanDraf); w.addEventListener('change', simpanDraf);
+    w.addEventListener('click', function (ev) {
+      var bs = ev.target && ev.target.closest ? ev.target.closest('[data-tsimpan]') : null, bh = ev.target && ev.target.closest ? ev.target.closest('[data-thapus]') : null;
+      if (!bs && !bh) return;
+      if (!isAdminKpi()) return pesan('Hanya Admin yang dapat mengubah catatan.', true);
+      var key = (bs || bh).getAttribute(bs ? 'data-tsimpan' : 'data-thapus'), path = 'kpi_v4/tindak/' + kode + '/' + key, rowEl = (bs || bh).closest('[data-row]');
+      if (bh) {
+        if (!confirm('Hapus catatan tindak lanjut ini?')) return;
+        tulisKpi(path, null, function (err) { if (err) return pesan('Gagal menghapus: ' + ((err && err.message) || err), true); delete tDraft[kode + '|' + key]; pesan('Catatan dihapus.'); renderTindak(); });
+        return;
+      }
+      var d = bacaBaris(rowEl);
+      if (!d.penyebab && !d.tindakan) return pesan('Isi minimal penyebab atau tindakan.', true);
+      d.ts = new Date().toISOString(); try { d.oleh = String((currentUser && (currentUser.name || currentUser.username)) || '').slice(0, 60); } catch (e) { d.oleh = ''; }
+      tulisKpi(path, d, function (err) {
+        if (err) return pesan('Gagal menyimpan: ' + ((err && err.message) || err) + '. Periksa Rules kpi_v4.', true);
+        delete tDraft[kode + '|' + key]; pesan('Catatan tersimpan.'); renderTindak();
+        try { if (typeof addLog === 'function') addLog('kpi_tindak_lanjut', key + ' ' + kode); } catch (e2) {}
+      });
+    });
+  }
+
   // ---------- pengingat WhatsApp ke guru (buka wa.me; pesan terkirim dari WhatsApp Admin/Kepala sendiri) ----------
   function ingatkanWa(ix) {
     var t = terakhir, g = t && t.gb && t.gb[ix]; if (!g) return;
@@ -689,10 +802,10 @@
   function barisIndikator(t) {
     var out = ENTRI_INDIKATOR.map(function (e) {
       var v = t.cur[e.k], pv = t.prev ? t.prev[e.k] : null, d = t.prev ? selisih(v, pv) : null;
-      return { nama: e.nama, nilai: v, target: KPI_TARGET[e.target], mode: e.mode, st: status(v, KPI_TARGET[e.target], e.mode), prev: pv, d: d,
+      return { key: e.k, nama: e.nama, nilai: v, target: KPI_TARGET[e.target], mode: e.mode, st: status(v, KPI_TARGET[e.target], e.mode), prev: pv, d: d,
         pembText: t.pemb ? teksPembanding(d, e.mode) : 'Tidak ada' };
     });
-    if (t.ortu) out.push({ nama: 'Orang tua aktif (30 hari terakhir)', nilai: t.ortu.pct, target: KPI_TARGET.ortuAktif, mode: 'min', st: status(t.ortu.pct, KPI_TARGET.ortuAktif, 'min'), prev: null, d: null, pembText: 'Tidak ada' });
+    if (t.ortu) out.push({ key: 'ortu', nama: 'Orang tua aktif (30 hari terakhir)', nilai: t.ortu.pct, target: KPI_TARGET.ortuAktif, mode: 'min', st: status(t.ortu.pct, KPI_TARGET.ortuAktif, 'min'), prev: null, d: null, pembText: 'Tidak ada' });
     return out;
   }
   function targetTeks(r) { return (r.mode === 'max' ? '<= ' : '>= ') + r.target; }
@@ -847,7 +960,21 @@
     (perhatian.length ? perhatian : ['Tidak ada kelas atau guru yang berada di bawah target.']).forEach(function (c) { var ls = doc.splitTextToSize('- ' + c, W); doc.text(ls, L, y); y += ls.length * 4 + 0.8; });
     y += 3;
 
+    // tindak lanjut (dari catatan Admin; nama penanggung jawab hanya bila kotak 'sertakan nama guru' dicentang)
+    var tlNote = tindakPeriode(t.per.kode), tlBaris = rows.filter(function (r) { var n = r.key && tlNote[r.key]; return n && (n.tindakan || n.penyebab); });
+    if (tlBaris.length) {
+      if (y > 225) { doc.addPage(); y = 18; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(0); doc.text('Tindak Lanjut', L, y); y += 4.5; doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      tlBaris.forEach(function (r) {
+        var n = tlNote[r.key];
+        var tx = r.nama + ': ' + (n.penyebab ? 'penyebab ' + n.penyebab + '; ' : '') + (n.tindakan ? 'tindakan ' + n.tindakan + '; ' : '') + (n.pj && t.nama ? 'penanggung jawab ' + n.pj + '; ' : '') + (n.batas ? 'batas ' + tglId(n.batas) + '; ' : '') + 'status ' + (STATUS_TL[n.status] || '-').toLowerCase() + '.';
+        var ls = doc.splitTextToSize('- ' + tx, W); doc.text(ls, L, y); y += ls.length * 4 + 0.8;
+      });
+      y += 3;
+    }
+
     // catatan otomatis
+
     var belum = rows.filter(function (r) { return r.nilai != null && r.st.t === 'Belum tercapai'; }).map(function (r) { return r.nama + ' (' + f(r.nilai) + ', target ' + targetTeksPdf(r) + ')'; });
     var capai = rows.filter(function (r) { return r.st.t === 'Tercapai'; }).length, ada = rows.filter(function (r) { return r.nilai != null; }).length;
     var memburuk = rows.filter(function (r) { return r.d != null && Math.abs(r.d) >= 0.05 && (r.mode === 'max' ? r.d > 0 : r.d < 0); }).map(function (r) { return r.nama; });

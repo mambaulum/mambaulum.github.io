@@ -284,7 +284,7 @@
   // 1) belum punya nomor WA wali, 2) punya nomor tapi tidak ada login berhasil <= 30 hari, 3) sudah aktif.
   // Dihitung per nomor WA unik (saudara kandung digabung); siswa tanpa nomor dihitung per siswa. Data dibaca HANYA saat tombol ditekan
   // (maks. 20000 catatan terbaru dalam 30 hari, memakai indeks waktu yang sama dengan Riwayat), hasilnya tidak disimpan.
-  var AKTIF_HARI = 30, BATAS_AKTIF = 20000, aHasil = null;
+  var AKTIF_HARI = 30, BATAS_AKTIF = 20000, aHasil = null, aKelas = '';
   function kunciWaSiswa(s) {
     if (s.noWaKey) return String(s.noWaKey);
     if (!s.noWaOrtu) return '';
@@ -316,6 +316,32 @@
   function pesanMasuk(nama) {
     return 'Assalamu\u2019alaikum Bapak/Ibu' + (nama ? ' wali dari ' + nama : ' wali murid') + '.\n\nPortal Wali Murid ' + namaMadrasah() + ' bisa dipakai untuk melihat kehadiran, nilai, dan kabar anak. Silakan buka:\n' + basisUrl() + '?app=ortu\n\nBila ada kendala masuk, hubungi madrasah agar dikirimi link masuk pribadi.\n\nTerima kasih.';
   }
+  function kirimIngat(e) {
+    if (!/^62[0-9]{8,13}$/.test(String(e.wa))) return toast('Nomor WA tidak valid. Perbaiki di Data Siswa.', true);
+    // Bila link-ortu.js termuat: buat link masuk pribadi (tanpa PIN) dan buka WhatsApp; kalau tidak, pesan biasa berisi alamat portal.
+    if (typeof window.lmKirim === 'function') window.lmKirim(e.wa);
+    else bukaWa(e.wa, pesanMasuk(e.anak.map(function (x) { return x.nama; }).join(' & ')));
+    setIngat(e.wa); setTimeout(renderAktif, 600);
+  }
+  function kelasDari(e) { return e.anak.map(function (x) { return x.kelas; }); }
+  function belumTersaring() {
+    var r = aHasil; if (!r) return [];
+    return r.belum.map(function (e, i) { return { e: e, i: i }; }).filter(function (x) { return !aKelas || kelasDari(x.e).indexOf(aKelas) >= 0; });
+  }
+  function unduhCsvAktif() {
+    if (!aHasil) return toast('Periksa keaktifan dulu.', true);
+    var q = function (v) { var t = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
+    var baris = [['Status', 'Kelas', 'Anak', 'Nomor WA (disamarkan)'].map(q).join(',')];
+    aHasil.tanpa.forEach(function (e) { baris.push(['Belum punya nomor WA', e.kelas, e.nama, ''].map(q).join(',')); });
+    aHasil.belum.forEach(function (e) {
+      baris.push(['Punya nomor, belum masuk ' + AKTIF_HARI + ' hari', Array.from(new Set(kelasDari(e).filter(Boolean))).join(' / '), e.anak.map(function (x) { return x.nama; }).join(' & '), samar(e.wa)].map(q).join(','));
+    });
+    var blob = new Blob(['\ufeff' + baris.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'ortu-belum-aktif-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
   function renderAktif() {
     var w = el('rloAktifHasil'); if (!w) return;
     if (!aHasil) { w.innerHTML = ''; return; }
@@ -325,27 +351,34 @@
         '<div style="margin-top:4px;max-height:280px;overflow:auto;font-size:12px;line-height:1.7;">' + (isi || '<i>Tidak ada.</i>') + '</div></details>';
     };
     var l1 = r.tanpa.map(function (e) { return '<div>' + esc(e.nama) + (e.kelas ? ' (' + esc(e.kelas) + ')' : '') + '</div>'; }).join('');
-    var l2 = r.belum.map(function (e, i) {
-      var t = tandaIngat(e.wa);
+    var tersaring = belumTersaring();
+    var l2 = tersaring.map(function (x) {
+      var e = x.e, i = x.i, t = tandaIngat(e.wa);
       return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="flex:1;min-width:0;">' + anakTeks(e) + ' <span style="color:#6b7280;">' + esc(samar(e.wa)) + (t ? ' · diingatkan ' + esc(waktuTeks(new Date(t).toISOString())) : '') + '</span></span>' +
         '<button class="btn ' + (t ? 'btn-soft' : 'btn-primary') + '" type="button" data-rlo-aw="' + i + '" style="padding:3px 10px;font-size:12px;">💬 ' + (t ? 'Ingatkan lagi' : 'Kirim link/WA') + '</button></div>';
     }).join('');
+    var kelasList = Array.from(new Set(r.belum.reduce(function (a, e) { return a.concat(kelasDari(e)); }, []).filter(Boolean))).sort(function (a, b) { return a.localeCompare(b, 'id', { numeric: true }); });
+    var sisa = tersaring.filter(function (x) { return !tandaIngat(x.e.wa); }).length;
+    var bar = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0;">' +
+      '<select id="rloAktifKelas" class="field" style="width:auto;"><option value="">Semua kelas</option>' + kelasList.map(function (k) { return '<option value="' + esc(k) + '"' + (k === aKelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select>' +
+      '<button class="btn btn-primary" type="button" id="rloAktifNext" style="padding:6px 12px;font-size:12px;"' + (sisa ? '' : ' disabled') + '>▶ Ingatkan berikutnya (' + sisa + ' belum)</button>' +
+      '<button class="btn btn-soft" type="button" id="rloAktifCsv" style="padding:6px 12px;font-size:12px;">⬇️ CSV belum aktif</button></div>';
     var l3 = r.aktif.map(function (e) { return '<div>' + anakTeks(e) + ' <span style="color:#6b7280;">' + esc(samar(e.wa)) + '</span></div>'; }).join('');
     w.innerHTML = '<div style="font-size:13px;margin:8px 0;"><b>' + r.aktif.length + '</b> dari <b>' + r.total + '</b> nomor WA wali aktif (<b>' + String(pct).replace('.', ',') + '%</b>) dalam ' + AKTIF_HARI + ' hari terakhir. Satu nomor = satu baris (saudara digabung).' +
       (r.terpotong ? '<div style="color:#b45309;margin-top:4px;">Catatan: lebih dari ' + BATAS_AKTIF + ' catatan, hanya yang terbaru dibaca; angka "belum masuk" bisa terlalu besar.</div>' : '') + '</div>' +
       grup('Belum punya nomor WA wali', '#dc2626', r.tanpa.length + ' siswa', l1, false) +
-      grup('Punya nomor, belum pernah masuk', '#d97706', r.belum.length + ' nomor', l2, r.belum.length > 0 && r.belum.length <= 15) +
+      bar + grup('Punya nomor, belum pernah masuk', '#d97706', tersaring.length + ' nomor' + (aKelas ? ' (kelas ' + esc(aKelas) + ')' : ''), l2, r.belum.length > 0 && (tersaring.length <= 15 || !!aKelas)) +
       grup('Sudah aktif', '#059669', r.aktif.length + ' nomor', l3, false);
     Array.prototype.forEach.call(w.querySelectorAll('[data-rlo-aw]'), function (b) {
-      b.addEventListener('click', function () {
-        var e = r.belum[+b.getAttribute('data-rlo-aw')]; if (!e) return;
-        if (!/^62[0-9]{8,13}$/.test(String(e.wa))) return toast('Nomor WA tidak valid. Perbaiki di Data Siswa.', true);
-        // Bila link-ortu.js termuat: buat link masuk pribadi (tanpa PIN) dan buka WhatsApp; kalau tidak, pesan biasa berisi alamat portal.
-        if (typeof window.lmKirim === 'function') window.lmKirim(e.wa);
-        else bukaWa(e.wa, pesanMasuk(e.anak.map(function (x) { return x.nama; }).join(' & ')));
-        setIngat(e.wa); setTimeout(renderAktif, 600);
-      });
+      b.addEventListener('click', function () { var e = r.belum[+b.getAttribute('data-rlo-aw')]; if (e) kirimIngat(e); });
     });
+    var sk = el('rloAktifKelas'); if (sk) sk.addEventListener('change', function () { aKelas = sk.value; renderAktif(); });
+    var nx = el('rloAktifNext'); if (nx) nx.addEventListener('click', function () {
+      var x = belumTersaring().filter(function (y) { return !tandaIngat(y.e.wa); })[0];
+      if (!x) return toast('Semua nomor di daftar ini sudah diingatkan.');
+      kirimIngat(x.e);   // satu per satu: Admin menekan Kirim di WhatsApp, lalu kembali dan menekan lagi
+    });
+    var cv = el('rloAktifCsv'); if (cv) cv.addEventListener('click', unduhCsvAktif);
   }
   function periksaAktif() {
     if (!adminAktif() || typeof db === 'undefined') return;
@@ -354,10 +387,14 @@
     if (b) b.disabled = true;
     if (w) w.innerHTML = '<p style="font-size:13px;color:#6b7280;padding:8px;">Memeriksa...</p>';
     var sejak = new Date(Date.now() - AKTIF_HARI * 86400000).toISOString();
-    db.ref('ortu_login_log').orderByChild('waktu').startAt(sejak).limitToLast(BATAS_AKTIF).once('value').then(function (snap) {
+    // Hasil bacaan log 30 hari dipakai bersama halaman KPI (window.__ortuLog30) selama 2 menit agar log tidak diunduh dua kali.
+    var bersama = window.__ortuLog30, pakai = bersama && Date.now() - bersama.t < 120000 && bersama.daftar;
+    (pakai ? Promise.resolve(bersama) : db.ref('ortu_login_log').orderByChild('waktu').startAt(sejak).limitToLast(BATAS_AKTIF).once('value').then(function (snap) {
       var daftar = []; snap.forEach(function (c) { var v = c.val(); if (v) daftar.push(v); });
-      aHasil = hitungAktif(daftar, typeof allSiswa !== 'undefined' ? allSiswa : [], Date.now());
-      aHasil.terpotong = daftar.length >= BATAS_AKTIF;
+      return (window.__ortuLog30 = { t: Date.now(), daftar: daftar, terpotong: daftar.length >= BATAS_AKTIF });
+    })).then(function (b3) {
+      aHasil = hitungAktif(b3.daftar, typeof allSiswa !== 'undefined' ? allSiswa : [], Date.now());
+      aHasil.terpotong = !!b3.terpotong;
       renderAktif();
     }).catch(function (e) {
       console.error('[SI MAMBA] Gagal memeriksa keaktifan ortu:', e);
