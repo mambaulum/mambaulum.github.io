@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.398",
-  "disimpan": "2026-11-09T11:10:53.438Z",
+  "appVersion": "v8.399",
+  "disimpan": "2026-11-09T13:12:10.417Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -139,8 +139,8 @@
       "hash": "5dd402f3971b41a4e9c813c3661d0f27bdb980a0"
     },
     "js/kpi.js": {
-      "v": "v=23",
-      "hash": "12e817f9f54b4b2ea0b14d9713bca0d374fe7e7a"
+      "v": "v=24",
+      "hash": "88dad97266c887648ce6c6750a3f160b35960140"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
