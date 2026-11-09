@@ -48,9 +48,9 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.388';
-const SHELL_CACHE = `si-mamba-mi-shell-${APP_VERSION}`;
-const RUNTIME_CACHE = `si-mamba-mi-runtime-${APP_VERSION}`;
+const APP_VERSION = 'v8.391';
+const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
+const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
 
 // Saat membuka/refresh app dengan cache tersedia: tunggu network maksimal segini lama.
@@ -101,10 +101,10 @@ const PRECACHE_URLS = [
   './js/rekap-nilai.js?v=8',                // Rekap Nilai + ekspor PDF/Excel (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/kalender-akademik.js?v=1',          // Kalender Akademik/Nasional + panel "Hari Ini" (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/saran-kritik.js?v=1',               // Saran & Kritik Portal Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/riwayat-login-ortu.js?v=5',          // Riwayat Login Orang Tua, kartu di halaman Admin (dimuat SESUDAH app.js)
+  './js/riwayat-login-ortu.js?v=6',          // Riwayat Login Orang Tua, kartu di halaman Admin (dimuat SESUDAH app.js)
   './js/angket.js?v=11',                    // Angket gabungan: Kurikulum + Profil Lulusan (dimuat SESUDAH app.js & portal-ortu.js)
   './js/angket-keunggulan.js?v=11',          // Angket Keunggulan Madrasah: tab ke-3 halaman Angket + kartu Portal Ortu (dimuat SESUDAH angket.js)
-  './js/kpi.js?v=13',
+  './js/kpi.js?v=16',
   './js/nilai-harian.js?v=7',               // Catatan Nilai Harian -> NH1/NH2/NH3 (dimuat SESUDAH app.js)                        // KPI Madrasah: dashboard Admin & Kepala (dimuat SESUDAH app.js & infaq.js)
   './js/ortu-akun-admin.js?v=4',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/link-ortu.js?v=6',                  // Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js)
@@ -265,7 +265,7 @@ self.addEventListener('activate', event => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter(key => key.startsWith('si-mamba-mi-') && !ALL_CACHES.includes(key))
+          .filter(key => key.startsWith('si-mamba-') && !ALL_CACHES.includes(key))
           .map(key => caches.delete(key))
       );
       await self.clients.claim();
