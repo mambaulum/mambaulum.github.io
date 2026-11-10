@@ -219,7 +219,9 @@
     }
 
     // -------- Raport --------
-    function v4PopulateReport(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent');if(!c||!s)return;const scope=siswaScopeKelas();const classes=[...new Set((allSiswa||[]).map(x=>x.kelas).filter(k=>k&&scope.includes(k)))];c.innerHTML=classes.map(x=>`<option>${v4Safe(x)}</option>`).join('');const cls=c.value;s.innerHTML=(allSiswa||[]).filter(x=>x.kelas===cls).map(x=>`<option value="${v4Safe(x.key)}">${v4Safe(x.name)}</option>`).join('');v4RenderReportPreview();}
+    function v4IsiSiswaRaport(keepKey){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent');if(!c||!s)return;const cls=c.value;const list=(allSiswa||[]).filter(x=>x.kelas===cls).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'id'));s.innerHTML=list.map(x=>`<option value="${v4Safe(x.key)}">${v4Safe(x.name)}</option>`).join('');if(keepKey&&list.some(x=>x.key===keepKey))s.value=keepKey;else if(list.length)s.selectedIndex=0;}
+    function v4ReportKelasBerubah(){v4IsiSiswaRaport();v4RenderReportPreview();}
+    function v4PopulateReport(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent');if(!c||!s)return;const scope=siswaScopeKelas();const classes=[...new Set((allSiswa||[]).map(x=>x.kelas).filter(k=>k&&scope.includes(k)))];const kelasLama=c.value,siswaLama=s.value;c.innerHTML=classes.map(x=>`<option>${v4Safe(x)}</option>`).join('');if(classes.includes(kelasLama))c.value=kelasLama;v4IsiSiswaRaport(siswaLama);v4RenderReportPreview();}
     // Ringkasan absensi Sholat Dhuha/Dzuhur seorang siswa untuk tahun ajaran berjalan --
     // dipakai di preview raport & disimpan ke snapshot saat raport difinalisasi.
     // Status absensi kegiatan: 'H' (format input saat ini); 'Hadir' diterima untuk data lama.
