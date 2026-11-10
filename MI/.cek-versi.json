@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.402",
-  "disimpan": "2026-11-10T04:32:59.010Z",
+  "appVersion": "v8.403",
+  "disimpan": "2026-11-10T10:45:34.725Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -115,8 +115,8 @@
       "hash": "950f942846091d106e104f52369231f9ba8602e6"
     },
     "js/v4-pengaturan-notif-rapor.js": {
-      "v": "v=12",
-      "hash": "122506fb68dae3750e6d142a1edefbc933bb7455"
+      "v": "v=13",
+      "hash": "319baa6e4f9ef13134e418c58eef09e753aa38ef"
     },
     "js/rekap-nilai.js": {
       "v": "v=8",
