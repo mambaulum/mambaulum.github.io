@@ -218,7 +218,10 @@
       const rec = (V4.pramukaSku||[]).find(x=>x.studentId===studentKey);
       const items = (rec && rec.items) || {};
       const totalItems = PRAMUKA_SKU[tingkat].groups.reduce((s,g)=>s+g.items.length,0);
-      const done = Object.values(items).filter(Boolean).length;
+      // v8.401: hitung HANYA poin milik tingkat ini. Sebelumnya semua poin tersimpan ikut terhitung, jadi siswa naik
+      // Kelas 3 -> 4 (Siaga -> Penggalang) membawa poin Siaga dan persen bisa melebihi 100%.
+      const idsTingkat = new Set(); PRAMUKA_SKU[tingkat].groups.forEach(g => g.items.forEach(it => idsTingkat.add(it.id)));
+      const done = Object.keys(items).filter(k => items[k] && idsTingkat.has(k)).length;
       return { done, totalItems, pct: totalItems ? Math.round(done/totalItems*100) : 0, items };
     }
     function v4RenderPramuka(){

@@ -133,7 +133,7 @@
         if (!dataUrl) return toast('❌ Gagal membuat gambar QR.', true);
         const w = window.open('', '_blank', 'width=700,height=900');
         if (!w) return toast('Popup diblokir browser.', true);
-        w.document.write(`<html><head><title>QR Absensi Guru - SI MAMBA</title><style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;color:#111}img{width:320px;height:320px;border:1px solid #ddd;padding:12px;border-radius:12px;}h1{font-size:22px;margin-bottom:4px;}p{color:#444;}@media print{button{display:none}}</style></head><body><h1>📍 QR Absensi Guru</h1><p>MI Mambaul Ulum — tempel di lokasi madrasah</p><img src="${dataUrl}"><p style="margin-top:20px;font-size:13px;color:#666;max-width:360px;margin-left:auto;margin-right:auto;">Scan QR ini lewat menu <b>Absen Guru</b> di aplikasi SI MAMBA. Lokasi GPS akan diverifikasi otomatis saat scan — pastikan absen dilakukan di lokasi ini.</p><button onclick="window.print()" style="margin-top:20px;padding:10px 24px;font-size:14px;">🖨️ Cetak</button></body></html>`);
+        w.document.write(`<html><head><title>QR Absensi Guru - SI MAMBA</title><style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;color:#111}img{width:320px;height:320px;border:1px solid #ddd;padding:12px;border-radius:12px;}h1{font-size:22px;margin-bottom:4px;}p{color:#444;}@media print{button,.no-print{display:none}}</style></head><body><h1>📍 QR Absensi Guru</h1><p>MI Mambaul Ulum — tempel di lokasi madrasah</p><img src="${dataUrl}"><p style="margin-top:20px;font-size:13px;color:#666;max-width:360px;margin-left:auto;margin-right:auto;">Scan QR ini lewat menu <b>Absen Guru</b> di aplikasi SI MAMBA. Lokasi GPS akan diverifikasi otomatis saat scan — pastikan absen dilakukan di lokasi ini.</p><button onclick="window.print()" style="margin-top:20px;padding:10px 24px;font-size:14px;">🖨️ Cetak</button></body></html>`);
         w.document.close();
       }, 150);
     }
@@ -193,7 +193,7 @@
       db.ref('approval_requests_v4/'+key).update({status,approvedBy:currentUser.name,approvedAt,reason}).then(()=>{
         const statusLama=x.status;
         // Koreksi raport DISETUJUI -> buka kunci raport siswa tsb (nilai bisa diedit & raport bisa difinalisasi ulang).
-        if(status==='APPROVED'&&x.type==='CORRECTION'&&x.studentId){((typeof isAdmin==='function'&&isAdmin())?adminSesiSiap():guruSesiSiap()).then(()=>db.ref('report_locks_v4/'+raporKunciKey(x.studentId,x.tahunAjaran||currentTahunAjaran,x.semester||currentSemesterAktif)).update({status:'UNLOCKED',unlockedBy:currentUser.name,unlockedAt:approvedAt,unlockRequestKey:key})).then(()=>{window._raporKunciCache=null;}).catch(e=>console.warn('[SI MAMBA] Gagal membuka kunci raport:',e));}
+        if(status==='APPROVED'&&x.type==='CORRECTION'&&x.studentId){((typeof isAdmin==='function'&&isAdmin())?adminSesiSiap():guruSesiSiap()).then(()=>db.ref('report_locks_v4/'+raporKunciKey(x.studentId,x.tahunAjaran||currentTahunAjaran,x.semester||currentSemesterAktif)).update({status:'UNLOCKED',unlockedBy:currentUser.name,unlockedAt:approvedAt,unlockRequestKey:key})).then(()=>{window._raporKunciCache=null;window._raporLockInfo=null;}).catch(e=>console.warn('[SI MAMBA] Gagal membuka kunci raport:',e));}
         // FIX: perbarui salinan lokal & render halaman SEKARANG JUGA, tidak menunggu v4LoadCore()
         // (~15 query) selesai -- kartu langsung pindah dari daftar menunggu ke riwayat.
         x.status=status; x.approvedBy=currentUser.name; x.approvedAt=approvedAt; x.reason=reason;
@@ -223,11 +223,14 @@
     // Ringkasan absensi Sholat Dhuha/Dzuhur seorang siswa untuk tahun ajaran berjalan --
     // dipakai di preview raport & disimpan ke snapshot saat raport difinalisasi.
     // Status absensi kegiatan: 'H' (format input saat ini); 'Hadir' diterima untuk data lama.
+    // v8.401: data raport per SEMESTER aktif (konsisten dengan kehadiran & nilai). Tahun ajaran dicocokkan lewat
+    // sesuaiTahunAjaranTermasukDataLama; semester dari tanggal catatan (Jan-Jun Genap, Jul-Des Ganjil). Tanggal tak terbaca = tetap ikut.
+    function v4DalamSemester(r){return !!r&&sesuaiTahunAjaranTermasukDataLama(r)&&((v4SemesterDariTanggal(r.tanggal)||currentSemesterAktif)===currentSemesterAktif);}
     function v4StatusHadir(r) { return r && (r.status === 'H' || r.status === 'Hadir'); }
     function v4HitungSholatSiswa(studentKey) {
       const dluhaTypes = v4CariJenisKegiatanSholat('Dluha').map(t => t.key);
       const dzuhurTypes = v4CariJenisKegiatanSholat('Dzuhur').map(t => t.key);
-      const recs = (V4.activityAttendance || []).filter(r => r.studentId === studentKey && r.tahunAjaran === currentTahunAjaran);
+      const recs = (V4.activityAttendance || []).filter(r => r.studentId === studentKey && r.tahunAjaran === currentTahunAjaran && v4DalamSemester(r));
       // FIX: status absensi kegiatan disimpan sebagai kode 'H'/'S'/'I'/'A' (lihat v4SaveActivityAttendance),
       // bukan 'Hadir' -- perbandingan lama membuat jumlah hadir selalu 0. Record berstatus null
       // (pilihan dibatalkan guru) tidak dihitung sebagai tercatat.
@@ -253,7 +256,7 @@
     // v4SaveEkskulAttendance tapi tidak pernah dimuat balik ke aplikasi -- sekarang dimuat di
     // v4LoadCore() supaya bisa dipakai di sini.
     function v4HitungEkskulSiswa(studentKey) {
-      const recs = (V4.ekskulAttendance || []).filter(r => r.studentId === studentKey && r.tahunAjaran === currentTahunAjaran);
+      const recs = (V4.ekskulAttendance || []).filter(r => r.studentId === studentKey && r.tahunAjaran === currentTahunAjaran && v4DalamSemester(r));
       const grouped = {};
       recs.forEach(r => {
         if (!grouped[r.ekskulName]) grouped[r.ekskulName] = { nama: r.ekskulName, hadir: 0, total: 0 };
@@ -262,28 +265,209 @@
       });
       return Object.values(grouped);
     }
-    function v4RenderReportPreview(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent'),el=document.getElementById('v4ReportPreview');if(!c||!s||!el)return;try{v4TambahTombolAdminKunci();}catch(e){}const st=(allSiswa||[]).find(x=>x.key===s.value);if(!st){el.innerHTML='<p class="v4-muted">Pilih siswa.</p>';return;}if(!v4ActSiap(v4ActBulanTahunAjaran())){el.innerHTML='<p class="v4-muted">⏳ Memuat absensi sholat satu tahun ajaran...</p>';v4ActPastikan(v4ActBulanTahunAjaran()).then(()=>v4RenderReportPreview());return;}
-      // FIX: filter nilai sebelumnya cek field x.siswa/x.studentId/x.nama/x.name -- field itu TIDAK
-      // PERNAH ada di record 'grades' (skema aslinya: siswaKey, kelas, subject, semester, data:{h1,h2,
-      // h3,mid,pas} -- lihat saveGrades()/renderRekapPerSiswa()). Akibatnya filter ini selalu kosong
-      // dan Nilai di preview raport selalu tampil "Belum ada nilai." walau siswa sudah punya nilai.
-      // Field skor per baris juga sebelumnya baca g.nilai/g.score (tidak ada) -- diganti calculateRapor(g.data)
-      // seperti yang dipakai di Rekap Nilai. Kolom Status dihapus krn record grades tidak punya field
-      // status per mapel (status Draft/Final cuma ada di level laporan lewat report_cards_v4, bukan per nilai).
-      const grades=(allGrades||[]).filter(x=>x.siswaKey===st.key&&(!x.semester||x.semester===currentSemesterAktif)&&sesuaiTahunAjaranTermasukDataLama(x));const adaSem=grades.slice(0,30).some(g=>g.data&&statusRapor(g.data).nilai!==null&&!statusRapor(g.data).final);const att=(allAttendance||[]).filter(x=>x.kelas===st.kelas&&sesuaiTahunAjaranTermasukDataLama(x));const t=(V4.tahfidz||[]).filter(x=>x.studentId===st.key);const sholat=v4HitungSholatSiswa(st.key);const pramuka=v4HitungPramukaSiswa(st.key,st.kelas);const ekskulList=v4HitungEkskulSiswa(st.key);const ekskulHtml=ekskulList.length?ekskulList.map(x=>`<p class="v4-muted">${v4Safe(x.nama)}: ${x.hadir}/${x.total} hadir${x.total?` (${Math.round(x.hadir/x.total*100)}%)`:''}</p>`).join(''):'<p class="v4-muted">Belum ada catatan kehadiran ekskul.</p>';el.innerHTML=`${typeof generateKopSuratHTML==='function'?generateKopSuratHTML():''}<div class="header">RAPORT PESERTA DIDIK</div><div class="sub-header">${v4Safe(st.name)} · ${v4Safe(st.kelas)}</div><h4 style="margin:10px 0 6px;">Nilai</h4><div class="v4-table-wrap"><table><thead><tr><th>Mapel</th><th>Nilai</th></tr></thead><tbody>${grades.slice(0,30).map(g=>`<tr><td>${v4Safe(g.subject||'-')}</td><td>${(()=>{const r=g.data?statusRapor(g.data):{nilai:null};return r.nilai===null?'-':(r.final?v4Safe(r.nilai):raporSementaraHtml(r.nilai));})()}</td></tr>`).join('')||'<tr><td colspan="2">Belum ada nilai.</td></tr>'}</tbody></table></div>${adaSem?'<p style="color:#6b7280;font-size:12px;font-style:italic;margin:4px 0 0;">Nilai berlabel sementara belum final. Angka menjadi final setelah minimal satu NH, MID, dan PAS terisi.</p>':''}<h4 style="margin:12px 0 6px;">Kehadiran</h4><p class="v4-muted">Data kehadiran kelas: ${att.length} catatan.</p><h4 style="margin:12px 0 6px;">Tahfidz</h4>${typeof thfRaporHtml==='function'?thfRaporHtml(st,t):'<p class="v4-muted">'+t.length+' catatan setoran/murojaah.</p>'}<h4 style="margin:12px 0 6px;">☀️🕌 Sholat Dhuha &amp; Dzuhur</h4><p class="v4-muted">Dhuha: ${sholat.dluhaHadir}/${sholat.dluhaTotal} hadir${sholat.dluhaTotal?` (${Math.round(sholat.dluhaHadir/sholat.dluhaTotal*100)}%)`:''} · Dzuhur: ${sholat.dzuhurHadir}/${sholat.dzuhurTotal} hadir${sholat.dzuhurTotal?` (${Math.round(sholat.dzuhurHadir/sholat.dzuhurTotal*100)}%)`:''}</p><h4 style="margin:12px 0 6px;">🏕️ Pramuka (${v4Safe(pramuka.tingkatLabel)})</h4><p class="v4-muted">SKU tercapai: ${pramuka.done}/${pramuka.totalItems} poin (${pramuka.pct}%)</p><h4 style="margin:12px 0 6px;">🎯 Ekstrakurikuler Lain</h4>${ekskulHtml}${v4RaporSikapHtml(st.key)}<div style=\"margin-top:24px;text-align:right;padding-right:20px;\"><p>Mengetahui,<br>Kepala ${v4Safe(MADRASAH.nama)}</p>${MADRASAH.ttdKepalaBase64?`<img src=\"${MADRASAH.ttdKepalaBase64}\" alt=\"Tanda tangan\" style=\"max-height:45px;display:block;margin:6px 0 6px auto;\">`:'<br><br><br>'}<p style=\"text-decoration:underline;\">${v4Safe(MADRASAH.kepala_sekolah)}</p><p>NIP. ${v4Safe(MADRASAH.nip_kepala_sekolah)}</p></div>`;}
-    // Bagian "Sikap & Kedisiplinan" di Raport -- ringkasan poin + predikat otomatis, dipanggil
-    // dari v4RenderReportPreview(). Predikat sekadar panduan cepat wali kelas, bukan nilai baku.
-    function v4RaporSikapHtml(siswaKey) {
-      const items = (allKedisiplinan||[]).filter(d => d.siswaKey === siswaKey);
-      const totalPelanggaran = items.filter(d => d.jenis === 'pelanggaran').reduce((s,d)=>s+(d.poin||0),0);
-      const totalPrestasi = items.filter(d => d.jenis === 'prestasi').reduce((s,d)=>s+(d.poin||0),0);
-      const net = totalPrestasi - totalPelanggaran;
-      const predikat = net >= 0 ? 'Baik' : (net >= -20 ? 'Cukup' : 'Perlu Perhatian Khusus');
-      const warna = net >= 0 ? '#059669' : (net >= -20 ? '#d97706' : '#dc2626');
-      const rincian = items.length ? items.sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,10).map(d => `<p class="v4-muted">${d.jenis==='prestasi'?'🌟':'⚠️'} ${v4Safe(d.kategori||'-')} (${d.poin||0} poin) — ${v4Safe(d.tanggal||'-')}</p>`).join('') : '<p class="v4-muted">Belum ada catatan sikap.</p>';
-      return `<h4 style="margin:12px 0 6px;">🌟 Sikap &amp; Kedisiplinan</h4><p>Predikat: <strong style="color:${warna};">${predikat}</strong> (Poin pelanggaran: ${totalPelanggaran}, Poin prestasi: ${totalPrestasi})</p>${rincian}`;
+    // ===== PERBAIKAN RAPORT v8.400: kehadiran per siswa, Catatan Wali Kelas, header Tahun Ajaran/Semester =====
+    // Semester dari tanggal "YYYY-MM-DD": Jan-Jun = Genap, Jul-Des = Ganjil (sama dengan getSemesterOtomatis()).
+    function v4SemesterDariTanggal(t){const m=/^(\d{4})-(\d{1,2})/.exec(String(t||'').trim());if(!m)return null;return parseInt(m[2],10)<=6?'Genap':'Ganjil';}
+    // Jumlah H/S/I/A SATU siswa pada semester aktif (bukan jumlah catatan kelas). Kode status: H, S, I, A (Alfa).
+    function v4HitungKehadiranSiswa(st){
+      const r={H:0,S:0,I:0,A:0,total:0};
+      (allAttendance||[]).forEach(a=>{
+        if(!a||a.kelas!==st.kelas||!sesuaiTahunAjaranTermasukDataLama(a))return;
+        if(v4SemesterDariTanggal(a.tanggal)!==currentSemesterAktif)return;
+        const s=a.data&&a.data[st.key];
+        if(typeof s==='string'&&['H','S','I','A'].includes(s)){r[s]++;r.total++;}
+      });
+      return r;
     }
-    function v4FinalizeReport(){const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);if(!st)return toast('Pilih siswa!',true);if(!v4ActSiap(v4ActBulanTahunAjaran())){toast('Memuat absensi sholat satu tahun ajaran, mohon tunggu...',false,4000);v4ActPastikan(v4ActBulanTahunAjaran()).then(ok=>{if(ok)v4FinalizeReport();else toast('Gagal memuat absensi sholat setahun. Periksa koneksi lalu coba lagi.',true);});return;}
+    function v4KehadiranRaporHtml(k){
+      if(!k.total)return '<p class="v4-muted">Belum ada catatan kehadiran semester '+v4Safe(currentSemesterAktif)+'.</p>';
+      const pct=Math.round(k.H/k.total*100);
+      return '<div class="v4-table-wrap"><table><thead><tr><th>Sakit</th><th>Izin</th><th>Alfa</th><th>Hadir</th></tr></thead><tbody><tr><td>'+k.S+' hari</td><td>'+k.I+' hari</td><td>'+k.A+' hari</td><td>'+k.H+' hari ('+pct+'%)</td></tr></tbody></table></div><p class="v4-muted">Dari '+k.total+' hari absensi tercatat.</p>';
+    }
+    // Catatan Wali Kelas: node report_notes_v4/<kunci raport> (lihat _catatan/rules-report_notes_v4.txt).
+    // Cache di memori; gagal baca (mis. Rules belum dipasang) = dianggap kosong, tidak mengulang.
+    window._raporCatatanCache=window._raporCatatanCache||{};
+    function v4MuatCatatanRapor(kunci){
+      const C=window._raporCatatanCache;
+      const baca=db.ref('report_notes_v4/'+kunci).once('value').then(s=>{const v=s.val();C[kunci]=(v&&typeof v.catatan==='string')?v.catatan:'';},()=>{C[kunci]='';});
+      return Promise.race([baca,new Promise(r=>setTimeout(r,8000))]).then(()=>{if(C[kunci]===undefined)C[kunci]='';});
+    }
+    function v4PastikanCatatan(st){
+      const k=raporKunciKey(st.key,currentTahunAjaran,currentSemesterAktif);
+      if(window._raporCatatanCache[k]!==undefined)return;
+      window._raporCatatanMuat=window._raporCatatanMuat||{};
+      if(window._raporCatatanMuat[k])return;
+      window._raporCatatanMuat[k]=true;
+      v4MuatCatatanRapor(k).then(()=>{delete window._raporCatatanMuat[k];v4RenderReportPreview();});
+    }
+    function v4RaporCatatanHtml(c){
+      return '<h4 style="margin:12px 0 6px;">📝 Catatan Wali Kelas</h4>'+(c===undefined?'<p class="v4-muted">Memuat catatan...</p>':(c?'<p style="white-space:pre-wrap;">'+v4Safe(c)+'</p>':'<p class="v4-muted">Belum ada catatan wali kelas.</p>'));
+    }
+    function v4TambahTombolCatatan(){
+      const fin=document.querySelector('button[onclick="v4FinalizeReport()"]');
+      if(!fin||document.getElementById('btnCatatanRaport'))return;
+      const b=document.createElement('button');b.id='btnCatatanRaport';b.className='btn btn-soft';b.textContent='📝 Catatan Wali Kelas';b.onclick=v4EditCatatanRapor;fin.parentNode.insertBefore(b,fin.nextSibling);
+    }
+    function v4EditCatatanRapor(){
+      const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);
+      if(!st)return toast('Pilih siswa!',true);
+      if(!(v4IsAdmin()||(isWaliKelasAssigned()&&currentUser.waliKelasOf===st.kelas)))return toast('Hanya Wali Kelas dari kelas siswa ini atau Admin!',true);
+      if(!v4RaporPeriode().aktif)return toast('Catatan hanya bisa diubah pada periode aktif.',true);
+      const kunci=raporKunciKey(st.key,currentTahunAjaran,currentSemesterAktif);
+      raporTerkunciSet(true).then(set=>{
+        if(set.has(kunci))return toast('🔒 Raport sudah difinalisasi. Ubah lewat tombol "Ajukan Koreksi".',true,6000);
+        const lama=window._raporCatatanCache[kunci]||'';
+        const baru=prompt('Catatan Wali Kelas untuk '+st.name+' (maks. 300 karakter; kosongkan untuk menghapus):',lama);
+        if(baru===null)return;
+        const teks=baru.trim();
+        if(teks.length>300)return toast('Catatan terlalu panjang ('+teks.length+' karakter). Maksimal 300.',true,5000);
+        const ref=db.ref('report_notes_v4/'+kunci);
+        return ((typeof isAdmin==='function'&&isAdmin())?adminSesiSiap():guruSesiSiap())
+          .then(()=>teks?ref.set({studentId:st.key,kelas:st.kelas,tahunAjaran:currentTahunAjaran,semester:currentSemesterAktif,catatan:teks,oleh:currentUser.name||'',ts:new Date().toISOString()}):ref.remove())
+          .then(()=>{window._raporCatatanCache[kunci]=teks;toast(teks?'📝 Catatan tersimpan':'Catatan dihapus');v4RenderReportPreview();});
+      }).catch(err=>{
+        console.error('[SI MAMBA] Gagal simpan catatan raport:',err);
+        const denied=err&&(err.code==='PERMISSION_DENIED'||/permission_denied/i.test(String(err.message||err)));
+        toast(denied?'❌ Ditolak server. Pasang blok Rules report_notes_v4 dulu (lihat _catatan/rules-report_notes_v4.txt).':'❌ Gagal menyimpan: '+(err&&err.message||err),true,7000);
+      });
+    }
+    // ===== v8.401: raport final dibaca dari SNAPSHOT, pilihan periode, Sikap per semester =====
+    // Data selalu per SEMESTER. Bila raport periode itu sudah LOCKED (report_locks_v4), isi diambil dari report_cards_v4/<snapshotKey>
+    // sehingga tidak berubah walau absensi/tahfidz/sikap diisi atau dikoreksi sesudah finalisasi, dan raport semester lama tetap bisa dicetak.
+    function v4RaporAktif(){return currentTahunAjaran+'|'+currentSemesterAktif;}
+    function v4RaporPeriode(){
+      const v=String(window._raporPeriodeSel||v4RaporAktif()).split('|');
+      return {tahun:v[0],semester:v[1],aktif:(v[0]===currentTahunAjaran&&v[1]===currentSemesterAktif)};
+    }
+    function v4TahunAjaranSebelum(ta){const m=/^(\d{4})\/(\d{4})$/.exec(String(ta||''));return m?(parseInt(m[1],10)-1)+'/'+(parseInt(m[2],10)-1):null;}
+    function v4TambahPilihPeriode(){
+      const sSiswa=document.getElementById('v4ReportStudent');if(!sSiswa)return;
+      let sel=document.getElementById('v4ReportPeriode');
+      if(sel&&sel.dataset.aktif===v4RaporAktif())return;
+      const opsi=[[currentTahunAjaran,currentSemesterAktif]];
+      if(currentSemesterAktif==='Genap')opsi.push([currentTahunAjaran,'Ganjil']);
+      const sebelum=v4TahunAjaranSebelum(currentTahunAjaran);
+      if(sebelum){opsi.push([sebelum,'Genap']);opsi.push([sebelum,'Ganjil']);}
+      const html=opsi.map((o,i)=>'<option value="'+v4Safe(o[0])+'|'+o[1]+'">'+v4Safe(o[0])+' · '+o[1]+(i===0?' (aktif)':'')+'</option>').join('');
+      if(!sel){
+        const box=document.createElement('div');box.style.marginTop='10px';
+        box.innerHTML='<label class="label">Periode Raport</label><select id="v4ReportPeriode" class="field" onchange="window._raporPeriodeSel=this.value;v4RenderReportPreview()"></select>';
+        (sSiswa.closest('.v4-grid-2')||sSiswa.parentNode).insertAdjacentElement('afterend',box);
+        sel=box.querySelector('select');
+      }
+      sel.innerHTML=html;sel.dataset.aktif=v4RaporAktif();sel.value=v4RaporAktif();window._raporPeriodeSel=v4RaporAktif();
+    }
+    function v4InfoKunciCache(kunci){const C=window._raporLockInfo;const c=C&&C[kunci];return(c&&Date.now()-c.t<10000)?c:null;}
+    function v4InfoKunciRapor(kunci){
+      const hit=v4InfoKunciCache(kunci);if(hit)return Promise.resolve(hit.v);
+      const C=window._raporLockInfo||(window._raporLockInfo={});
+      return Promise.race([db.ref('report_locks_v4/'+kunci).once('value').then(s=>{const v=s.val()||null;C[kunci]={t:Date.now(),v};return v;}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
+    }
+    function v4MuatSnapshotRapor(key){
+      const C=window._raporSnapCache||(window._raporSnapCache={});
+      if(C[key])return Promise.resolve(C[key]);
+      return Promise.race([db.ref('report_cards_v4/'+key).once('value').then(s=>{const v=s.val();if(!v)throw new Error('snapshot kosong');C[key]=v;return v;}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
+    }
+    // Sikap & Kedisiplinan: SEMESTER aktif saja (v8.401; sebelumnya akumulasi semua waktu). Predikat = panduan cepat wali kelas, bukan nilai baku.
+    function v4HitungSikapSiswa(siswaKey){
+      const items=(allKedisiplinan||[]).filter(d=>d.siswaKey===siswaKey&&v4DalamSemester(d));
+      const sum=j=>items.filter(d=>d.jenis===j).reduce((s,d)=>s+(d.poin||0),0);
+      const rincian=items.slice().sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''),(a.tanggal||''))).slice(0,10).map(d=>({jenis:d.jenis||'',kategori:d.kategori||'-',poin:d.poin||0,tanggal:d.tanggal||'-'}));
+      return {pelanggaran:sum('pelanggaran'),prestasi:sum('prestasi'),rincian};
+    }
+    function v4RaporSikapHtmlDari(sk){
+      const net=sk.prestasi-sk.pelanggaran;
+      const predikat=net>=0?'Baik':(net>=-20?'Cukup':'Perlu Perhatian Khusus');
+      const warna=net>=0?'#059669':(net>=-20?'#d97706':'#dc2626');
+      const rincian=sk.rincian&&sk.rincian.length?sk.rincian.map(d=>'<p class="v4-muted">'+(d.jenis==='prestasi'?'🌟':'⚠️')+' '+v4Safe(d.kategori)+' ('+d.poin+' poin) — '+v4Safe(d.tanggal)+'</p>').join(''):'<p class="v4-muted">Belum ada catatan sikap semester ini.</p>';
+      return '<h4 style="margin:12px 0 6px;">🌟 Sikap &amp; Kedisiplinan</h4><p>Predikat: <strong style="color:'+warna+';">'+predikat+'</strong> (Poin pelanggaran: '+sk.pelanggaran+', Poin prestasi: '+sk.prestasi+')</p>'+rincian;
+    }
+    function v4RaporSikapHtml(siswaKey){return v4RaporSikapHtmlDari(v4HitungSikapSiswa(siswaKey));}
+    // Cadangan bila thfRaporHtml() (tahfidz-grafik.js) tidak termuat: tabel 10 setoran terbaru, bukan sekadar jumlah.
+    function v4TahfidzRaporFallback(t){
+      if(!t.length)return '<p class="v4-muted">Belum ada catatan tahfidz semester ini.</p>';
+      const baris=t.slice().sort((a,b)=>COLLATOR_ID.compare(String(b.tanggal||''),String(a.tanggal||''))).slice(0,10).map(x=>'<tr><td>'+v4Safe(x.tanggal||'-')+'</td><td>'+v4Safe(x.surah||'-')+'</td><td>'+v4Safe(x.ayat||'-')+'</td><td>'+v4Safe(x.type||'-')+'</td></tr>').join('');
+      return '<div class="v4-table-wrap"><table><thead><tr><th>Tanggal</th><th>Surah</th><th>Ayat</th><th>Jenis</th></tr></thead><tbody>'+baris+'</tbody></table></div><p class="v4-muted">'+t.length+' catatan setoran/murojaah'+(t.length>10?' (10 terbaru ditampilkan)':'')+'.</p>';
+    }
+    function v4RaporDataLive(st){
+      const kunci=raporKunciKey(st.key,currentTahunAjaran,currentSemesterAktif);
+      return {
+        tahun:currentTahunAjaran,semester:currentSemesterAktif,
+        grades:(allGrades||[]).filter(x=>x.siswaKey===st.key&&(!x.semester||x.semester===currentSemesterAktif)&&sesuaiTahunAjaranTermasukDataLama(x)),
+        kehadiran:v4HitungKehadiranSiswa(st),
+        tahfidz:(V4.tahfidz||[]).filter(x=>x.studentId===st.key&&v4DalamSemester(x)),
+        sholat:v4HitungSholatSiswa(st.key),pramuka:v4HitungPramukaSiswa(st.key,st.kelas),ekskul:v4HitungEkskulSiswa(st.key),
+        sikap:v4HitungSikapSiswa(st.key),catatan:window._raporCatatanCache[kunci],final:null
+      };
+    }
+    function v4RaporDataSnap(st,snap){
+      const src=snap.source||{};const A=x=>Array.isArray(x)?x:(x&&typeof x==='object'?Object.values(x):[]);
+      let keh=src.kehadiran;
+      if(!keh){keh={H:0,S:0,I:0,A:0,total:0};A(src.attendance).forEach(a=>{if(!a||v4SemesterDariTanggal(a.tanggal)!==snap.semester)return;const sv=a.data&&a.data[st.key];if(typeof sv==='string'&&['H','S','I','A'].includes(sv)){keh[sv]++;keh.total++;}});}
+      const sk=src.sikap?{pelanggaran:src.sikap.pelanggaran||0,prestasi:src.sikap.prestasi||0,rincian:A(src.sikap.rincian)}:null;
+      return {
+        tahun:snap.tahunAjaran,semester:snap.semester,grades:A(src.grades),kehadiran:keh,
+        tahfidz:A(src.tahfidz).filter(x=>x&&(v4SemesterDariTanggal(x.tanggal)||snap.semester)===snap.semester),
+        sholat:src.sholat||{dluhaHadir:0,dluhaTotal:0,dzuhurHadir:0,dzuhurTotal:0},pramuka:src.pramuka||null,ekskul:A(src.ekskul),
+        sikap:sk||v4HitungSikapSiswa(st.key),catatan:src.catatanWaliKelas||'',
+        final:{oleh:snap.finalizedBy||'',waktu:snap.finalizedAt||''}
+      };
+    }
+    function v4RaporHtml(st,D){
+      const adaSem=D.grades.slice(0,30).some(g=>g.data&&statusRapor(g.data).nilai!==null&&!statusRapor(g.data).final);
+      const nilaiRows=D.grades.slice(0,30).map(g=>'<tr><td>'+v4Safe(g.subject||'-')+'</td><td>'+(()=>{const r=g.data?statusRapor(g.data):{nilai:null};return r.nilai===null?'-':(r.final?v4Safe(r.nilai):raporSementaraHtml(r.nilai));})()+'</td></tr>').join('')||'<tr><td colspan="2">Belum ada nilai.</td></tr>';
+      const ekskulHtml=D.ekskul.length?D.ekskul.map(x=>'<p class="v4-muted">'+v4Safe(x.nama)+': '+x.hadir+'/'+x.total+' hadir'+(x.total?' ('+Math.round(x.hadir/x.total*100)+'%)':'')+'</p>').join(''):'<p class="v4-muted">Belum ada catatan kehadiran ekskul.</p>';
+      let tahfidzHtml;try{tahfidzHtml=typeof thfRaporHtml==='function'?thfRaporHtml(st,D.tahfidz):v4TahfidzRaporFallback(D.tahfidz);}catch(e){console.warn('[SI MAMBA] thfRaporHtml gagal:',e);tahfidzHtml=v4TahfidzRaporFallback(D.tahfidz);}
+      const s=D.sholat,p=D.pramuka;
+      const pct=(h,t)=>t?' ('+Math.round(h/t*100)+'%)':'';
+      const pramukaHtml=p?'<h4 style="margin:12px 0 6px;">🏕️ Pramuka ('+v4Safe(p.tingkatLabel)+')</h4><p class="v4-muted">SKU tercapai: '+p.done+'/'+p.totalItems+' poin ('+p.pct+'%)</p>':'';
+      const finalHtml=D.final?'<p style="font-size:12px;color:#6b7280;margin:2px 0 0;text-align:center;">🔒 Raport final'+(D.final.oleh?' · difinalisasi oleh '+v4Safe(D.final.oleh):'')+(D.final.waktu?' · '+v4Safe(new Date(D.final.waktu).toLocaleDateString('id-ID')):'')+'</p>':'';
+      return (typeof generateKopSuratHTML==='function'?generateKopSuratHTML():'')
+        +'<div class="header">RAPORT PESERTA DIDIK</div><div class="sub-header">'+v4Safe(st.name)+' · '+v4Safe(st.kelas)+'</div>'
+        +'<div class="sub-header" style="font-size:13px;">Tahun Ajaran '+v4Safe(D.tahun)+' · Semester '+v4Safe(D.semester)+'</div>'+finalHtml
+        +'<h4 style="margin:10px 0 6px;">Nilai</h4><div class="v4-table-wrap"><table><thead><tr><th>Mapel</th><th>Nilai</th></tr></thead><tbody>'+nilaiRows+'</tbody></table></div>'
+        +(adaSem?'<p style="color:#6b7280;font-size:12px;font-style:italic;margin:4px 0 0;">Nilai berlabel sementara belum final. Angka menjadi final setelah minimal satu NH, MID, dan PAS terisi.</p>':'')
+        +'<h4 style="margin:12px 0 6px;">Kehadiran</h4>'+v4KehadiranRaporHtml(D.kehadiran)
+        +'<h4 style="margin:12px 0 6px;">Tahfidz</h4>'+tahfidzHtml
+        +'<h4 style="margin:12px 0 6px;">☀️🕌 Sholat Dhuha &amp; Dzuhur</h4><p class="v4-muted">Dhuha: '+s.dluhaHadir+'/'+s.dluhaTotal+' hadir'+pct(s.dluhaHadir,s.dluhaTotal)+' · Dzuhur: '+s.dzuhurHadir+'/'+s.dzuhurTotal+' hadir'+pct(s.dzuhurHadir,s.dzuhurTotal)+'</p>'
+        +pramukaHtml
+        +'<h4 style="margin:12px 0 6px;">🎯 Ekstrakurikuler Lain</h4>'+ekskulHtml
+        +v4RaporSikapHtmlDari(D.sikap)+v4RaporCatatanHtml(D.catatan)
+        +'<div style="margin-top:24px;text-align:right;padding-right:20px;"><p>Mengetahui,<br>Kepala '+v4Safe(MADRASAH.nama)+'</p>'+(MADRASAH.ttdKepalaBase64?'<img src="'+MADRASAH.ttdKepalaBase64+'" alt="Tanda tangan" style="max-height:45px;display:block;margin:6px 0 6px auto;">':'<br><br><br>')+'<p style="text-decoration:underline;">'+v4Safe(MADRASAH.kepala_sekolah)+'</p><p>NIP. '+v4Safe(MADRASAH.nip_kepala_sekolah)+'</p></div>';
+    }
+    function v4RenderLive(st,el,peringatan){
+      try{v4PastikanCatatan(st);}catch(e){}
+      if(!v4ActSiap(v4ActBulanTahunAjaran())){el.innerHTML='<p class="v4-muted">⏳ Memuat absensi sholat satu tahun ajaran...</p>';v4ActPastikan(v4ActBulanTahunAjaran()).then(()=>v4RenderReportPreview());return;}
+      el.innerHTML=(peringatan?'<p class="no-print" style="color:#b45309;font-size:12px;margin:0 0 8px;">'+v4Safe(peringatan)+'</p>':'')+v4RaporHtml(st,v4RaporDataLive(st));
+    }
+    function v4RenderReportPreview(){
+      const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent'),el=document.getElementById('v4ReportPreview');
+      if(!c||!s||!el)return;
+      try{v4TambahTombolAdminKunci();}catch(e){}try{v4TambahTombolCatatan();}catch(e){}try{v4TambahPilihPeriode();}catch(e){}
+      const st=(allSiswa||[]).find(x=>x.key===s.value);
+      if(!st){el.innerHTML='<p class="v4-muted">Pilih siswa.</p>';return;}
+      const per=v4RaporPeriode(),kunci=raporKunciKey(st.key,per.tahun,per.semester);
+      const seq=(window._raporRenderSeq=(window._raporRenderSeq||0)+1),masihBerlaku=()=>seq===window._raporRenderSeq;
+      if(!v4InfoKunciCache(kunci))el.innerHTML='<p class="v4-muted">⏳ Memuat raport...</p>';
+      const periodeTeks='Tahun Ajaran '+per.tahun+' · Semester '+per.semester;
+      v4InfoKunciRapor(kunci).then(lock=>{
+        if(!masihBerlaku())return;
+        if(lock&&lock.status==='LOCKED'&&lock.snapshotKey){
+          return v4MuatSnapshotRapor(lock.snapshotKey).then(snap=>{if(masihBerlaku())el.innerHTML=v4RaporHtml(st,v4RaporDataSnap(st,snap));},err=>{
+            console.warn('[SI MAMBA] Snapshot raport gagal dimuat:',err);if(!masihBerlaku())return;
+            if(per.aktif)v4RenderLive(st,el,'⚠️ Arsip raport final gagal dimuat; yang tampil data terbaru, bukan arsip. Muat ulang untuk mencoba lagi.');
+            else el.innerHTML='<p class="v4-muted">⚠️ Arsip raport '+v4Safe(periodeTeks)+' gagal dimuat. Periksa koneksi lalu pilih periode lagi.</p>';
+          });
+        }
+        if(!per.aktif){el.innerHTML='<p class="v4-muted">Raport '+v4Safe(periodeTeks)+' belum difinalisasi, jadi belum ada arsip yang bisa ditampilkan. Pilih periode aktif untuk melihat data terbaru.</p>';return;}
+        v4RenderLive(st,el,'');
+      },err=>{
+        console.warn('[SI MAMBA] Status kunci raport tidak terbaca:',err);if(!masihBerlaku())return;
+        if(per.aktif)v4RenderLive(st,el,'⚠️ Status kunci raport tidak terbaca; yang tampil data terbaru.');
+        else el.innerHTML='<p class="v4-muted">⚠️ Status raport '+v4Safe(periodeTeks)+' gagal dimuat. Periksa koneksi lalu pilih periode lagi.</p>';
+      });
+    }
+    function v4FinalizeReport(){const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);if(!st)return toast('Pilih siswa!',true);if(!v4RaporPeriode().aktif)return toast('Finalisasi hanya untuk periode aktif. Pilih periode yang bertanda (aktif).',true,5000);if(!v4ActSiap(v4ActBulanTahunAjaran())){toast('Memuat absensi sholat satu tahun ajaran, mohon tunggu...',false,4000);v4ActPastikan(v4ActBulanTahunAjaran()).then(ok=>{if(ok)v4FinalizeReport();else toast('Gagal memuat absensi sholat setahun. Periksa koneksi lalu coba lagi.',true);});return;}
       // Wali Kelas hanya boleh finalisasi raport siswa DI KELAS YANG DIA AMPU -- sebelumnya
       // cek cuma "apakah dia wali kelas di kelas mana pun" (isWaliKelasAssigned()), sehingga
       // wali kelas 1A misalnya bisa mengunci raport siswa 6B kalau tahu cara memanggil fungsi
@@ -293,14 +477,14 @@
       const _mapelSem=(allGrades||[]).filter(x=>x.siswaKey===st.key&&x.data&&(!x.semester||x.semester===currentSemesterAktif)&&sesuaiTahunAjaranTermasukDataLama(x)).map(x=>({m:x.subject||'-',s:statusRapor(x.data)})).filter(o=>o.s.nilai!==null&&!o.s.final).map(o=>o.m);
       if(_mapelSem.length&&!confirm(`⚠️ ${_mapelSem.length} mapel masih bernilai SEMENTARA (NH, MID, atau PAS belum lengkap):\n\n- ${_mapelSem.join('\n- ')}\n\nJika difinalisasi sekarang, raport ${st.name} dikunci dengan nilai yang belum lengkap dan koreksinya harus lewat pengajuan Approval.\n\nTetap finalisasi?`))return;
       const tahunFin=currentTahunAjaran,semFin=currentSemesterAktif,kunciFin=raporKunciKey(st.key,tahunFin,semFin);
-      ((typeof isAdmin==='function'&&isAdmin())?adminSesiSiap():guruSesiSiap()).then(()=>db.ref('report_locks_v4/'+kunciFin).once('value')).then(ls=>{
+      ((typeof isAdmin==='function'&&isAdmin())?adminSesiSiap():guruSesiSiap()).then(()=>Promise.all([db.ref('report_locks_v4/'+kunciFin).once('value'),v4MuatCatatanRapor(kunciFin)]).then(r=>r[0])).then(ls=>{
         const lv=ls.val();
         if(lv&&lv.status==='LOCKED')return toast('🔒 Raport '+st.name+' semester '+semFin+' sudah difinalisasi. Untuk mengubahnya klik "Ajukan Koreksi" dan tunggu persetujuan Admin/Kepala.',true,7000);
         const ref=db.ref('report_cards_v4').push();
         // Snapshot HANYA memuat data siswa ini (bukan seluruh kelas): nilai semester/tahun ajaran ini + kehadiran miliknya.
-        const snapshot={studentId:st.key,studentName:st.name,kelas:st.kelas,finalizedBy:currentUser.name,finalizedAt:new Date().toISOString(),status:'LOCKED',tahunAjaran:tahunFin,semester:semFin,source:{grades:(allGrades||[]).filter(g=>g.siswaKey===st.key&&(!g.semester||g.semester===semFin)&&sesuaiTahunAjaranTermasukDataLama(g)),attendance:(allAttendance||[]).filter(a=>a.kelas===st.kelas&&sesuaiTahunAjaranTermasukDataLama(a)&&a.data&&a.data[st.key]!==undefined).map(a=>Object.assign({},a,{data:{[st.key]:a.data[st.key]}})),tahfidz:(V4.tahfidz||[]).filter(t=>t.studentId===st.key),sholat:v4HitungSholatSiswa(st.key),pramuka:v4HitungPramukaSiswa(st.key,st.kelas),ekskul:v4HitungEkskulSiswa(st.key)}};
+        const snapshot={studentId:st.key,studentName:st.name,kelas:st.kelas,finalizedBy:currentUser.name,finalizedAt:new Date().toISOString(),status:'LOCKED',tahunAjaran:tahunFin,semester:semFin,source:{grades:(allGrades||[]).filter(g=>g.siswaKey===st.key&&(!g.semester||g.semester===semFin)&&sesuaiTahunAjaranTermasukDataLama(g)),attendance:(allAttendance||[]).filter(a=>a.kelas===st.kelas&&sesuaiTahunAjaranTermasukDataLama(a)&&a.data&&a.data[st.key]!==undefined).map(a=>Object.assign({},a,{data:{[st.key]:a.data[st.key]}})),tahfidz:(V4.tahfidz||[]).filter(t=>t.studentId===st.key&&v4DalamSemester(t)),sholat:v4HitungSholatSiswa(st.key),pramuka:v4HitungPramukaSiswa(st.key,st.kelas),ekskul:v4HitungEkskulSiswa(st.key),kehadiran:v4HitungKehadiranSiswa(st),catatanWaliKelas:(window._raporCatatanCache||{})[kunciFin]||'',sikap:v4HitungSikapSiswa(st.key)}};
         const updates={};updates['report_cards_v4/'+ref.key]=snapshot;updates['report_locks_v4/'+kunciFin]={studentId:st.key,studentName:st.name,kelas:st.kelas,tahunAjaran:tahunFin,semester:semFin,status:'LOCKED',snapshotKey:ref.key,lockedBy:currentUser.name,lockedAt:snapshot.finalizedAt};
-        return db.ref().update(updates).then(()=>{window._raporKunciCache=null;v4Audit('FINALIZE_REPORT','REPORT',ref.key,null,snapshot);v4Notify('Raport difinalisasi',`Raport ${st.name} telah dikunci.`,'SUCCESS',currentUser.key,'REPORT',ref.key);toast('🔒 Raport difinalisasi');v4RenderReportPreview();});
+        return db.ref().update(updates).then(()=>{window._raporKunciCache=null;window._raporLockInfo=null;v4Audit('FINALIZE_REPORT','REPORT',ref.key,null,snapshot);v4Notify('Raport difinalisasi',`Raport ${st.name} telah dikunci.`,'SUCCESS',currentUser.key,'REPORT',ref.key);toast('🔒 Raport difinalisasi');v4RenderReportPreview();});
       }).catch(err=>{console.error('[SI MAMBA] Gagal finalisasi raport:',err);toast('❌ Gagal finalisasi: '+(err&&err.message||err),true);});}
     // ADMIN: buat node kunci (report_locks_v4) dari raport yang difinalisasi SEBELUM fitur pengunci ada.
     // Aman dijalankan berulang: kunci yang sudah ada (termasuk UNLOCKED) tidak ditimpa.
@@ -321,11 +505,11 @@
           const ada=ls.val()||{};const updates={};let n=0;
           kunci.forEach(k=>{if(ada[k])return;updates['report_locks_v4/'+k]=Object.assign({status:'LOCKED'},terbaru[k]);n++;});
           if(!n)return toast('Semua raport lama sudah punya kunci.');
-          return adminSesiSiap().then(()=>db.ref().update(updates)).then(()=>{window._raporKunciCache=null;toast('🔒 '+n+' raport lama dikunci.');});
+          return adminSesiSiap().then(()=>db.ref().update(updates)).then(()=>{window._raporKunciCache=null;window._raporLockInfo=null;toast('🔒 '+n+' raport lama dikunci.');});
         });
       }).catch(err=>{console.error('[SI MAMBA] Gagal membuat kunci raport lama:',err);toast('❌ Gagal: '+(err&&err.message||err),true);});
     }
-    function v4RequestReportCorrection(){const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);if(!st)return toast('Pilih siswa!',true);const reason=prompt('Bagian raport yang perlu dikoreksi:');if(!reason)return;db.ref('approval_requests_v4').push().set({type:'CORRECTION',title:`Koreksi raport ${st.name}`,requestedBy:currentUser.name,requestedByKey:currentUser.key||currentUser.name,status:'PENDING',studentId:st.key,semester:currentSemesterAktif,reason,createdAt:new Date().toISOString(),tahunAjaran:currentTahunAjaran}).then(()=>{v4Notify('Pengajuan koreksi raport','Pengajuan koreksi telah dikirim.','ACTION',null,'REPORT_CORRECTION','');toast('📤 Pengajuan koreksi dikirim');v4LoadCore();}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });}
+    function v4RequestReportCorrection(){const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);if(!st)return toast('Pilih siswa!',true);const per=v4RaporPeriode();const reason=prompt('Bagian raport yang perlu dikoreksi ('+per.tahun+' · '+per.semester+'):');if(!reason)return;db.ref('approval_requests_v4').push().set({type:'CORRECTION',title:`Koreksi raport ${st.name}`,requestedBy:currentUser.name,requestedByKey:currentUser.key||currentUser.name,status:'PENDING',studentId:st.key,semester:per.semester,reason,createdAt:new Date().toISOString(),tahunAjaran:per.tahun}).then(()=>{v4Notify('Pengajuan koreksi raport','Pengajuan koreksi telah dikirim.','ACTION',null,'REPORT_CORRECTION','');toast('📤 Pengajuan koreksi dikirim');v4LoadCore();}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });}
     function v4PrintReport(){const el=document.getElementById('v4ReportPreview');if(!el)return;const w=window.open('','_blank','width=900,height=700');if(!w)return toast('Popup diblokir browser.',true);
       // FIX: jendela popup kosong (window.open('', ...)) berbasis "about:blank", BUKAN alamat
       // halaman aplikasi. Akibatnya path relatif di dalam el.innerHTML (mis. logo kop surat
@@ -334,5 +518,5 @@
       // cetak ini di-resolve relatif terhadap lokasi halaman utama, sehingga logo (dan aset
       // relatif lain) ikut muncul saat dicetak.
       // FIX: sebelumnya ikut menempelkan blok "Aturan Honor Guru Pengganti" (#aturan-honor-pengganti-v4)
-      w.document.write(`<html><head><base href="${document.baseURI}"><title>Raport SI MAMBA</title><style>body{font-family:Arial,sans-serif;padding:30px;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:7px}th{background:#eee}@media print{button{display:none}}</style></head><body>${el.innerHTML}</body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),300);}
+      w.document.write(`<html><head><base href="${document.baseURI}"><title>Raport SI MAMBA</title><style>body{font-family:Arial,sans-serif;padding:30px;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:7px}th{background:#eee}@media print{button,.no-print{display:none}}</style></head><body>${el.innerHTML}</body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),300);}
 
