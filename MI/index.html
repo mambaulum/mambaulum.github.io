@@ -144,7 +144,7 @@
   <script defer src="js/pengingat-absen-guru.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=6"></script>
-  <script defer src="js/v4-pengaturan-notif-rapor.js?v=12"></script>
+  <script defer src="js/v4-pengaturan-notif-rapor.js?v=13"></script>
   <!-- Hasil pecahan app.js tahap 6 (Rekap Nilai; Kalender Akademik + "Hari Ini"; Saran & Kritik; akun Ortu sisi Admin). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/rekap-nilai.js?v=8"></script>
   <script defer src="js/kalender-akademik.js?v=1"></script>
@@ -2211,7 +2211,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
           <div class="v4-section-title"><h3>📄 Raport</h3><button class="btn btn-success" onclick="v4PrintReport()">🖨️ Cetak Raport</button></div>
           <div class="v4-perm-note">Raport menggabungkan nilai, kehadiran, tahfidz, sholat Dhuha/Dzuhur, pramuka, ekstrakurikuler, sikap, dan catatan wali kelas. Setelah final, raport dibaca dari arsip (snapshot) dan tidak berubah lagi.</div>
           <div class="v4-grid-2">
-            <div><label class="label">Kelas</label><select id="v4ReportClass" class="field" onchange="v4RenderReportPreview()"></select></div>
+            <div><label class="label">Kelas</label><select id="v4ReportClass" class="field" onchange="v4ReportKelasBerubah()"></select></div>
             <div><label class="label">Siswa</label><select id="v4ReportStudent" class="field" onchange="v4RenderReportPreview()"></select></div>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-primary" onclick="v4FinalizeReport()">🔒 Finalisasi Raport</button><button class="btn btn-warning" onclick="v4RequestReportCorrection()">↩️ Ajukan Koreksi</button></div>
