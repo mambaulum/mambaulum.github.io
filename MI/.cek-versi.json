@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.399",
-  "disimpan": "2026-11-09T14:04:23.368Z",
+  "appVersion": "v8.402",
+  "disimpan": "2026-11-10T04:32:59.010Z",
   "assets": {
     "css/styles.css": {
       "v": "v=21",
@@ -111,12 +111,12 @@
       "hash": "57784807e93230a093c8dc63f3afc5fb2de5f077"
     },
     "js/v4-tahfidz-pramuka-ekskul.js": {
-      "v": "v=5",
-      "hash": "6a1d49ad1764ffcb57791a1c06132cc26ee3636f"
+      "v": "v=6",
+      "hash": "950f942846091d106e104f52369231f9ba8602e6"
     },
     "js/v4-pengaturan-notif-rapor.js": {
-      "v": "v=9",
-      "hash": "a28ce831afe0286707f4a3ca4c64fbf4c42d827c"
+      "v": "v=12",
+      "hash": "122506fb68dae3750e6d142a1edefbc933bb7455"
     },
     "js/rekap-nilai.js": {
       "v": "v=8",
