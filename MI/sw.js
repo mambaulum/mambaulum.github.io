@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.415';
+const APP_VERSION = 'v8.417';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -75,7 +75,7 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest-ortu.json',                    // manifest PWA khusus Wali Murid (?app=ortu)
-  './css/styles.css?v=22',
+  './css/styles.css?v=23',
   './css/menu-polish.css?v=36',              // samakan dengan ?v= di index.html
   './css/impersonate.css?v=3',            // gaya spanduk & modal impersonasi (samakan dengan ?v= di index.html)
   './js/logo-fallback.js',
@@ -85,7 +85,7 @@ const PRECACHE_URLS = [
   './js/app.js?v=161',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=35',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/infaq.js?v=3',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/infaq.js?v=5',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=2',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/kelola-absen-guru.js?v=7',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
