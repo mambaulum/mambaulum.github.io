@@ -75,7 +75,7 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest-ortu.json',                    // manifest PWA khusus Wali Murid (?app=ortu)
-  './css/styles.css?v=22',
+  './css/styles.css?v=23',
   './css/menu-polish.css?v=36',              // samakan dengan ?v= di index.html
   './css/impersonate.css?v=3',            // gaya spanduk & modal impersonasi (samakan dengan ?v= di index.html)
   './js/logo-fallback.js',
