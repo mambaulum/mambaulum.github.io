@@ -500,9 +500,10 @@
       const garis=n=>'<p style="margin:0;text-decoration:underline;">'+(n?v4Safe(n):'(................................)')+'</p>';
       const kol=(judul,isi)=>'<div style="flex:1 1 90px;text-align:center;font-size:12px;"><p style="margin:0;">'+judul+'</p>'+isi+'</div>';
       const ruang='<div style="height:48px;"></div>';
-      const ttdK=(typeof MADRASAH!=='undefined'&&MADRASAH.ttdKepalaBase64)?'<img src="'+MADRASAH.ttdKepalaBase64+'" alt="Tanda tangan" style="max-height:45px;display:block;margin:3px auto;">':ruang;
-      const nip=(typeof MADRASAH!=='undefined'&&MADRASAH.nip_kepala_sekolah)?'<p style="margin:0;">NIP. '+v4Safe(MADRASAH.nip_kepala_sekolah)+'</p>':'';
-      return '<div style="margin-top:24px;"><p style="text-align:right;font-size:12px;margin:0 0 10px;">'+(kota?v4Safe(kota)+', ':'')+v4Safe(tgl)+'</p>'
+      const final=!!(D&&D.final);   // v8.415: tanda tangan digital dan tanggal hanya setelah raport FINAL
+      const ttdK=(final&&typeof MADRASAH!=='undefined'&&MADRASAH.ttdKepalaBase64)?'<img src="'+MADRASAH.ttdKepalaBase64+'" alt="Tanda tangan" style="max-height:45px;display:block;margin:3px auto;">':ruang;
+      const nip=(typeof MADRASAH!=='undefined'&&MADRASAH.nip_kepala_sekolah&&String(MADRASAH.nip_kepala_sekolah).replace(/[\s\-–]/g,''))?'<p style="margin:0;">NIP. '+v4Safe(MADRASAH.nip_kepala_sekolah)+'</p>':'';
+      return '<div style="margin-top:24px;">'+(final?'<p style="text-align:right;font-size:12px;margin:0 0 10px;">'+(kota?v4Safe(kota)+', ':'')+v4Safe(tgl)+'</p>':'<p style="text-align:center;font-size:12px;font-style:italic;color:#6b7280;margin:0 0 10px;">Raport belum final (draf) — belum ditandatangani.</p>')
         +'<div style="display:flex;flex-wrap:wrap;gap:12px;">'
         +kol('Orang Tua/Wali',ruang+garis(st.namaOrtu))
         +kol('Wali Kelas',ruang+garis(wali))
@@ -515,7 +516,11 @@
       const nilaiRows=D.grades.slice(0,30).map(g=>{
         const r=g.data?statusRapor(g.data):{nilai:null};
         let angka='-',pred='-';
-        if(r.nilai!==null){angka=r.final?v4Safe(r.nilai):raporSementaraHtml(r.nilai);if(r.final){const pr=v4Predikat(r.nilai);pred='<b>'+pr.k+'</b> · '+pr.label;capaian.push('<p style="margin:4px 0;font-size:13px;"><b>'+v4Safe(g.subject||'-')+'</b>: '+v4Safe(v4DeskripsiCapaian(g.subject,pr))+'</p>');}}
+        if(r.nilai!==null){angka=r.final?v4Safe(r.nilai):raporSementaraHtml(r.nilai);
+          const pr0=v4Predikat(r.nilai);
+          // v8.412: predikat tampil juga untuk nilai sementara, berlabel abu-abu "sementara" (deskripsi capaian tetap hanya untuk nilai final)
+          pred=r.final?('<b>'+pr0.k+'</b> · '+pr0.label):('<span style="color:#6b7280;font-style:italic;"><b>'+pr0.k+'</b> · '+pr0.label+' <small>sementara</small></span>');
+          if(r.final){const pr=pr0;capaian.push('<p style="margin:4px 0;font-size:13px;"><b>'+v4Safe(g.subject||'-')+'</b>: '+v4Safe(v4DeskripsiCapaian(g.subject,pr))+'</p>');}}
         return '<tr><td>'+v4Safe(g.subject||'-')+'</td><td>'+angka+'</td><td>'+pred+'</td></tr>';
       }).join('')||'<tr><td colspan="3">Belum ada nilai.</td></tr>';
       const tPred=v4PredikatBatas();
@@ -548,6 +553,8 @@
     function v4RenderReportPreview(){
       const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent'),el=document.getElementById('v4ReportPreview');
       if(!c||!s||!el)return;
+      // v8.414: TTD Kepala dimuat lazy dari school_assets/ttdKepala (ensureTtdKepala di app.js). Muat dulu, lalu gambar ulang raport sekali bila ternyata ada.
+      try{if(!MADRASAH.ttdKepalaBase64&&typeof ensureTtdKepala==='function'&&!window._ttdRaporDicoba){window._ttdRaporDicoba=true;ensureTtdKepala().then(v=>{if(v)v4RenderReportPreview();});}}catch(e){}
       try{v4TambahTombolAdminKunci();}catch(e){}try{v4TambahTombolCatatan();}catch(e){}try{v4TambahTombolPortal();}catch(e){}try{v4TambahPilihPeriode();}catch(e){}
       const st=(allSiswa||[]).find(x=>x.key===s.value);
       if(!st){el.innerHTML='<p class="v4-muted">Pilih siswa.</p>';return;}
@@ -615,7 +622,13 @@
       }).catch(err=>{console.error('[SI MAMBA] Gagal membuat kunci raport lama:',err);toast('❌ Gagal: '+(err&&err.message||err),true);});
     }
     function v4RequestReportCorrection(){const s=document.getElementById('v4ReportStudent');const st=(allSiswa||[]).find(x=>x.key===s?.value);if(!st)return toast('Pilih siswa!',true);const per=v4RaporPeriode();const reason=prompt('Bagian raport yang perlu dikoreksi ('+per.tahun+' · '+per.semester+'):');if(!reason)return;db.ref('approval_requests_v4').push().set({type:'CORRECTION',title:`Koreksi raport ${st.name}`,requestedBy:currentUser.name,requestedByKey:currentUser.key||currentUser.name,status:'PENDING',studentId:st.key,semester:per.semester,reason,createdAt:new Date().toISOString(),tahunAjaran:per.tahun}).then(()=>{v4Notify('Pengajuan koreksi raport','Pengajuan koreksi telah dikirim.','ACTION',null,'REPORT_CORRECTION','');toast('📤 Pengajuan koreksi dikirim');v4LoadCore();}).catch(err => { console.error('[SI MAMBA] Gagal simpan:', err); toast('❌ Gagal menyimpan: ' + (err && err.message || err), true); });}
-    function v4PrintReport(){const el=document.getElementById('v4ReportPreview');if(!el)return;const w=window.open('','_blank','width=900,height=700');if(!w)return toast('Popup diblokir browser.',true);
+    function v4PrintReport(){const el=document.getElementById('v4ReportPreview');if(!el)return;
+      // v8.413: judul jendela cetak = nama file PDF bawaan saat "Simpan sebagai PDF" -> Raport - NAMA - Kelas - TA Semester
+      let judul='Raport SI MAMBA';
+      try{const sSel=document.getElementById('v4ReportStudent');const st0=(allSiswa||[]).find(x=>x.key===(sSel&&sSel.value));const per0=v4RaporPeriode();
+        if(st0){judul=['Raport',st0.name,st0.kelas,String(per0.tahun||'').replace(/\//g,'-')+' '+(per0.semester||'')].map(x=>String(x||'').replace(/[\\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim()).filter(Boolean).join(' - ');}
+      }catch(e){}
+      const w=window.open('','_blank','width=900,height=700');if(!w)return toast('Popup diblokir browser.',true);
       // FIX: jendela popup kosong (window.open('', ...)) berbasis "about:blank", BUKAN alamat
       // halaman aplikasi. Akibatnya path relatif di dalam el.innerHTML (mis. logo kop surat
       // <img src="logo/logo-lembaga.png">) gagal dimuat di jendela cetak ini walau tampil normal
@@ -623,5 +636,5 @@
       // cetak ini di-resolve relatif terhadap lokasi halaman utama, sehingga logo (dan aset
       // relatif lain) ikut muncul saat dicetak.
       // FIX: sebelumnya ikut menempelkan blok "Aturan Honor Guru Pengganti" (#aturan-honor-pengganti-v4)
-      w.document.write(`<html><head><base href="${document.baseURI}"><title>Raport SI MAMBA</title><style>body{font-family:Arial,sans-serif;padding:30px;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:7px}th{background:#eee}@media print{button,.no-print{display:none}}</style></head><body>${el.innerHTML}</body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),300);}
+      w.document.write(`<html><head><base href="${document.baseURI}"><title>${v4Safe(judul)}</title><style>body{font-family:Arial,sans-serif;padding:30px;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:7px}th{background:#eee}@media print{button,.no-print{display:none}}</style></head><body>${el.innerHTML}</body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),300);}
 
