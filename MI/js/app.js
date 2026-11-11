@@ -119,6 +119,7 @@
       ttdKepalaBase64: '',
       // Nominal Iuran Mingguan TETAP per siswa (sama rata semua siswa madrasah), diatur Admin
       // lewat halaman Profil Sekolah. null = belum diatur, 0 = sengaja gratis (JANGAN dicek pakai || atau truthiness).
+      predikatBatas: null, // {sb,b,c} batas bawah predikat raport (null = bawaan 90/80/70; lihat v4-pengaturan-notif-rapor.js)
       iuranMulaiTanggal: null, // YYYY-MM-DD, tanggal mulai tagihan infaq tahun ajaran ini (null = pakai bawaan/1 Juli)
       iuranMingguanNominal: null, // null = belum diatur Admin; 0 = sengaja diatur gratis (dibedakan)
       // Jadwal pembayaran honor (pengingat catat ke Kas Umum): tanggal tiap bulan (1-31; 0/null = pengingat mati) dan honor bulan apa
@@ -168,6 +169,7 @@
       MADRASAH.ttdKepalaBase64 = s.ttdKepalaBase64 != null ? s.ttdKepalaBase64 : MADRASAH.ttdKepalaBase64;
       MADRASAH.iuranMingguanNominal = s.iuranMingguanNominal != null ? s.iuranMingguanNominal : MADRASAH.iuranMingguanNominal;
       MADRASAH.iuranMulaiTanggal = s.iuranMulaiTanggal != null ? s.iuranMulaiTanggal : MADRASAH.iuranMulaiTanggal;
+      MADRASAH.predikatBatas = s.predikatBatas != null ? s.predikatBatas : MADRASAH.predikatBatas;
       MADRASAH.honorTanggalBayar = s.honorTanggalBayar != null ? s.honorTanggalBayar : MADRASAH.honorTanggalBayar;
       MADRASAH.honorBulanBayar = s.honorBulanBayar === 'ini' ? 'ini' : (s.honorBulanBayar === 'lalu' ? 'lalu' : MADRASAH.honorBulanBayar);
     }

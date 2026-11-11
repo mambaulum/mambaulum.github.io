@@ -325,6 +325,7 @@
       const fin=document.querySelector('button[onclick="v4FinalizeReport()"]');
       if(!fin||document.getElementById('btnPortalNilai'))return;
       const b=document.createElement('button');b.id='btnPortalNilai';b.className='btn btn-soft';b.textContent='🌐 Portal Ortu: memuat...';b.onclick=v4TogglePortalNilai;fin.parentNode.appendChild(b);
+      try{if(isAdmin()&&!document.getElementById('btnSkalaPredikat')){const p=document.createElement('button');p.id='btnSkalaPredikat';p.className='btn btn-soft';p.textContent='⚙️ Skala Predikat';p.onclick=v4AturSkalaPredikat;fin.parentNode.appendChild(p);}}catch(e){}
       v4MuatSaklarPortal();
     }
     function v4TogglePortalNilai(){
@@ -455,6 +456,35 @@
         final:{oleh:snap.finalizedBy||'',waktu:snap.finalizedAt||''}
       };
     }
+    // ===== v8.410: PREDIKAT & DESKRIPSI CAPAIAN (Kurikulum Merdeka tidak memakai KKM) =====
+    // Madrasah belum punya skala resmi, jadi batas bawah predikat bisa diatur Admin (MADRASAH.predikatBatas = {sb,b,c}).
+    // Bawaan: A Sangat Baik >= 90, B Baik >= 80, C Cukup >= 70, D Perlu Bimbingan < 70.
+    function v4PredikatBatas(){
+      const b=(typeof MADRASAH!=='undefined'&&MADRASAH.predikatBatas)||null;
+      const sb=b?Number(b.sb):NaN,bb=b?Number(b.b):NaN,cc=b?Number(b.c):NaN;
+      return (sb<=100&&sb>bb&&bb>cc&&cc>0)?{sb:sb,b:bb,c:cc}:{sb:90,b:80,c:70};
+    }
+    function v4Predikat(n){const t=v4PredikatBatas();return n>=t.sb?{k:'A',label:'Sangat Baik'}:n>=t.b?{k:'B',label:'Baik'}:n>=t.c?{k:'C',label:'Cukup'}:{k:'D',label:'Perlu Bimbingan'};}
+    function v4DeskripsiCapaian(mapel,pr){
+      const m=String(mapel||'mata pelajaran ini');
+      return pr.k==='A'?'Ananda sangat baik dalam memahami dan menerapkan materi '+m+'.'
+        :pr.k==='B'?'Ananda baik dalam memahami materi '+m+'; terus tingkatkan penerapannya.'
+        :pr.k==='C'?'Ananda cukup memahami materi '+m+'; perlu latihan lebih agar penguasaannya meningkat.'
+        :'Ananda masih perlu bimbingan dalam memahami materi '+m+'; perlu pendampingan dan latihan rutin.';
+    }
+    function v4AturSkalaPredikat(){
+      if(!isAdmin())return toast('Hanya Admin yang bisa mengubah skala predikat!',true);
+      const t=v4PredikatBatas();
+      const v=prompt('Batas bawah nilai untuk predikat A (Sangat Baik), B (Baik), C (Cukup), dipisah koma.\nDi bawah batas C = D (Perlu Bimbingan).\nContoh: 90,80,70',t.sb+','+t.b+','+t.c);
+      if(v===null)return;
+      const a=v.split(',').map(x=>Number(String(x).trim()));
+      if(a.length!==3||a.some(x=>!isFinite(x))||!(a[0]<=100&&a[0]>a[1]&&a[1]>a[2]&&a[2]>0))return toast('Format salah. Contoh benar: 90,80,70 (urut menurun, 1–100).',true);
+      tulisSettingsAdmin('school_settings',{predikatBatas:{sb:a[0],b:a[1],c:a[2]}},err=>{
+        if(err)return toast('Gagal: '+err.message,true);
+        MADRASAH.predikatBatas={sb:a[0],b:a[1],c:a[2]};addLog('simpan_skala_predikat_raport',a.join(','));
+        toast('✅ Skala predikat disimpan: A ≥ '+a[0]+', B ≥ '+a[1]+', C ≥ '+a[2]);v4RenderReportPreview();
+      });
+    }
     function v4TglPanjang(d){try{const t=new Date(d);return isNaN(t)?'':t.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});}catch(e){return '';}}
     function v4RaporIdentitasHtml(st){
       const baris=[];const add=(k,v)=>{if(v)baris.push('<div>'+k+'</div><div>: '+v4Safe(v)+'</div>');};
@@ -481,7 +511,16 @@
     }
     function v4RaporHtml(st,D){
       const adaSem=D.grades.slice(0,30).some(g=>g.data&&statusRapor(g.data).nilai!==null&&!statusRapor(g.data).final);
-      const nilaiRows=D.grades.slice(0,30).map(g=>'<tr><td>'+v4Safe(g.subject||'-')+'</td><td>'+(()=>{const r=g.data?statusRapor(g.data):{nilai:null};return r.nilai===null?'-':(r.final?v4Safe(r.nilai):raporSementaraHtml(r.nilai));})()+'</td></tr>').join('')||'<tr><td colspan="2">Belum ada nilai.</td></tr>';
+      const capaian=[];
+      const nilaiRows=D.grades.slice(0,30).map(g=>{
+        const r=g.data?statusRapor(g.data):{nilai:null};
+        let angka='-',pred='-';
+        if(r.nilai!==null){angka=r.final?v4Safe(r.nilai):raporSementaraHtml(r.nilai);if(r.final){const pr=v4Predikat(r.nilai);pred='<b>'+pr.k+'</b> · '+pr.label;capaian.push('<p style="margin:4px 0;font-size:13px;"><b>'+v4Safe(g.subject||'-')+'</b>: '+v4Safe(v4DeskripsiCapaian(g.subject,pr))+'</p>');}}
+        return '<tr><td>'+v4Safe(g.subject||'-')+'</td><td>'+angka+'</td><td>'+pred+'</td></tr>';
+      }).join('')||'<tr><td colspan="3">Belum ada nilai.</td></tr>';
+      const tPred=v4PredikatBatas();
+      const ketPredikat='<p class="v4-muted" style="font-size:11px;margin:4px 0 0;">Predikat: A Sangat Baik (≥ '+tPred.sb+'), B Baik ('+tPred.b+'–'+(tPred.sb-1)+'), C Cukup ('+tPred.c+'–'+(tPred.b-1)+'), D Perlu Bimbingan (&lt; '+tPred.c+').</p>';
+      const capaianHtml=capaian.length?'<h4 style="margin:12px 0 6px;">Deskripsi Capaian</h4>'+capaian.join(''):'';
       const ekskulHtml=D.ekskul.length?D.ekskul.map(x=>'<p class="v4-muted">'+v4Safe(x.nama)+': '+x.hadir+'/'+x.total+' hadir'+(x.total?' ('+Math.round(x.hadir/x.total*100)+'%)':'')+'</p>').join(''):'<p class="v4-muted">Belum ada catatan kehadiran ekskul.</p>';
       let tahfidzHtml;try{tahfidzHtml=typeof thfRaporHtml==='function'?thfRaporHtml(st,D.tahfidz):v4TahfidzRaporFallback(D.tahfidz);}catch(e){console.warn('[SI MAMBA] thfRaporHtml gagal:',e);tahfidzHtml=v4TahfidzRaporFallback(D.tahfidz);}
       const s=D.sholat,p=D.pramuka;
@@ -491,7 +530,7 @@
       return (typeof generateKopSuratHTML==='function'?generateKopSuratHTML():'')
         +'<div class="header">RAPORT PESERTA DIDIK</div><div class="sub-header">'+v4Safe(st.name)+' · '+v4Safe(st.kelas)+'</div>'
         +'<div class="sub-header" style="font-size:13px;">Tahun Ajaran '+v4Safe(D.tahun)+' · Semester '+v4Safe(D.semester)+'</div>'+finalHtml+v4RaporIdentitasHtml(st)
-        +'<h4 style="margin:10px 0 6px;">Nilai</h4><div class="v4-table-wrap"><table><thead><tr><th>Mapel</th><th>Nilai</th></tr></thead><tbody>'+nilaiRows+'</tbody></table></div>'
+        +'<h4 style="margin:10px 0 6px;">Nilai</h4><div class="v4-table-wrap"><table><thead><tr><th>Mapel</th><th>Nilai</th><th>Predikat</th></tr></thead><tbody>'+nilaiRows+'</tbody></table></div>'+ketPredikat+capaianHtml
         +(adaSem?'<p style="color:#6b7280;font-size:12px;font-style:italic;margin:4px 0 0;">Nilai berlabel sementara belum final. Angka menjadi final setelah minimal satu NH, MID, dan PAS terisi.</p>':'')
         +'<h4 style="margin:12px 0 6px;">Kehadiran</h4>'+v4KehadiranRaporHtml(D.kehadiran)
         +'<h4 style="margin:12px 0 6px;">Tahfidz</h4>'+tahfidzHtml
