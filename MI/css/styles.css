@@ -2449,3 +2449,14 @@ body.dark-mode #loadingOverlay .loading-spinner {
 @media (max-width: 768px) {
   .pp-modal-overlay { padding-bottom: calc(12px + 64px + env(safe-area-inset-bottom, 0px)) !important; }
 }
+
+/* v8.404 - Tabel raport penuh selebar kotak di HP.
+   Aturan mobile "table{display:block !important}" membuat tabel hanya selebar isinya
+   dan menyisakan ruang kosong di kanan. Dikembalikan ke tabel normal khusus di raport. */
+.report-preview .v4-table-wrap table {
+  display: table !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  white-space: normal !important;
+}
+.report-preview .v4-table-wrap { overflow-x: auto; }
