@@ -17,7 +17,10 @@
    - Minggu yang Senin-Jumat-nya seluruhnya libur di Kalender Akademik (jenis 'libur') dilewati.
    - "Hitung sejak" bisa dipilih. Default: minggu pertama yang ada catatan lunasnya, supaya minggu
      libur panjang/sebelum infaq dimulai tidak terhitung tunggakan.
-   - Siswa baru tidak dikenai minggu sebelum minggu ia didaftarkan (field `dibuat`).
+   - Siswa baru tidak dikenai minggu sebelum minggu ia didaftarkan (field `dibuat`), KECUALI siswa itu punya
+     tglMulaiIuran (Edit Siswa): tanggal itu dipakai menggantikannya.
+   - v8.407: minggu sebelum tanggal mulai tagihan madrasah (iuranAwalTA() di app.js; bawaan 13 Juli 2026,
+     bisa diubah Admin di Pengaturan Infaq) tidak pernah dihitung.
    - Siswa dengan nominal khusus Rp 0 (gratis) tidak pernah menunggak.
    - Lunas = ada record iuran_siswa dengan siswaKey + minggu yang sama (sama dengan tanda centang
      di halaman ini). Nominal tunggakan = jumlah nominal TIAP minggu yang belum lunas, memakai nominal
@@ -66,7 +69,8 @@ function tgDaftarMinggu() {
   const thn = parseInt(String(currentTahunAjaran).split('/')[0], 10);
   if (!thn) return [];
   const akhirTA = new Date(thn + 1, 5, 30);
-  const d = new Date(thn, 6, 1); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));       // Senin minggu 1 Juli
+  const awalTagih = iuranAwalTA();                                                        // v8.407: tanggal mulai tagihan madrasah (bawaan 13 Juli 2026; lihat app.js)
+  const d = new Date(awalTagih.getFullYear(), awalTagih.getMonth(), awalTagih.getDate()); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));   // Senin minggu tanggal mulai
   const kini = new Date(), seninIni = new Date(kini.getFullYear(), kini.getMonth(), kini.getDate());
   seninIni.setDate(seninIni.getDate() - ((seninIni.getDay() + 6) % 7));                  // Senin minggu berjalan
   const libur = tgLiburSet(), out = [];
@@ -94,7 +98,9 @@ function tgHitung(kelasList, mulaiKey, semuaMinggu) {
     let awalSiswa = '';
     if (s.dibuat) { const dt = new Date(s.dibuat); if (!isNaN(dt.getTime())) awalSiswa = isoMingguKey(dt); }
     // minggu pendaftaran sendiri tidak ditagih; minggu ber-nominal 0 (gratis) pada saat itu juga tidak ditagih
-    const belum = minggu.filter(k => k > awalSiswa && !lunas.has(s.key + '|' + k) && tgNominalMingguSiswa(s, k) !== 0);
+    // v8.407: siswa dengan tglMulaiIuran (Edit Siswa) memakai tanggal itu menggantikan aturan minggu pendaftaran
+    const eksplisit = !!iuranParseTgl(s.tglMulaiIuran);
+    const belum = minggu.filter(k => iuranMingguDitagih(k, s) && (eksplisit || k > awalSiswa) && !lunas.has(s.key + '|' + k) && tgNominalMingguSiswa(s, k) !== 0);
     if (!belum.length) return;
     const per = belum.map(k => tgNominalMingguSiswa(s, k));
     const adaNull = per.some(n => n === null);
@@ -315,7 +321,7 @@ function tgKelunasanHitung(kelasList, semuaMinggu, jumlah) {
   const tot = minggu.map(() => ({ wajib: 0, lunas: 0 }));
   const seri = kelasList.map(k => {
     const nilai = minggu.map((mk, i) => {
-      const wajib = rosterPer[k].filter(s => awal(s) < mk && tgNominalMingguSiswa(s, mk) !== 0);
+      const wajib = rosterPer[k].filter(s => (iuranParseTgl(s.tglMulaiIuran) ? iuranMingguDitagih(mk, s) : (iuranMingguDitagih(mk, s) && awal(s) < mk)) && tgNominalMingguSiswa(s, mk) !== 0);
       const sudah = wajib.filter(s => lunas.has(s.key + '|' + mk)).length;
       tot[i].wajib += wajib.length; tot[i].lunas += sudah;
       return wajib.length ? Math.round(sudah / wajib.length * 1000) / 10 : null;
@@ -760,7 +766,11 @@ function rkDataAktif() {
   const kelasList = semuaKelas ? milik : [pilih].filter(k => milik.includes(k));
   const baris = [], ring = [];
   kelasList.forEach(kelas => {
-    const wajib = new Set(allSiswa.filter(s => s.kelas === kelas && !iuranGratis(s)).map(s => s.key));
+    const siswaWajib = allSiswa.filter(s => s.kelas === kelas && !iuranGratis(s));
+    const wajib = new Set(siswaWajib.map(s => s.key));
+    // v8.408: pembagi per minggu hanya siswa yang minggu itu sudah masuk tanggal mulai tagihannya
+    const wajibMgCache = {};
+    const wajibMg = mg => wajibMgCache[mg] || (wajibMgCache[mg] = new Set(siswaWajib.filter(s => iuranMingguDitagih(mg, s)).map(s => s.key)));
     const byMinggu = {};
     allInfaqSiswa.filter(it => it.kelas === kelas).forEach(it => {
       if (!byMinggu[it.minggu]) byMinggu[it.minggu] = { total: 0, lunas: 0 };
@@ -768,12 +778,13 @@ function rkDataAktif() {
       if (wajib.has(it.siswaKey)) byMinggu[it.minggu].lunas += 1;
     });
     const mingguList = Object.keys(byMinggu).sort().reverse();
-    let total = 0, lunas = 0;
+    let total = 0, lunas = 0, slot = 0;
     mingguList.forEach(mg => {
-      baris.push({ kelas, minggu: mg, label: mingguLabel(mg), lunas: byMinggu[mg].lunas, siswa: wajib.size, total: byMinggu[mg].total });
-      total += byMinggu[mg].total; lunas += byMinggu[mg].lunas;
+      const pembagi = Math.max(wajibMg(mg).size, byMinggu[mg].lunas);   // pembayaran yang sudah tercatat tidak boleh melebihi pembagi
+      baris.push({ kelas, minggu: mg, label: mingguLabel(mg), lunas: byMinggu[mg].lunas, siswa: pembagi, total: byMinggu[mg].total });
+      total += byMinggu[mg].total; lunas += byMinggu[mg].lunas; slot += pembagi;
     });
-    ring.push({ kelas, siswa: wajib.size, minggu: mingguList.length, lunas, slot: wajib.size * mingguList.length, total });
+    ring.push({ kelas, siswa: wajib.size, minggu: mingguList.length, lunas, slot, total });
   });
   const tot = ring.reduce((a, r) => ({ total: a.total + r.total, lunas: a.lunas + r.lunas, slot: a.slot + r.slot, minggu: a.minggu + r.minggu }), { total: 0, lunas: 0, slot: 0, minggu: 0 });
   const label = (semuaKelas && kelasList.length !== 1) ? 'Semua Kelas' : (kelasList[0] || pilih || '-');

@@ -119,6 +119,7 @@
       ttdKepalaBase64: '',
       // Nominal Iuran Mingguan TETAP per siswa (sama rata semua siswa madrasah), diatur Admin
       // lewat halaman Profil Sekolah. null = belum diatur, 0 = sengaja gratis (JANGAN dicek pakai || atau truthiness).
+      iuranMulaiTanggal: null, // YYYY-MM-DD, tanggal mulai tagihan infaq tahun ajaran ini (null = pakai bawaan/1 Juli)
       iuranMingguanNominal: null, // null = belum diatur Admin; 0 = sengaja diatur gratis (dibedakan)
       // Jadwal pembayaran honor (pengingat catat ke Kas Umum): tanggal tiap bulan (1-31; 0/null = pengingat mati) dan honor bulan apa
       // yang dibayar pada tanggal itu ('lalu' = bulan sebelumnya, 'ini' = bulan berjalan). Diatur Admin di halaman Honor.
@@ -166,6 +167,7 @@
       MADRASAH.nip_operator = s.nipOperator != null ? s.nipOperator : MADRASAH.nip_operator;
       MADRASAH.ttdKepalaBase64 = s.ttdKepalaBase64 != null ? s.ttdKepalaBase64 : MADRASAH.ttdKepalaBase64;
       MADRASAH.iuranMingguanNominal = s.iuranMingguanNominal != null ? s.iuranMingguanNominal : MADRASAH.iuranMingguanNominal;
+      MADRASAH.iuranMulaiTanggal = s.iuranMulaiTanggal != null ? s.iuranMulaiTanggal : MADRASAH.iuranMulaiTanggal;
       MADRASAH.honorTanggalBayar = s.honorTanggalBayar != null ? s.honorTanggalBayar : MADRASAH.honorTanggalBayar;
       MADRASAH.honorBulanBayar = s.honorBulanBayar === 'ini' ? 'ini' : (s.honorBulanBayar === 'lalu' ? 'lalu' : MADRASAH.honorBulanBayar);
     }
@@ -4803,6 +4805,7 @@
       document.getElementById('editSiswaTempatLahir').value = siswa.tempatLahir || '';
       document.getElementById('editSiswaTglLahir').value = siswa.tglLahir || '';
       document.getElementById('editSiswaNamaOrtu').value = siswa.namaOrtu || '';
+      document.getElementById('editSiswaMulaiIuran').value = siswa.tglMulaiIuran || '';
       const nominalKhususAda = iuranAngka(siswa.nominalIuranKhusus); // 0 = khusus gratis, jangan jadi kosong
       document.getElementById('editSiswaNominalKhusus').value = nominalKhususAda === null ? '' : nominalKhususAda;
       document.getElementById('editSiswaModal').classList.add('show');
@@ -4832,11 +4835,12 @@
       const tempatLahir = document.getElementById('editSiswaTempatLahir').value.trim() || null;
       const tglLahir = document.getElementById('editSiswaTglLahir').value || null;
       const namaOrtu = document.getElementById('editSiswaNamaOrtu').value.trim() || null;
+      const tglMulaiIuran = document.getElementById('editSiswaMulaiIuran').value || null;
       // noWaKey = nomor WA yang sudah dinormalisasi (62xxxxxxxxxx) -- dipakai Portal Orang Tua untuk
       // mencari anak lewat query terindeks, bukan mengunduh seluruh node siswa. null kalau tak valid.
       const noWaKey = noWaOrtu ? (ortuWaKey(noWaOrtu) || null) : null;
       const lepas = kunciSimpanModal('saveEditSiswa', 'editSiswaModal', 'saveEditSiswa');   // FIX: kunci tombol Simpan (anti ketuk ganda)
-      tulisAdmin(null, null, () => { db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey, nis, nisn, tempatLahir, tglLahir, namaOrtu }, err => {
+      tulisAdmin(null, null, () => { db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey, nis, nisn, tempatLahir, tglLahir, namaOrtu, tglMulaiIuran }, err => {
         lepas();
         if (err) toast('Gagal update: '+err.message, true);
         else { toastTersimpan(); addLog('edit_siswa', name + ' - ' + kelas); closeEditSiswaModal(); reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
@@ -7293,6 +7297,26 @@
     // Siswa yang dibebaskan (nominal khusus Rp 0, atau nominal standar madrasah Rp 0) tidak ditagih:
     // tidak masuk daftar belum lunas/pengingat WA, titik notifikasi, maupun pembagi "siswa lunas".
     function iuranGratis(s) { return iuranNominalSiswa(s) === 0; }
+    // ===== v8.407: TANGGAL MULAI TAGIHAN INFAQ =====
+    // Siswa lama: mulai dari tanggal awal tagihan madrasah (Pengaturan Infaq; bawaan di bawah, kalau kosong 1 Juli).
+    // Siswa baru/pindahan: bisa punya tglMulaiIuran sendiri (Edit Siswa) yang dipakai menggantikan tanggal madrasah.
+    // Minggu dihitung ditagih bila hari Minggu-nya >= tanggal mulai (minggu yang baru separuh jalan tetap ditagih).
+    const IURAN_MULAI_BAWAAN = { 2026: '2026-07-13' };   // tahun awal tahun ajaran -> tanggal mulai tagihan
+    function iuranParseTgl(v) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+    function iuranAwalTA() {
+      const thn = parseInt(String(currentTahunAjaran).split('/')[0], 10) || new Date().getFullYear();
+      const awal = new Date(thn, 6, 1), akhir = new Date(thn + 1, 5, 30);
+      const ok = d => d && d >= awal && d <= akhir;
+      const dPengaturan = iuranParseTgl(MADRASAH.iuranMulaiTanggal);
+      if (ok(dPengaturan)) return dPengaturan;
+      const dBawaan = iuranParseTgl(IURAN_MULAI_BAWAAN[thn]);
+      return ok(dBawaan) ? dBawaan : awal;
+    }
+    function iuranMulaiSiswa(s) { return iuranParseTgl(s && s.tglMulaiIuran) || iuranAwalTA(); }
+    function iuranMingguDitagih(mingguKey, s) {
+      const mg = mingguKeTanggal(mingguKey).minggu, mulai = iuranMulaiSiswa(s);
+      return new Date(mg.getFullYear(), mg.getMonth(), mg.getDate()) >= mulai;
+    }
     // [Dipindah ke js/sikap-buku.js] fitur Sikap & Kedisiplinan, Buku Penghubung, dan Info ke Ortu.
     // Yang tetap di sini hanya helper akses (dipakai peta akses menu) dan penanda komponen.
     function sikapCanAccess() { return !!currentUser && (isAdmin() || isKepsek() || loaderScopeKelas().length > 0); }

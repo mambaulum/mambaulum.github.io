@@ -553,7 +553,7 @@
       const gratis = nomSkrg === 0;
       const kini = new Date(), mingguIni = isoMingguKey(kini);
       const thn = parseInt(String(currentTahunAjaran).split('/')[0], 10) || kini.getFullYear();
-      const awalTA = new Date(thn, 6, 1);
+      const awalTA = iuranMulaiSiswa(siswa);   // v8.407: tanggal mulai tagihan (madrasah atau khusus siswa)
       const lunasMap = {}; iuran.forEach(it => { if (it && it.minggu) lunasMap[it.minggu] = it; });
       const libur = [];
       kalenderSnap.forEach(c => { const k = c.val() || {}; if (k.jenis === 'libur' && k.tanggalMulai) libur.push([k.tanggalMulai, k.tanggalSelesai || k.tanggalMulai]); });
