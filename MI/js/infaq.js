@@ -278,6 +278,8 @@
       const nominal = iuranAngka(checkbox.dataset.nominal);
       const checked = checkbox.checked;
       const existing = allInfaqSiswa.find(it => it.kelas === kelas && it.minggu === mingguKey && it.siswaKey === siswaKey);
+      const sObj = allSiswa.find(x => x.key === siswaKey);
+      if (checked && sObj && !iuranMingguDitagih(mingguKey, sObj)) { checkbox.checked = false; return toast('Minggu ini sebelum tanggal mulai tagihan (' + tglLokal(iuranMulaiSiswa(sObj)) + '), tidak bisa dicentang.', true); }
       if (!checked && iuranTerkunci(existing)) { checkbox.checked = true; return toast('🔒 Sudah lebih dari 24 jam sejak dicatat, tidak bisa diubah lagi. Hubungi Admin.', true); }
       const path = `iuran_siswa/${mingguKey}_${siswaKey}`;
       checkbox.disabled = true;
@@ -375,21 +377,53 @@
       const gratis = siswa.filter(s => iuranGratis(s) && !weeks.some(w => recMap.has(w + '|' + s.key)));
       const rows = siswa.filter(s => !gratis.includes(s)).map(s => {
         const nom = iuranNominalSiswa(s);
-        let terbayar = 0; const belum = [], lunasMg = {};
+        let terbayar = 0, sebelum = 0; const belum = [], lunasMg = {}, praMg = {};
         weeks.forEach(w => {
           const r = recMap.get(w + '|' + s.key);
-          if (r) { lunasMg[w] = r; const rn = iuranAngka(r.nominal); terbayar += rn !== null ? rn : (nom || 0); }
+          if (r) {
+            lunasMg[w] = r; const rn = iuranAngka(r.nominal), jml = rn !== null ? rn : (nom || 0);
+            // catatan sebelum tanggal mulai tagihan: tetap tersimpan, tapi TIDAK dihitung ke tagihan/terkumpul bulan ini
+            if (iuranMingguDitagih(w, s)) terbayar += jml; else { sebelum += jml; praMg[w] = true; }
+          }
           else if (iuranMingguDitagih(w, s)) belum.push(w);   // minggu sebelum tanggal mulai tagihan tidak dihitung
         });
         const kurang = nom === null ? null : belum.length * nom;
-        return { s, nom, terbayar, belum, lunasMg, kurang, tagihan: kurang === null ? null : terbayar + kurang, penuh: belum.length === 0, belumMulai: !weeks.some(w => iuranMingguDitagih(w, s)) };
-      }).filter(r => !(r.belumMulai && r.terbayar === 0));   // siswa yang baru mulai ditagih bulan setelahnya tidak muncul di bulan ini
-      const tot = rows.reduce((a, r) => { a.tagihan += r.tagihan || 0; a.terbayar += r.terbayar; a.kurang += r.kurang || 0; if (r.penuh) a.penuh++; return a; }, { tagihan: 0, terbayar: 0, kurang: 0, penuh: 0 });
+        return { s, nom, terbayar, sebelum, praMg, belum, lunasMg, kurang, tagihan: kurang === null ? null : terbayar + kurang, penuh: belum.length === 0, belumMulai: !weeks.some(w => iuranMingguDitagih(w, s)) };
+      }).filter(r => !(r.belumMulai && r.terbayar === 0 && r.sebelum === 0));   // siswa yang baru mulai ditagih bulan setelahnya tidak muncul di bulan ini
+      const tot = rows.reduce((a, r) => { a.tagihan += r.tagihan || 0; a.terbayar += r.terbayar; a.sebelum += r.sebelum; a.kurang += r.kurang || 0; if (r.penuh) a.penuh++; return a; }, { tagihan: 0, terbayar: 0, kurang: 0, penuh: 0, sebelum: 0 });
       return { rows, gratis, tot };
     }
     function infaqBarHtml(terbayar, tagihan) {
       const pct = tagihan > 0 ? Math.min(100, Math.round(terbayar / tagihan * 100)) : 0;
       return `<div class="mp-iqb-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Terkumpul ${pct} persen"><span style="width:${pct}%"></span></div>`;
+    }
+    // Admin: pindahkan catatan lunas yang tercatat SEBELUM tanggal mulai tagihan ke minggu (setelah tanggal mulai)
+    // yang belum dibayar siswa itu, paling lama dulu. Nominal & waktu catat (inputAt) tetap, jadi saldo Kas/Setoran
+    // tidak berubah. Hanya kunci/minggu yang berganti (satu update atomik: hapus kunci lama + tulis kunci baru).
+    function infaqPindahSebelumMulai(siswaKey) {
+      if (!isAdmin()) return toast('Hanya Admin yang bisa memindahkan catatan infaq.', true);
+      const s = allSiswa.find(x => x.key === siswaKey); if (!s) return toast('Siswa tidak ditemukan.', true);
+      if (typeof tgDaftarMinggu !== 'function') return toast('Komponen tunggakan belum termuat. Muat ulang halaman, lalu coba lagi.', true);
+      const asal = allInfaqSiswa.filter(it => it.siswaKey === siswaKey && it.minggu && !iuranMingguDitagih(it.minggu, s)).sort((a, b) => a.minggu < b.minggu ? -1 : 1);
+      if (!asal.length) return toast('Tidak ada catatan sebelum tanggal mulai untuk siswa ini.', true);
+      const ada = new Set(allInfaqSiswa.filter(it => it.siswaKey === siswaKey).map(it => it.minggu));
+      const tujuan = tgDaftarMinggu().filter(w => iuranMingguDitagih(w, s) && !ada.has(w) && (typeof tgNominalMingguSiswa !== 'function' || tgNominalMingguSiswa(s, w) !== 0));
+      if (!tujuan.length) return toast('Belum ada minggu yang belum dibayar untuk dipindahi.', true);
+      const n = Math.min(asal.length, tujuan.length), pasang = asal.slice(0, n).map((it, i) => ({ it, ke: tujuan[i] }));
+      const daftar = pasang.map(p => '• ' + mingguLabel(p.it.minggu) + '  →  ' + mingguLabel(p.ke)).join('\n');
+      if (!confirm('Pindahkan catatan infaq ' + s.name + '?\n\n' + daftar + (asal.length > n ? '\n\n(' + (asal.length - n) + ' catatan lain belum bisa dipindah: tidak ada minggu belum bayar lagi.)' : '') + '\n\nNominal dan tanggal pencatatan tidak berubah.')) return;
+      const upd = {};
+      pasang.forEach(p => {
+        const data = Object.assign({}, p.it); delete data.key; data.minggu = p.ke;
+        upd[p.it.minggu + '_' + siswaKey] = null;
+        upd[p.ke + '_' + siswaKey] = data;
+      });
+      db.ref('iuran_siswa').update(upd, err => {
+        if (err) return toast('Gagal memindahkan: ' + err.message, true);
+        addLog('pindah_iuran', s.kelas + ' - ' + s.name + ' - ' + pasang.map(p => p.it.minggu + '>' + p.ke).join(', '));
+        toast('✅ ' + n + ' catatan infaq ' + s.name + ' dipindahkan.');
+        reloadDataset('infaqSiswa', () => { loadIuranInput(); if (typeof updateInfaqNotifDot === 'function') updateInfaqNotifDot(); });
+      });
     }
     function infaqRp(n) { return 'Rp ' + (n || 0).toLocaleString('id-ID'); }
     function renderInfaqBulan(kelas, area, tagihArea) {
@@ -401,13 +435,13 @@
       const bolehCatat = infaqCanAccess();   // Kepala Madrasah: lihat saja
       const kartu = rows.map(r => {
         const chips = b.weeks.map((w, i) => {
-          const rec = r.lunasMg[w], lunas = !!rec, terkunci = iuranTerkunci(rec);
+          const rec = r.lunasMg[w], lunas = !!rec, terkunci = iuranTerkunci(rec), pra = !iuranMingguDitagih(w, r.s);
           const ro = !bolehCatat;
-          return `<label class="mp-iqb-wk${lunas ? ' on' : ''}${w === mingguIni ? ' now' : ''}${terkunci || ro ? ' lock' : ''}">
-            <input type="checkbox" class="infaq-lunas-checkbox" data-siswa-key="${r.s.key}" data-siswa-nama="${escapeHtml(r.s.name)}" data-nominal="${r.nom === null ? '' : r.nom}" ${lunas ? 'checked' : ''} ${terkunci || ro ? 'disabled' : ''} onchange="toggleLunasSatuSiswa(this,'${escapeJs(kelas)}','${w}')" aria-label="${escapeHtml(r.s.name)} minggu ${i + 1} (${infaqMingguPendek(w)}${/[A-Za-z]/.test(infaqMingguPendek(w)) ? '' : ' ' + NAMA_BULAN_PENDEK_ID[b.m]})">
+          return `<label class="mp-iqb-wk${lunas ? ' on' : ''}${w === mingguIni ? ' now' : ''}${terkunci || ro || pra ? ' lock' : ''}"${pra ? ' style="opacity:.5" title="Sebelum tanggal mulai tagihan — tidak bisa dicentang"' : ''}>
+            <input type="checkbox" class="infaq-lunas-checkbox" data-siswa-key="${r.s.key}" data-siswa-nama="${escapeHtml(r.s.name)}" data-nominal="${r.nom === null ? '' : r.nom}" ${lunas ? 'checked' : ''} ${terkunci || ro || pra ? 'disabled' : ''} onchange="toggleLunasSatuSiswa(this,'${escapeJs(kelas)}','${w}')" aria-label="${escapeHtml(r.s.name)} minggu ${i + 1} (${infaqMingguPendek(w)}${/[A-Za-z]/.test(infaqMingguPendek(w)) ? '' : ' ' + NAMA_BULAN_PENDEK_ID[b.m]})">
             <span class="mp-iqb-wk-n">Mg ${i + 1}${w === mingguIni ? ' •' : ''}</span>
             <span class="mp-iqb-wk-d">${infaqMingguPendek(w)}</span>
-            <span class="mp-iqb-wk-s">${lunas ? '✓' : (terkunci && !ro ? '🔒' : '○')}</span>
+            <span class="mp-iqb-wk-s">${lunas ? '✓' : (pra ? '–' : (terkunci && !ro ? '🔒' : '○'))}</span>
           </label>`;
         }).join('');
         const badgeKhusus = (iuranAngka(r.s.nominalIuranKhusus) !== null && r.nom !== 0) ? `<span class="mp-iq-khusus" title="Nominal khusus siswa ini">✨ ${iuranRp(r.nom)}</span>` : '';
@@ -417,6 +451,7 @@
           <div class="mp-iqb-top"><span class="mp-iqb-name">${escapeHtml(r.s.name)}${badgeKhusus}</span>${status}</div>
           <div class="mp-iqb-weeks" style="grid-template-columns:repeat(${b.weeks.length},minmax(0,1fr));">${chips}</div>
           <div class="mp-iqb-foot"><span>Tagihan <strong>${r.tagihan === null ? '—' : infaqRp(r.tagihan)}</strong></span><span>Terbayar <strong>${infaqRp(r.terbayar)}</strong></span></div>
+          ${r.sebelum > 0 && isAdmin() ? `<button type="button" class="btn btn-soft" style="margin-top:8px;width:100%;" onclick="infaqPindahSebelumMulai('${escapeJs(r.s.key)}')">↪️ Pindahkan ${infaqRp(r.sebelum)} (sebelum tanggal mulai) ke minggu yang belum dibayar</button>` : ''}
         </div>`;
       }).join('');
       const gratisHtml = gratis.length
@@ -431,6 +466,7 @@
             <div class="no"><span>Kurang</span><strong>${infaqRp(tot.kurang)}</strong></div>
           </div>
           ${infaqBarHtml(tot.terbayar, tot.tagihan)}
+          ${tot.sebelum > 0 ? `<div class="mp-iqb-sub" style="margin:6px 0;">ℹ️ ${infaqRp(tot.sebelum)} tercatat sebelum tanggal mulai tagihan (minggu redup) — tidak dihitung ke tagihan/terkumpul di atas.</div>` : ''}
           <div class="mp-iq-sum"><span class="mp-iq-chip mp-iq-chip-ok">✅ ${tot.penuh} lunas penuh</span><span class="mp-iq-chip mp-iq-chip-no">⏳ ${rows.length - tot.penuh} masih kurang</span></div>
           <div class="mp-iqb-actions"><button type="button" class="btn btn-soft" onclick="tagihanBulanExportPDF()">📄 Unduh PDF</button><button type="button" class="btn btn-soft" onclick="tagihanBulanExportExcel()">📊 Unduh Excel</button></div>
         </div>
