@@ -540,7 +540,7 @@
         <p style="font-weight:700;font-size:13px;margin:0 0 8px;">${poID('📊 Ringkasan Ananda')} <span class="text-muted" style="font-weight:400;font-size:11px;">· ketuk kotak untuk rincian</span></p>
         <div class="po-rk-grid">
           ${poUbin('poRingkasHadir', 'poKopKehadiran', '📅 Kehadiran', persen === null ? '-' : persen + '%', wHadir, persen === null ? 'Belum ada absensi' : o.hadir + ' dari ' + o.totalAbsen + ' hari')}
-          ${poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : (o.nilaiSementara ? 'sementara' : o.nMapel + ' mapel'))}
+          ${o.nilaiTutup ? poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', '🔒', '#6b7280', 'Belum dibuka') : poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : (o.nilaiSementara ? 'sementara' : o.nMapel + ' mapel'))}
           ${poUbin('poRingkasInfaq', 'poAccInfaq', '💵 Infaq', inf.utama, inf.warna, inf.sub)}
           ${poUbin('poRingkasAmalan', 'bsLp_amalan', '🏡 Amalan hari ini', '⏳', '#6b7280', 'Memuat...')}
           ${poUbin('poRingkasHafalan', 'bsLp_setoran', '📿 Hafalan bacaan sholat', '⏳', '#6b7280', 'Memuat...', true)}
@@ -628,8 +628,12 @@
       const labelBulan = ym => NAMA_BULAN_ID[parseInt(ym.slice(5, 7), 10) - 1] + ' ' + ym.slice(0, 4);
       // events & ujian: hanya 8 terdekat mulai hari ini (butuh ".indexOn": ["tanggal"] di Rules; tanpa itu tetap jalan, hanya lebih boros).
       const gagalMuat = [];
+      // SAKLAR NILAI PER KELAS (v8.406): admin/wali kelas membuka nilai lewat halaman Raport -> node portal_nilai_v4/<kelas>.
+      // Default TERTUTUP: node belum ada / Rules belum dipasang / gagal baca => nilai tidak ditampilkan dan tidak diunduh.
+      const bukaP = ortuBacaAman(db.ref('portal_nilai_v4/' + String(siswa.kelas || '').replace(/[.#$\[\]\/]/g, '_').trim()), 'portal_nilai_v4', [])
+        .then(sn => { const v = sn && sn.val && sn.val(); return !!(v && v.buka === true); });
       Promise.all([
-        ortuBacaAman(db.ref('grades').orderByChild('siswaKey').equalTo(siswa.key), 'grades', gagalMuat),
+        bukaP.then(b => b ? ortuBacaAman(db.ref('grades').orderByChild('siswaKey').equalTo(siswa.key), 'grades', gagalMuat) : ORTU_SNAP_KOSONG),
         ortuBacaAman(db.ref('kedisiplinan_siswa').orderByChild('siswaKey').equalTo(siswa.key), 'kedisiplinan_siswa', gagalMuat),
         ortuBacaAman(db.ref('iuran_siswa').orderByChild('siswaKey').equalTo(siswa.key), 'iuran_siswa', gagalMuat),
         ortuBacaAman(db.ref('buku_penghubung').orderByChild('siswaKey').equalTo(siswa.key), 'buku_penghubung', gagalMuat),
@@ -645,8 +649,9 @@
         ortuBacaBersama('jurnal|' + tglLokal(), db.ref('journal').orderByChild('tanggal').equalTo(tglLokal()), 'journal', gagalMuat),
         ortuBacaBersama('kalender', db.ref('kalender_akademik'), 'kalender_akademik', gagalMuat),
         ortuBacaBersama('events|' + tglLokal(), db.ref('events').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'events', gagalMuat),
-        ortuBacaBersama('ujian|' + tglLokal(), db.ref('ujian').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'ujian', gagalMuat)
-      ]).then(([gradesSnap, sikapSnap, iuranSnap, bukuSnap, absenSnap, materiSnap, tugasSnap, submissionSnap, journalSnap, kalenderSnap, eventsSnap, ujianSnap]) => {
+        ortuBacaBersama('ujian|' + tglLokal(), db.ref('ujian').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'ujian', gagalMuat),
+        bukaP
+      ]).then(([gradesSnap, sikapSnap, iuranSnap, bukuSnap, absenSnap, materiSnap, tugasSnap, submissionSnap, journalSnap, kalenderSnap, eventsSnap, ujianSnap, nilaiBuka]) => {
         // Semua query di atas cuma bisa orderByChild SATU field di Firebase RTDB (siswaKey/kelas),
         // jadi filter tahunAjaran-nya WAJIB ditambahkan manual di sini -- tanpa ini, portal ortu
         // menampilkan data dari SEMUA tahun ajaran tergabung jadi satu (nilai rapor tahun lalu
@@ -758,7 +763,7 @@
         const ringkasHtml = poRingkasHtml({
           hadir, totalAbsen: jumlahAbsen(rekapAbsen[bulanTampil]), labelBulan: labelBulan(bulanTampil),
           rataNilai: dasarNilai.length ? dasarNilai.reduce((a, st) => a + st.nilai, 0) / dasarNilai.length : null,
-          nMapel: dasarNilai.length, nilaiSementara: stFinal.length === 0, labelSemester: pakaiSem ? 'Semester ' + semAktif : 'TA ' + currentTahunAjaran
+          nMapel: dasarNilai.length, nilaiSementara: stFinal.length === 0, nilaiTutup: !nilaiBuka, labelSemester: pakaiSem ? 'Semester ' + semAktif : 'TA ' + currentTahunAjaran
         });
         content.innerHTML = `
           <div class="card" id="poKopKehadiran" style="margin-bottom:8px;">
@@ -785,7 +790,7 @@
           ${gagalMuat.length ? '<div class="card" style="margin-bottom:8px;border-left:4px solid #d97706;font-size:12px;">⚠️ Sebagian data belum bisa dimuat. Tarik ke bawah untuk muat ulang, atau hubungi Admin bila berulang.</div>' : ''}
           ${ringkasHtml}
           ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
-          ${poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false, 'poAccNilai')}
+          ${nilaiBuka ? poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false, 'poAccNilai') : poAcc('📝 Nilai Terakhir', poBadge('Belum dibuka'), '<p class="text-muted" style="font-size:13px;">Nilai raport belum dibuka oleh madrasah. Silakan menunggu informasi dari wali kelas.</p>', false, 'poAccNilai')}
           ${poAcc('📆 Agenda Terdekat', agendaList.length ? poBadge(agendaList.length + ' agenda') : poBadge('Kosong'), agendaRows, false)}
           ${poAcc('📘 Hasil Belajar Hari Ini', journalHariIni.length ? poBadge(journalHariIni.length + ' jam') : poBadge('Kosong'), journalRows, false)}
           ${poAcc('📚 Materi Belajar Terbaru', materi.length ? poBadge(Math.min(materi.length, 5) + ' materi') : poBadge('Kosong'), materiRows, false)}

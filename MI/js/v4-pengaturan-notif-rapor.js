@@ -220,8 +220,8 @@
 
     // -------- Raport --------
     function v4IsiSiswaRaport(keepKey){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent');if(!c||!s)return;const cls=c.value;const list=(allSiswa||[]).filter(x=>x.kelas===cls).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'id'));s.innerHTML=list.map(x=>`<option value="${v4Safe(x.key)}">${v4Safe(x.name)}</option>`).join('');if(keepKey&&list.some(x=>x.key===keepKey))s.value=keepKey;else if(list.length)s.selectedIndex=0;}
-    function v4ReportKelasBerubah(){v4IsiSiswaRaport();v4RenderReportPreview();}
-    function v4PopulateReport(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent');if(!c||!s)return;const scope=siswaScopeKelas();const classes=[...new Set((allSiswa||[]).map(x=>x.kelas).filter(k=>k&&scope.includes(k)))];const kelasLama=c.value,siswaLama=s.value;c.innerHTML=classes.map(x=>`<option>${v4Safe(x)}</option>`).join('');if(classes.includes(kelasLama))c.value=kelasLama;v4IsiSiswaRaport(siswaLama);v4RenderReportPreview();}
+    function v4ReportKelasBerubah(){v4IsiSiswaRaport();v4RenderReportPreview();try{v4MuatSaklarPortal();}catch(e){}}
+    function v4PopulateReport(){const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent');if(!c||!s)return;const scope=siswaScopeKelas();const classes=[...new Set((allSiswa||[]).map(x=>x.kelas).filter(k=>k&&scope.includes(k)))];const kelasLama=c.value,siswaLama=s.value;c.innerHTML=classes.map(x=>`<option>${v4Safe(x)}</option>`).join('');if(classes.includes(kelasLama))c.value=kelasLama;v4IsiSiswaRaport(siswaLama);v4RenderReportPreview();try{if(c.value&&window._portalNilaiCache&&window._portalNilaiCache[c.value]===undefined&&document.getElementById('btnPortalNilai'))v4MuatSaklarPortal();else if(typeof v4SaklarPortalLabel==='function')v4SaklarPortalLabel();}catch(e){}}
     // Ringkasan absensi Sholat Dhuha/Dzuhur seorang siswa untuk tahun ajaran berjalan --
     // dipakai di preview raport & disimpan ke snapshot saat raport difinalisasi.
     // Status absensi kegiatan: 'H' (format input saat ini); 'Hadir' diterima untuk data lama.
@@ -304,6 +304,46 @@
     }
     function v4RaporCatatanHtml(c){
       return '<h4 style="margin:12px 0 6px;">📝 Catatan Wali Kelas</h4>'+(c===undefined?'<p class="v4-muted">Memuat catatan...</p>':(c?'<p style="white-space:pre-wrap;">'+v4Safe(c)+'</p>':'<p class="v4-muted">Belum ada catatan wali kelas.</p>'));
+    }
+    // ===== v8.406: SAKLAR NILAI RAPORT KE PORTAL ORTU, PER KELAS (node portal_nilai_v4/<kelas>; lihat _catatan/rules-portal_nilai_v4.txt) =====
+    window._portalNilaiCache=window._portalNilaiCache||{};
+    function v4PortalKelasKey(k){return String(k||'').replace(/[.#$\[\]\/]/g,'_').trim();}
+    function v4SaklarPortalLabel(){
+      const b=document.getElementById('btnPortalNilai'),c=document.getElementById('v4ReportClass');if(!b||!c)return;
+      const v=window._portalNilaiCache[c.value];
+      b.textContent=v===undefined?'🌐 Portal Ortu: memuat...':(v?'🌐 Portal Ortu: TERBUKA':'🌐 Portal Ortu: TERTUTUP');
+      b.className='btn '+(v?'btn-success':'btn-soft');
+    }
+    function v4MuatSaklarPortal(){
+      const c=document.getElementById('v4ReportClass');if(!c||!c.value)return;const kls=c.value;
+      window._portalNilaiCache[kls]=undefined;v4SaklarPortalLabel();
+      db.ref('portal_nilai_v4/'+v4PortalKelasKey(kls)).once('value')
+        .then(sn=>{const v=sn.val();window._portalNilaiCache[kls]=!!(v&&v.buka===true);},()=>{window._portalNilaiCache[kls]=false;})
+        .then(v4SaklarPortalLabel);
+    }
+    function v4TambahTombolPortal(){
+      const fin=document.querySelector('button[onclick="v4FinalizeReport()"]');
+      if(!fin||document.getElementById('btnPortalNilai'))return;
+      const b=document.createElement('button');b.id='btnPortalNilai';b.className='btn btn-soft';b.textContent='🌐 Portal Ortu: memuat...';b.onclick=v4TogglePortalNilai;fin.parentNode.appendChild(b);
+      v4MuatSaklarPortal();
+    }
+    function v4TogglePortalNilai(){
+      const c=document.getElementById('v4ReportClass');const kls=c&&c.value;
+      if(!kls)return toast('Pilih kelas!',true);
+      if(!(v4IsAdmin()||v4IsHead()||(isWaliKelasAssigned()&&currentUser.waliKelasOf===kls)))return toast('Hanya Admin, Kepala Madrasah, atau Wali Kelas '+kls+'!',true);
+      const sekarang=window._portalNilaiCache[kls];if(sekarang===undefined)return toast('Status masih dimuat, coba sebentar lagi.',true);
+      const baru=!sekarang;
+      const pesan=baru?'BUKA nilai raport '+kls+' ke Portal Orang Tua?\n\nOrang tua siswa '+kls+' akan bisa melihat nilai anaknya. Nilai yang belum final tetap tampil berlabel "sementara".':'TUTUP nilai raport '+kls+' dari Portal Orang Tua?\n\nOrang tua tidak akan melihat nilai sampai dibuka lagi.';
+      if(!confirm(pesan))return;
+      const ref=db.ref('portal_nilai_v4/'+v4PortalKelasKey(kls));
+      return ((typeof isAdmin==='function'&&isAdmin())?adminSesiSiap():guruSesiSiap())
+        .then(()=>ref.set({buka:baru,kelas:kls,oleh:currentUser.name||'',ts:new Date().toISOString()}))
+        .then(()=>{window._portalNilaiCache[kls]=baru;v4SaklarPortalLabel();toast(baru?'🌐 Nilai '+kls+' DIBUKA ke Portal Ortu':'🔒 Nilai '+kls+' DITUTUP dari Portal Ortu');})
+        .catch(err=>{
+          console.error('[SI MAMBA] Gagal ubah saklar portal nilai:',err);
+          const denied=err&&(err.code==='PERMISSION_DENIED'||/permission_denied/i.test(String(err.message||err)));
+          toast(denied?'❌ Ditolak server. Pasang blok Rules portal_nilai_v4 dulu (lihat _catatan/rules-portal_nilai_v4.txt).':'❌ Gagal: '+(err&&err.message||err),true,7000);
+        });
     }
     function v4TambahTombolCatatan(){
       const fin=document.querySelector('button[onclick="v4FinalizeReport()"]');
@@ -415,6 +455,30 @@
         final:{oleh:snap.finalizedBy||'',waktu:snap.finalizedAt||''}
       };
     }
+    function v4TglPanjang(d){try{const t=new Date(d);return isNaN(t)?'':t.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});}catch(e){return '';}}
+    function v4RaporIdentitasHtml(st){
+      const baris=[];const add=(k,v)=>{if(v)baris.push('<div>'+k+'</div><div>: '+v4Safe(v)+'</div>');};
+      add('Nama',st.name);add('NIS',st.nis);add('NISN',st.nisn);
+      const ttl=[st.tempatLahir,st.tglLahir?v4TglPanjang(st.tglLahir+'T00:00:00'):''].filter(Boolean).join(', ');
+      add('Tempat, Tgl. Lahir',ttl);add('Kelas',st.kelas);add('Orang Tua/Wali',st.namaOrtu);
+      return '<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:13px;margin:10px 0 4px;">'+baris.join('')+'</div>';
+    }
+    function v4RaporTtdHtml(st,D){
+      let kota=String((typeof MADRASAH!=='undefined'&&MADRASAH.kabupaten)||'').replace(/^\s*(kabupaten|kab\.?\/?kota|kab\.?|kota)\s*/i,'').trim();if(/\.\.\./.test(kota))kota='';
+      const tgl=v4TglPanjang((D.final&&D.final.waktu)||new Date());
+      let wali='';try{const g=(typeof allGuru!=='undefined'?allGuru:[]).find(x=>x&&x.waliKelasOf===st.kelas);wali=g?g.name:'';}catch(e){}
+      const garis=n=>'<p style="margin:0;text-decoration:underline;">'+(n?v4Safe(n):'(................................)')+'</p>';
+      const kol=(judul,isi)=>'<div style="flex:1 1 90px;text-align:center;font-size:12px;"><p style="margin:0;">'+judul+'</p>'+isi+'</div>';
+      const ruang='<div style="height:48px;"></div>';
+      const ttdK=(typeof MADRASAH!=='undefined'&&MADRASAH.ttdKepalaBase64)?'<img src="'+MADRASAH.ttdKepalaBase64+'" alt="Tanda tangan" style="max-height:45px;display:block;margin:3px auto;">':ruang;
+      const nip=(typeof MADRASAH!=='undefined'&&MADRASAH.nip_kepala_sekolah)?'<p style="margin:0;">NIP. '+v4Safe(MADRASAH.nip_kepala_sekolah)+'</p>':'';
+      return '<div style="margin-top:24px;"><p style="text-align:right;font-size:12px;margin:0 0 10px;">'+(kota?v4Safe(kota)+', ':'')+v4Safe(tgl)+'</p>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:12px;">'
+        +kol('Orang Tua/Wali',ruang+garis(st.namaOrtu))
+        +kol('Wali Kelas',ruang+garis(wali))
+        +kol('Mengetahui,<br>Kepala '+v4Safe(MADRASAH.nama),ttdK+garis(MADRASAH.kepala_sekolah)+nip)
+        +'</div></div>';
+    }
     function v4RaporHtml(st,D){
       const adaSem=D.grades.slice(0,30).some(g=>g.data&&statusRapor(g.data).nilai!==null&&!statusRapor(g.data).final);
       const nilaiRows=D.grades.slice(0,30).map(g=>'<tr><td>'+v4Safe(g.subject||'-')+'</td><td>'+(()=>{const r=g.data?statusRapor(g.data):{nilai:null};return r.nilai===null?'-':(r.final?v4Safe(r.nilai):raporSementaraHtml(r.nilai));})()+'</td></tr>').join('')||'<tr><td colspan="2">Belum ada nilai.</td></tr>';
@@ -426,7 +490,7 @@
       const finalHtml=D.final?'<p style="font-size:12px;color:#6b7280;margin:2px 0 0;text-align:center;">🔒 Raport final'+(D.final.oleh?' · difinalisasi oleh '+v4Safe(D.final.oleh):'')+(D.final.waktu?' · '+v4Safe(new Date(D.final.waktu).toLocaleDateString('id-ID')):'')+'</p>':'';
       return (typeof generateKopSuratHTML==='function'?generateKopSuratHTML():'')
         +'<div class="header">RAPORT PESERTA DIDIK</div><div class="sub-header">'+v4Safe(st.name)+' · '+v4Safe(st.kelas)+'</div>'
-        +'<div class="sub-header" style="font-size:13px;">Tahun Ajaran '+v4Safe(D.tahun)+' · Semester '+v4Safe(D.semester)+'</div>'+finalHtml
+        +'<div class="sub-header" style="font-size:13px;">Tahun Ajaran '+v4Safe(D.tahun)+' · Semester '+v4Safe(D.semester)+'</div>'+finalHtml+v4RaporIdentitasHtml(st)
         +'<h4 style="margin:10px 0 6px;">Nilai</h4><div class="v4-table-wrap"><table><thead><tr><th>Mapel</th><th>Nilai</th></tr></thead><tbody>'+nilaiRows+'</tbody></table></div>'
         +(adaSem?'<p style="color:#6b7280;font-size:12px;font-style:italic;margin:4px 0 0;">Nilai berlabel sementara belum final. Angka menjadi final setelah minimal satu NH, MID, dan PAS terisi.</p>':'')
         +'<h4 style="margin:12px 0 6px;">Kehadiran</h4>'+v4KehadiranRaporHtml(D.kehadiran)
@@ -435,7 +499,7 @@
         +pramukaHtml
         +'<h4 style="margin:12px 0 6px;">🎯 Ekstrakurikuler Lain</h4>'+ekskulHtml
         +v4RaporSikapHtmlDari(D.sikap)+v4RaporCatatanHtml(D.catatan)
-        +'<div style="margin-top:24px;text-align:right;padding-right:20px;"><p>Mengetahui,<br>Kepala '+v4Safe(MADRASAH.nama)+'</p>'+(MADRASAH.ttdKepalaBase64?'<img src="'+MADRASAH.ttdKepalaBase64+'" alt="Tanda tangan" style="max-height:45px;display:block;margin:6px 0 6px auto;">':'<br><br><br>')+'<p style="text-decoration:underline;">'+v4Safe(MADRASAH.kepala_sekolah)+'</p><p>NIP. '+v4Safe(MADRASAH.nip_kepala_sekolah)+'</p></div>';
+        +v4RaporTtdHtml(st,D);
     }
     function v4RenderLive(st,el,peringatan){
       try{v4PastikanCatatan(st);}catch(e){}
@@ -445,7 +509,7 @@
     function v4RenderReportPreview(){
       const c=document.getElementById('v4ReportClass'),s=document.getElementById('v4ReportStudent'),el=document.getElementById('v4ReportPreview');
       if(!c||!s||!el)return;
-      try{v4TambahTombolAdminKunci();}catch(e){}try{v4TambahTombolCatatan();}catch(e){}try{v4TambahPilihPeriode();}catch(e){}
+      try{v4TambahTombolAdminKunci();}catch(e){}try{v4TambahTombolCatatan();}catch(e){}try{v4TambahTombolPortal();}catch(e){}try{v4TambahPilihPeriode();}catch(e){}
       const st=(allSiswa||[]).find(x=>x.key===s.value);
       if(!st){el.innerHTML='<p class="v4-muted">Pilih siswa.</p>';return;}
       const per=v4RaporPeriode(),kunci=raporKunciKey(st.key,per.tahun,per.semester);

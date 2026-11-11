@@ -4798,6 +4798,11 @@
       document.getElementById('editSiswaName').value = siswa.name;
       document.getElementById('editSiswaClass').value = siswa.kelas;
       document.getElementById('editSiswaNoWa').value = siswa.noWaOrtu || '';
+      document.getElementById('editSiswaNis').value = siswa.nis || '';
+      document.getElementById('editSiswaNisn').value = siswa.nisn || '';
+      document.getElementById('editSiswaTempatLahir').value = siswa.tempatLahir || '';
+      document.getElementById('editSiswaTglLahir').value = siswa.tglLahir || '';
+      document.getElementById('editSiswaNamaOrtu').value = siswa.namaOrtu || '';
       const nominalKhususAda = iuranAngka(siswa.nominalIuranKhusus); // 0 = khusus gratis, jangan jadi kosong
       document.getElementById('editSiswaNominalKhusus').value = nominalKhususAda === null ? '' : nominalKhususAda;
       document.getElementById('editSiswaModal').classList.add('show');
@@ -4820,11 +4825,18 @@
         nominalIuranKhusus = parseInt(nominalKhususRaw, 10);
       }
       const noWaOrtu = document.getElementById('editSiswaNoWa').value.trim() || null;
+      // Identitas untuk raport (semua opsional). Kosong -> null supaya field terhapus dari Firebase.
+      const nis = document.getElementById('editSiswaNis').value.trim() || null;
+      const nisn = document.getElementById('editSiswaNisn').value.trim() || null;
+      if (nisn && !/^\d+$/.test(nisn)) return toast('NISN harus berupa angka!', true);
+      const tempatLahir = document.getElementById('editSiswaTempatLahir').value.trim() || null;
+      const tglLahir = document.getElementById('editSiswaTglLahir').value || null;
+      const namaOrtu = document.getElementById('editSiswaNamaOrtu').value.trim() || null;
       // noWaKey = nomor WA yang sudah dinormalisasi (62xxxxxxxxxx) -- dipakai Portal Orang Tua untuk
       // mencari anak lewat query terindeks, bukan mengunduh seluruh node siswa. null kalau tak valid.
       const noWaKey = noWaOrtu ? (ortuWaKey(noWaOrtu) || null) : null;
       const lepas = kunciSimpanModal('saveEditSiswa', 'editSiswaModal', 'saveEditSiswa');   // FIX: kunci tombol Simpan (anti ketuk ganda)
-      tulisAdmin(null, null, () => { db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey }, err => {
+      tulisAdmin(null, null, () => { db.ref('siswa/'+editingSiswaKey).update({ name, kelas, nominalIuranKhusus, noWaOrtu, noWaKey, nis, nisn, tempatLahir, tglLahir, namaOrtu }, err => {
         lepas();
         if (err) toast('Gagal update: '+err.message, true);
         else { toastTersimpan(); addLog('edit_siswa', name + ' - ' + kelas); closeEditSiswaModal(); reloadDataset('siswa', () => { populateClassFilterDropdowns(); loadAttendance(); loadGrades(); }); }
