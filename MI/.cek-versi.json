@@ -1,9 +1,9 @@
 {
-  "appVersion": "v8.415",
-  "disimpan": "2026-11-11T12:44:00.406Z",
+  "appVersion": "v8.417",
+  "disimpan": "2026-11-11T13:08:40.906Z",
   "assets": {
     "css/styles.css": {
-      "v": "v=22",
+      "v": "v=23",
       "hash": "f9a88f97db014a44e2bc002e98f09f0c43a92e5d"
     },
     "css/menu-polish.css": {
@@ -71,8 +71,8 @@
       "hash": "946e32346c48f2895a4bc9334e3cf77af7b27e26"
     },
     "js/infaq.js": {
-      "v": "v=3",
-      "hash": "264f47883779730af24d69f00906ddbc6906c28f"
+      "v": "v=5",
+      "hash": "44ed0deddd6f7b1d07a6d49619ed00f79e45eae0"
     },
     "js/sikap-buku.js": {
       "v": "v=2",
