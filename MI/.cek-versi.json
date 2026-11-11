@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.406",
-  "disimpan": "2026-11-11T04:54:06.183Z",
+  "appVersion": "v8.409",
+  "disimpan": "2026-11-11T09:37:46.184Z",
   "assets": {
     "css/styles.css": {
       "v": "v=22",
@@ -59,20 +59,20 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=159",
-      "hash": "60670c364cdcb2b676dd0a3eda049a92b0f7b5dc"
+      "v": "v=160",
+      "hash": "ced5bdb664b896570073fd8f3b1489a770bbfa28"
     },
     "js/portal-ortu.js": {
-      "v": "v=32",
-      "hash": "dcf30c0f79c164396f365493976b1af5d9d8364d"
+      "v": "v=33",
+      "hash": "d298d75aae9e07837e14dfa4a3b8989aff6d17d3"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
       "hash": "946e32346c48f2895a4bc9334e3cf77af7b27e26"
     },
     "js/infaq.js": {
-      "v": "v=1",
-      "hash": "09c9c81a277fa6564dd28c43bce8e0f378908b49"
+      "v": "v=3",
+      "hash": "264f47883779730af24d69f00906ddbc6906c28f"
     },
     "js/sikap-buku.js": {
       "v": "v=2",
@@ -295,8 +295,8 @@
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
     },
     "js/tunggakan-infaq.js": {
-      "v": "v=13",
-      "hash": "d972004a4215010237f931752b44644e0af83fcf"
+      "v": "v=15",
+      "hash": "d7212f7b74457a86e97438af2ed6dc872dcc57bf"
     },
     "js/auto-logout.js": {
       "v": "v=5",
