@@ -123,12 +123,12 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=159"></script>
+  <script defer src="js/app.js?v=160"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=32"></script>
+  <script defer src="js/portal-ortu.js?v=33"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/infaq.js?v=1"></script>
+  <script defer src="js/infaq.js?v=3"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/sikap-buku.js?v=2"></script>
   <!-- Hasil pecahan app.js tahap 2 (Materi & Tugas, Kelola Absen Guru + Koreksi Honor Sholat, Jadwal Pelajaran, Rekap/Laporan PDF). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -221,7 +221,7 @@
   <!-- Tunggakan Infaq per siswa + pengingat WA + unduh PDF/Excel (kartu di halaman Infaq Mingguan) dan
        logout otomatis saat tidak aktif. Dimuat SESUDAH app.js karena memakai fungsi/variabel milik app.js
        (infaqCanAccess, allSiswa, kirimWA, logout, dst.) dan dipicu dari renderIuranRekap(). -->
-  <script defer src="js/tunggakan-infaq.js?v=13"></script>
+  <script defer src="js/tunggakan-infaq.js?v=15"></script>
   <script defer src="js/auto-logout.js?v=5"></script>
 
   <!-- Login guru dengan kode (MAMBA-XXXXX) + panel Admin "Kode Login Guru". Dimuat SESUDAH app.js karena membungkus login(). -->
@@ -2305,6 +2305,11 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
           <div><label class="label">Tanggal Lahir</label><input id="editSiswaTglLahir" class="field" type="date"></div>
         </div>
         <div><label class="label">Nama Orang Tua/Wali</label><input id="editSiswaNamaOrtu" class="field"></div>
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;">
+        <label class="label">Mulai Ditagih Infaq (opsional)</label>
+        <input id="editSiswaMulaiIuran" class="field" type="date">
+        <p style="font-size:11px;color:#6b7280;margin:4px 0 0;">Isi hanya untuk siswa baru/pindahan. Kosongkan untuk siswa lama (ikut tanggal mulai madrasah). Minggu sebelum tanggal ini tidak dihitung sebagai tunggakan.</p>
       </div>
       <div style="margin-bottom:12px;">
         <label class="label">No. WhatsApp Wali/Orang Tua (opsional)</label>
