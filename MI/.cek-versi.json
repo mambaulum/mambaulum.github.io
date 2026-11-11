@@ -1,9 +1,9 @@
 {
-  "appVersion": "v8.403",
-  "disimpan": "2026-11-10T10:45:34.725Z",
+  "appVersion": "v8.406",
+  "disimpan": "2026-11-11T04:54:06.183Z",
   "assets": {
     "css/styles.css": {
-      "v": "v=21",
+      "v": "v=22",
       "hash": "d968e42b9a4962f67a0a57f15b40db61d0a3d461"
     },
     "css/menu-polish.css": {
@@ -59,12 +59,12 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=158",
-      "hash": "e7ded7415cc43ebc68220b1509aff368b19f56e3"
+      "v": "v=159",
+      "hash": "60670c364cdcb2b676dd0a3eda049a92b0f7b5dc"
     },
     "js/portal-ortu.js": {
-      "v": "v=31",
-      "hash": "aa81e11aeed6cb557461dc3d4331074a4dd7c562"
+      "v": "v=32",
+      "hash": "dcf30c0f79c164396f365493976b1af5d9d8364d"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -115,8 +115,8 @@
       "hash": "950f942846091d106e104f52369231f9ba8602e6"
     },
     "js/v4-pengaturan-notif-rapor.js": {
-      "v": "v=13",
-      "hash": "319baa6e4f9ef13134e418c58eef09e753aa38ef"
+      "v": "v=14",
+      "hash": "fe6d8f875082ad476d47dab08e5c31cbd4e26b51"
     },
     "js/rekap-nilai.js": {
       "v": "v=8",
