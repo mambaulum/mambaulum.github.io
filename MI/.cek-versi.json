@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.429",
-  "disimpan": "2026-11-12T03:41:09.825Z",
+  "appVersion": "v8.433",
+  "disimpan": "2026-11-12T03:42:28.876Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -63,8 +63,8 @@
       "hash": "4cdd13ab465a6ddcb798cb346b849d43dbf5224c"
     },
     "js/portal-ortu.js": {
-      "v": "v=36",
-      "hash": "dff0fb35f472ab1692e45e41ca64f150ae1ed33a"
+      "v": "v=37",
+      "hash": "06c38abc59ab4b7b15e541de40ae8dcb812bde2a"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -167,8 +167,8 @@
       "hash": "1a188b0427626e192fdd65a036033d4ab7cf5bcf"
     },
     "js/portal-tab.js": {
-      "v": "v=12",
-      "hash": "3e66fbb19fb8047d5899c81369e37c77220390b0"
+      "v": "v=13",
+      "hash": "50568c48333e9039407869deaaddd80288d70a41"
     },
     "js/kredensial.js": {
       "v": "v=8",
@@ -291,8 +291,8 @@
       "hash": "08d29809809368900420dba2030ae5e86b37088c"
     },
     "js/persetujuan-ortu.js": {
-      "v": "v=1",
-      "hash": "8cb7fd8fdbd784ee06bbec5881027a6a8758ed85"
+      "v": "v=4",
+      "hash": "3c7155827b1efddc2b95778fd0604207850064fe"
     },
     "js/buku-induk.js": {
       "v": "v=5",
