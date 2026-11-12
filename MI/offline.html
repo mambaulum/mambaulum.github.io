@@ -1,52 +1,29 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Offline - SI MAMBA</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', Arial, sans-serif;
-      background: linear-gradient(180deg,#004f3b 0%,#006b4f 55%,#07553f 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-      color: #fff;
-    }
-    .box {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.18);
-      backdrop-filter: blur(10px);
-      border-radius: 20px;
-      padding: 40px 28px;
-      max-width: 380px;
-    }
-    .icon { font-size: 56px; margin-bottom: 12px; }
-    h1 { font-size: 20px; margin-bottom: 10px; }
-    p { font-size: 14px; color: #d1fae5; line-height: 1.6; margin-bottom: 22px; }
-    button {
-      background: #fff;
-      color: #07553f;
-      border: none;
-      padding: 12px 28px;
-      border-radius: 10px;
-      font-weight: 700;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    button:active { opacity: 0.85; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SI MAMBA - Belum siap offline</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f0fdf4;color:#1c2b24;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:20px;box-sizing:border-box}
+  .box{max-width:380px;width:100%;background:#fff;border-radius:16px;padding:28px 22px;text-align:center;box-shadow:0 8px 30px rgba(0,84,63,.15)}
+  h1{font-size:20px;margin:0 0 10px;color:#00543f}
+  p{font-size:15px;line-height:1.5;margin:0 0 12px}
+  .langkah{text-align:left;font-size:14px;background:#f3f4f6;border-radius:10px;padding:10px 14px 10px 30px;margin:0 0 18px}
+  button{min-height:46px;padding:0 24px;border:0;border-radius:10px;background:#00543f;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+</style>
 </head>
 <body>
-  <div class="box">
-    <div class="icon">📡</div>
-    <h1>Sedang Tidak Ada Koneksi</h1>
-    <p>Halaman ini belum pernah dibuka sebelumnya sehingga belum tersimpan untuk mode offline. Sambungkan kembali ke internet lalu coba lagi. Halaman yang sudah pernah dibuka tetap bisa diakses tanpa internet.</p>
-    <button onclick="window.location.reload()">🔄 Coba Lagi</button>
-  </div>
+<div class="box">
+  <div style="font-size:42px">📡</div>
+  <h1>SI MAMBA belum siap offline</h1>
+  <p><b>Buka SI MAMBA sekali saat online di HP ini.</b> Setelah itu aplikasi tersimpan dan bisa dipakai walau sinyal hilang.</p>
+  <ol class="langkah">
+    <li>Sambungkan HP ke internet (Wi-Fi atau data).</li>
+    <li>Buka SI MAMBA, tunggu sampai dashboard tampil.</li>
+    <li>Pastikan tertulis <b>✅ Siap offline</b> di dashboard.</li>
+  </ol>
+  <button type="button" onclick="location.reload()">Coba lagi</button>
+</div>
 </body>
 </html>

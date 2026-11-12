@@ -270,6 +270,24 @@
     // KUNCI_IURAN_MS (24 jam) dicek DUA kali: (1) di render checkbox di atas (disabled kalau
     // sudah lewat 24 jam), (2) di sini lagi sebagai jaga-jaga kalau ada yang lolos lewat cara
     // lain -- pola yang sama dengan guard-guard lain di file ini (mis. isBusy).
+    // Catat/batalkan infaq saat offline: masuk antrean, tampil di layar sebagai "menunggu sinkron".
+    function infaqSimpanOffline(checkbox, o) {
+      const data = o.checked ? { siswaKey: o.siswaKey, siswaNama: o.siswaNama, kelas: o.kelas, minggu: o.mingguKey, status: 'lunas', nominal: o.nominal, tahunAjaran: currentTahunAjaran, inputBy: currentUser.name, inputAt: new Date().toISOString() } : null;
+      const payload = { op: o.checked ? 'set' : 'remove', path: o.path, data, userKey: currentUser.key, kelas: o.kelas, minggu: o.mingguKey, siswaNama: o.siswaNama };
+      SIMambaOfflineDB.addPendingWrite('infaq', payload).then(id => {
+        const idx = allInfaqSiswa.findIndex(it => it.kelas === o.kelas && it.minggu === o.mingguKey && it.siswaKey === o.siswaKey);
+        if (idx > -1) allInfaqSiswa.splice(idx, 1);
+        if (o.checked) allInfaqSiswa.push(Object.assign({ key: o.mingguKey + '_' + o.siswaKey, pendingSync: true, _pendingId: id }, data));
+        checkbox.disabled = false;
+        updatePendingBadge(); registerBackgroundSyncTag();
+        toast(o.checked ? `📥 Offline: ${o.siswaNama} dicatat lunas di perangkat, dikirim otomatis saat online.` : `📥 Offline: pembatalan lunas ${o.siswaNama} disimpan, dikirim otomatis saat online.`, false, 4000);
+        loadIuranInput(); if (typeof updateInfaqNotifDot === 'function') updateInfaqNotifDot();
+      }).catch(err => {
+        console.error('[Offline] Gagal antre infaq:', err);
+        checkbox.checked = !o.checked; checkbox.disabled = false;
+        toast('❌ Gagal menyimpan offline. Coba lagi.', true);
+      });
+    }
     function toggleLunasSatuSiswa(checkbox, kelas, mingguKey) {
       if (!infaqCanAccess()) { checkbox.checked = !checkbox.checked; return toast('Tidak diizinkan!', true); }
       if (!isAdmin() && !infaqMyKelasList().includes(kelas)) { checkbox.checked = !checkbox.checked; return toast('Hanya bisa mencatat infaq kelas yang ditugaskan Admin ke Anda!', true); }
@@ -283,6 +301,8 @@
       if (!checked && iuranTerkunci(existing)) { checkbox.checked = true; return toast('🔒 Sudah lebih dari 24 jam sejak dicatat, tidak bisa diubah lagi. Hubungi Admin.', true); }
       const path = `iuran_siswa/${mingguKey}_${siswaKey}`;
       checkbox.disabled = true;
+      // OFFLINE: simpan ke antrean perangkat, dikirim otomatis saat online (lihat flushPendingInfaq di app.js).
+      if (!isReallyOnline() && window.SIMambaOfflineDB) { return infaqSimpanOffline(checkbox, { path, checked, siswaKey, siswaNama, kelas, mingguKey, nominal }); }
       if (checked) {
         db.ref(path).set({ siswaKey, siswaNama, kelas, minggu: mingguKey, status: 'lunas', nominal, tahunAjaran: currentTahunAjaran, inputBy: currentUser.name, inputAt: new Date().toISOString() }, err => {
           if (err) { checkbox.checked = false; checkbox.disabled = false; return toast('Gagal: '+err.message, true); }

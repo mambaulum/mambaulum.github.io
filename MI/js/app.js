@@ -1087,6 +1087,42 @@
         } catch (e) { console.warn('[SI MAMBA] pastikanSiapOffline gagal:', e); }
       }, 8000);
     }
+    // Indikator "Siap offline" di dashboard: periksa langsung (bukan hanya penanda lama) apakah Service Worker
+    // sudah mengontrol halaman DAN index.html ada di cache -- hanya itu yang menjamin app bisa dibuka tanpa sinyal.
+    async function cekSiapOffline() {
+      const el = document.getElementById('siapOfflineInfo');
+      if (!el) return;
+      let status = 'belum';
+      try {
+        if ('serviceWorker' in navigator && 'caches' in window) {
+          if (navigator.serviceWorker.controller) {
+            const keys = (await caches.keys()).filter(k => k.indexOf('si-mamba-shell-') === 0);
+            for (const k of keys) { const c = await caches.open(k); if (await c.match('./index.html')) { status = 'siap'; break; } }
+          } else if (navigator.onLine) {
+            status = 'proses';   // SW baru dipasang / belum mengambil alih halaman ini
+          }
+        }
+      } catch (e) {}
+      if (status === 'siap') { try { localStorage.setItem('simambaSiapOffline', String(Date.now())); } catch (e) {} }
+      const peta = {
+        siap:   ['\u2705 Siap offline', '#047857', 'HP ini sudah menyimpan aplikasi. Boleh dipakai walau sinyal hilang.'],
+        proses: ['\u23F3 Menyiapkan mode offline\u2026', '#b45309', 'Tunggu sebentar, aplikasi sedang disimpan ke HP ini.'],
+        belum:  ['\u26A0\uFE0F Belum siap offline', '#b91c1c', 'Buka SI MAMBA sekali saat online di HP ini agar bisa dipakai tanpa sinyal.']
+      }[status];
+      el.textContent = peta[0];
+      el.title = peta[2];
+      el.style.color = peta[1];
+      el.style.display = '';
+    }
+    function pasangIndikatorSiapOffline() {
+      cekSiapOffline();
+      setTimeout(cekSiapOffline, 4000);
+      setTimeout(cekSiapOffline, 12000);   // sesudah pastikanSiapOffline() (8 dtk) selesai
+      window.addEventListener('online', cekSiapOffline);
+      window.addEventListener('offline', cekSiapOffline);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') cekSiapOffline(); });
+      if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('controllerchange', () => setTimeout(cekSiapOffline, 1500));
+    }
     function registerServiceWorker() {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js')
@@ -1095,6 +1131,7 @@
             // selama app dibuka lama (mis. dipakai seharian tanpa ditutup).
             reg.update();
             pastikanSiapOffline(reg);
+            pasangIndikatorSiapOffline();
             setInterval(() => reg.update(), 60 * 60 * 1000); // tiap 1 jam
             // Versi baru yang sudah terunduh di sesi sebelumnya dan masih menunggu TIDAK memicu 'updatefound' lagi
             // (sw.js sengaja tidak skipWaiting) -> tawarkan sekarang, kalau tidak user tidak pernah diberi tahu.
@@ -3655,7 +3692,7 @@
         Object.keys(all || {}).forEach(k => { if (k.indexOf(pre) === 0) cache[k.slice(pre.length)] = all[k]; });
         // Buang record pendingSync yatim: sudah tidak ada di antrean (terkirim/dibatalkan) tapi masih tertinggal di cache.
         if (pendingIds) {
-          ['allJournals', 'allAttendance', 'allTeacherAttendance', 'allTeacherAttendanceToday'].forEach(k => {
+          ['allJournals', 'allAttendance', 'allTeacherAttendance', 'allTeacherAttendanceToday', 'allInfaqSiswa', 'allGrades'].forEach(k => {
             if (Array.isArray(cache[k])) cache[k] = cache[k].filter(r => !(r && r.pendingSync) || pendingIds.has(r._pendingId));
           });
         }
@@ -3843,6 +3880,7 @@
       if (!isReallyOnline()) { if (manual) toast('📡 Masih offline / sinyal belum stabil, coba lagi sebentar lagi.', true); return; }
       if (isFlushingPendingWrites) { if (manual) toast('⏳ Sinkronisasi sedang berjalan...', false, 2000); return; }
       isFlushingPendingWrites = true;
+      _gradesFlushState = {};
       SIMambaOfflineDB.getAllPendingWrites().then(items => {
         if (items.length === 0) { isFlushingPendingWrites = false; if (manual) toast('✅ Tidak ada data yang menunggu sinkronisasi.', false, 2000); return; }
         if (manual) toast(`🔄 Menyinkronkan ${items.length} data tertunda...`, false, 3000);
@@ -3879,7 +3917,7 @@
       const pre = offlineCachePrefix();
       if (!window.SIMambaOfflineDB || !pre) return Promise.resolve();
       const kosong = {};
-      ['allJournals', 'allAttendance', 'allTeacherAttendance', 'allTeacherAttendanceToday'].forEach(k => { kosong[pre + k] = null; });
+      ['allJournals', 'allAttendance', 'allTeacherAttendance', 'allTeacherAttendanceToday', 'allInfaqSiswa', 'allGrades'].forEach(k => { kosong[pre + k] = null; });
       return SIMambaOfflineDB.setCacheMany(kosong).catch(err => console.warn('[Offline] Gagal invalidasi cache:', err));
     }
 
@@ -3887,6 +3925,8 @@
       if (item.type === 'journal') return promiseDeadline(flushPendingJournal(item), FLUSH_ITEM_DEADLINE_MS);
       if (item.type === 'attendance') return promiseDeadline(flushPendingAttendance(item), FLUSH_ITEM_DEADLINE_MS);
       if (item.type === 'teacher_attendance') return promiseDeadline(flushPendingTeacherAttendance(item), FLUSH_ITEM_DEADLINE_MS);
+      if (item.type === 'infaq') return promiseDeadline(flushPendingInfaq(item), FLUSH_ITEM_DEADLINE_MS);
+      if (item.type === 'grades') return promiseDeadline(flushPendingGrades(item), FLUSH_ITEM_DEADLINE_MS);
       // Tipe tak dikenal (mis. dari versi lama) -> buang saja supaya antrian tidak macet permanen.
       return SIMambaOfflineDB.deletePendingWrite(item.id);
     }
@@ -3948,6 +3988,84 @@
           if (idx > -1) { allTeacherAttendance[idx] = Object.assign({ key: fbKey }, p); bumpTaRev(); }
           SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve);
         }, false));
+      });
+    }
+
+    // Kirim catatan INFAQ yang dibuat offline. Path tetap (iuran_siswa/{minggu}_{siswa}) -> set/remove idempoten,
+    // kirim ulang tidak membuat catatan dobel. Hanya dikirim oleh akun yang membuatnya (userKey).
+    function flushPendingInfaq(item) {
+      return new Promise((resolve, reject) => {
+        const p = item.payload || {};
+        if (!p.path || !/^iuran_siswa\/[^\/.#$\[\]]+$/.test(p.path) || (p.op !== 'set' && p.op !== 'remove')) { SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve); return; } // item rusak
+        if (p.userKey && currentUser && p.userKey !== currentUser.key) { const e = new Error('antrean milik akun lain'); e.isDeadline = true; return reject(e); }   // tunggu akun pemiliknya
+        const siap = (typeof isAdmin === 'function' && isAdmin()) ? adminSesiSiap(false) : guruSesiSiap();
+        siap.then(() => {
+          const selesai = err => {
+            if (err) return reject(err);
+            try { addLog(p.op === 'set' ? 'simpan_iuran' : 'batal_iuran', (p.kelas || '') + ' - ' + (p.minggu || '') + ' - ' + (p.siswaNama || '') + (p.op === 'set' ? ' lunas (offline)' : '')); } catch (e) {}
+            SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve);
+          };
+          if (p.op === 'remove') db.ref(p.path).remove(selesai); else db.ref(p.path).set(p.data, selesai);
+        }, reject);
+      });
+    }
+
+    // Kirim NILAI yang diinput offline. Aturan sama seperti saveGradesInti() online: raport yang sudah difinalisasi dilewati,
+    // record yang versinya berubah (diedit guru lain lebih dulu) TIDAK ditimpa dan dilaporkan sebagai bentrok.
+    // Record baru memakai key yang dibuat saat antre (fbKey) -> kirim ulang tidak membuat record dobel.
+    let _gradesFlushState = {};   // per putaran sinkron: key record -> { ver } sudah ditulis | { konflik } | { gagal }
+    function flushPendingGrades(item) {
+      return new Promise((resolve, reject) => {
+        const p = item.payload || {};
+        const selesaiItem = () => SIMambaOfflineDB.deletePendingWrite(item.id).then(resolve).catch(resolve);
+        if (!Array.isArray(p.entries) || !p.entries.length) { selesaiItem(); return; }
+        if (p.userKey && currentUser && p.userKey !== currentUser.key) { const e = new Error('antrean milik akun lain'); e.isDeadline = true; return reject(e); }
+        // Item sebelumnya untuk record yang sama GAGAL terkirim di putaran ini -> tunda (jangan dihitung bentrok / hilang).
+        if (p.entries.some(e => { const st = _gradesFlushState[e.gradeKey || e.fbKey]; return st && st.gagal; })) { const e = new Error('menunggu item sebelumnya'); e.isDeadline = true; return reject(e); }
+        raporTerkunciSet(true).then(kunciSet =>
+          Promise.all(p.entries.map(e => db.ref('grades/' + (e.gradeKey || e.fbKey)).once('value').then(s => ({ e, cur: s.val() })))).then(results => ({ kunciSet, results }))
+        ).then(({ kunciSet, results }) => {
+          const updates = {}, konflik = [], terkunci = [], koreksi = [], tulisKey = {};
+          let tersimpan = 0;
+          results.forEach(({ e, cur }) => {
+            if (kunciSet.has(raporKunciKey(e.siswaKey, p.tahunAjaran, p.semester))) { terkunci.push(e.siswaName); return; }
+            const data = Object.assign({}, e.data);
+            if (e.gradeKey) {
+              // Versi yang diharapkan: bila item antrean sebelumnya untuk record ini baru saja ditulis di putaran ini, pakai versi hasil tulisnya;
+              // bila item sebelumnya bentrok, item ini (dibuat di atas tampilan yang sama) ikut dianggap bentrok.
+              const st = _gradesFlushState[e.gradeKey];
+              const harapan = (st && st.ver != null) ? st.ver : e.baseVersion;
+              if ((st && st.konflik) || cur === null || (cur.version || 0) !== harapan) { konflik.push(e.siswaName); _gradesFlushState[e.gradeKey] = { konflik: true }; return; }
+              if (!bolehBukaKunciNilai(e.kelas)) {
+                ['h1', 'h2', 'h3', 'mid', 'pas'].forEach(f => { if (cur.data && nilaiTerkunci(cur.data[f])) data[f] = cur.data[f]; });
+              } else {
+                (e.koreksi || []).forEach(c => koreksi.push(Object.assign({}, c, { siswaName: e.siswaName })));
+              }
+              const pre = 'grades/' + e.gradeKey + '/';
+              updates[pre + 'data'] = data;
+              updates[pre + 'guru'] = p.guru;
+              updates[pre + 'updatedAt'] = p.nowIso;
+              updates[pre + 'version'] = (cur.version || 0) + 1;
+              tulisKey[e.gradeKey] = (cur.version || 0) + 1;
+            } else {
+              if (cur !== null) return;   // sudah pernah terkirim (kirim ulang): lewati
+              tulisKey[e.fbKey] = 1;
+              updates['grades/' + e.fbKey] = { siswaKey: e.siswaKey, siswaName: e.siswaName, kelas: e.kelas, subject: p.subject, semester: p.semester, guru: p.guru, guruKey: p.guruKey, data, tahunAjaran: p.tahunAjaran, updatedAt: p.nowIso, version: 1 };
+            }
+            tersimpan++;
+          });
+          const siap = (typeof isAdmin === 'function' && isAdmin())
+            ? ((typeof window.kredAdminSiap === 'function') ? window.kredAdminSiap() : Promise.resolve(true))
+            : ((typeof window.kredGuruSiap === 'function') ? window.kredGuruSiap() : Promise.resolve(true));
+          return (tersimpan > 0 ? siap.then(() => db.ref().update(updates)) : Promise.resolve()).then(() => {
+            Object.keys(tulisKey).forEach(k => { _gradesFlushState[k] = { ver: tulisKey[k] }; });
+            if (tersimpan > 0) { try { addLog('simpan_nilai', p.subject + ' - ' + p.semester + ' (offline)'); } catch (e) {} }
+            koreksi.forEach(c => { try { addLog('koreksi_nilai', p.subject + ' ' + p.semester + ' | ' + c.siswaName + ' ' + c.field + ': ' + c.lama + ' → ' + c.baru); } catch (e) {} });
+            if (konflik.length) toast('⚠️ Nilai offline ' + p.subject + ' (' + konflik.join(', ') + ') TIDAK disimpan: sudah diubah guru lain lebih dulu. Cek ulang lalu simpan lagi.', true, 9000);
+            if (terkunci.length) toast('🔒 Nilai offline ' + p.subject + ' (' + terkunci.join(', ') + ') dilewati: raport sudah difinalisasi.', true, 7000);
+            return selesaiItem();
+          }, err => { Object.keys(tulisKey).forEach(k => { _gradesFlushState[k] = { gagal: true }; }); throw err; });
+        }).then(() => {}, reject);
       });
     }
 
@@ -5704,6 +5822,8 @@
     function saveGrades() {
       if (!canEdit() || isKepsek()) return toast('Tidak bisa menyimpan!', true);
       if (isBusy('saveGrades')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 2000);
+      // OFFLINE: status finalisasi raport tidak bisa dibaca; diperiksa saat nilai dikirim (flushPendingGrades).
+      if (!isReallyOnline() && window.SIMambaOfflineDB) { window._nilaiTerkunciRaport = null; saveGradesInti(); return; }
       const sem = document.getElementById('gradeSemester').value;
       const keys = [...new Set(Array.from(document.querySelectorAll('.grade-input')).map(i => i.dataset.siswa))];
       raporTerkunciSet(true).then(set => {
@@ -5713,6 +5833,34 @@
         if (kunciKeys.length) toast(`🔒 ${kunciKeys.length} siswa dilewati (raport sudah difinalisasi).`, false, 5000);
         saveGradesInti();
       }, () => toast('⚠️ Gagal memeriksa status raport. Periksa koneksi lalu coba lagi.', true, 5000));
+    }
+    // Simpan nilai ke antrean offline + tampilkan hasilnya di layar. Version lokal dinaikkan 1 supaya simpan kedua
+    // (masih offline) memakai baseVersion yang cocok dengan hasil kirim pertama.
+    function simpanNilaiOffline(entries, subject, semester, nowIso, btnSave) {
+      const selesaiUI = () => { clearBusy('saveGrades', btnSave); if (btnSave) btnSave.textContent = '💾 Simpan Nilai'; };
+      const payload = {
+        subject, semester, tahunAjaran: currentTahunAjaran, guru: currentUser.name, guruKey: currentUser.key, userKey: currentUser.key, nowIso,
+        entries: entries.map(e => ({
+          siswaKey: e.siswaKey, siswaName: e.siswaName, kelas: e.siswa ? e.siswa.kelas : '',
+          gradeKey: e.gradeKey || '', fbKey: e.gradeKey ? '' : db.ref('grades').push().key,
+          baseVersion: e.baseVersion || 0, data: e.data, koreksi: e.koreksi || []
+        }))
+      };
+      SIMambaOfflineDB.addPendingWrite('grades', payload).then(id => {
+        payload.entries.forEach(en => {
+          let rec = en.gradeKey ? allGrades.find(g => g.key === en.gradeKey) : null;
+          if (!rec) rec = allGrades.find(g => g.siswaKey === en.siswaKey && g.subject === subject && g.semester === semester);
+          if (rec) { rec.data = Object.assign({}, rec.data, en.data); rec.version = (rec.version || 0) + 1; rec.updatedAt = nowIso; rec.pendingSync = true; rec._pendingId = id; }
+          else allGrades.push({ key: en.fbKey, siswaKey: en.siswaKey, siswaName: en.siswaName, kelas: en.kelas, subject, semester, guru: currentUser.name, guruKey: currentUser.key, data: Object.assign({}, en.data), tahunAjaran: currentTahunAjaran, updatedAt: nowIso, version: 1, pendingSync: true, _pendingId: id });
+        });
+        selesaiUI(); updatePendingBadge(); registerBackgroundSyncTag();
+        toast('📥 Offline: ' + payload.entries.length + ' nilai disimpan di perangkat ini, dikirim otomatis saat online.', false, 5000);
+        try { loadGrades(); } catch (e) {}
+      }).catch(err => {
+        selesaiUI();
+        console.error('[Offline] Gagal antre nilai:', err);
+        toast('❌ Gagal menyimpan nilai offline. Coba lagi.', true);
+      });
     }
     function saveGradesInti() {
       if (!canEdit() || isKepsek()) return toast('Tidak bisa menyimpan!', true);
@@ -5781,6 +5929,8 @@
         const siswa = allSiswa.find(s => s.key === siswaKey);
         return { siswaKey, siswa, siswaName: siswa ? siswa.name : siswaKey, ...entry };
       });
+      // OFFLINE: simpan ke antrean perangkat, dikirim otomatis saat online (lihat flushPendingGrades).
+      if (!isReallyOnline() && window.SIMambaOfflineDB) { simpanNilaiOffline(entries, subject, semester, nowIso, btnSave); return; }
       // ===== OPTIMISTIC LOCKING, versi batch =====
       // Sebelumnya: 1 transaction() per siswa (30 siswa = 30 round-trip + retry). Sekarang:
       //  1) baca versi TERBARU semua record yang sudah ada secara paralel (satu koneksi, payload kecil),
