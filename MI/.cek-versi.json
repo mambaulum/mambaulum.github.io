@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.419",
-  "disimpan": "2026-11-12T00:59:08.131Z",
+  "appVersion": "v8.421",
+  "disimpan": "2026-11-12T01:14:58.954Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=163",
-      "hash": "be0d35e232cb7ecfb76500d90166ebe22a34ac5a"
+      "v": "v=165",
+      "hash": "4c73ac30f265542a7ecea9db129553bce009460a"
     },
     "js/portal-ortu.js": {
       "v": "v=35",
@@ -71,8 +71,8 @@
       "hash": "946e32346c48f2895a4bc9334e3cf77af7b27e26"
     },
     "js/infaq.js": {
-      "v": "v=5",
-      "hash": "44ed0deddd6f7b1d07a6d49619ed00f79e45eae0"
+      "v": "v=6",
+      "hash": "b3fbf5e3a3769ea5ce90dc80b37bafb05a9ddb80"
     },
     "js/sikap-buku.js": {
       "v": "v=2",
