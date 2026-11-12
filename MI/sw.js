@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.433';
+const APP_VERSION = 'v8.434';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -113,7 +113,7 @@ const PRECACHE_URLS = [
   './js/portal-tab.js?v=13',                // Tab Portal Ortu di HP: Beranda/Amalan/Belajar/Angket/Lainnya (dimuat SESUDAH portal-ortu.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
-  './js/menu-hub.js?v=13',
+  './js/menu-hub.js?v=14',
   './js/menu-polish.js?v=31',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=7',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)

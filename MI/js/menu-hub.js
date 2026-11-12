@@ -1,6 +1,7 @@
 /* ============================================================
    MENU HUB -- menggabungkan item sidebar yang mirip jadi satu entri (35 item -> 15 entri).
    Catatan: 'surat' (Surat & Ijin) sengaja TIDAK jadi anggota hub; berdiri sendiri di grup Guru & Madrasah sejajar Rapat.
+   Catatan: 'buku-induk' (Buku Induk) juga sengaja TIDAK jadi anggota hub; menu berdiri sendiri di bawah grup Siswa & Orang Tua (disembunyikan/ditampilkan oleh js/buku-induk.js: hanya Admin & Kepala).
    Tidak ada halaman yang dihapus dan aturan hak akses per peran di app.js TIDAK diubah:
    - Item asli tetap ada di DOM (disembunyikan lewat class .hub-member) dan tetap diberi/dicabut
      class .hidden-tab oleh app.js sesuai peran. Modul ini hanya MEMBACA class itu.
@@ -14,7 +15,7 @@
   // Urutan pages = urutan tab. Label hub = teks di sidebar.
   var HUBS = [
     { id: 'profil',    label: 'Profil',              pages: ['profile-v4', 'profil-sekolah'] },
-    { id: 'siswa',     label: 'Siswa',               pages: ['students', 'buku-induk', 'promotion'] },
+    { id: 'siswa',     label: 'Siswa',               pages: ['students', 'promotion'] },
     { id: 'nilai',     label: 'Nilai & Sikap',       pages: ['grades', 'rekap-nilai', 'sikap-siswa'] },
     { id: 'jurnal',    label: 'Jurnal Mengajar',     pages: ['rekap-jurnal', 'journal'] },
     { id: 'komortu',   label: 'Komunikasi Ortu',     pages: ['buku-penghubung', 'info-ortu'] },
