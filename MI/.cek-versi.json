@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.425",
-  "disimpan": "2026-11-12T02:27:39.431Z",
+  "appVersion": "v8.427",
+  "disimpan": "2026-11-12T02:34:11.502Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -291,8 +291,8 @@
       "hash": "08d29809809368900420dba2030ae5e86b37088c"
     },
     "js/buku-induk.js": {
-      "v": "v=1",
-      "hash": "2c44f946d86de8941bd6dcbf9b45b95593a7d788"
+      "v": "v=3",
+      "hash": "41042879b1e39cc8f2273e2d824d3a081757beb2"
     },
     "js/fitur-pelengkap.js": {
       "v": "v=3",
