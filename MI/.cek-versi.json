@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.427",
-  "disimpan": "2026-11-12T02:34:11.502Z",
+  "appVersion": "v8.429",
+  "disimpan": "2026-11-12T03:41:09.825Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -63,8 +63,8 @@
       "hash": "4cdd13ab465a6ddcb798cb346b849d43dbf5224c"
     },
     "js/portal-ortu.js": {
-      "v": "v=35",
-      "hash": "b4dfb74b69cc59e0cda3cee5935ddebd0a776be5"
+      "v": "v=36",
+      "hash": "dff0fb35f472ab1692e45e41ca64f150ae1ed33a"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -290,9 +290,13 @@
       "v": "v=5",
       "hash": "08d29809809368900420dba2030ae5e86b37088c"
     },
+    "js/persetujuan-ortu.js": {
+      "v": "v=1",
+      "hash": "8cb7fd8fdbd784ee06bbec5881027a6a8758ed85"
+    },
     "js/buku-induk.js": {
-      "v": "v=3",
-      "hash": "41042879b1e39cc8f2273e2d824d3a081757beb2"
+      "v": "v=5",
+      "hash": "0911f3b15ebeedb63b0119bf8f02cb8636a03c93"
     },
     "js/fitur-pelengkap.js": {
       "v": "v=3",
