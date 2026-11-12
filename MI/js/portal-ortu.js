@@ -109,6 +109,7 @@
       const kartuBuatPin = document.getElementById('portalOrtuBuatPinLink'); if (kartuBuatPin) kartuBuatPin.remove();
       portalOrtuWaKey = null; portalOrtuAnak = [];
       Object.keys(_ortuCacheBersama).forEach(k => { delete _ortuCacheBersama[k]; });
+      _poGerbangToken++; try { document.body.classList.remove('po-persetujuan-blok'); window.persetujuanOrtuBlokir = false; } catch (e) { }
       ortuEl('portalOrtuContent').innerHTML = '';
       ['portalOrtuPinLama', 'portalOrtuPinGanti1', 'portalOrtuPinGanti2'].forEach(id => { ortuEl(id).value = ''; });
       kembaliKeChooser();
@@ -618,7 +619,22 @@
     function ortuBacaAman(ref, nama, gagal) {
       return ref.once('value').catch(e => { gagal.push(nama); console.warn('[SI MAMBA] Portal Ortu: gagal membaca ' + nama + ':', (e && e.message) || e); return ORTU_SNAP_KOSONG; });
     }
+    // v8.430: GERBANG PERSETUJUAN. Kalau orang tua memilih "Tidak setuju" (status 'tidak' di persetujuan_ortu/<siswa>),
+    // dashboard TIDAK dimuat: layar hanya berisi kartu persetujuan (js/persetujuan-ortu.js -> persetujuanOrtuGerbang).
+    // Gagal baca / Rules belum dipasang => gerbang terbuka (sama seperti kartu persetujuan yang disembunyikan).
+    let _poGerbangToken = 0;
     function renderPortalOrtuDashboard(siswa) {
+      const content = document.getElementById('portalOrtuContent');
+      if (!content) return;
+      if (typeof persetujuanOrtuGerbang !== 'function') return renderPortalOrtuDashboardIsi(siswa);
+      const token = ++_poGerbangToken;
+      content.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">⏳ Memuat data...</p>';
+      persetujuanOrtuGerbang(siswa).then(blok => {
+        if (token !== _poGerbangToken) return;   // sudah pindah anak / render ulang
+        if (!blok) renderPortalOrtuDashboardIsi(siswa);
+      });
+    }
+    function renderPortalOrtuDashboardIsi(siswa) {
       const content = document.getElementById('portalOrtuContent');
       content.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">⏳ Memuat data...</p>';
       const monthStr = tglLokal().slice(0, 7);   // YYYY-MM menurut WIB, sama dengan format tanggal absensi

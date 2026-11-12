@@ -35,6 +35,7 @@
 
   var HUB = ['Ayah', 'Ibu', 'Wali'];
   var sibuk = false;
+  var blokirAktif = false;   // true selama layar hanya berisi kartu persetujuan (status 'tidak')
 
   function esc(s) {
     s = String(s == null ? '' : s);
@@ -75,7 +76,7 @@
       '<div id="psPesan" style="margin-top:8px;font-size:12px;"></div>';
   }
 
-  function gambar(siswa, rec) {
+  function gambar(siswa, rec, blok) {
     var el = slot(); if (!el) return;
     var kotak = function (warna, isi) { return '<div class="card" style="margin-bottom:8px;border-left:4px solid ' + warna + ';">' + isi + '</div>'; };
     var judul = '<p style="font-weight:700;font-size:14px;margin:0 0 4px;">📝 Persetujuan Data Siswa</p>';
@@ -89,17 +90,42 @@
         '<p class="text-muted" style="font-size:11px;margin:8px 0 0;">Untuk mengubah pilihan butir, tarik persetujuan lalu isi kembali.</p></div></details>');
     } else {
       var ket = '';
-      if (rec && rec.s === 'tidak') ket = '<p style="font-size:12px;color:#92400e;margin:0 0 8px;">Pada ' + esc(tglTs(rec.ts)) + ' Bapak/Ibu memilih tidak setuju. Bila berubah pikiran, isi kembali di bawah ini.</p>';
+      if (rec && rec.s === 'tidak' && blok) ket = '<p style="font-size:13px;color:#991b1b;font-weight:600;margin:0 0 4px;">🔒 Dashboard ananda <b>' + esc(siswa.name || '') + '</b> belum dapat dibuka.</p>' +
+        '<p style="font-size:12px;color:#92400e;margin:0 0 8px;">Pada ' + esc(tglTs(rec.ts)) + ' Bapak/Ibu memilih <b>tidak setuju</b>, sehingga data ananda tidak ditampilkan di Portal Orang Tua. Bila berubah pikiran, isi kembali persetujuan di bawah ini dan dashboard akan terbuka.</p>';
+      else if (rec && rec.s === 'tidak') ket = '<p style="font-size:12px;color:#92400e;margin:0 0 8px;">Pada ' + esc(tglTs(rec.ts)) + ' Bapak/Ibu memilih tidak setuju. Bila berubah pikiran, isi kembali di bawah ini.</p>';
+      else if (rec && rec.s === 'tarik' && blok) ket = '<p style="font-size:13px;color:#991b1b;font-weight:600;margin:0 0 4px;">🔒 Dashboard ananda <b>' + esc(siswa.name || '') + '</b> belum dapat dibuka.</p>' +
+        '<p style="font-size:12px;color:#92400e;margin:0 0 8px;">Persetujuan ditarik pada ' + esc(tglTs(rec.ts)) + '. Untuk membuka dashboard, mohon isi kembali persetujuan di bawah ini.</p>';
+      else if (!rec && blok) ket = '<p style="font-size:13px;font-weight:600;margin:0 0 4px;">Sebelum membuka dashboard ananda <b>' + esc(siswa.name || '') + '</b>, mohon isi persetujuan data siswa terlebih dahulu.</p>' +
+        '<p style="font-size:12px;color:#6b7280;margin:0 0 8px;">Madrasah memerlukan persetujuan Bapak/Ibu untuk mencatat data ananda (UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi). Dashboard terbuka setelah Bapak/Ibu memilih setuju.</p>';
       else if (rec && rec.s === 'tarik') ket = '<p style="font-size:12px;color:#6b7280;margin:0 0 8px;">Persetujuan ditarik pada ' + esc(tglTs(rec.ts)) + '. Bapak/Ibu dapat memberikannya kembali di bawah ini.</p>';
       else ket = '<p style="font-size:12px;margin:0 0 8px;">Madrasah memerlukan persetujuan Bapak/Ibu untuk mencatat data ananda <b>' + esc(siswa.name || '') + '</b> (UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi). Mohon diisi.</p>';
-      h = kotak(rec ? '#d97706' : '#2563eb', judul + ket + '<details' + (rec && rec.s !== 'tidak' ? '' : ' open') + '><summary style="cursor:pointer;font-size:13px;font-weight:700;">Isi persetujuan</summary><div style="margin-top:8px;">' + formHtml(siswa, rec) + '</div></details>');
+      h = kotak((blok && rec) ? '#dc2626' : (rec ? '#d97706' : '#2563eb'), judul + ket + '<details' + ((blok || !rec || rec.s === 'tidak') ? ' open' : '') + '><summary style="cursor:pointer;font-size:13px;font-weight:700;">Isi persetujuan</summary><div style="margin-top:8px;">' + formHtml(siswa, rec) + '</div></details>');
     }
-    el.innerHTML = h;
-    el.onclick = function (e) {
-      var b = e.target.closest && e.target.closest('[data-ps]'); if (!b || !el.contains(b)) return;
-      var a = b.getAttribute('data-ps');
-      if (a === 'kirim') kirim(siswa, rec); else if (a === 'tarik') tarik(siswa, rec);
+    var pasang = function (node) {
+      node.onclick = function (e) {
+        var b = e.target.closest && e.target.closest('[data-ps]'); if (!b || !node.contains(b)) return;
+        var a = b.getAttribute('data-ps');
+        if (a === 'kirim') kirim(siswa, rec); else if (a === 'tarik') tarik(siswa, rec);
+      };
     };
+    // v8.431: setelah SETUJU kartu di atas dashboard dihilangkan (menu tidak ramai). Hak menarik/mengubah persetujuan
+    // tetap ada lewat satu baris kecil di PALING BAWAH dashboard yang bisa dibuka.
+    var bawah = document.getElementById('persetujuanOrtuBawah');
+    if (rec && rec.s === 'setuju') {
+      el.innerHTML = '';
+      if (!bawah) {
+        var content = document.getElementById('portalOrtuContent');
+        if (content) { bawah = document.createElement('div'); bawah.id = 'persetujuanOrtuBawah'; content.appendChild(bawah); }
+      }
+      if (bawah) {
+        bawah.innerHTML = '<details style="margin:14px 0 4px;"><summary style="cursor:pointer;font-size:11px;color:#6b7280;text-align:center;">📝 Persetujuan data siswa · ✅ sudah diberikan (lihat / ubah / tarik)</summary><div style="margin-top:8px;">' + h + '</div></details>';
+        pasang(bawah);
+      }
+      return;
+    }
+    if (bawah) bawah.remove();
+    el.innerHTML = h;
+    pasang(el);
   }
 
   function pesanGalat(e) {
@@ -119,7 +145,10 @@
     return db.ref().update(upd).then(function () {
       var baru = Object.assign({}, data, { ts: Date.now() });
       try { toast(rec.s === 'tarik' ? 'Persetujuan ditarik.' : '✅ Terima kasih, pernyataan Bapak/Ibu sudah tersimpan.'); } catch (e) { }
-      gambar(siswa, baru);
+      // v8.430/432: selain 'setuju' (tidak setuju / tarik) mengunci dashboard; dari layar terkunci, memilih setuju membukanya.
+      // Keduanya cukup memuat ulang dashboard: gerbang membaca status terbaru dari server.
+      if ((baru.s !== 'setuju' || blokirAktif) && typeof renderPortalOrtuDashboard === 'function') renderPortalOrtuDashboard(siswa);
+      else gambar(siswa, baru);
     }).catch(function (e) {
       if (pesanEl) { pesanEl.style.color = '#dc2626'; pesanEl.textContent = '❌ ' + pesanGalat(e); }
     }).then(function () { sibuk = false; });
@@ -144,9 +173,36 @@
     simpan(siswa, rec, pesan);
   }
   function tarik(siswa, lama) {
-    if (!lama || !confirm('Tarik kembali persetujuan? Data ananda tidak akan diproses untuk butir yang sebelumnya disetujui, kecuali diwajibkan peraturan perundang-undangan.')) return;
+    if (!lama || !confirm('Tarik kembali persetujuan? Data ananda tidak akan diproses untuk butir yang sebelumnya disetujui, kecuali diwajibkan peraturan perundang-undangan.\n\nDashboard ananda juga tidak bisa dibuka sampai Bapak/Ibu mengisi persetujuan kembali.')) return;
     simpan(siswa, { s: 'tarik', oleh: lama.oleh || '-', hub: lama.hub || '-', b1: false, b2: false, b3: false, b4: false }, null);
   }
+
+  function setBlokir(v) {
+    blokirAktif = !!v;
+    window.persetujuanOrtuBlokir = blokirAktif;   // bisa dibaca modul lain (mis. portal-tab.js)
+    try { document.body.classList.toggle('po-persetujuan-blok', blokirAktif); } catch (e) { }
+  }
+  // GERBANG (v8.430): dipanggil portal-ortu.js SEBELUM dashboard dimuat. Resolve true = diblokir (layar sudah berisi
+  // kartu persetujuan saja, dashboard jangan dimuat); false = lanjut muat dashboard. Tidak pernah reject.
+  // v8.432: WAJIB MENGISI DULU. Dashboard hanya terbuka bila status = 'setuju' (minimal satu butir disetujui).
+  // Belum pernah mengisi, 'tidak', dan 'tarik' => layar hanya berisi kartu persetujuan.
+  // Gagal baca (Rules belum dipasang, sinyal putus) => terbuka, supaya orang tua tidak terkunci karena masalah teknis.
+  window.persetujuanOrtuGerbang = function (siswa) {
+    if (!siswa || !siswa.key || typeof db === 'undefined') { setBlokir(false); return Promise.resolve(false); }
+    return db.ref('persetujuan_ortu/' + siswa.key).once('value').then(function (sn) {
+      var rec = sn.val() || null;
+      var content = document.getElementById('portalOrtuContent');
+      if ((rec && rec.s === 'setuju') || !content) { setBlokir(false); return false; }
+      content.innerHTML = '<div id="persetujuanOrtuSlot"></div>';
+      setBlokir(true);
+      gambar(siswa, rec, true);
+      return true;
+    }).catch(function (e) {
+      console.warn('[SI MAMBA] Gerbang persetujuan tidak bisa dibaca, dashboard dibuka:', (e && e.message) || e);
+      setBlokir(false);
+      return false;
+    });
+  };
 
   // Dipanggil portal-ortu.js setelah dashboard digambar.
   window.persetujuanOrtuMuat = function (siswa) {

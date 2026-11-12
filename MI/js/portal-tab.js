@@ -122,7 +122,7 @@
   var ID_ANGKET = ['angketOrtuSlot', 'angketSiswaSlot', 'angketKeunggulanOrtuSlot', 'angketKeunggulanSiswaSlot', 'p8OrtuBox'];
   function tabUntuk(c) {
     var id = c.id || '';
-    if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda') return 'home';
+    if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda' || id === 'persetujuanOrtuSlot') return 'home';   // v8.432: kartu persetujuan (belum mengisi/tarik) tampil di Beranda; baris kecil 'persetujuanOrtuBawah' sengaja ikut tab Lainnya
     if (id === 'bsOrtuBox' || id === 'portalOrtuSholatCard') return 'amalan';
     if (id === 'poAccNilai') return 'belajar';
     if (id === 'poAngketKosong' || ID_ANGKET.indexOf(id) >= 0) return 'angket';
