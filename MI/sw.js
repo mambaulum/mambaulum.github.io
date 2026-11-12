@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.417';
+const APP_VERSION = 'v8.419';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -82,7 +82,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=10',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=161',
+  './js/app.js?v=163',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=35',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=5',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -309,9 +309,31 @@ function isKnownStaticAsset(req) {
 }
 
 // Network-First untuk navigasi HTML.
+// Pembungkus: bila apa pun di dalamnya gagal (mis. penyimpanan HP lama penuh/rusak sehingga caches.open() error),
+// JANGAN biarkan respondWith() ditolak -- itu yang memunculkan layar bawaan Chrome "Anda offline" tanpa app sama sekali.
+// Cadangan berlapis: index.html dari cache versi mana pun -> offline.html -> halaman darurat.
 async function networkFirstNavigate(req, event) {
+  try {
+    return await networkFirstNavigateInti(req, event);
+  } catch (e) {
+    try {
+      const sisa = (await caches.match('./index.html')) || (await caches.match('./offline.html'));
+      if (sisa) return sisa;
+    } catch (e2) {}
+    return new Response(
+      '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>SI MAMBA</title><body style="font-family:sans-serif;text-align:center;padding:40px">' +
+      '<h2>SI MAMBA belum siap offline</h2><p>Buka aplikasi sekali saat ada internet agar tersimpan di HP ini.</p>' +
+      '<button onclick="location.reload()" style="padding:10px 20px;font-size:16px">Coba lagi</button></body>',
+      { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    );
+  }
+}
+
+async function networkFirstNavigateInti(req, event) {
   const cache = await caches.open(SHELL_CACHE);
-  const cached = await cache.match('./index.html');
+  // Bila cache versi ini belum punya index.html (mis. HP lama sempat kehilangan cache), pakai salinan dari versi lain.
+  const cached = (await cache.match('./index.html')) || (await caches.match('./index.html'));
 
   // Simpan hanya respons valid: sukses (2xx) dan bukan redirect ke domain lain
   // (mis. halaman login captive portal Wi-Fi).

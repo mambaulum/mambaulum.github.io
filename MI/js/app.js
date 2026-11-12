@@ -1062,6 +1062,31 @@
     // ============================================================
     // PWA - SERVICE WORKER & INSTALL
     // ============================================================
+    // Pastikan HP ini benar-benar siap offline: (1) minta penyimpanan permanen supaya cache/IndexedDB (penanda login offline,
+    // antrean absen, data dashboard) tidak dihapus Android saat memori penuh; (2) bila ada Service Worker aktif tetapi cache
+    // app shell (index.html) hilang, pasang ulang Service Worker agar terunduh lagi -- maksimal sekali per sesi.
+    function pastikanSiapOffline(reg) {
+      try {
+        if (navigator.storage && navigator.storage.persisted && navigator.storage.persist) {
+          navigator.storage.persisted().then(p => p ? true : navigator.storage.persist()).catch(() => {});
+        }
+      } catch (e) {}
+      if (!('caches' in window) || !navigator.onLine) return;
+      setTimeout(async () => {
+        try {
+          if (!navigator.serviceWorker.controller || reg.installing) return;   // pemasangan pertama masih berjalan
+          const keys = (await caches.keys()).filter(k => k.indexOf('si-mamba-shell-') === 0);
+          let ada = false;
+          for (const k of keys) { const c = await caches.open(k); if (await c.match('./index.html')) { ada = true; break; } }
+          if (ada) { try { localStorage.setItem('simambaSiapOffline', String(Date.now())); sessionStorage.removeItem('simambaSwReset'); } catch (e) {} return; }
+          if (sessionStorage.getItem('simambaSwReset')) return;                 // cegah loop
+          sessionStorage.setItem('simambaSwReset', '1');
+          console.warn('[SI MAMBA] Cache app shell hilang -- memasang ulang Service Worker.');
+          await reg.unregister();
+          await navigator.serviceWorker.register('sw.js');
+        } catch (e) { console.warn('[SI MAMBA] pastikanSiapOffline gagal:', e); }
+      }, 8000);
+    }
     function registerServiceWorker() {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js')
@@ -1069,6 +1094,7 @@
             // Cek pembaruan setiap kali app dibuka, dan juga secara berkala
             // selama app dibuka lama (mis. dipakai seharian tanpa ditutup).
             reg.update();
+            pastikanSiapOffline(reg);
             setInterval(() => reg.update(), 60 * 60 * 1000); // tiap 1 jam
             // Versi baru yang sudah terunduh di sesi sebelumnya dan masih menunggu TIDAK memicu 'updatefound' lagi
             // (sw.js sengaja tidak skipWaiting) -> tawarkan sekarang, kalau tidak user tidak pernah diberi tahu.
@@ -6650,6 +6676,12 @@
         const jarak = v4HitungJarakMeter(pos.coords.latitude, pos.coords.longitude, V4.absenQr.lat, V4.absenQr.lng);
         const radius = V4.absenQr.radius || 150;
         if (jarak > radius) {
+          const akurasiGps = Math.round(pos.coords.accuracy || 0);
+          if (akurasiGps > radius) { // akurasi lebih kasar dari radius: posisi tidak bisa dipastikan, bukan "terlalu jauh"
+            v4SetFaceStatus(`⚠️ Sinyal lokasi lemah (akurasi ±${akurasiGps}m, radius ${radius}m) sehingga posisi Anda belum bisa dipastikan. Pindah ke luar ruangan/dekat jendela, aktifkan Lokasi akurasi tinggi, tunggu sebentar lalu coba lagi. Bila tetap gagal, pakai "Minta Konfirmasi Admin".`, '#fef3c7', '#92400e', '#d97706');
+            document.getElementById('btnStartQrScan').style.display = 'block';
+            return;
+          }
           v4SetFaceStatus(`❌ Anda terlalu jauh dari madrasah (±${Math.round(jarak)}m, maksimal ${radius}m; akurasi GPS ±${Math.round(pos.coords.accuracy || 0)}m). Absen harus dilakukan di lokasi madrasah. Bila Anda sudah di madrasah, aktifkan GPS/lokasi akurasi tinggi lalu coba lagi.`, '#fee2e2', '#991b1b', '#dc2626');
           document.getElementById('btnStartQrScan').style.display = 'block';
           return;
@@ -6705,13 +6737,27 @@
         document.getElementById('btnStartQrScan').style.display = 'block';
       });
     }
-    // GPS akurasi tinggi dulu (10 dtk); bila timeout/tidak tersedia, ulangi dengan akurasi biasa & lokasi tersimpan <=2 menit
-    // (di dalam gedung GPS akurasi tinggi sering timeout padahal lokasi jaringan cukup untuk radius madrasah).
+    // Ambil lokasi absen: pantau GPS sampai 25 dtk & pakai pembacaan PALING AKURAT (bukan menyerah di 10 dtk lalu
+    // memakai lokasi jaringan/menara yang bisa tersimpan sampai 2 menit). Saat listrik padam (WiFi mati / BTS lemah)
+    // lokasi jaringan hanya ±200m+, jadi diberi waktu agar GPS satelit sempat terkunci. Berhenti lebih cepat begitu akurasi cukup.
     function v4AmbilLokasiAbsen(sukses, gagal) {
-      navigator.geolocation.getCurrentPosition(sukses, err => {
-        if (err && err.code === 1) { gagal(err); return; } // izin ditolak: tidak ada gunanya mengulang
-        navigator.geolocation.getCurrentPosition(sukses, gagal, { enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 });
-      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+      var terbaik = null, selesai = false, wid = null, timer = null;
+      var radius = (V4.absenQr && V4.absenQr.radius) || 150;
+      var target = Math.max(30, Math.min(radius * 0.6, 80)); // akurasi (m) yang dianggap cukup
+      function akhir(err) {
+        if (selesai) return; selesai = true;
+        if (wid != null) navigator.geolocation.clearWatch(wid);
+        clearTimeout(timer);
+        if (terbaik) sukses(terbaik); else gagal(err || { code: 2, message: 'Lokasi tidak tersedia' });
+      }
+      wid = navigator.geolocation.watchPosition(function (p) {
+        if (!terbaik || p.coords.accuracy < terbaik.coords.accuracy) terbaik = p;
+        v4SetFaceStatus('\uD83D\uDCE1 Mencari sinyal lokasi... akurasi \u00B1' + Math.round(terbaik.coords.accuracy) + 'm (target \u2264' + Math.round(target) + 'm)', '#fef3c7', '#92400e', '#d97706');
+        if (p.coords.accuracy <= target) akhir();
+      }, function (err) {
+        if (err && err.code === 1) akhir(err); // izin ditolak: tidak ada gunanya menunggu
+      }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+      timer = setTimeout(function () { akhir(); }, 25000);
     }
     // Pastikan catatan Datang/Pulang hari ini yang SUDAH ada di Firebase ikut diperhitungkan sebelum menentukan jenis absen
     // (key catatan tetap: tanggal_guru_tipe). Tanpa ini, bila dataset belum termuat, guru yang sudah Datang bisa dianggap
