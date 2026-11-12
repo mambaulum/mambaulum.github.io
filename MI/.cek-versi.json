@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.421",
-  "disimpan": "2026-11-12T01:14:58.954Z",
+  "appVersion": "v8.425",
+  "disimpan": "2026-11-12T02:27:39.431Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=165",
-      "hash": "4c73ac30f265542a7ecea9db129553bce009460a"
+      "v": "v=169",
+      "hash": "4cdd13ab465a6ddcb798cb346b849d43dbf5224c"
     },
     "js/portal-ortu.js": {
       "v": "v=35",
@@ -179,8 +179,8 @@
       "hash": "4e5b30ea841b9b361ff2ddd0a519900935f69b94"
     },
     "js/menu-hub.js": {
-      "v": "v=12",
-      "hash": "bdd0e114976a6c4aa22558be0faee5f0295c3810"
+      "v": "v=13",
+      "hash": "077360282c714515c4eeee116f236a040de64957"
     },
     "js/menu-polish.js": {
       "v": "v=31",
@@ -289,6 +289,10 @@
     "js/buku-tamu.js": {
       "v": "v=5",
       "hash": "08d29809809368900420dba2030ae5e86b37088c"
+    },
+    "js/buku-induk.js": {
+      "v": "v=1",
+      "hash": "2c44f946d86de8941bd6dcbf9b45b95593a7d788"
     },
     "js/fitur-pelengkap.js": {
       "v": "v=3",
