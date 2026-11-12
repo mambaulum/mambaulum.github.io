@@ -1104,15 +1104,62 @@
         }
       } catch (e) {}
       if (status === 'siap') { try { localStorage.setItem('simambaSiapOffline', String(Date.now())); } catch (e) {} }
+      // Memori HP hampir penuh -> Android bisa menghapus cache sewaktu-waktu. Ambang: sisa kuota < 150 MB.
+      let memoriPenuh = false;
+      try {
+        if (navigator.storage && navigator.storage.estimate) {
+          const est = await navigator.storage.estimate();
+          if (est && est.quota) memoriPenuh = (est.quota - (est.usage || 0)) < 150 * 1024 * 1024;
+        }
+      } catch (e) {}
       const peta = {
         siap:   ['\u2705 Siap offline', '#047857', 'HP ini sudah menyimpan aplikasi. Boleh dipakai walau sinyal hilang.'],
         proses: ['\u23F3 Menyiapkan mode offline\u2026', '#b45309', 'Tunggu sebentar, aplikasi sedang disimpan ke HP ini.'],
         belum:  ['\u26A0\uFE0F Belum siap offline', '#b91c1c', 'Buka SI MAMBA sekali saat online di HP ini agar bisa dipakai tanpa sinyal.']
       }[status];
-      el.textContent = peta[0];
-      el.title = peta[2];
-      el.style.color = peta[1];
+      el.textContent = peta[0] + (memoriPenuh ? ' \u00B7 \u26A0\uFE0F Memori HP hampir penuh' : '');
+      el.title = peta[2] + (memoriPenuh ? ' Memori HP hampir penuh: hapus foto/video/aplikasi yang tidak dipakai agar data offline tidak dihapus Android.' : '');
+      el.style.color = (memoriPenuh && status === 'siap') ? '#b45309' : peta[1];
       el.style.display = '';
+      const tb = document.getElementById('btnSiapkanOffline');
+      if (tb && !_sedangSiapkanOffline) tb.style.display = (status === 'siap') ? 'none' : '';
+      if (memoriPenuh && !window._memoriPenuhDiberitahu) { window._memoriPenuhDiberitahu = true; toast('\u26A0\uFE0F Memori HP hampir penuh. Kosongkan sebagian agar data offline SI MAMBA tidak terhapus.', true, 6000); }
+    }
+    let _sedangSiapkanOffline = false;
+    // Tombol "Siapkan offline sekarang": isi ulang cache app shell. Langkah ringan dulu (unduh ulang index.html lewat SW),
+    // kalau belum cukup baru pasang ulang Service Worker (clients.claim() di sw.js membuatnya langsung aktif tanpa muat ulang).
+    async function siapkanOfflineSekarang() {
+      if (_sedangSiapkanOffline) return;
+      if (!('serviceWorker' in navigator) || !('caches' in window)) { toast('\u26A0\uFE0F Browser ini tidak mendukung mode offline. Pakai Chrome terbaru.', true, 5000); return; }
+      if (!navigator.onLine) { toast('\uD83D\uDCE1 Perlu internet untuk menyiapkan offline. Sambungkan dulu lalu tekan lagi.', true, 4500); return; }
+      const tb = document.getElementById('btnSiapkanOffline'), el = document.getElementById('siapOfflineInfo');
+      _sedangSiapkanOffline = true;
+      if (tb) { tb.disabled = true; tb.textContent = '\u23F3 Menyiapkan...'; }
+      if (el) { el.textContent = '\u23F3 Menyiapkan mode offline\u2026'; el.style.color = '#b45309'; }
+      const adaCache = async () => { const keys = (await caches.keys()).filter(k => k.indexOf('si-mamba-shell-') === 0); for (const k of keys) { const c = await caches.open(k); if (await c.match('./index.html')) return true; } return false; };
+      let ok = false;
+      try {
+        try { await navigator.storage.persist(); } catch (e) {}
+        let reg = await navigator.serviceWorker.getRegistration();
+        if (reg && navigator.serviceWorker.controller) {
+          try { await reg.update(); } catch (e) {}
+          try { await fetch('./index.html', { cache: 'reload' }); } catch (e) {}
+          ok = await adaCache();
+        }
+        if (!ok) {
+          if (reg) { try { await reg.unregister(); } catch (e) {} }
+          reg = await navigator.serviceWorker.register('sw.js');
+          const batas = Date.now() + 45000;
+          while (Date.now() < batas) {
+            await new Promise(r => setTimeout(r, 1000));
+            if (navigator.serviceWorker.controller && await adaCache()) { ok = true; break; }
+          }
+        }
+      } catch (e) { console.warn('[SI MAMBA] siapkanOfflineSekarang gagal:', e); }
+      _sedangSiapkanOffline = false;
+      if (tb) { tb.disabled = false; tb.textContent = '\uD83D\uDD04 Siapkan offline sekarang'; }
+      await cekSiapOffline();
+      toast(ok ? '\u2705 Siap offline! Aplikasi sudah tersimpan di HP ini.' : '\u26A0\uFE0F Belum berhasil. Pastikan sinyal stabil lalu tekan lagi; kalau tetap gagal, tutup & buka ulang aplikasi.', !ok, 5000);
     }
     function pasangIndikatorSiapOffline() {
       cekSiapOffline();
@@ -3764,6 +3811,131 @@
       banner.style.display = show ? 'block' : 'none';
     }
 
+    // ---------- Daftar antrean offline (klik lencana "belum tersinkron") ----------
+    function _labelAntrean(it) {
+      const p = it.payload || {};
+      const tgl = p.tanggal ? ' \u00B7 ' + p.tanggal : '';
+      switch (it.type) {
+        case 'journal': return ['\uD83D\uDCD3 Jurnal', (p.subject || '-') + ' \u00B7 ' + (p.kelas || '-') + tgl];
+        case 'attendance': return ['\uD83D\uDCDD Absensi siswa', 'Kelas ' + (p.kelas || '-') + tgl];
+        case 'teacher_attendance': return ['\uD83D\uDCF8 Absen guru (QR)', (p.type || '-') + tgl];
+        case 'infaq': return ['\uD83D\uDCB0 Infaq', (p.op === 'remove' ? 'Batal lunas' : 'Lunas') + ' \u00B7 ' + (p.siswaNama || '-') + ' \u00B7 ' + (p.minggu || '-')];
+        case 'grades': return ['\uD83D\uDCCA Nilai', (p.subject || '-') + ' \u00B7 ' + ((p.entries || []).length) + ' siswa'];
+        default: return ['\u2753 Data lain', it.type || '-'];
+      }
+    }
+    function _pemilikAntrean(it) { const p = it.payload || {}; return p.userKey || p.guruKey || null; }
+    function _namaPemilikAntrean(it) { const p = it.payload || {}; return p.guru || (p.data && p.data.inputBy) || null; }
+    function _bolehLihatSemuaAntrean() { return (typeof isAdmin === 'function' && isAdmin()) || (typeof isKepsek === 'function' && isKepsek()); }
+    function tutupDaftarAntrean() { const o = document.getElementById('antreanOverlay'); if (o) o.remove(); }
+    async function bukaDaftarAntrean() {
+      if (!window.SIMambaOfflineDB) { flushPendingWrites(true); return; }
+      let items = [];
+      try { items = await SIMambaOfflineDB.getAllPendingWrites(); } catch (e) {}
+      tutupDaftarAntrean();
+      // Guru hanya melihat antrean miliknya; Admin & Kepsek melihat semua akun yang memakai HP ini.
+      const lihatSemua = _bolehLihatSemuaAntrean();
+      if (!lihatSemua && currentUser) items = items.filter(it => { const m = _pemilikAntrean(it); return !m || m === currentUser.key; });
+      const gelap = document.body.classList.contains('dark-mode');
+      const ov = document.createElement('div');
+      ov.id = 'antreanOverlay';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+      ov.onclick = e => { if (e.target === ov) tutupDaftarAntrean(); };
+      const baris = items.map(it => {
+        const l = _labelAntrean(it), milik = _pemilikAntrean(it), lain = milik && currentUser && milik !== currentUser.key;
+        return '<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid ' + (gelap ? '#374151' : '#e5e7eb') + ';">' +
+          '<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:14px;">' + escapeHtml(l[0]) + '</div>' +
+          '<div style="font-size:12px;opacity:.8;word-break:break-word;">' + escapeHtml(l[1]) + (lihatSemua && _namaPemilikAntrean(it) ? ' \u00B7 <i>' + (lain ? 'milik ' : 'oleh ') + escapeHtml(_namaPemilikAntrean(it)) + '</i>' : (lain ? ' \u00B7 <i>milik akun lain</i>' : '')) + '</div></div>' +
+          '<button type="button" data-antrean-id="' + String(it.id).replace(/[^0-9A-Za-z_-]/g, '') + '" style="min-height:36px;padding:0 10px;border-radius:8px;border:1px solid #dc2626;background:transparent;color:#dc2626;font-size:12px;cursor:pointer;">Batalkan</button></div>';
+      }).join('');
+      ov.innerHTML = '<div style="width:100%;max-width:420px;max-height:85vh;overflow:auto;box-sizing:border-box;border-radius:16px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.35);background:' + (gelap ? '#1f2937' : '#ffffff') + ';color:' + (gelap ? '#f3f4f6' : '#1c2b24') + ';">' +
+        '<div style="font-weight:700;font-size:16px;margin-bottom:4px;">\uD83D\uDD53 Data belum terkirim (' + items.length + ')</div>' +
+        '<div style="font-size:12px;opacity:.8;margin-bottom:8px;">Tersimpan di HP ini dan dikirim otomatis saat online.' + (lihatSemua ? ' Data milik akun lain baru terkirim saat pemiliknya login.' : '') + '</div>' +
+        (baris || '<div style="padding:16px 0;text-align:center;">\u2705 Tidak ada data yang menunggu.</div>') +
+        '<div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">' +
+        '<button type="button" id="antreanTutup" style="min-height:44px;padding:0 16px;border-radius:10px;border:1px solid #9ca3af;background:transparent;color:inherit;cursor:pointer;">Tutup</button>' +
+        (items.length ? '<button type="button" id="antreanCadangan" style="min-height:44px;padding:0 12px;border-radius:10px;border:1px solid #9ca3af;background:transparent;color:inherit;cursor:pointer;">\uD83D\uDCBE Cadangan</button>' : '') +
+        '<button type="button" id="antreanPulih" style="min-height:44px;padding:0 12px;border-radius:10px;border:1px solid #9ca3af;background:transparent;color:inherit;cursor:pointer;">\uD83D\uDCC2 Pulihkan</button>' +
+        (items.length ? '<button type="button" id="antreanKirim" style="min-height:44px;padding:0 16px;border-radius:10px;border:0;background:#00543f;color:#fff;font-weight:600;cursor:pointer;">Kirim sekarang</button>' : '') +
+        '</div></div>';
+      document.body.appendChild(ov);
+      document.getElementById('antreanTutup').onclick = tutupDaftarAntrean;
+      const bCad = document.getElementById('antreanCadangan'); if (bCad) bCad.onclick = () => cadanganAntrean(items);
+      document.getElementById('antreanPulih').onclick = pulihkanAntrean;
+      const kirim = document.getElementById('antreanKirim');
+      if (kirim) kirim.onclick = () => { tutupDaftarAntrean(); flushPendingWrites(true); };
+      ov.querySelectorAll('[data-antrean-id]').forEach(b => {
+        b.onclick = () => batalkanItemAntrean(items.find(x => String(x.id).replace(/[^0-9A-Za-z_-]/g, '') === b.getAttribute('data-antrean-id')));
+      });
+    }
+    // Cadangan: simpan antrean yang belum terkirim ke file JSON (jaga-jaga HP rusak / cache terhapus sebelum sempat sinkron).
+    function cadanganAntrean(items) {
+      try {
+        const isi = { app: 'SI MAMBA', jenis: 'cadangan-antrean-offline', dibuat: new Date().toISOString(), oleh: currentUser ? currentUser.name : null, items: items.map(it => ({ type: it.type, payload: it.payload })) };
+        const blob = new Blob([JSON.stringify(isi)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'simamba-cadangan-antrean-' + tglLokal() + '-' + String(Date.now()).slice(-5) + '.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        toast('\uD83D\uDCBE Cadangan disimpan (' + items.length + ' data). Simpan file ini sampai data terkirim.', false, 5000);
+      } catch (e) { toast('\u274C Gagal membuat cadangan.', true); }
+    }
+    // Pulihkan: masukkan lagi isi file cadangan ke antrean (milik akun ini / tanpa pemilik). Pengiriman memakai key tetap,
+    // jadi Infaq, Absen guru & Nilai tidak dobel; Jurnal/Absensi bisa dobel bila data aslinya sudah terkirim -- ada konfirmasi.
+    function pulihkanAntrean() {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.json,application/json';
+      inp.onchange = async () => {
+        const f = inp.files && inp.files[0]; if (!f) return;
+        try {
+          const d = JSON.parse(await f.text());
+          if (!d || d.jenis !== 'cadangan-antrean-offline' || !Array.isArray(d.items)) throw new Error('format');
+          const ok = d.items.filter(it => it && ['journal', 'attendance', 'teacher_attendance', 'infaq', 'grades'].indexOf(it.type) > -1 && it.payload && typeof it.payload === 'object'
+            && (!_pemilikAntrean(it) || !currentUser || _pemilikAntrean(it) === currentUser.key));
+          if (!ok.length) { toast('\u26A0\uFE0F Tidak ada data di file ini yang bisa dipulihkan untuk akun Anda.', true, 5000); return; }
+          if (!confirm('Pulihkan ' + ok.length + ' data ke antrean?\n\nJangan dipulihkan kalau data ini sudah pernah terkirim (Jurnal/Absensi bisa tercatat dobel).')) return;
+          for (const it of ok) { await SIMambaOfflineDB.addPendingWrite(it.type, it.payload); }
+          updatePendingBadge();
+          toast('\u2705 ' + ok.length + ' data dipulihkan ke antrean' + (isReallyOnline() ? ', mengirim...' : ', dikirim otomatis saat online.') + ' Tampilan lokal baru muncul setelah terkirim.', false, 6000);
+          tutupDaftarAntrean();
+          if (isReallyOnline()) flushPendingWrites(true);
+        } catch (e) { toast('\u274C File cadangan tidak valid.', true, 4000); }
+      };
+      inp.click();
+    }
+    async function batalkanItemAntrean(it) {
+      if (!it) return;
+      const perluOnline = (it.type === 'infaq' || it.type === 'grades');   // data lokalnya sudah diubah -> hanya server yang bisa memulihkan
+      if (perluOnline && !isReallyOnline()) { toast('\uD83D\uDCE1 Batalkan Infaq/Nilai hanya bisa saat online (agar tampilan dipulihkan dari server).', true, 4500); return; }
+      const l = _labelAntrean(it);
+      if (!confirm('Batalkan "' + l[0] + ' \u2014 ' + l[1] + '"?\nData ini tidak akan dikirim dan hilang dari HP ini.')) return;
+      try { await SIMambaOfflineDB.deletePendingWrite(it.id); } catch (e) { toast('\u274C Gagal membatalkan. Coba lagi.', true); return; }
+      [[typeof allJournals !== 'undefined' ? allJournals : null], [typeof allAttendance !== 'undefined' ? allAttendance : null], [typeof allTeacherAttendance !== 'undefined' ? allTeacherAttendance : null], [typeof allInfaqSiswa !== 'undefined' ? allInfaqSiswa : null], [typeof allGrades !== 'undefined' ? allGrades : null]].forEach(a => {
+        const arr = a[0]; if (!Array.isArray(arr)) return;
+        for (let i = arr.length - 1; i >= 0; i--) { if (arr[i] && arr[i]._pendingId === it.id) arr.splice(i, 1); }
+      });
+      try { bumpTaRev(); } catch (e) {}
+      try { await invalidasiCachePendingSetelahFlush(); } catch (e) {}
+      updatePendingBadge();
+      toast('\u2716\uFE0F Data antrean dibatalkan.', false, 2500);
+      if (isReallyOnline()) { try { loadAllData(); } catch (e) {} }
+      else { try { renderJikaAktif('dashboard', updateDashboard); } catch (e) {} }
+      bukaDaftarAntrean();
+    }
+    // Tombol "Keluar": beri peringatan kalau masih ada antrean offline milik akun ini (logout otomatis tidak lewat sini).
+    async function logoutAman() {
+      let n = 0;
+      try {
+        if (window.SIMambaOfflineDB && currentUser) {
+          const items = await SIMambaOfflineDB.getAllPendingWrites();
+          n = (items || []).filter(it => { const m = _pemilikAntrean(it); return !m || m === currentUser.key; }).length;
+        }
+      } catch (e) {}
+      if (n > 0 && !confirm('\u26A0\uFE0F Masih ada ' + n + ' data yang belum terkirim di HP ini.\n\nKalau keluar sekarang, data tertahan sampai Anda login lagi dengan akun yang sama saat online.\n\nTetap keluar?')) return;
+      logout();
+    }
+
     function updatePendingBadge() {
       if (!window.SIMambaOfflineDB) return;
       SIMambaOfflineDB.countPendingWrites().then(count => {
@@ -3884,7 +4056,7 @@
       SIMambaOfflineDB.getAllPendingWrites().then(items => {
         if (items.length === 0) { isFlushingPendingWrites = false; if (manual) toast('✅ Tidak ada data yang menunggu sinkronisasi.', false, 2000); return; }
         if (manual) toast(`🔄 Menyinkronkan ${items.length} data tertunda...`, false, 3000);
-        let idx = 0, gagal = 0, tertunda = 0, berhasil = 0;
+        let idx = 0, gagal = 0, tertunda = 0, berhasil = 0; const perJenis = {};
         function next() {
           // [PATCH] koneksi putus di tengah sinkron -> berhenti, sisa antrian dicoba lagi nanti
           if (idx < items.length && !isReallyOnline()) { isFlushingPendingWrites = false; updatePendingBadge(); return; }
@@ -3894,13 +4066,17 @@
             // Cache offline sebelum flush masih memuat record pendingSync; kosongkan dulu supaya tidak jadi
             // "yatim" kalau app dibuka offline setelah ini. loadAllData() menulis ulang cache dari data server.
             (berhasil > 0 ? invalidasiCachePendingSetelahFlush() : Promise.resolve()).then(() => loadAllData());
-            if (gagal > 0) toast(`⚠️ ${gagal} data belum berhasil disinkron, akan dicoba lagi otomatis.`, true, 4000);
-            else if (tertunda > 0) toast(`⏳ ${tertunda} data masih menunggu sinyal yang lebih stabil, akan dicoba lagi otomatis.`, false, 4000);
+            const NAMA_JENIS = { journal: 'jurnal', attendance: 'absensi siswa', teacher_attendance: 'absen guru', infaq: 'infaq', grades: 'nilai' };
+            const rinci = Object.keys(perJenis).map(k => perJenis[k] + ' ' + (NAMA_JENIS[k] || k)).join(', ');
+            const ringkas = berhasil > 0 ? ` (${berhasil} terkirim: ${rinci})` : '';
+            if (gagal > 0) toast(`⚠️ ${gagal} data belum berhasil disinkron, akan dicoba lagi otomatis.${ringkas}`, true, 5000);
+            else if (tertunda > 0) toast(`⏳ ${tertunda} data masih menunggu sinyal yang lebih stabil, akan dicoba lagi otomatis.${ringkas}`, false, 5000);
+            else if (berhasil > 0) toast(`✅ ${berhasil} data berhasil dikirim: ${rinci}.`, false, 5000);
             else if (manual) toast('✅ Semua data berhasil disinkronkan!', false, 3000);
             return;
           }
           const item = items[idx++];
-          flushOnePendingWrite(item).then(() => { berhasil++; next(); }).catch(err => {
+          flushOnePendingWrite(item).then(() => { berhasil++; perJenis[item.type] = (perJenis[item.type] || 0) + 1; next(); }).catch(err => {
             console.warn('[Offline] Gagal sinkron 1 item, akan dicoba lagi nanti:', err);
             // [PATCH] Timeout karena jaringan macet BUKAN kegagalan data -- jangan dihitung sebagai
             // percobaan gagal (supaya item tidak dibuang gara-gara sinyal jelek).
@@ -6736,7 +6912,7 @@
       v4PulihkanAbsenQrDariCache();
       if (!(V4.absenQr && V4.absenQr.token)) {   // token belum ada di memori: baca ulang dulu sebelum menyerah
         toast('⏳ Memuat data QR Absensi...', false, 1500);
-        return v4PastikanAbsenQr().then(ok => { if (ok) bottomNavScanQr(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum bisa dimuat' + (v4AbsenQrAlasan ? ' [' + v4AbsenQrAlasan + ']' : '') + '. Cek sinyal lalu coba lagi; bila tetap begini, hubungi Admin dan sebutkan tulisan di dalam kurung.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); });
+        return v4PastikanAbsenQr().then(ok => { if (ok) bottomNavScanQr(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum bisa dimuat' + (v4AbsenQrAlasan ? ' [' + v4AbsenQrAlasan + ']' : '') + '. Cek sinyal lalu coba lagi; bila tetap begini, hubungi Admin dan sebutkan tulisan di dalam kurung.' : '⚠️ Data QR Absensi belum tersimpan di HP ini. Buka menu Absen Guru sekali saat online, setelah itu absen QR bisa dipakai tanpa sinyal.', true); });
       }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('⚠️ Browser tidak support kamera!', true);
       navigateTo('teacher-attendance');
@@ -6748,7 +6924,7 @@
       const izinSakitHariIni = allTeacherAttendance.find(a => a.tanggal === tglLokal() && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name) && (a.type === 'Izin' || a.type === 'Sakit'));
       if (izinSakitHariIni) { toast(`⚠️ Anda sudah melaporkan ${izinSakitHariIni.type} hari ini.`, true); return; }
       v4PulihkanAbsenQrDariCache();
-      if (!(V4.absenQr && V4.absenQr.token)) { v4PastikanAbsenQr().then(ok => { if (ok) startCamera(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum bisa dimuat' + (v4AbsenQrAlasan ? ' [' + v4AbsenQrAlasan + ']' : '') + '. Cek sinyal lalu coba lagi; bila tetap begini, hubungi Admin dan sebutkan tulisan di dalam kurung.' : '⚠️ Data QR Absensi belum tersimpan di perangkat ini. Sambungkan internet sekali lalu coba lagi.', true); }); return; }
+      if (!(V4.absenQr && V4.absenQr.token)) { v4PastikanAbsenQr().then(ok => { if (ok) startCamera(); else toast(isReallyOnline() ? '⚠️ QR Absensi belum bisa dimuat' + (v4AbsenQrAlasan ? ' [' + v4AbsenQrAlasan + ']' : '') + '. Cek sinyal lalu coba lagi; bila tetap begini, hubungi Admin dan sebutkan tulisan di dalam kurung.' : '⚠️ Data QR Absensi belum tersimpan di HP ini. Buka menu Absen Guru sekali saat online, setelah itu absen QR bisa dipakai tanpa sinyal.', true); }); return; }
       const video = document.getElementById('video'), container = document.getElementById('videoContainer');
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast('⚠️ Browser tidak support kamera!', true);
@@ -6765,7 +6941,7 @@
       navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
         .then(stream => {
           cameraStream = stream; video.srcObject = stream; container.style.display = 'block'; video.style.display = 'block'; video.play();
-          v4SetFaceStatus('🔎 Arahkan kamera ke QR Absensi yang ditempel di madrasah...', '#dcfce7', '#065f46', '#059669');
+          v4SetFaceStatus('🔎 Arahkan kamera ke QR Absensi yang ditempel di madrasah...' + (isReallyOnline() ? '' : '<br><small>📡 Anda sedang offline: scan QR &amp; GPS tetap bisa. Absen disimpan di HP ini dan dikirim otomatis saat online.</small>'), '#dcfce7', '#065f46', '#059669');
           qrScanRAF = requestAnimationFrame(v4TickQrScan);
         })
         .catch(err => {
@@ -8494,7 +8670,7 @@
         'profile-v4':true,'dashboard':true,'teacher-attendance':v4IsTeacher(),'journal':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'grades':v4IsTeacher(),'attendance':v4IsTeacher()||v4IsAdmin(),'jadwal':v4CanClass(),'students':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'activities-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'tahfidz-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ekskul-v4':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'pramuka-v4':v4IsAdmin()||v4IsHead()||v4PramukaMyKelas().length>0,
         'events':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'ujian':v4IsTeacher()||v4IsAdmin()||v4IsHead(),'administrasi-ujian':(typeof aujCanOpenMenu === 'function' ? aujCanOpenMenu() : false),'bacaan-shalat':(typeof bsCanOpenMenu === 'function' ? bsCanOpenMenu() : false),
-        'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':(infaqCanAccess()||isKepsek()),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'angket':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
+        'honor':v4IsAdmin()||v4IsHead(),'honor-slip':v4IsTeacher(),'infaq-madrasah':(infaqCanAccess()||isKepsek()),'kas-umum':(typeof kasCanOpenMenu === 'function' ? kasCanOpenMenu() : false),'sikap-siswa':sikapCanAccess(),'buku-penghubung':bukuCanAccess(),'info-ortu':sikapCanAccess(),'modul-ajar':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'buku-tamu':(v4IsAdmin()||v4IsHead()),'buku-induk':(v4IsAdmin()||v4IsHead()),'materi-belajar':bukuCanAccess(),'tugas-siswa':bukuCanAccess(),'kalender-akademik':true,'saran-kritik':saranKritikCanAccess(),'angket':(v4IsTeacher()||v4IsAdmin()||v4IsHead()),'approval-v4':v4CanHead(),'raport-v4':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'laporan':v4CanHead(),'surat':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),'notifications-v4':true,'tasks-v4':true,'user-management':v4IsAdmin(),'kelola-absen-guru':v4IsAdmin()||v4IsHead(),'admin':v4IsAdmin(),'profil-sekolah':v4IsAdmin(),'rekap-nilai':v4IsAdmin()||v4IsHead()||isWaliKelasAssigned(),
         'promotion':v4IsAdmin(),'setting-jam':v4IsAdmin(),'rekap':v4CanHead(),'rekap-jurnal':v4CanHead(),'religi':v4IsTeacher()
       };

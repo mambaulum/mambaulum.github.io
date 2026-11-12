@@ -14,7 +14,7 @@
   // Urutan pages = urutan tab. Label hub = teks di sidebar.
   var HUBS = [
     { id: 'profil',    label: 'Profil',              pages: ['profile-v4', 'profil-sekolah'] },
-    { id: 'siswa',     label: 'Siswa',               pages: ['students', 'promotion'] },
+    { id: 'siswa',     label: 'Siswa',               pages: ['students', 'buku-induk', 'promotion'] },
     { id: 'nilai',     label: 'Nilai & Sikap',       pages: ['grades', 'rekap-nilai', 'sikap-siswa'] },
     { id: 'jurnal',    label: 'Jurnal Mengajar',     pages: ['rekap-jurnal', 'journal'] },
     { id: 'komortu',   label: 'Komunikasi Ortu',     pages: ['buku-penghubung', 'info-ortu'] },

@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.421';
+const APP_VERSION = 'v8.425';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -82,7 +82,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=10',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=165',
+  './js/app.js?v=169',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=35',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=6',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -113,7 +113,7 @@ const PRECACHE_URLS = [
   './js/portal-tab.js?v=12',                // Tab Portal Ortu di HP: Beranda/Amalan/Belajar/Angket/Lainnya (dimuat SESUDAH portal-ortu.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
-  './js/menu-hub.js?v=12',
+  './js/menu-hub.js?v=13',
   './js/menu-polish.js?v=31',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=7',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
@@ -140,6 +140,7 @@ const PRECACHE_URLS = [
   './js/perangkat-pembelajaran.js?v=26',
   './js/modul-ajar.js?v=23',
   './js/buku-tamu.js?v=5',
+  './js/buku-induk.js?v=1',                // Buku Induk Siswa (halaman dibuat JS; dimuat SESUDAH app.js, kredensial.js & menu-hub.js)
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=15',
   './js/auto-logout.js?v=5',

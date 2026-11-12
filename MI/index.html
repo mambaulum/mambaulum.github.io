@@ -123,7 +123,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=165"></script>
+  <script defer src="js/app.js?v=169"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=35"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
@@ -170,7 +170,7 @@
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
   <script defer src="js/ttd-digital.js?v=10"></script>
-  <script defer src="js/menu-hub.js?v=12"></script>
+  <script defer src="js/menu-hub.js?v=13"></script>
   <!-- Cari menu (Ctrl+K) + menu aksi topbar. WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/menu-polish.js?v=31"></script>
   <!-- Penampil versi aplikasi + Cek pembaruan (footer menu samping, #versiAppInfo). Berdiri sendiri, tidak memakai app.js. -->
@@ -213,6 +213,8 @@
   <script defer src="js/perangkat-pembelajaran.js?v=26"></script>
   <script defer src="js/modul-ajar.js?v=23"></script>
   <script defer src="js/buku-tamu.js?v=5"></script>
+  <!-- Buku Induk Siswa (Admin & Kepala; data pribadi anak, UU 27/2022). WAJIB sesudah app.js, kredensial.js & menu-hub.js. Butuh Rules buku_induk*. -->
+  <script defer src="js/buku-induk.js?v=1"></script>
 
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
@@ -411,6 +413,7 @@
           <div class="menu-group-header" onclick="toggleMenuGroup('siswa-ortu-v4')">Siswa & Orang Tua <span class="chevron">▲</span></div>
           <div class="menu-group-items">
             <div class="menu-item" data-page="students"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-students"/></svg></span> Siswa</div>
+            <div class="menu-item" data-page="buku-induk"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Induk</div>
             <div class="menu-item" data-page="promotion"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-promotion"/></svg></span> Kenaikan Kelas</div>
             <div class="menu-item" data-page="buku-penghubung"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Penghubung</div>
             <div class="menu-item notif-badge" data-page="info-ortu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-info-ortu"/></svg></span> Info ke Ortu <span class="badge-dot" id="infoOrtuNotifDot"></span></div>
@@ -486,7 +489,7 @@
           </div>
         </div>
         <button class="ganti-pin-btn" onclick="showGantiPinModal()"><svg class="ico ico-sm" aria-hidden="true" focusable="false"><use href="#i-_key"/></svg> Ganti PIN</button>
-        <button class="logout-btn" onclick="logout()"><svg class="ico ico-sm" aria-hidden="true" focusable="false"><use href="#i-_logout"/></svg> Keluar</button>
+        <button class="logout-btn" onclick="logoutAman()"><svg class="ico ico-sm" aria-hidden="true" focusable="false"><use href="#i-_logout"/></svg> Keluar</button>
         <div id="versiAppInfo" role="button" tabindex="0" title="Klik untuk melihat versi & cek pembaruan" style="margin-top:8px;font-size:10px;opacity:0.5;text-align:center;cursor:pointer;">SI MAMBA 4.0 • Versi <span id="versiAppNo">…</span></div>
         <div style="font-size:10px;opacity:0.5;text-align:center;">© 2026 Mambaul Ulum Karangharjo</div>
       </div>
@@ -506,7 +509,7 @@
         <div class="topbar-right">
           <span id="tahunAjaranBadge" class="status-badge" style="cursor:default;" onclick="if(isAdmin && isAdmin()) navigateTo('profil-sekolah')">📅 ...</span>
           <span id="firebaseStatus" class="status-badge">⏳ Mengecek...</span>
-          <span id="pendingSyncBadge" class="status-badge pending-sync-badge" style="display:none;" onclick="flushPendingWrites(true)" title="Klik untuk coba sinkronkan sekarang">🕓 0 belum tersinkron</span>
+          <span id="pendingSyncBadge" class="status-badge pending-sync-badge" style="display:none;" onclick="bukaDaftarAntrean()" title="Klik untuk melihat data yang belum terkirim">🕓 0 belum tersinkron</span>
           <button id="installBtn" onclick="installApp()">📲 Install</button>
           <!-- Tampil hanya lewat showUpdateAvailableToast() di app.js, yang sekaligus memasang handler kliknya -->
           <button id="swUpdateBtn" style="display:none;">🔄 Perbarui</button>
@@ -566,6 +569,7 @@
               <p class="dash-profile">👤 <span id="bioNama">-</span> · Kelas <span id="bioKelas">-</span></p>
               <p class="dash-lastupdate" id="lastUpdate"></p>
               <p class="dash-lastupdate" id="siapOfflineInfo" style="display:none;font-weight:600;" aria-live="polite"></p>
+              <button type="button" class="btn btn-soft" id="btnSiapkanOffline" onclick="siapkanOfflineSekarang()" style="display:none;margin-top:6px;padding:6px 12px;font-size:13px;">🔄 Siapkan offline sekarang</button>
             </div>
           </div>
 
