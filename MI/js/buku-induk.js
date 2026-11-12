@@ -12,6 +12,12 @@
    FORMAT KOLOM: kolom di FIELDS dapat disesuaikan dengan format dari Kankemenag (tambah/kurangi di daftar ini + Rules di RULES-buku-induk.json).
    Perlu koneksi internet (sengaja tanpa antrean offline agar data pribadi tidak tertinggal di perangkat).
 
+   V4: tab "Persetujuan" (status persetujuan yang diisi orang tua di Portal Orang Tua, pengingat WA, salin ke bagian G). Butuh Rules persetujuan_ortu*.
+
+   V3 (format PDF Buku Induk MI): kolom ditambah (nama panggilan, saudara tiri/angkat, bahasa, jarak, telepon, pendidikan wali, STTB TK, tingkat pindah,
+   bea siswa, catatan penting). Cetak mengikuti urutan A-F format baku. Kolom kesehatan (gol. darah, BB/TB, penyakit) SENGAJA tidak disimpan: di cetakan hanya
+   ada tabel kosong untuk diisi tangan. Menu berdiri sendiri (sejajar Siswa). Rules node buku_induk WAJIB diganti (RULES-buku-induk-v3).
+
    V2: tab "Rekap per kelas" (memakai buku_induk_indeks saja, tanpa membuka isi data) & tab "Impor CSV" (Admin). Impor menulis per-kolom
    (sel kosong = tidak diubah), tidak menimpa isian lama kecuali dicentang, dan memakai path/field/aksi log yang SAMA dengan simpan manual -> Rules tidak berubah.
 ============================================================ */
@@ -22,8 +28,8 @@
   var MAXLIST = 100;
 
   // Teks formulir persetujuan (ubah sesuai kebijakan madrasah / arahan Kankemenag).
-  var TUJUAN_PERSETUJUAN = 'pencatatan administrasi peserta didik pada Buku Induk Siswa madrasah';
-  var MASA_SIMPAN = 'sesuai ketentuan peraturan perundang-undangan tentang kearsipan dan penyelenggaraan pendidikan madrasah yang berlaku';
+  var TUJUAN_PERSETUJUAN = (window.PersetujuanOrtuTeks && window.PersetujuanOrtuTeks.tujuan) || 'pencatatan administrasi peserta didik pada Buku Induk Siswa madrasah';
+  var MASA_SIMPAN = (window.PersetujuanOrtuTeks && window.PersetujuanOrtuTeks.masa) || 'sesuai ketentuan peraturan perundang-undangan tentang kearsipan dan penyelenggaraan pendidikan madrasah yang berlaku';
 
   var OPT = {
     jk: ['Laki-laki', 'Perempuan'],
@@ -36,20 +42,26 @@
     bentuk: ['Tertulis', 'Terekam']
   };
   var GROUPS = [
-    { id: 'idn', t: '1. Identitas Tambahan' }, { id: 'alm', t: '2. Alamat' }, { id: 'ayh', t: '3. Ayah Kandung' }, { id: 'ibu', t: '4. Ibu Kandung' },
-    { id: 'wal', t: '5. Wali (bila ada)' }, { id: 'msk', t: '6. Penerimaan Peserta Didik' }, { id: 'rwy', t: '7. Riwayat Kelas' },
-    { id: 'klr', t: '8. Keluar / Lulus' }, { id: 'stj', t: '9. Persetujuan Orang Tua/Wali (UU PDP)' }
+    { id: 'idn', t: 'A. Keterangan Murid (tambahan)' }, { id: 'alm', t: 'A. Alamat & Telepon' }, { id: 'ayh', t: 'B. Ayah Kandung' }, { id: 'ibu', t: 'B. Ibu Kandung' },
+    { id: 'wal', t: 'B. Wali Murid (bila ada)' }, { id: 'msk', t: 'C. Pendidikan Sebelumnya / Penerimaan' }, { id: 'rwy', t: 'C. Riwayat Kelas' },
+    { id: 'bea', t: 'D. Bea Siswa' }, { id: 'klr', t: 'E. Meninggalkan Madrasah (Tamat / Pindah / Keluar)' }, { id: 'lain', t: 'F. Lain-lain' },
+    { id: 'stj', t: 'G. Persetujuan Orang Tua/Wali (UU PDP)' }
   ];
   // t: text | date | select | area. max = batas panjang (juga dipakai di Rules). pola = validasi ringan.
   var FIELDS = [
+    { id: 'panggilan', g: 'idn', l: 'Nama panggilan', t: 'text', max: 30 },
     { id: 'nism', g: 'idn', l: 'NISM', t: 'text', max: 20, pola: /^\d*$/, pesan: 'NISM hanya angka' },
     { id: 'nik', g: 'idn', l: 'NIK', t: 'text', max: 16, pola: /^(\d{16})?$/, pesan: 'NIK harus 16 angka' },
     { id: 'jk', g: 'idn', l: 'Jenis Kelamin', t: 'select', o: 'jk', max: 20 },
     { id: 'agama', g: 'idn', l: 'Agama', t: 'select', o: 'agama', max: 20 },
-    { id: 'warga', g: 'idn', l: 'Kewarganegaraan', t: 'text', max: 40 },
+    { id: 'warga', g: 'idn', l: 'Kewarganegaraan (WNI / WNI keturunan / lainnya)', t: 'text', max: 40 },
     { id: 'anak_ke', g: 'idn', l: 'Anak ke-', t: 'text', max: 3, pola: /^\d*$/, pesan: 'Anak ke- hanya angka' },
     { id: 'saudara', g: 'idn', l: 'Jumlah saudara kandung', t: 'text', max: 3, pola: /^\d*$/, pesan: 'Jumlah saudara hanya angka' },
-    { id: 'tinggal', g: 'idn', l: 'Tinggal bersama', t: 'select', o: 'tinggal', max: 30 },
+    { id: 'saudara_tiri', g: 'idn', l: 'Jumlah saudara tiri', t: 'text', max: 3, pola: /^\d*$/, pesan: 'Saudara tiri hanya angka' },
+    { id: 'saudara_angkat', g: 'idn', l: 'Jumlah saudara angkat', t: 'text', max: 3, pola: /^\d*$/, pesan: 'Saudara angkat hanya angka' },
+    { id: 'bahasa', g: 'idn', l: 'Bahasa sehari-hari di rumah', t: 'text', max: 40 },
+    { id: 'tinggal', g: 'idn', l: 'Bertempat tinggal pada', t: 'select', o: 'tinggal', max: 30 },
+    { id: 'jarak', g: 'idn', l: 'Jarak ke madrasah (mis. 2 km)', t: 'text', max: 30 },
 
     { id: 'alamat', g: 'alm', l: 'Alamat (jalan / dusun)', t: 'text', max: 200, full: 1 },
     { id: 'rtrw', g: 'alm', l: 'RT / RW', t: 'text', max: 20 },
@@ -58,6 +70,7 @@
     { id: 'kab', g: 'alm', l: 'Kabupaten / Kota', t: 'text', max: 80 },
     { id: 'prov', g: 'alm', l: 'Provinsi', t: 'text', max: 80 },
     { id: 'pos', g: 'alm', l: 'Kode pos', t: 'text', max: 5, pola: /^\d*$/, pesan: 'Kode pos hanya angka' },
+    { id: 'telp', g: 'alm', l: 'Nomor telepon / HP', t: 'text', max: 20, pola: /^[0-9+() -]*$/, pesan: 'Telepon hanya angka, spasi, + - ( )' },
 
     { id: 'ayah_nama', g: 'ayh', l: 'Nama ayah', t: 'text', max: 100 },
     { id: 'ayah_pend', g: 'ayh', l: 'Pendidikan', t: 'select', o: 'pend', max: 30 },
@@ -67,20 +80,30 @@
     { id: 'ibu_kerja', g: 'ibu', l: 'Pekerjaan', t: 'text', max: 80 },
     { id: 'wali_nama', g: 'wal', l: 'Nama wali', t: 'text', max: 100 },
     { id: 'wali_hub', g: 'wal', l: 'Hubungan dengan siswa', t: 'text', max: 40 },
+    { id: 'wali_pend', g: 'wal', l: 'Pendidikan tertinggi', t: 'select', o: 'pend', max: 30 },
     { id: 'wali_kerja', g: 'wal', l: 'Pekerjaan', t: 'text', max: 80 },
 
     { id: 'masuk_tgl', g: 'msk', l: 'Tanggal diterima', t: 'date', max: 10 },
     { id: 'masuk_jenis', g: 'msk', l: 'Status penerimaan', t: 'select', o: 'masuk', max: 30 },
     { id: 'masuk_kelas', g: 'msk', l: 'Diterima di kelas', t: 'text', max: 20 },
-    { id: 'masuk_asal', g: 'msk', l: 'Asal (TK / RA / sekolah sebelumnya)', t: 'text', max: 100, full: 1 },
+    { id: 'masuk_asal', g: 'msk', l: 'Asal: nama TK / RA (murid baru) atau madrasah asal (pindahan)', t: 'text', max: 100, full: 1 },
+    { id: 'masuk_dari_tkt', g: 'msk', l: 'Pindahan dari tingkat / kelas', t: 'text', max: 20 },
+    { id: 'masuk_sttb', g: 'msk', l: 'Nomor STTB / ijazah TK-RA (bila ada)', t: 'text', max: 60 },
+    { id: 'masuk_sttb_tgl', g: 'msk', l: 'Tanggal STTB / ijazah TK-RA', t: 'date', max: 10 },
     { id: 'masuk_alasan', g: 'msk', l: 'Alasan pindah (bila pindahan)', t: 'text', max: 150, full: 1 },
 
+    { id: 'bea_jenis', g: 'bea', l: 'Jenis bea siswa (PIP, KIP, dll.)', t: 'text', max: 100, full: 1 },
+
     { id: 'klr_jenis', g: 'klr', l: 'Keterangan', t: 'select', o: 'keluar', max: 40 },
-    { id: 'klr_tgl', g: 'klr', l: 'Tanggal', t: 'date', max: 10 },
+    { id: 'klr_tgl', g: 'klr', l: 'Tanggal (tamat / pindah / keluar)', t: 'date', max: 10 },
     { id: 'klr_ke', g: 'klr', l: 'Melanjutkan / pindah ke', t: 'text', max: 100 },
+    { id: 'klr_dari_tkt', g: 'klr', l: 'Pindah dari tingkat / kelas', t: 'text', max: 20 },
+    { id: 'klr_ke_tkt', g: 'klr', l: 'Pindah ke tingkat / kelas', t: 'text', max: 20 },
     { id: 'klr_alasan', g: 'klr', l: 'Alasan (bila pindah / mundur)', t: 'text', max: 150 },
     { id: 'ijazah_no', g: 'klr', l: 'Nomor ijazah', t: 'text', max: 40 },
     { id: 'ijazah_tgl', g: 'klr', l: 'Tanggal ijazah', t: 'date', max: 10 },
+
+    { id: 'catatan', g: 'lain', l: 'Catatan yang penting', t: 'text', max: 300, full: 1 },
 
     { id: 'setuju_tgl', g: 'stj', l: 'Tanggal persetujuan', t: 'date', max: 10 },
     { id: 'setuju_oleh', g: 'stj', l: 'Diberikan oleh (nama orang tua/wali)', t: 'text', max: 100 },
@@ -92,11 +115,13 @@
     FIELDS.push({ id: 'r' + k + '_ta', g: 'rwy', l: 'Kelas ' + k + ' - tahun ajaran', t: 'text', max: 9, pola: /^(\d{4}\/\d{4})?$/, pesan: 'Tahun ajaran format 2024/2025 (kelas ' + k + ')' });
     FIELDS.push({ id: 'r' + k + '_hasil', g: 'rwy', l: 'Kelas ' + k + ' - hasil', t: 'select', o: 'hasil', max: 20 });
   }
+  var OPSIONAL = ['masuk_alasan', 'masuk_dari_tkt', 'masuk_sttb', 'masuk_sttb_tgl', 'saudara_tiri', 'saudara_angkat'];   // tidak dihitung di persen terisi
   window.__bukuIndukFields = FIELDS.map(function (f) { return { id: f.id, max: f.max }; });   // dipakai pembuat Rules
 
   var LOG_AKSI = ['lihat', 'ubah', 'cetak', 'cetak_persetujuan', 'hapus'];
   var root = null, idx = null, idxMuat = false, idxGalat = '', cur = null, tab = 'daftar', imp = null;   // cur = { key, siswa, data, baru }
   var filt = { q: '', kelas: '', st: '' }, qTimer = null, sibuk = false;
+  var stj = null, stjMuat = false, stjGalat = '', stjKelas = '', stjKirim = {}, stjAntre = null;   // tab Persetujuan (status dari Portal Orang Tua)
 
   /* ---------- util ---------- */
   function $(id) { return document.getElementById(id); }
@@ -114,7 +139,7 @@
   function aktif(s) { return !s || s.aktif !== false; }
   function namaKelas(s) { return (s && s.kelas) || '(tanpa kelas)'; }
   function urutKelas(a, b) { return String(a).localeCompare(String(b), 'id', { numeric: true }); }
-  function isNum(f) { return f.t === 'text' && ['nism', 'nik', 'anak_ke', 'saudara', 'pos'].indexOf(f.id) > -1; }   // kolom khusus angka
+  function isNum(f) { return f.t === 'text' && ['nism', 'nik', 'anak_ke', 'saudara', 'saudara_tiri', 'saudara_angkat', 'pos'].indexOf(f.id) > -1; }   // kolom khusus angka
   function tglId(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); if (!m) return iso || ''; var b = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']; return parseInt(m[3], 10) + ' ' + b[parseInt(m[2], 10) - 1] + ' ' + m[1]; }
   function hariIni() { try { return tglLokal(); } catch (e) { return new Date().toISOString().slice(0, 10); } }
   function injectCss() {
@@ -147,7 +172,7 @@
     }).catch(function (e) { idx = null; idxMuat = false; idxGalat = (e && e.message) || String(e); });
   }
   function persenTerisi(o) {
-    var n = 0, tot = FIELDS.filter(function (f) { return f.g !== 'stj' && f.g !== 'klr' && f.g !== 'wal' && f.g !== 'rwy' && f.id !== 'masuk_alasan'; });   // riwayat kelas & alasan pindah tidak wajib untuk semua siswa
+    var n = 0, tot = FIELDS.filter(function (f) { return ['stj', 'klr', 'wal', 'rwy', 'bea', 'lain'].indexOf(f.g) < 0 && OPSIONAL.indexOf(f.id) < 0; });   // riwayat kelas & alasan pindah tidak wajib untuk semua siswa
     tot.forEach(function (f) { if (o && o[f.id]) n++; });
     return Math.round(100 * n / tot.length);
   }
@@ -170,13 +195,13 @@
     if (!canView()) { root.innerHTML = '<div class="card"><p style="color:#dc2626;">🔒 Menu ini hanya untuk Admin dan Kepala Madrasah.</p></div>'; return; }
     if (cur) return renderForm();
     if (tab === 'impor' && !canEdit()) tab = 'daftar';
-    var tabs = [['daftar', '📋 Daftar'], ['rekap', '📊 Rekap per kelas']];
+    var tabs = [['daftar', '📋 Daftar'], ['rekap', '📊 Rekap per kelas'], ['setuju', '📲 Persetujuan']];
     if (canEdit()) tabs.push(['impor', '📥 Impor CSV']);
     root.innerHTML = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📕 Buku Induk Siswa</h3>' +
       '<p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Data induk peserta didik. <b>Rahasia</b> (data pribadi anak, UU 27/2022): hanya Admin &amp; Kepala Madrasah; setiap akses dicatat. ' + (canEdit() ? '' : 'Kepala Madrasah: hanya melihat.') + '</p>' +
       '<div class="bi-bar">' + tabs.map(function (t) { return '<button class="btn ' + (t[0] === tab ? 'btn-success' : 'btn-soft') + '" data-bi="tab" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div id="biBody"></div></div>';
-    if (tab === 'rekap') renderRekap(); else if (tab === 'impor') renderImpor(); else renderDaftar();
+    if (tab === 'rekap') renderRekap(); else if (tab === 'impor') renderImpor(); else if (tab === 'setuju') renderPersetujuan(); else renderDaftar();
   }
   // true bila indeks sudah termuat; kalau belum, tampilkan "memuat"/galat dan panggil ulang tampilan `nama` setelah selesai.
   function idxSiap(ulang, nama) {
@@ -253,7 +278,7 @@
       '<h3 style="font-size:16px;font-weight:700;margin:10px 0 6px;">📕 Buku Induk: ' + esc(s.name) + '</h3>' +
       '<div class="bi-id"><b>' + esc(s.name) + '</b> · Kelas ' + esc(s.kelas || '-') + '<br>NIS: ' + esc(s.nis || '-') + ' · NISN: ' + esc(s.nisn || '-') +
       '<br>Tempat, tgl lahir: ' + esc(s.tempatLahir || '-') + ', ' + esc(tglId(s.tglLahir) || '-') + '<br><span class="text-muted" style="font-size:12px;">Data di atas diambil dari menu Siswa (ubah di sana).</span></div>' +
-      (d.setuju_tgl && d.setuju_oleh ? '' : '<div class="bi-warn">⚠️ Persetujuan orang tua/wali belum dicatat (UU 27/2022 &amp; PP 33/2026). Isi bagian 9 setelah formulir ditandatangani.</div>') +
+      (d.setuju_tgl && d.setuju_oleh ? '' : '<div class="bi-warn">⚠️ Persetujuan orang tua/wali belum dicatat (UU 27/2022 &amp; PP 33/2026). Isi bagian G setelah formulir ditandatangani.</div>') +
       grup +
       '<div class="bi-act">' + (canEdit() ? '<button class="btn btn-success" data-bi="simpan">💾 Simpan</button>' : '') +
       '<button class="btn btn-soft" data-bi="cetak">🖨️ Cetak Buku Induk</button><button class="btn btn-soft" data-bi="cetakSetuju">🖨️ Formulir Persetujuan</button>' +
@@ -299,6 +324,134 @@
     }).catch(function (e) { toast('❌ Gagal menghapus: ' + ((e && e.message) || e), true, 6000); }).then(function () { sibuk = false; });
   }
 
+  /* ---------- persetujuan dari Portal Orang Tua (status + pengingat WA + sinkron ke Buku Induk) ---------- */
+  function muatPersetujuan(paksa) {
+    if (stjMuat && !paksa) return Promise.resolve();
+    stjGalat = '';
+    return siap().then(function () { return Promise.all([db.ref('persetujuan_ortu').once('value'), db.ref('buku_induk_indeks').once('value')]); }).then(function (r) {
+      stj = r[0].val() || {}; idx = r[1].val() || {}; idxMuat = true; stjMuat = true;
+    }).catch(function (e) { stj = null; stjMuat = false; stjGalat = (e && e.message) || String(e); });
+  }
+  function ptSetuju(p) { return !!(p && p.s === 'setuju' && p.b1); }
+  function statusPt(s) {
+    var p = stj && stj[s.key], d = idx && idx[s.key];
+    if (ptSetuju(p)) return 'portal';
+    if (p && p.s === 'setuju') return 'sebagian';
+    if (p && p.s === 'tarik') return 'tarik';
+    if (p && p.s === 'tidak') return 'tidak';
+    if (d && d.setuju) return 'kertas';
+    return 'belum';
+  }
+  var LABEL_PT = { portal: ['✔ Setuju (portal)', 'bi-ok'], kertas: ['✔ Sudah (formulir kertas)', 'bi-ok'], sebagian: ['◐ Sebagian, butir 1 tidak disetujui', 'bi-no'], tidak: ['✖ Tidak setuju', 'bi-no'], tarik: ['↩ Ditarik di portal', 'bi-no'], belum: ['… Belum', 'bi-no'] };
+  function butuhSinkron(s) {
+    var p = stj && stj[s.key], d = idx && idx[s.key];
+    if (!p) return false;
+    if (ptSetuju(p)) return !(d && d.setuju);
+    return p.s === 'tarik' && !!(d && d.setuju);
+  }
+  function adaWa(s) { return !!s.noWaOrtu && typeof formatNomorWa === 'function' && formatNomorWa(s.noWaOrtu).length >= 10; }
+  function pesanWa(s) {
+    var url = location.origin + location.pathname;
+    return 'Assalamu\'alaikum, Bapak/Ibu wali dari ananda *' + s.name + '* (' + (s.kelas || '-') + ').\n\nMadrasah memohon persetujuan Bapak/Ibu atas pencatatan data ananda pada Buku Induk Siswa, sesuai UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi.\n\n' +
+      'Caranya mudah: buka Portal Orang Tua di\n' + url + '\nmasuk dengan nomor WhatsApp ini, lalu isi kartu *Persetujuan Data Siswa* di halaman awal (pilih setuju atau tidak setuju). Hanya butuh satu menit.\n\nTerima kasih.\n\n- ' + (madInfo().nama || 'Madrasah');
+  }
+  function tglDariTs(ts) { return new Date((Number(ts) || Date.now()) + 7 * 3600 * 1000).toISOString().slice(0, 10); }
+  function barisPt() {
+    return daftarSiswa().filter(aktif).filter(function (s) { return !stjKelas || namaKelas(s) === stjKelas; })
+      .sort(function (a, b) { return urutKelas(namaKelas(a), namaKelas(b)) || String(a.name).localeCompare(String(b.name)); });
+  }
+  function renderPersetujuan() {
+    var b = $('biBody'); if (!b) return;
+    if (!stjMuat) {
+      if (stjGalat) { b.innerHTML = '<div class="bi-warn">' + esc(stjGalat) + '<br>Pastikan Rules <b>persetujuan_ortu</b> sudah dipasang.</div><button class="btn btn-soft" data-bi="stjMuat">🔄 Coba lagi</button>'; return; }
+      b.innerHTML = '<p class="text-muted">⏳ Memuat…</p>';
+      muatPersetujuan(false).then(function () { if (pageAktif() && !cur && tab === 'setuju') renderPersetujuan(); });
+      return;
+    }
+    var list = barisPt(), hit = { portal: 0, kertas: 0, sebagian: 0, tidak: 0, tarik: 0, belum: 0 };
+    list.forEach(function (s) { hit[statusPt(s)]++; });
+    var kelasList = {}; daftarSiswa().filter(aktif).forEach(function (s) { kelasList[namaKelas(s)] = 1; });
+    var ko = '<option value="">Semua kelas</option>' + Object.keys(kelasList).sort(urutKelas).map(function (k) { return '<option' + (k === stjKelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('');
+    var perlu = list.filter(butuhSinkron).length;
+    var target = list.filter(function (s) { return statusPt(s) === 'belum' && adaWa(s) && !stjKirim[s.key]; });
+    var boleh = canEdit();
+    var antre = '';
+    if (stjAntre) {
+      var a = stjAntre;
+      if (a.i >= a.items.length) antre = '<div class="bi-warn" style="background:#ecfdf5;border-color:#6ee7b7;color:#065f46;">✅ Antrean selesai: ' + a.kirim + ' pengingat dibuka, ' + a.lewat + ' dilewati. <button class="btn btn-soft" data-bi="stjTutup" style="padding:3px 10px;font-size:12px;">Tutup</button></div>';
+      else {
+        var sk = siswaByKey(a.items[a.i]);
+        antre = '<div class="bi-warn" style="background:#ecfdf5;border-color:#25D366;color:#065f46;">Antrean WA ' + (a.i + 1) + ' dari ' + a.items.length + ': <b>' + esc(sk ? sk.name : '-') + '</b> (' + esc(sk ? sk.kelas : '') + ')<br>' +
+          '<button class="btn" data-bi="stjBuka" style="background:#25D366;color:#fff;padding:5px 12px;font-size:12px;margin-top:6px;">📲 Buka WA &amp; lanjut</button> <button class="btn btn-soft" data-bi="stjLewati" style="padding:5px 12px;font-size:12px;">⏭️ Lewati</button> <button class="btn btn-soft" data-bi="stjTutup" style="padding:5px 12px;font-size:12px;">Tutup</button></div>';
+      }
+    }
+    var rows = list.map(function (s) {
+      var st = statusPt(s), p = stj[s.key], l = LABEL_PT[st];
+      var info = p && p.ts ? ' <span class="text-muted" style="font-size:11px;">' + esc(tglId(tglDariTs(p.ts))) + (p.oleh ? ' · ' + esc(p.oleh) : '') + '</span>' : '';
+      var aksi = (boleh && st === 'belum') ? (adaWa(s) ? '<button class="btn" data-bi="stjWa" data-key="' + esc(s.key) + '" style="background:#25D366;color:#fff;padding:2px 8px;font-size:11px;">📲 WA' + (stjKirim[s.key] ? ' ✓' : '') + '</button>' : '<span class="text-muted" style="font-size:11px;">no. WA kosong</span>') : '';
+      return '<tr><td>' + esc(s.name) + '</td><td>' + esc(s.kelas || '-') + '</td><td><span class="' + l[1] + '">' + l[0] + '</span>' + info + '</td><td>' + aksi + '</td></tr>';
+    }).join('');
+    b.innerHTML = '<p style="font-size:13px;margin-bottom:8px;">Orang tua mengisi persetujuan sendiri di <b>Portal Orang Tua</b> (kartu "Persetujuan Data Siswa"). Status di bawah diambil dari sana; persetujuan kertas yang sudah dicatat di Buku Induk tetap dihitung.</p>' +
+      '<div class="bi-bar"><span class="bi-ok">✔ Portal: ' + hit.portal + '</span><span class="bi-ok">✔ Kertas: ' + hit.kertas + '</span><span class="bi-no">… Belum: ' + hit.belum + '</span><span class="bi-no">✖/↩/◐: ' + (hit.tidak + hit.tarik + hit.sebagian) + '</span></div>' +
+      '<div class="bi-bar"><select id="biSK" class="field">' + ko + '</select><button class="btn btn-soft" data-bi="stjMuat">🔄 Muat ulang</button>' +
+      (boleh ? '<button class="btn btn-soft" data-bi="stjSinkron"' + (perlu ? '' : ' disabled') + '>⬇️ Salin ke Buku Induk (' + perlu + ')</button>' +
+        '<button class="btn" data-bi="stjMulai" style="background:#25D366;color:#fff;"' + (target.length && !stjAntre ? '' : ' disabled') + '>📲 Kirim berurutan (' + target.length + ')</button>' : '') + '</div>' +
+      antre + '<div style="overflow-x:auto;"><table class="bi-tbl"><tr><th>Nama</th><th>Kelas</th><th>Status persetujuan</th><th></th></tr>' + rows + '</table></div>';
+  }
+  function kirimWaPt(key) {
+    var s = siswaByKey(key); if (!s || !canEdit()) return false;
+    if (!adaWa(s)) { toast('⚠️ Nomor WhatsApp wali belum diisi atau tidak valid. Isi lewat Edit Siswa di menu Siswa.', true); return false; }
+    if (typeof kirimWA !== 'function') { toast('Fungsi kirim WA tidak tersedia.', true); return false; }
+    kirimWA(s.noWaOrtu, pesanWa(s)); stjKirim[key] = true;
+    try { addLog('ingatkan_persetujuan_ortu', (s.kelas || '-') + ' - ' + s.name); } catch (e) { }
+    return true;
+  }
+  function antreBuka() {
+    var a = stjAntre; if (!a || a.i >= a.items.length) return;
+    var key = a.items[a.i]; a.i++;
+    if (kirimWaPt(key)) a.kirim++; else a.lewat++;
+    renderPersetujuan();
+  }
+  function sinkronPersetujuan() {
+    if (!canEdit() || sibuk || !stj) return;
+    var list = barisPt().filter(butuhSinkron);
+    if (!list.length) return toast('Tidak ada yang perlu disalin.');
+    if (!confirm('Salin status persetujuan dari Portal Orang Tua ke Buku Induk untuk ' + list.length + ' siswa?\n(Hanya bagian 9/G "Persetujuan"; isian lain tidak diubah.)')) return;
+    sibuk = true;
+    var stat = { isi: 0, hapus: 0, lewat: 0 };
+    var ids = ['setuju_tgl', 'setuju_oleh', 'setuju_hub', 'setuju_bentuk', 'setuju_cat'];
+    function potong(i) {
+      if (i >= list.length) return Promise.resolve();
+      var bag = list.slice(i, i + 20);
+      return Promise.all(bag.map(function (s) { return db.ref('buku_induk/' + s.key).once('value'); })).then(function (snaps) {
+        var upd = {}, ubah = [], baru = {};
+        bag.forEach(function (s, j) {
+          var p = stj[s.key], lama = snaps[j].val() || {}, gab = Object.assign({}, lama), id = 'buku_induk/' + s.key + '/';
+          if (ptSetuju(p)) {
+            var tdk = []; for (var n = 1; n <= 4; n++) if (!p['b' + n]) tdk.push(n);
+            var nv = { setuju_tgl: tglDariTs(p.ts), setuju_oleh: String(p.oleh || '').slice(0, 100), setuju_hub: String(p.hub || '').slice(0, 40), setuju_bentuk: 'Terekam',
+              setuju_cat: ('Portal Orang Tua (' + (p.ver || '-') + ')' + (tdk.length ? '; butir tidak disetujui: ' + tdk.join(', ') : '')).slice(0, 200) };
+            Object.keys(nv).forEach(function (k) { upd[id + k] = nv[k]; gab[k] = nv[k]; }); stat.isi++;
+          } else {
+            if (!(lama.setuju_cat && String(lama.setuju_cat).indexOf('Portal Orang Tua') === 0)) { stat.lewat++; return; }   // persetujuan kertas: jangan dihapus otomatis
+            ids.forEach(function (k) { upd[id + k] = null; delete gab[k]; }); stat.hapus++;
+          }
+          upd[id + '_upd'] = firebase.database.ServerValue.TIMESTAMP; upd[id + '_oleh'] = String(oleh()).slice(0, 100);
+          var ind = { pct: persenTerisi(gab), setuju: !!(gab.setuju_tgl && gab.setuju_oleh) };
+          upd['buku_induk_indeks/' + s.key] = { pct: ind.pct, setuju: ind.setuju, upd: firebase.database.ServerValue.TIMESTAMP };
+          ubah.push(s.key); baru[s.key] = ind;
+        });
+        if (!ubah.length) return;
+        return db.ref().update(upd).then(function () { idx = idx || {}; ubah.forEach(function (k) { catat('ubah', k); idx[k] = baru[k]; }); });
+      }).then(function () { return potong(i + 20); });
+    }
+    siap().then(function () { return potong(0); }).then(function () {
+      try { addLog('buku_induk_salin_persetujuan', stat.isi + ' diisi, ' + stat.hapus + ' dikosongkan'); } catch (e) { }
+      toast('✅ Disalin: ' + stat.isi + ' diisi' + (stat.hapus ? ', ' + stat.hapus + ' dikosongkan (ditarik)' : '') + (stat.lewat ? '; ' + stat.lewat + ' dilewati (persetujuan kertas, periksa manual)' : ''), false, 7000);
+    }).catch(function (e) { toast('❌ ' + ((e && e.message) || e), true, 6000); })
+      .then(function () { sibuk = false; if (pageAktif() && !cur && tab === 'setuju') renderPersetujuan(); });
+  }
+
   /* ---------- cetak ---------- */
   function bukaDokumen(html, fitur) {
     var url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
@@ -314,13 +467,34 @@
   function cetak() {
     if (!cur) return;
     var s = cur.siswa, d = cur.data || {};
-    var baris = function (l, v) { return '<tr><td class="k">' + esc(l) + '</td><td>' + esc(v || '') + '</td></tr>'; };
-    var idn = '<h4>A. Identitas Peserta Didik</h4><table>' + baris('Nama lengkap', s.name) + baris('Kelas', s.kelas) + baris('NIS', s.nis) + baris('NISN', s.nisn) +
-      baris('Tempat, tanggal lahir', (s.tempatLahir || '') + (s.tglLahir ? ', ' + tglId(s.tglLahir) : '')) + FIELDS.filter(function (f) { return f.g === 'idn'; }).map(function (f) { return baris(f.l, d[f.id]); }).join('') + '</table>';
-    var blok = function (huruf, gid, judul) { return '<h4>' + huruf + '. ' + judul + '</h4><table>' + FIELDS.filter(function (f) { return f.g === gid; }).map(function (f) { return baris(f.l, f.t === 'date' ? tglId(d[f.id]) : d[f.id]); }).join('') + '</table>'; };
-    var rw = '<h4>G. Riwayat Kelas</h4><table><tr><th>Kelas</th><th>Tahun ajaran</th><th>Hasil</th></tr>' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<tr><td>' + n + '</td><td>' + esc(d['r' + n + '_ta'] || '') + '</td><td>' + esc(d['r' + n + '_hasil'] || '') + '</td></tr>'; }).join('') + '</table>';
-    var html = '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Buku Induk - ' + esc(s.name) + '</title><style>' + CSS + '</style></head><body>' + kop() + '<h3>BUKU INDUK SISWA</h3>' + idn +
-      blok('B', 'alm', 'Alamat') + blok('C', 'ayh', 'Ayah Kandung') + blok('D', 'ibu', 'Ibu Kandung') + blok('E', 'wal', 'Wali') + blok('F', 'msk', 'Penerimaan Peserta Didik') + rw + blok('H', 'klr', 'Keluar / Lulus') +
+    var v = function (id) { return d[id] || ''; }, tg = function (id) { return tglId(d[id]); };
+    var baris = function (l, val) { return '<tr><td class="k">' + esc(l) + '</td><td>' + esc(val || '') + '</td></tr>'; };
+    var dua = function (l, a, b) { return '<tr><td class="k">' + esc(l) + '</td><td>' + esc(a || '') + '</td><td>' + esc(b || '') + '</td></tr>'; };
+    var foto = function (t) { return '<td style="width:25%;text-align:center;height:4cm;vertical-align:middle;color:#777;">Pas foto 3 x 4<br>' + t + '</td>'; };
+    var A = '<h4>A. KETERANGAN MURID</h4><table>' + baris('Nomor Induk Siswa (NIS)', s.nis) + baris('NISN', s.nisn) + baris('NISM / NIK', [v('nism'), v('nik')].filter(Boolean).join(' / ')) +
+      baris('1. Nama lengkap', s.name) + baris('    Nama panggilan', v('panggilan')) + baris('2. Jenis kelamin', v('jk')) +
+      baris('3. Kelahiran - tempat', s.tempatLahir) + baris('    Kelahiran - tanggal', tglId(s.tglLahir)) + baris('4. Agama', v('agama')) + baris('5. Kewarganegaraan', v('warga')) +
+      baris('    Anak ke-', v('anak_ke')) + baris('6. Jumlah saudara kandung', v('saudara')) + baris('    Jumlah saudara tiri', v('saudara_tiri')) + baris('    Jumlah saudara angkat', v('saudara_angkat')) +
+      baris('7. Bahasa sehari-hari di rumah', v('bahasa')) + baris('8. Kelas', s.kelas) +
+      baris('9. Alamat', [v('alamat'), v('rtrw') && 'RT/RW ' + v('rtrw'), v('desa'), v('kec') && 'Kec. ' + v('kec'), v('kab'), v('prov'), v('pos')].filter(Boolean).join(', ')) + baris('    Nomor telepon', v('telp')) +
+      baris('10. Bertempat tinggal pada', v('tinggal')) + baris('11. Jarak ke madrasah', v('jarak')) + '</table>' +
+      '<table><tr><th colspan="2">12. Pas foto 3 x 4 (ditempel, ditandatangani siswa dan distempel madrasah)</th></tr><tr>' + foto('saat masuk') + foto('saat meninggalkan madrasah') + '</tr></table>';
+    var B = '<h4>B. KETERANGAN ORANG TUA / WALI MURID</h4><table><tr><th class="k"></th><th>Ayah</th><th>Ibu</th></tr>' +
+      dua('13. Nama orang tua kandung', v('ayah_nama'), v('ibu_nama')) + dua('14. Pendidikan tertinggi', v('ayah_pend'), v('ibu_pend')) + dua('15. Pekerjaan', v('ayah_kerja'), v('ibu_kerja')) + '</table>' +
+      '<table>' + baris('16. Wali murid - nama', v('wali_nama')) + baris('    Hubungan keluarga', v('wali_hub')) + baris('    Pendidikan tertinggi', v('wali_pend')) + baris('    Pekerjaan', v('wali_kerja')) + '</table>';
+    var rw = '<table><tr><th>Tingkat</th><th>Tahun ajaran</th><th>Hasil</th></tr>' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<tr><td>Kelas ' + n + '</td><td>' + esc(v('r' + n + '_ta')) + '</td><td>' + esc(v('r' + n + '_hasil')) + '</td></tr>'; }).join('') + '</table>';
+    var jas = '<p style="margin:6px 0 2px;">Keadaan jasmani (diisi tangan bila diperlukan; tidak disimpan di sistem):</p><table style="text-align:center;"><tr><th class="k">Tahun</th>' + [1, 2, 3, 4, 5, 6].map(function () { return '<th>&nbsp;</th>'; }).join('') + '</tr>' +
+      ['Berat badan (kg)', 'Tinggi badan (cm)', 'Penyakit', 'Kelainan jasmani'].map(function (l) { return '<tr><td class="k" style="text-align:left;">' + l + '</td>' + [1, 2, 3, 4, 5, 6].map(function () { return '<td>&nbsp;</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+    var C = '<h4>C. PERKEMBANGAN MURID</h4><table>' + baris('17. Status penerimaan', v('masuk_jenis')) + baris('    Tanggal diterima', tg('masuk_tgl')) + baris('    Diterima di kelas', v('masuk_kelas')) +
+      baris('    a. Murid baru - asal / nama TK-RA, atau b. Pindahan - nama madrasah asal', v('masuk_asal')) + baris('    Tanggal dan nomor STTB TK-RA', [tg('masuk_sttb_tgl'), v('masuk_sttb')].filter(Boolean).join(' / ')) +
+      baris('    Pindahan dari tingkat', v('masuk_dari_tkt')) + baris('    Alasan pindah', v('masuk_alasan')) + '</table>' +
+      '<p style="margin:6px 0 2px;">18. Prestasi belajar: lihat Buku Hasil Belajar (Raport) tiap semester. Riwayat kelas:</p>' + rw + jas;
+    var D = '<h4>D. BEA SISWA</h4><table>' + baris('19. Jenis bea siswa', v('bea_jenis')) + '</table>';
+    var E = '<h4>E. MENINGGALKAN MADRASAH</h4><table>' + baris('20-22. Keterangan (tamat / pindah / keluar)', v('klr_jenis')) + baris('Tanggal', tg('klr_tgl')) + baris('Melanjutkan / pindah ke madrasah', v('klr_ke')) +
+      baris('Pindah dari tingkat', v('klr_dari_tkt')) + baris('Pindah ke tingkat', v('klr_ke_tkt')) + baris('Alasan', v('klr_alasan')) + baris('Nomor ijazah / STTB', v('ijazah_no')) + baris('Tanggal ijazah', tg('ijazah_tgl')) + '</table>';
+    var F = '<h4>F. LAIN-LAIN</h4><table>' + baris('Catatan yang penting', v('catatan')) + '</table>';
+    var html = '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Buku Induk - ' + esc(s.name) + '</title><style>' + CSS + '</style></head><body>' + kop() + '<h3>LEMBAR BUKU INDUK SISWA</h3>' +
+      A + B + C + D + E + F +
       '<div class="ttd"><div>Wali Kelas / Operator<br><br><br><br>(................................)</div><div>Kepala Madrasah<br><br><br><br>(................................)</div></div>' +
       '<p class="ft">DOKUMEN RAHASIA: memuat data pribadi anak (UU No. 27 Tahun 2022). Dicetak oleh ' + esc(oleh()) + ' pada ' + esc(tglId(hariIni())) + '. Simpan dan musnahkan sesuai ketentuan.</p></body></html>';
     catat('cetak', cur.key); bukaDokumen(html, 'width=900,height=1000');
@@ -349,7 +523,7 @@
       '<li>Saat anak tidak lagi berstatus anak menurut peraturan yang berlaku, madrasah akan meminta persetujuan langsung dari yang bersangkutan.</li></ol>' +
       '<p>Demikian surat persetujuan ini dibuat dengan sebenarnya, tanpa paksaan.</p>' +
       '<div class="ttd"><div>Petugas madrasah<br><br><br><br>(................................)</div><div>............................, ....................... 20....<br>Orang tua / wali<br><br><br><br>(................................)</div></div>' +
-      '<p class="ft">Formulir ini disimpan sebagai bukti persetujuan. Catat tanggal dan nama pemberi persetujuan pada bagian 9 Buku Induk; tulis butir yang tidak disetujui pada kolom Catatan.</p></body></html>';
+      '<p class="ft">Formulir ini disimpan sebagai bukti persetujuan. Catat tanggal dan nama pemberi persetujuan pada bagian G Buku Induk; tulis butir yang tidak disetujui pada kolom Catatan.</p></body></html>';
     catat('cetak_persetujuan', cur.key); bukaDokumen(html, 'width=900,height=1000');
   }
 
@@ -680,6 +854,7 @@
     else if (id === 'biK') { filt.kelas = e.target.value; renderList(); }
     else if (id === 'biS') { filt.st = e.target.value; renderList(); }
     else if (e.type !== 'change') return;   // elemen di bawah ini hanya bereaksi pada 'change' (input file memicu 'input' + 'change')
+    else if (id === 'biSK') { stjKelas = e.target.value; renderPersetujuan(); }
     else if (id === 'biFile') bacaFile(e.target.files && e.target.files[0]);
     else if (id === 'biTimpa' && imp) { imp.timpa = !!e.target.checked; }
     else if (id === 'biKonf' && imp) { imp.konf = !!e.target.checked; renderImporHasil(); }
@@ -690,6 +865,13 @@
       case 'buka': bukaSiswa(b.getAttribute('data-key')); break;
       case 'tab': tab = b.getAttribute('data-tab') || 'daftar'; render(); break;
       case 'drill': filt.kelas = b.getAttribute('data-kelas') || ''; filt.st = 'kurang'; filt.q = ''; tab = 'daftar'; render(); break;
+      case 'stjMuat': stjMuat = false; stjGalat = ''; renderPersetujuan(); break;
+      case 'stjSinkron': sinkronPersetujuan(); break;
+      case 'stjWa': if (kirimWaPt(b.getAttribute('data-key'))) renderPersetujuan(); break;
+      case 'stjMulai': var it = barisPt().filter(function (x) { return statusPt(x) === 'belum' && adaWa(x) && !stjKirim[x.key]; }).map(function (x) { return x.key; }); if (!it.length) { toast('Tidak ada yang perlu diingatkan.', true); break; } stjAntre = { items: it, i: 0, kirim: 0, lewat: 0 }; renderPersetujuan(); break;
+      case 'stjBuka': antreBuka(); break;
+      case 'stjLewati': if (stjAntre) { stjAntre.i++; stjAntre.lewat++; renderPersetujuan(); } break;
+      case 'stjTutup': stjAntre = null; renderPersetujuan(); break;
       case 'csvRekap': unduhRekap(); break;
       case 'csvStatus': unduhStatus(); break;
       case 'template': unduhTemplate(); break;
@@ -707,21 +889,30 @@
   /* ---------- reset state (logout) ---------- */
   function resetState() {
     clearTimeout(qTimer); cur = null; idx = null; idxMuat = false; idxGalat = ''; filt = { q: '', kelas: '', st: '' }; sibuk = false; tab = 'daftar'; imp = null;
+    stj = null; stjMuat = false; stjGalat = ''; stjKelas = ''; stjKirim = {}; stjAntre = null;
     if (root) root.innerHTML = '';   // data pribadi tidak boleh tertinggal di DOM untuk pengguna berikutnya
   }
   window.bukuIndukResetState = resetState;
 
+  // Menu berdiri sendiri: tampil hanya untuk Admin & Kepala (Siswa & guru tidak melihatnya).
+  function aturMenu() {
+    var ok = false; try { ok = canView(); } catch (e) { }
+    var els = document.querySelectorAll('[data-page="' + PAGE + '"]');
+    for (var i = 0; i < els.length; i++) els[i].style.display = ok ? '' : 'none';
+  }
   function init() {
-    injectCss(); ensurePage();
+    injectCss(); ensurePage(); aturMenu();
+    setInterval(function () { if (!document.hidden) aturMenu(); }, 2000);
     var origLogout = window.logout;
     if (typeof origLogout === 'function' && !origLogout.__bi) {
-      var wl = function () { try { return origLogout.apply(this, arguments); } finally { try { resetState(); } catch (e) { console.error('[buku-induk]', e); } } };
+      var wl = function () { try { return origLogout.apply(this, arguments); } finally { try { resetState(); aturMenu(); } catch (e) { console.error('[buku-induk]', e); } } };
       wl.__bi = true; window.logout = wl;
     }
     var orig = window.navigateTo;
     if (typeof orig !== 'function') return;
     window.navigateTo = function (page) {
       var r = orig.apply(this, arguments);
+      aturMenu();
       if (page === PAGE) {
         try {
           var t = $('pageTitle'); if (t) t.textContent = 'Buku Induk Siswa';

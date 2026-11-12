@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.427';
+const APP_VERSION = 'v8.429';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -84,7 +84,7 @@ const PRECACHE_URLS = [
   './js/administrasi-ujian.js?v=4',
   './js/app.js?v=169',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
-  './js/portal-ortu.js?v=35',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/portal-ortu.js?v=36',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=6',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=2',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -140,7 +140,8 @@ const PRECACHE_URLS = [
   './js/perangkat-pembelajaran.js?v=26',
   './js/modul-ajar.js?v=23',
   './js/buku-tamu.js?v=5',
-  './js/buku-induk.js?v=3',                // Buku Induk Siswa (halaman dibuat JS; dimuat SESUDAH app.js, kredensial.js & menu-hub.js)
+  './js/persetujuan-ortu.js?v=1',          // Persetujuan Data Siswa di Portal Orang Tua (dimuat SESUDAH portal-ortu.js, SEBELUM buku-induk.js)
+  './js/buku-induk.js?v=5',                // Buku Induk Siswa (halaman dibuat JS; dimuat SESUDAH app.js, kredensial.js & menu-hub.js)
   './js/fitur-pelengkap.js?v=3',
   './js/tunggakan-infaq.js?v=15',
   './js/auto-logout.js?v=5',
