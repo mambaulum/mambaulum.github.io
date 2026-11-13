@@ -54,8 +54,14 @@
     return { ok: ok, no: no };
   }
 
+  // namaOrtu berbentuk "Nama Ayah & Nama Ibu" (hasil Lengkapi data siswa) -> [ayah, ibu]; selain itu null.
+  function namaOrtuBagian(siswa) {
+    var p = String((siswa && siswa.namaOrtu) || '').split(/\s+&\s+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    return p.length === 2 ? p : null;
+  }
   function formHtml(siswa, rec) {
-    var nama = (rec && rec.oleh) || siswa.namaOrtu || '';
+    // Dua nama digabung: dikosongkan dulu, terisi sesuai pilihan Hubungan (Ayah/Ibu). Satu nama: langsung terisi.
+    var nama = (rec && rec.oleh) || (namaOrtuBagian(siswa) ? '' : (siswa.namaOrtu || ''));
     var hub = (rec && rec.hub) || '';
     var butir = BUTIR.map(function (b, i) {
       var n = i + 1, nm = 'psb' + n;
@@ -106,6 +112,12 @@
         var b = e.target.closest && e.target.closest('[data-ps]'); if (!b || !node.contains(b)) return;
         var a = b.getAttribute('data-ps');
         if (a === 'kirim') kirim(siswa, rec); else if (a === 'tarik') tarik(siswa, rec);
+      };
+      node.onchange = function (e) {   // pilih Hubungan -> isi nama sesuai (hanya bila kolom nama kosong / masih nama otomatis)
+        var t = e.target; if (!t || t.id !== 'psHub') return;
+        var gab = namaOrtuBagian(siswa), inp = document.getElementById('psNama'); if (!gab || !inp) return;
+        var v = inp.value.trim(); if (v && v !== gab[0] && v !== gab[1]) return;
+        inp.value = t.value === 'Ayah' ? gab[0] : t.value === 'Ibu' ? gab[1] : '';
       };
     };
     // v8.431: setelah SETUJU kartu di atas dashboard dihilangkan (menu tidak ramai). Hak menarik/mengubah persetujuan

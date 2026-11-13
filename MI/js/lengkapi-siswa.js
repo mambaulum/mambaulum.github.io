@@ -114,7 +114,7 @@
 
   /* ---------- validasi terhadap data siswa SAAT INI ---------- */
   function validasi(rows, timpa) {
-    var byNamaKelas = Object.create(null), byNama = Object.create(null), nisnDipakai = Object.create(null), dalamFile = Object.create(null);
+    var byNamaKelas = Object.create(null), byNama = Object.create(null), nisnDipakai = Object.create(null), dalamFile = Object.create(null), nisnDalamFile = Object.create(null);
     allSiswa.forEach(function (s) {
       var n = namaKunci(s.name), kk = n + '|' + s.kelas;
       (byNamaKelas[kk] = byNamaKelas[kk] || []).push(s);
@@ -145,7 +145,7 @@
       var galat = [nisn, nis, tmp, tg].filter(function (x) { return x.err; }).map(function (x) { return x.err; });
       if (galat.length) { it.alasan = galat.join('; '); return it; }
       [nisn, nis, tmp, tg].forEach(function (x) { if (x.cat) it.catatan.push(x.cat); });
-      if (nisn.val) { var pakai = (nisnDipakai[nisn.val] || []).filter(function (k) { return k !== s.key; }); if (pakai.length) { it.alasan = 'NISN ' + nisn.val + ' sudah dipakai siswa lain'; return it; } }
+      if (nisn.val) { var pakai = (nisnDipakai[nisn.val] || []).filter(function (k) { return k !== s.key; }); if (pakai.length) { it.alasan = 'NISN ' + nisn.val + ' sudah dipakai siswa lain'; return it; } if (nisnDalamFile[nisn.val] && nisnDalamFile[nisn.val] !== s.key) { it.alasan = 'NISN ' + nisn.val + ' dipakai dua siswa berbeda di file ini (cek salah ketik)'; return it; } }
       var namaOrtu = '';
       if (lksOrtu) {
         var tb = function (x) { return String(x == null ? '' : x).replace(/^'/, '').replace(/\s+/g, ' ').trim(); };
@@ -161,7 +161,7 @@
         if (lama && !timpa) { it.catatan.push(k[1] + ' sudah terisi "' + lama + '", tidak ditimpa'); return; }
         it.set[k[0]] = k[2]; it.ubah.push(k[1] + (lama ? ' (menimpa "' + lama + '")' : ''));
       });
-      if (nisn.val) dalamFile[s.key] = true;
+      dalamFile[s.key] = true; if (nisn.val) nisnDalamFile[nisn.val] = s.key;
       if (it.ubah.length === 0) { it.alasan = it.sama ? 'Isian sama dengan data yang ada' : 'Tidak ada isian baru'; return it; }
       it.ok = true; return it;
     });

@@ -162,7 +162,8 @@
   function injectCss() {
     if ($('biStyle')) return;
     var st = document.createElement('style'); st.id = 'biStyle';
-    st.textContent = '.bi-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.bi-bar .field{flex:1;min-width:130px}.bi-tbl{width:100%;border-collapse:collapse;font-size:13px}' +
+    st.textContent = '.hub-tabs.show.bi-top{margin:0 0 12px;top:64px}@media (max-width:768px){.hub-tabs.show.bi-top{margin:0 0 10px;top:56px}}' +
+    '.bi-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.bi-bar .field{flex:1;min-width:130px}.bi-tbl{width:100%;border-collapse:collapse;font-size:13px}' +
       '.bi-tbl td,.bi-tbl th{border:1px solid #e5e7eb;padding:6px 8px;text-align:left}.bi-ok{color:#047857}.bi-saran{background:#fefce8!important;border-color:#fcd34d!important}.bi-hint{font-size:11.5px;color:#92400e;margin-top:3px}.bi-no{color:#b45309}.bi-warn{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px}' +
       '.bi-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px}.bi-form .full{grid-column:1/-1}details.bi-g{border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;margin-bottom:8px}' +
       'details.bi-g>summary{cursor:pointer;font-weight:700;font-size:14px}.bi-err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px}.bi-prog{background:#e5e7eb;border-radius:6px;height:9px;min-width:90px;overflow:hidden}.bi-prog>i{display:block;height:100%;background:#059669}.bi-id{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:10px}.bi-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}';
@@ -214,10 +215,11 @@
     if ((tab === 'impor' || tab === 'rwy') && !canEdit()) tab = 'daftar';
     var tabs = [['daftar', '📋 Daftar'], ['rekap', '📊 Rekap per kelas'], ['hs', '📈 Hadir & sikap kelas'], ['setuju', '📲 Persetujuan']];
     if (canEdit()) { tabs.push(['impor', '📥 Impor CSV']); tabs.push(['rwy', '🧮 Riwayat massal']); }
-    root.innerHTML = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📕 Buku Induk Siswa</h3>' +
+    var tabsHtml = '<div class="hub-tabs show bi-top" role="tablist">' + tabs.map(function (t) { return '<button type="button" role="tab" class="hub-tab' + (t[0] === tab ? ' active' : '') + '" aria-selected="' + (t[0] === tab) + '" data-bi="tab" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
+    root.innerHTML = tabsHtml + '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📕 Buku Induk Siswa</h3>' +
       '<p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Data induk peserta didik. <b>Rahasia</b> (data pribadi anak, UU 27/2022): hanya Admin &amp; Kepala Madrasah; setiap akses dicatat. ' + (canEdit() ? '' : 'Kepala Madrasah: hanya melihat.') + '</p>' +
-      '<div class="bi-bar">' + tabs.map(function (t) { return '<button class="btn ' + (t[0] === tab ? 'btn-success' : 'btn-soft') + '" data-bi="tab" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div id="biBody"></div></div>';
+    try { var tb = root.querySelector('.bi-top'), on = tb && tb.querySelector('.hub-tab.active'); if (on) tb.scrollLeft = Math.max(0, on.offsetLeft - (tb.clientWidth - on.offsetWidth) / 2); } catch (e) { }   // tab aktif ke tengah baris
     if (tab === 'rekap') renderRekap(); else if (tab === 'rwy') renderMassal(); else if (tab === 'hs') renderHs(); else if (tab === 'impor') renderImpor(); else if (tab === 'setuju') renderPersetujuan(); else renderDaftar();
   }
   // true bila indeks sudah termuat; kalau belum, tampilkan "memuat"/galat dan panggil ulang tampilan `nama` setelah selesai.
@@ -1483,11 +1485,11 @@
   }
   window.bukuIndukResetState = resetState;
 
-  // Menu berdiri sendiri: tampil hanya untuk Admin & Kepala (Siswa & guru tidak melihatnya).
+  // Menu ada di grup Siswa & Orang Tua: tampil hanya untuk Admin & Kepala (siswa & guru tidak melihatnya).
   function aturMenu() {
     var ok = false; try { ok = canView(); } catch (e) { }
     var els = document.querySelectorAll('[data-page="' + PAGE + '"]');
-    for (var i = 0; i < els.length; i++) els[i].style.display = ok ? '' : 'none';
+    for (var i = 0; i < els.length; i++) { els[i].style.display = ok ? '' : 'none'; els[i].classList.toggle('hidden-tab', !ok); }
   }
   function init() {
     injectCss(); ensurePage(); aturMenu();
