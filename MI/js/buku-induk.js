@@ -12,6 +12,7 @@
    FORMAT KOLOM: kolom di FIELDS dapat disesuaikan dengan format dari Kankemenag (tambah/kurangi di daftar ini + Rules di RULES-buku-induk.json).
    Perlu koneksi internet (sengaja tanpa antrean offline agar data pribadi tidak tertinggal di perangkat).
 
+   V10: formulir siswa menampilkan Riwayat Kelas (usulan dari Nilai/Absensi/menu Siswa), rekap Kehadiran per semester & Sikap per tahun ajaran, tiga bagian dengan tombol sendiri, dibaca HANYA saat ditekan (hemat kuota Firebase gratis); kehadiran hanya kelas sekarang & tahun ajaran berjalan. Baca-saja, tanpa perubahan Rules.
    V9: Daftar menampilkan siswa AKTIF saja secara bawaan (nonaktif tetap bisa dilihat lewat filter "Semua" / "Nonaktif saja", atau saat mencari nama/NISN).
    V8: tab "Impor" menerima file Excel Dapodik (Daftar Siswa) langsung (dapodikKeCsv -> olahCsv; sama aturan dengan impor CSV).
 
@@ -299,6 +300,7 @@
       (adaSaran ? '<div class="bi-warn" style="background:#fefce8;">🟨 Isian berlatar kuning adalah <b>usulan otomatis</b> (agama &amp; kewarganegaraan bawaan madrasah, telepon dari nomor WA orang tua). Periksa, ubah bila perlu, lalu tekan Simpan. Sebelum disimpan, usulan ini belum menjadi data.</div>' : '') +
       grup +
       '<details class="bi-g" id="biNilaiBox"><summary>Hasil Belajar (otomatis dari menu Nilai, tidak disalin)</summary><div id="biNilai">' + nilaiHtml() + '</div></details>' +
+      '<details class="bi-g" id="biRingkasBox" open><summary>Riwayat Kelas, Kehadiran &amp; Sikap (otomatis dari menu lain)</summary><div id="biRingkas">' + ringkasHtml() + '</div></details>' +
       '<div class="bi-act">' + (canEdit() ? '<button class="btn btn-success" data-bi="simpan">💾 Simpan</button>' : '') +
       '<button class="btn btn-soft" data-bi="cetak">🖨️ Cetak Buku Induk</button><button class="btn btn-soft" data-bi="cetakSetuju">🖨️ Formulir Persetujuan</button>' +
       (canEdit() && !cur.baru ? '<button class="btn btn-soft" style="color:#dc2626;" data-bi="hapus">🗑️ Hapus data induk</button>' : '') + '</div></div>';
@@ -530,6 +532,178 @@
     }).join('') + '<p style="font-size:11px;margin:2px 0;">* nilai sementara (komponen penilaian belum lengkap).</p>';
   }
 
+
+  /* ---------- v10: riwayat kelas, kehadiran & sikap OTOMATIS (baca-saja dari menu Nilai, Absensi, Sikap; tombol "Hitung ulang") ---------- */
+  // Tidak ada data baru yang tersimpan saat menghitung. Riwayat kelas hanya menjadi USULAN di formulir (berlatar kuning); baru tersimpan bila Admin menekan Simpan.
+  function tktDari(k) { var m = /(\d+)/.exec(String(k == null ? '' : k)); var n = m ? parseInt(m[1], 10) : 0; return n >= 1 && n <= 6 ? n : 0; }
+  function taDari(x) {
+    if (x && x.tahunAjaran) return String(x.tahunAjaran);
+    var t = x && (x.tanggal || x.inputAt);
+    try { if (typeof tahunAjaranDariTanggal === 'function') return tahunAjaranDariTanggal(t) || ''; } catch (e) { }
+    return '';
+  }
+  function semDari(tgl) { var m = /^\d{4}-(\d{1,2})/.exec(String(tgl || '')); return m ? (parseInt(m[1], 10) >= 7 ? 'Ganjil' : 'Genap') : ''; }
+  function taSekarang() { return (typeof currentTahunAjaran !== 'undefined' && currentTahunAjaran) ? String(currentTahunAjaran) : ''; }
+  // pasangan: [{ta, tkt}] -> { baris: [{k, ta, hasil, catatan}], peringatan: [] }
+  function susunRiwayat(pasangan, siswa) {
+    var perTa = {}, now = taSekarang(), peringatan = [];
+    pasangan.forEach(function (p) { if (!p.ta || !p.tkt) return; var o = perTa[p.ta] || (perTa[p.ta] = {}); o[p.tkt] = (o[p.tkt] || 0) + 1; });
+    var tkS = tktDari(siswa && siswa.kelas);
+    if (now && tkS && aktif(siswa) && !perTa[now]) { perTa[now] = {}; perTa[now][tkS] = 99; }   // kelas di menu Siswa dipakai untuk tahun berjalan hanya bila belum ada data nilai tahun itu (aman bila siswa sudah dinaikkan kelasnya sebelum tahun ajaran diganti)
+    var tas = Object.keys(perTa).sort(), urut = tas.map(function (ta) {
+      var best = 0, bc = -1; Object.keys(perTa[ta]).forEach(function (t) { var c = perTa[ta][t]; if (c > bc || (c === bc && +t > best)) { bc = c; best = +t; } });
+      return { ta: ta, tkt: best };
+    });
+    var per = {};
+    urut.forEach(function (e, i) {
+      var nx = urut[i + 1], h = '';
+      if (nx) { if (nx.tkt > e.tkt) h = 'Naik kelas'; else if (nx.tkt === e.tkt) h = 'Tinggal kelas'; else peringatan.push('Kelas ' + e.tkt + ' (' + e.ta + ') diikuti kelas ' + nx.tkt + ' (' + nx.ta + '): urutan tidak lazim, periksa manual.'); }
+      else if (e.tkt === 6 && e.ta < now) h = 'Lulus';
+      (per[e.tkt] = per[e.tkt] || []).push({ ta: e.ta, hasil: h });
+    });
+    var baris = [];
+    for (var k = 1; k <= 6; k++) {
+      var l = per[k]; if (!l) { baris.push({ k: k, ta: '', hasil: '', catatan: '' }); continue; }
+      var last = l[l.length - 1], cat = '';
+      if (l.length > 1) { cat = 'ditempuh ' + l.length + ' tahun: ' + l.map(function (x) { return x.ta; }).join(', ') + ' (tinggal kelas); yang diusulkan tahun terakhir'; }
+      baris.push({ k: k, ta: last.ta, hasil: last.hasil, catatan: cat });
+    }
+    var adaTingkatBolong = false, min = 0, max = 0; baris.forEach(function (b) { if (b.ta) { if (!min) min = b.k; max = b.k; } });
+    for (var j = min; j <= max && min; j++) if (!baris[j - 1].ta) adaTingkatBolong = true;
+    if (adaTingkatBolong) peringatan.push('Ada tingkat yang tidak ditemukan datanya (mis. siswa pindahan atau data lama belum ada). Isi manual bila perlu.');
+    return { baris: baris, peringatan: peringatan };
+  }
+  // Tiga bagian TERPISAH, masing-masing dibaca HANYA saat tombolnya ditekan (hemat kuota Firebase gratis):
+  //  riwayat = node grades (1 query per siswa) | sikap = kedisiplinan_siswa (1 query per siswa) | hadir = attendance, HANYA kelas siswa saat ini & tahun ajaran berjalan.
+  // Tahun ajaran yang dipilih untuk Kehadiran (bawaan: tahun ajaran berjalan). Kelas siswa pada tahun itu diambil dari Riwayat kelas (kelas sekarang tidak berlaku untuk tahun lalu).
+  function taPilihHadir() { return (cur && cur.ringkas && cur.ringkas.hadirTa) || taSekarang(); }
+  function kelasPadaTa(ta) {
+    if (ta === taSekarang()) return (cur.siswa && cur.siswa.kelas) || '';
+    var rw = cur.ringkas && cur.ringkas.riwayat; if (!rw) return '';
+    var b = rw.baris.filter(function (x) { return x.ta === ta; })[0]; if (!b) return '';
+    var dl = (typeof KELAS_LIST !== 'undefined' && KELAS_LIST) || []; var c = dl.filter(function (k) { return tktDari(k) === b.k; })[0];
+    return c || ('Kelas ' + b.k);
+  }
+  function opsiTaHadir() {
+    var now = taSekarang(), o = {}; if (now) o[now] = 1;
+    var rw = cur.ringkas && cur.ringkas.riwayat; if (rw) rw.baris.forEach(function (b) { if (b.ta) o[b.ta] = 1; });
+    return Object.keys(o).sort().reverse();
+  }
+  function hitungBagian(nama, paksa) {
+    if (!cur) return Promise.resolve();
+    var key = cur.key, s = cur.siswa, R = cur.ringkas || (cur.ringkas = { galat: {}, kerja: {}, waktu: {} });
+    if (R.kerja[nama] || (R[nama] && !paksa)) return Promise.resolve();
+    R.kerja[nama] = true; R.galat[nama] = '';
+    var selesai = function () { R.kerja[nama] = false; R.waktu[nama] = Date.now(); var el = $('biRingkas'); if (el && cur && cur.key === key) el.innerHTML = ringkasHtml(); };
+    var gagal = function (e) { R.galat[nama] = (e && e.message) || String(e); R[nama] = null; };
+    var el0 = $('biRingkas'); if (el0) el0.innerHTML = ringkasHtml();
+    return siap().then(function () {
+      if (nama === 'riwayat') {
+        return db.ref('grades').orderByChild('siswaKey').equalTo(key).once('value').then(function (sn) {
+          var pasangan = [];
+          sn.forEach(function (ch) { var g = ch.val() || {}, t = tktDari(g.kelas); if (t) pasangan.push({ ta: taDari(g), tkt: t }); });
+          R.riwayat = susunRiwayat(pasangan, s);
+        });
+      }
+      if (nama === 'sikap') {
+        return db.ref('kedisiplinan_siswa').orderByChild('siswaKey').equalTo(key).once('value').then(function (sn) {
+          var per = {};
+          sn.forEach(function (ch) {
+            var d = ch.val() || {}, ta = taDari(d) || '-', o = per[ta] || (per[ta] = { ta: ta, pel: 0, pres: 0, n: 0 });
+            if (d.jenis === 'prestasi') o.pres += (+d.poin || 0); else o.pel += (+d.poin || 0); o.n++;
+          });
+          R.sikap = Object.keys(per).sort().map(function (k) { return per[k]; });
+        });
+      }
+      // hadir: satu kelas (kelas siswa sekarang), disaring ke tahun ajaran berjalan
+      var now = taPilihHadir(), kls = kelasPadaTa(now);
+      if (!kls) throw new Error('Kelas siswa pada tahun ajaran ' + now + ' belum diketahui. Hitung Riwayat kelas dulu.');
+      return db.ref('attendance').orderByChild('kelas').equalTo(kls).once('value').then(function (sn) {
+        var per = {};
+        sn.forEach(function (ch) {
+          var a = ch.val() || {}; if (!a.data) return;
+          var st = a.data[key]; if (['H', 'S', 'I', 'A'].indexOf(st) < 0) return;
+          var ta = taDari(a); if (now && ta !== now) return;
+          var sem = semDari(a.tanggal), kk = ta + '|' + sem, o = per[kk] || (per[kk] = { ta: ta || '-', sem: sem || '-', kelas: a.kelas || kls, H: 0, S: 0, I: 0, A: 0 });
+          o[st]++;
+        });
+        R.hadir = Object.keys(per).map(function (k) { return per[k]; }).sort(urutSem);
+      });
+    }).then(selesai, function (e) { gagal(e); selesai(); });
+  }
+  function bagianHtml(nama, judul, ket) {
+    var R = cur.ringkas || { galat: {}, kerja: {}, waktu: {} }, ada = R[nama] != null, kerja = !!R.kerja[nama];
+    var btn = '<button class="btn btn-soft" data-bi="ringkas" data-b="' + nama + '"' + (kerja ? ' disabled' : '') + '>' + (kerja ? '⏳ Menghitung…' : (ada ? '🔄 Hitung ulang' : '📊 Hitung sekarang')) + '</button>';
+    return '<h4 style="margin:12px 0 4px;font-size:13px;">' + judul + '</h4>' +
+      (R.galat[nama] ? '<div class="bi-warn">Gagal membaca: ' + esc(R.galat[nama]) + '</div>' : '') +
+      (ada ? '<p class="text-muted" style="font-size:12px;margin:2px 0 6px;">Dihitung ' + esc(new Date(R.waktu[nama]).toLocaleTimeString('id-ID')) + '. Dibaca dari menu aslinya; tidak disimpan di Buku Induk.</p>' : '<p class="text-muted" style="font-size:12px;margin:2px 0 6px;">' + ket + '</p>') + (nama === 'hadir' ? '<div style="margin:2px 0 6px;"><label class="label" for="biHadirTa">Tahun ajaran</label><select id="biHadirTa" class="field" style="max-width:220px;"' + (kerja ? ' disabled' : '') + '>' + opsiTaHadir().map(function (t) { return '<option' + (t === taPilihHadir() ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select>' + (cur.ringkas && cur.ringkas.riwayat ? '' : '<div class="bi-hint">Untuk melihat tahun ajaran lalu, hitung <b>Riwayat kelas</b> dulu.</div>') + '</div>' : '') + '@@' + nama + '@@<div class="bi-act" style="margin-top:6px;">' + btn + '</div>';
+  }
+  function ringkasHtml() {
+    if (!cur) return '';
+    var R = cur.ringkas || { galat: {}, kerja: {}, waktu: {} }, d = cur.data || {}, h = '', t, n;
+    // --- riwayat ---
+    var ri = '';
+    if (R.riwayat) {
+      ri = '<div style="overflow-x:auto;"><table class="bi-tbl"><tr><th>Tingkat</th><th>Tahun ajaran</th><th>Hasil</th><th>Tersimpan di Buku Induk</th></tr>' +
+        R.riwayat.baris.map(function (b) {
+          var sv = [d['r' + b.k + '_ta'], d['r' + b.k + '_hasil']].filter(Boolean).join(' · '), sama = sv && sv === [b.ta, b.hasil].filter(Boolean).join(' · ');
+          return '<tr><td>Kelas ' + b.k + '</td><td>' + (b.ta ? esc(b.ta) : '<span class="text-muted">-</span>') + '</td><td>' + esc(b.hasil || '') + (b.catatan ? '<div class="bi-hint">' + esc(b.catatan) + '</div>' : '') + '</td><td>' + (sv ? esc(sv) + (sama ? ' <span class="bi-ok">✔</span>' : ' <span class="bi-no">≠</span>') : '<span class="text-muted">kosong</span>') + '</td></tr>';
+        }).join('') + '</table></div>' + R.riwayat.peringatan.map(function (w) { return '<div class="bi-warn" style="margin-top:6px;">' + esc(w) + '</div>'; }).join('') +
+        (canEdit() ? '<div class="bi-act" style="margin-top:6px;"><button class="btn btn-success" data-bi="terapkanRiwayat">⬇️ Terapkan ke formulir (hanya yang kosong)</button><button class="btn btn-soft" data-bi="terapkanRiwayatSemua">⬇️ Terapkan &amp; timpa semua</button></div><p class="text-muted" style="font-size:12px;">Hanya mengisi kolom bagian "C. Riwayat Kelas" di layar; tekan <b>Simpan</b> untuk menyimpan. Tingkat tanpa data nilai dibiarkan kosong (isi manual).</p>' : '');
+    }
+    // --- hadir ---
+    var hd = '';
+    if (R.hadir) {
+      if (!R.hadir.length) hd = '<p class="text-muted" style="font-size:13px;">Belum ada catatan absensi pada tahun ajaran yang dipilih.</p>';
+      else {
+        t = { H: 0, S: 0, I: 0, A: 0 };
+        hd = '<div style="overflow-x:auto;"><table class="bi-tbl"><tr><th>Tahun ajaran</th><th>Semester</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alfa</th><th>% hadir</th></tr>' +
+          R.hadir.map(function (x) { n = x.H + x.S + x.I + x.A; ['H', 'S', 'I', 'A'].forEach(function (c) { t[c] += x[c]; }); return '<tr><td>' + esc(x.ta) + '</td><td>' + esc(x.sem) + '</td><td>' + x.H + '</td><td>' + x.S + '</td><td>' + x.I + '</td><td>' + x.A + '</td><td>' + Math.round(100 * x.H / n) + '%</td></tr>'; }).join('') +
+          '</table></div><p class="text-muted" style="font-size:12px;">Hanya hari yang diisi guru. Juli-Desember = Ganjil, Januari-Juni = Genap. Satu tahun ajaran per tekan (pilih di atas); hemat kuota.</p>';
+      }
+    }
+    // --- sikap ---
+    var sk = '';
+    if (R.sikap) {
+      if (!R.sikap.length) sk = '<p class="text-muted" style="font-size:13px;">Belum ada catatan sikap.</p>';
+      else sk = '<div style="overflow-x:auto;"><table class="bi-tbl"><tr><th>Tahun ajaran</th><th>⚠️ Pelanggaran (poin)</th><th>🌟 Prestasi (poin)</th><th>Net</th><th>Catatan</th></tr>' +
+        R.sikap.map(function (x) { var nt = x.pres - x.pel; return '<tr><td>' + esc(x.ta) + '</td><td>' + x.pel + '</td><td>' + x.pres + '</td><td style="font-weight:700;color:' + (nt >= 0 ? '#059669' : '#dc2626') + ';">' + (nt >= 0 ? '+' : '') + nt + '</td><td>' + x.n + '</td></tr>'; }).join('') + '</table></div>';
+    }
+    var isi = { riwayat: ri, hadir: hd, sikap: sk };
+    h = bagianHtml('riwayat', 'Riwayat kelas (usulan, dari menu Nilai)', 'Membaca nilai siswa ini (ringan).') + bagianHtml('hadir', 'Kehadiran per tahun ajaran (dari menu Absensi)', 'Membaca absensi satu kelas (bagian terberat, tekan hanya bila perlu).') + bagianHtml('sikap', 'Sikap &amp; kedisiplinan (dari menu Sikap Siswa)', 'Membaca catatan sikap siswa ini (ringan).');
+    return h.replace(/@@(\w+)@@/g, function (m, k) { return isi[k] || ''; });
+  }
+
+  function terapkanRiwayat(timpa) {
+    if (!canEdit() || !cur || !cur.ringkas || !cur.ringkas.riwayat) return;
+    var isi = 0, lewat = 0;
+    cur.ringkas.riwayat.baris.forEach(function (b) {
+      [['_ta', b.ta], ['_hasil', b.hasil]].forEach(function (p) {
+        var el = $('bif-r' + b.k + p[0]); if (!el || !p[1]) return;
+        if (el.value && !timpa) { if (el.value !== p[1]) lewat++; return; }
+        if (el.value === p[1]) return;
+        el.value = p[1]; el.classList.add('bi-saran'); isi++;
+      });
+    });
+    toast(isi ? '✅ ' + isi + ' kolom riwayat kelas diisi (berlatar kuning). Periksa lalu tekan Simpan.' + (lewat ? ' ' + lewat + ' kolom terisi dilewati.' : '') : (lewat ? 'Semua kolom riwayat sudah terisi (' + lewat + ' berbeda dari usulan; pakai "timpa semua" bila ingin menggantinya).' : 'Tidak ada yang perlu diisi.'), false, 6000);
+    var g = $('bif-r1_ta'); if (g && g.closest) { var dt = g.closest('details'); if (dt) dt.open = true; }
+  }
+  function ringkasCetak() {
+    var r = cur && cur.ringkas; if (!r) return '';
+    var h = '';
+    if (r.hadir && r.hadir.length) {
+      var t = { H: 0, S: 0, I: 0, A: 0 };
+      h += '<p style="margin:6px 0 2px;">Rekap kehadiran (dari menu Absensi):</p><table><tr><th>Tahun ajaran</th><th>Semester</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alfa</th></tr>' +
+        r.hadir.map(function (x) { ['H', 'S', 'I', 'A'].forEach(function (c) { t[c] += x[c]; }); return '<tr><td>' + esc(x.ta) + '</td><td>' + esc(x.sem) + '</td><td>' + x.H + '</td><td>' + x.S + '</td><td>' + x.I + '</td><td>' + x.A + '</td></tr>'; }).join('') +
+        '<tr><th colspan="2">Total</th><th>' + t.H + '</th><th>' + t.S + '</th><th>' + t.I + '</th><th>' + t.A + '</th></tr></table>';
+    }
+    if (r.sikap && r.sikap.length) {
+      h += '<p style="margin:6px 0 2px;">Rekap sikap &amp; kedisiplinan (dari menu Sikap Siswa):</p><table><tr><th>Tahun ajaran</th><th>Pelanggaran (poin)</th><th>Prestasi (poin)</th><th>Net</th></tr>' +
+        r.sikap.map(function (x) { var n = x.pres - x.pel; return '<tr><td>' + esc(x.ta) + '</td><td>' + x.pel + '</td><td>' + x.pres + '</td><td>' + (n >= 0 ? '+' : '') + n + '</td></tr>'; }).join('') + '</table>';
+    }
+    return h;
+  }
+
   function cetak() {
     if (!cur) return;
     var s = cur.siswa, d = cur.data || {};
@@ -554,7 +728,7 @@
     var C = '<h4>C. PERKEMBANGAN MURID</h4><table>' + baris('17. Status penerimaan', v('masuk_jenis')) + baris('    Tanggal diterima', tg('masuk_tgl')) + baris('    Diterima di kelas', v('masuk_kelas')) +
       baris('    a. Murid baru - asal / nama TK-RA, atau b. Pindahan - nama madrasah asal', v('masuk_asal')) + baris('    Tanggal dan nomor STTB TK-RA', [tg('masuk_sttb_tgl'), v('masuk_sttb')].filter(Boolean).join(' / ')) +
       baris('    Pindahan dari tingkat', v('masuk_dari_tkt')) + baris('    Alasan pindah', v('masuk_alasan')) + '</table>' +
-      '<p style="margin:6px 0 2px;">18. Prestasi belajar: lihat Buku Hasil Belajar (Raport) tiap semester. Riwayat kelas:</p>' + rw + nilaiCetak() + jas;
+      '<p style="margin:6px 0 2px;">18. Prestasi belajar: lihat Buku Hasil Belajar (Raport) tiap semester. Riwayat kelas:</p>' + rw + nilaiCetak() + ringkasCetak() + jas;
     var D = '<h4>D. BEA SISWA</h4><table>' + baris('19. Jenis bea siswa', v('bea_jenis')) + '</table>';
     var E = '<h4>E. MENINGGALKAN MADRASAH</h4><table>' + baris('20-22. Keterangan (tamat / pindah / keluar)', v('klr_jenis')) + baris('Tanggal', tg('klr_tgl')) + baris('Melanjutkan / pindah ke madrasah', v('klr_ke')) +
       baris('Pindah dari tingkat', v('klr_dari_tkt')) + baris('Pindah ke tingkat', v('klr_ke_tkt')) + baris('Alasan', v('klr_alasan')) + baris('Nomor ijazah / STTB', v('ijazah_no')) + baris('Tanggal ijazah', tg('ijazah_tgl')) + '</table>';
@@ -1005,6 +1179,7 @@
     else if (id === 'biK') { filt.kelas = e.target.value; renderList(); }
     else if (id === 'biS') { filt.st = e.target.value; renderList(); }
     else if (e.type !== 'change') return;   // elemen di bawah ini hanya bereaksi pada 'change' (input file memicu 'input' + 'change')
+    else if (id === 'biHadirTa') { if (cur) { var R = cur.ringkas || (cur.ringkas = { galat: {}, kerja: {}, waktu: {} }); R.hadirTa = e.target.value; R.hadir = null; R.galat.hadir = ''; var bx = $('biRingkas'); if (bx) bx.innerHTML = ringkasHtml(); } }   // ganti tahun: tidak membaca Firebase, tunggu tombol
     else if (id === 'biSK') { stjKelas = e.target.value; renderPersetujuan(); }
     else if (id === 'biFile') bacaFile(e.target.files && e.target.files[0]);
     else if (id === 'biTimpa' && imp) { imp.timpa = !!e.target.checked; }
@@ -1032,6 +1207,9 @@
       case 'muat': idxMuat = false; idxGalat = ''; render(); break;
       case 'simpan': simpan(); break;
       case 'nilai': tarikNilai(); break;
+      case 'ringkas': hitungBagian(b.getAttribute('data-b') || '', true); break;
+      case 'terapkanRiwayat': terapkanRiwayat(false); break;
+      case 'terapkanRiwayatSemua': terapkanRiwayat(true); break;
       case 'pakaiOrtu': var ie = $('bif-' + (b.getAttribute('data-f') || '')); if (ie && cur && cur.siswa && cur.siswa.namaOrtu && !ie.disabled) { ie.value = String(cur.siswa.namaOrtu).slice(0, 100); ie.classList.add('bi-saran'); b.parentNode.parentNode.removeChild(b.parentNode); } break;
       case 'hapus': hapus(); break;
       case 'cetak': cetak(); break;
