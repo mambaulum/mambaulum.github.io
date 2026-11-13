@@ -215,13 +215,13 @@
   <script defer src="js/buku-tamu.js?v=5"></script>
   <!-- Buku Induk Siswa (Admin & Kepala; data pribadi anak, UU 27/2022). WAJIB sesudah app.js, kredensial.js & menu-hub.js. Butuh Rules buku_induk*. -->
   <!-- Persetujuan Data Siswa di Portal Orang Tua (kartu di dashboard ortu). WAJIB sesudah portal-ortu.js dan SEBELUM buku-induk.js. Butuh Rules persetujuan_ortu*. -->
-  <script defer src="js/persetujuan-ortu.js?v=4"></script>
-  <script defer src="js/buku-induk.js?v=13"></script>
+  <script defer src="js/persetujuan-ortu.js?v=5"></script>
+  <script defer src="js/buku-induk.js?v=16"></script>
 
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
   <script defer src="js/fitur-pelengkap.js?v=3"></script>
-  <script defer src="js/lengkapi-siswa.js?v=4"></script>   <!-- Lengkapi NISN/NIS/tempat-tgl lahir siswa dari Excel (sesudah fitur-pelengkap.js) -->
+  <script defer src="js/lengkapi-siswa.js?v=5"></script>   <!-- Lengkapi NISN/NIS/tempat-tgl lahir siswa dari Excel (sesudah fitur-pelengkap.js) -->
 
   <!-- Tunggakan Infaq per siswa + pengingat WA + unduh PDF/Excel (kartu di halaman Infaq Mingguan) dan
        logout otomatis saat tidak aktif. Dimuat SESUDAH app.js karena memakai fungsi/variabel milik app.js
@@ -419,11 +419,9 @@
             <div class="menu-item" data-page="promotion"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-promotion"/></svg></span> Kenaikan Kelas</div>
             <div class="menu-item" data-page="buku-penghubung"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Penghubung</div>
             <div class="menu-item notif-badge" data-page="info-ortu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-info-ortu"/></svg></span> Info ke Ortu <span class="badge-dot" id="infoOrtuNotifDot"></span></div>
+        <div class="menu-item" data-page="buku-induk"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Induk</div>
           </div>
         </div>
-
-        <!-- Buku Induk: menu sendiri, sejajar dengan grup Siswa & Orang Tua (hanya Admin & Kepala; disembunyikan oleh js/buku-induk.js) -->
-        <div class="menu-item" data-page="buku-induk"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Induk</div>
 
         <div class="menu-group collapsed" data-group="raport-v4">
           <div class="menu-group-header" onclick="toggleMenuGroup('raport-v4')">Penilaian & Raport <span class="chevron">▲</span></div>
