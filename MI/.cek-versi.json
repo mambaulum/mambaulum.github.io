@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.445",
-  "disimpan": "2026-11-13T02:54:12.708Z",
+  "appVersion": "v8.446",
+  "disimpan": "2026-11-13T03:03:03.205Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -295,16 +295,16 @@
       "hash": "3c7155827b1efddc2b95778fd0604207850064fe"
     },
     "js/buku-induk.js": {
-      "v": "v=12",
-      "hash": "6f750ccaf80153b99197b08bc088ed81f8d473d0"
+      "v": "v=13",
+      "hash": "8f58405eed7a07cc969f3cab7ddfdb26a1789df1"
     },
     "js/fitur-pelengkap.js": {
       "v": "v=3",
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
     },
     "js/lengkapi-siswa.js": {
-      "v": "v=3",
-      "hash": "a4741ae60601b1eb5c98bf318737112385c3bec2"
+      "v": "v=4",
+      "hash": "801f960066538f3680a3f0adea71510b87cb6dd1"
     },
     "js/tunggakan-infaq.js": {
       "v": "v=15",
