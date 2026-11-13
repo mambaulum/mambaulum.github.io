@@ -137,6 +137,15 @@
   function daftarSiswa() { return (typeof allSiswaSemua !== 'undefined' && allSiswaSemua && allSiswaSemua.length) ? allSiswaSemua : ((typeof allSiswa !== 'undefined' && allSiswa) || []); }
   function siswaByKey(key) { return daftarSiswa().filter(function (s) { return s.key === key; })[0]; }
   function aktif(s) { return !s || s.aktif !== false; }
+  function lblKelas(k) { k = String(k == null ? '' : k).trim(); return !k ? '-' : (/^kelas\b/i.test(k) ? k : 'Kelas ' + k); }   // data kelas bisa sudah berbunyi "Kelas 3"
+  // Nilai bawaan madrasah (usulan, BUKAN data tersimpan): tampil terisi di formulir & baru tersimpan bila Admin menekan Simpan. Ubah/hapus baris sesuai kebijakan.
+  var BAWAAN = { agama: 'Islam', warga: 'WNI' };
+  function saranIsi(f, d, s) {
+    if (!canEdit() || (d && d[f.id])) return '';
+    if (BAWAAN[f.id]) return BAWAAN[f.id];
+    if (f.id === 'telp') { var t = String((s && s.noWaOrtu) || '').replace(/[^0-9+() -]/g, '').trim().slice(0, f.max); return t.length >= 8 && f.pola.test(t) ? t : ''; }
+    return '';
+  }
   function namaKelas(s) { return (s && s.kelas) || '(tanpa kelas)'; }
   function urutKelas(a, b) { return String(a).localeCompare(String(b), 'id', { numeric: true }); }
   function isNum(f) { return f.t === 'text' && ['nism', 'nik', 'anak_ke', 'saudara', 'saudara_tiri', 'saudara_angkat', 'pos'].indexOf(f.id) > -1; }   // kolom khusus angka
@@ -146,7 +155,7 @@
     if ($('biStyle')) return;
     var st = document.createElement('style'); st.id = 'biStyle';
     st.textContent = '.bi-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.bi-bar .field{flex:1;min-width:130px}.bi-tbl{width:100%;border-collapse:collapse;font-size:13px}' +
-      '.bi-tbl td,.bi-tbl th{border:1px solid #e5e7eb;padding:6px 8px;text-align:left}.bi-ok{color:#047857}.bi-no{color:#b45309}.bi-warn{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px}' +
+      '.bi-tbl td,.bi-tbl th{border:1px solid #e5e7eb;padding:6px 8px;text-align:left}.bi-ok{color:#047857}.bi-saran{background:#fefce8!important;border-color:#fcd34d!important}.bi-hint{font-size:11.5px;color:#92400e;margin-top:3px}.bi-no{color:#b45309}.bi-warn{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px}' +
       '.bi-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px}.bi-form .full{grid-column:1/-1}details.bi-g{border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;margin-bottom:8px}' +
       'details.bi-g>summary{cursor:pointer;font-weight:700;font-size:14px}.bi-err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px}.bi-prog{background:#e5e7eb;border-radius:6px;height:9px;min-width:90px;overflow:hidden}.bi-prog>i{display:block;height:100%;background:#059669}.bi-id{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:10px}.bi-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}';
     document.head.appendChild(st);
@@ -261,25 +270,30 @@
       catat('lihat', key); render();
     }).catch(function (e) { toast('❌ ' + ((e && e.message) || e), true, 6000); }).then(function () { sibuk = false; });
   }
-  function inputHtml(f, v) {
+  function inputHtml(f, v, saran) {
     var id = 'bif-' + f.id, ro = canEdit() ? '' : ' disabled', cls = f.full ? ' class="full"' : '';
-    var ctl;
-    if (f.t === 'select') ctl = '<select id="' + id + '" class="field"' + ro + '><option value="">-- pilih --</option>' + OPT[f.o].map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
-    else ctl = '<input id="' + id + '" class="field" type="' + (f.t === 'date' ? 'date' : 'text') + '" maxlength="' + f.max + '" value="' + esc(v || '') + '"' + ro + (isNum(f) ? ' inputmode="numeric"' : '') + '>';
-    return '<div' + cls + '><label class="label" for="' + id + '">' + esc(f.l) + '</label>' + ctl + '</div>';
+    var ctl, pakai = !!saran; if (pakai) v = saran;
+    var ket = pakai ? '<div class="bi-hint">usulan otomatis, periksa lalu Simpan</div>' : '';
+    if ((f.id === 'ayah_nama' || f.id === 'ibu_nama') && canEdit() && !v && cur && cur.siswa && cur.siswa.namaOrtu)
+      ket = '<div class="bi-hint">Di menu Siswa tertulis: <b>' + esc(cur.siswa.namaOrtu) + '</b> <button type="button" class="btn btn-soft" style="padding:2px 8px;font-size:11.5px;" data-bi="pakaiOrtu" data-f="' + f.id + '">Pakai untuk ' + (f.id === 'ayah_nama' ? 'ayah' : 'ibu') + '</button></div>';
+    if (f.t === 'select') ctl = '<select id="' + id + '" class="field' + (pakai ? ' bi-saran' : '') + '"' + ro + '><option value="">-- pilih --</option>' + OPT[f.o].map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    else ctl = '<input id="' + id + '" class="field' + (pakai ? ' bi-saran' : '') + '" type="' + (f.t === 'date' ? 'date' : 'text') + '" maxlength="' + f.max + '" value="' + esc(v || '') + '"' + ro + (isNum(f) ? ' inputmode="numeric"' : '') + '>';
+    return '<div' + cls + '><label class="label" for="' + id + '">' + esc(f.l) + '</label>' + ctl + ket + '</div>';
   }
   function renderForm() {
-    var s = cur.siswa, d = cur.data || {};
+    var s = cur.siswa, d = cur.data || {}, adaSaran = false;
     var grup = GROUPS.map(function (g, i) {
-      var isi = FIELDS.filter(function (f) { return f.g === g.id; }).map(function (f) { return inputHtml(f, d[f.id]); }).join('');
+      var isi = FIELDS.filter(function (f) { return f.g === g.id; }).map(function (f) { var sr = saranIsi(f, d, s); if (sr) adaSaran = true; return inputHtml(f, d[f.id], sr); }).join('');
       return '<details class="bi-g"' + (i === 0 || g.id === 'stj' ? ' open' : '') + '><summary>' + esc(g.t) + '</summary><div class="bi-form">' + isi + '</div></details>';
     }).join('');
     root.innerHTML = '<div class="card"><button class="btn btn-soft" data-bi="kembali">← Kembali ke daftar</button>' +
       '<h3 style="font-size:16px;font-weight:700;margin:10px 0 6px;">📕 Buku Induk: ' + esc(s.name) + '</h3>' +
-      '<div class="bi-id"><b>' + esc(s.name) + '</b> · Kelas ' + esc(s.kelas || '-') + '<br>NIS: ' + esc(s.nis || '-') + ' · NISN: ' + esc(s.nisn || '-') +
+      '<div class="bi-id"><b>' + esc(s.name) + '</b> · ' + esc(lblKelas(s.kelas)) + '<br>NIS: ' + esc(s.nis || '-') + ' · NISN: ' + esc(s.nisn || '-') +
       '<br>Tempat, tgl lahir: ' + esc(s.tempatLahir || '-') + ', ' + esc(tglId(s.tglLahir) || '-') + '<br><span class="text-muted" style="font-size:12px;">Data di atas diambil dari menu Siswa (ubah di sana).</span></div>' +
       (d.setuju_tgl && d.setuju_oleh ? '' : '<div class="bi-warn">⚠️ Persetujuan orang tua/wali belum dicatat (UU 27/2022 &amp; PP 33/2026). Isi bagian G setelah formulir ditandatangani.</div>') +
+      (adaSaran ? '<div class="bi-warn" style="background:#fefce8;">🟨 Isian berlatar kuning adalah <b>usulan otomatis</b> (agama &amp; kewarganegaraan bawaan madrasah, telepon dari nomor WA orang tua). Periksa, ubah bila perlu, lalu tekan Simpan. Sebelum disimpan, usulan ini belum menjadi data.</div>' : '') +
       grup +
+      '<details class="bi-g" id="biNilaiBox"><summary>Hasil Belajar (otomatis dari menu Nilai, tidak disalin)</summary><div id="biNilai">' + nilaiHtml() + '</div></details>' +
       '<div class="bi-act">' + (canEdit() ? '<button class="btn btn-success" data-bi="simpan">💾 Simpan</button>' : '') +
       '<button class="btn btn-soft" data-bi="cetak">🖨️ Cetak Buku Induk</button><button class="btn btn-soft" data-bi="cetakSetuju">🖨️ Formulir Persetujuan</button>' +
       (canEdit() && !cur.baru ? '<button class="btn btn-soft" style="color:#dc2626;" data-bi="hapus">🗑️ Hapus data induk</button>' : '') + '</div></div>';
@@ -464,6 +478,53 @@
   var CSS = 'body{font-family:Arial,sans-serif;padding:22px;color:#111;font-size:12.5px}table{width:100%;border-collapse:collapse;margin-bottom:8px}td,th{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}th{background:#f3f4f6}' +
     '.kop{text-align:center;border-bottom:3px double #333;padding-bottom:8px;margin-bottom:12px}.kop b{font-size:16px}h3{text-align:center;margin:8px 0}h4{margin:12px 0 4px;font-size:13px}.k{width:34%}.ttd{display:flex;justify-content:space-between;margin-top:30px}.ttd div{width:44%;text-align:center}.ft{margin-top:14px;font-size:10.5px;color:#555}';
   function kop() { return '<div class="kop"><b>' + esc(madInfo().nama || 'Madrasah') + '</b><br>' + esc(madInfo().alamat || '') + '</div>'; }
+  /* ---------- hasil belajar otomatis: BACA-SAJA dari node grades (tidak disalin ke buku_induk, tidak ada data baru tersimpan) ---------- */
+  function urutSem(a, b) { return String(a.ta).localeCompare(String(b.ta)) || (a.sem === b.sem ? 0 : (a.sem === 'Ganjil' ? -1 : 1)); }
+  function nilaiHtml() {
+    if (!cur) return '';
+    if (!cur.nilai) return '<p class="text-muted" style="font-size:13px;margin:8px 0;">Menampilkan nilai siswa ini dari menu Nilai, per tahun ajaran dan semester. Dibaca saat tombol ditekan; tidak disimpan di Buku Induk.</p><button class="btn btn-soft" data-bi="nilai">📊 Tarik hasil belajar</button>';
+    if (!cur.nilai.length) return '<p class="text-muted" style="font-size:13px;">Belum ada nilai tercatat untuk siswa ini.</p><button class="btn btn-soft" data-bi="nilai">🔄 Tarik ulang</button>';
+    return cur.nilai.map(function (g) {
+      return '<h4 style="margin:10px 0 4px;font-size:13px;">' + esc(g.ta) + ' · ' + esc(g.sem) + ' · ' + esc(lblKelas(g.kelas)) + (g.kunci === true ? ' <span class="bi-ok">🔒 raport final</span>' : (g.kunci === false ? ' <span class="bi-no">raport belum final</span>' : '')) + '</h4>' +
+        '<div style="overflow-x:auto;"><table class="bi-tbl"><tr><th>Mata pelajaran</th><th style="width:90px;">Nilai</th></tr>' + g.rows.map(function (r) {
+          return '<tr><td>' + esc(r.m) + '</td><td>' + r.n + (r.fin ? '' : ' <i class="text-muted" style="font-size:11px;">sementara</i>') + '</td></tr>';
+        }).join('') + '</table></div>';
+    }).join('') + '<p class="text-muted" style="font-size:12px;margin-top:6px;">"Sementara" = komponen penilaian belum lengkap. Nilai resmi tetap di Raport.</p><button class="btn btn-soft" data-bi="nilai">🔄 Tarik ulang</button>';
+  }
+  function tarikNilai() {
+    if (!cur || sibuk) return;
+    if (typeof statusRapor !== 'function') return toast('Fungsi nilai belum termuat. Muat ulang aplikasi.', true);
+    var key = cur.key, locks = null;
+    var tampil = function () { var el = $('biNilai'), box = $('biNilaiBox'); if (el && cur && cur.key === key) { el.innerHTML = nilaiHtml(); if (box) box.open = true; } };
+    sibuk = true;
+    siap().then(function () {
+      return Promise.all([db.ref('grades').orderByChild('siswaKey').equalTo(key).once('value'),
+        (typeof raporTerkunciSet === 'function' ? raporTerkunciSet(true).then(function (x) { locks = x; }, function () { locks = null; }) : Promise.resolve())]);
+    }).then(function (h) {
+      var per = {};
+      h[0].forEach(function (ch) {
+        var g = ch.val() || {}, st = statusRapor(g.data || {});
+        if (st.nilai == null || !g.subject) return;
+        var k = (g.tahunAjaran || '-') + '|' + g.semester, o = per[k] || (per[k] = { ta: g.tahunAjaran || '-', sem: g.semester || '-', kelas: g.kelas || '', rows: [] });
+        o.rows.push({ m: String(g.subject), n: st.nilai, fin: !!st.final });
+      });
+      var out = Object.keys(per).map(function (k) { return per[k]; }).sort(urutSem);
+      out.forEach(function (o) {
+        o.rows.sort(function (a, b) { return a.m.localeCompare(b.m); });
+        o.kunci = (locks && typeof raporKunciKey === 'function') ? locks.has(raporKunciKey(key, o.ta, o.sem)) : null;
+      });
+      if (cur && cur.key === key) cur.nilai = out;
+      tampil();
+    }).catch(function (e) { toast('❌ Gagal menarik nilai: ' + ((e && e.message) || e), true, 6000); }).then(function () { sibuk = false; });
+  }
+  function nilaiCetak() {
+    if (!cur || !cur.nilai || !cur.nilai.length) return '';
+    return '<p style="margin:6px 0 2px;">Ringkasan hasil belajar (dari menu Nilai; nilai resmi: Raport):</p>' + cur.nilai.map(function (g) {
+      return '<table><tr><th colspan="2">' + esc(g.ta) + ' - ' + esc(g.sem) + ' - ' + esc(lblKelas(g.kelas)) + (g.kunci === true ? ' (raport final)' : '') + '</th></tr>' +
+        g.rows.map(function (r) { return '<tr><td>' + esc(r.m) + '</td><td style="width:70px;">' + r.n + (r.fin ? '' : ' *') + '</td></tr>'; }).join('') + '</table>';
+    }).join('') + '<p style="font-size:11px;margin:2px 0;">* nilai sementara (komponen penilaian belum lengkap).</p>';
+  }
+
   function cetak() {
     if (!cur) return;
     var s = cur.siswa, d = cur.data || {};
@@ -488,7 +549,7 @@
     var C = '<h4>C. PERKEMBANGAN MURID</h4><table>' + baris('17. Status penerimaan', v('masuk_jenis')) + baris('    Tanggal diterima', tg('masuk_tgl')) + baris('    Diterima di kelas', v('masuk_kelas')) +
       baris('    a. Murid baru - asal / nama TK-RA, atau b. Pindahan - nama madrasah asal', v('masuk_asal')) + baris('    Tanggal dan nomor STTB TK-RA', [tg('masuk_sttb_tgl'), v('masuk_sttb')].filter(Boolean).join(' / ')) +
       baris('    Pindahan dari tingkat', v('masuk_dari_tkt')) + baris('    Alasan pindah', v('masuk_alasan')) + '</table>' +
-      '<p style="margin:6px 0 2px;">18. Prestasi belajar: lihat Buku Hasil Belajar (Raport) tiap semester. Riwayat kelas:</p>' + rw + jas;
+      '<p style="margin:6px 0 2px;">18. Prestasi belajar: lihat Buku Hasil Belajar (Raport) tiap semester. Riwayat kelas:</p>' + rw + nilaiCetak() + jas;
     var D = '<h4>D. BEA SISWA</h4><table>' + baris('19. Jenis bea siswa', v('bea_jenis')) + '</table>';
     var E = '<h4>E. MENINGGALKAN MADRASAH</h4><table>' + baris('20-22. Keterangan (tamat / pindah / keluar)', v('klr_jenis')) + baris('Tanggal', tg('klr_tgl')) + baris('Melanjutkan / pindah ke madrasah', v('klr_ke')) +
       baris('Pindah dari tingkat', v('klr_dari_tkt')) + baris('Pindah ke tingkat', v('klr_ke_tkt')) + baris('Alasan', v('klr_alasan')) + baris('Nomor ijazah / STTB', v('ijazah_no')) + baris('Tanggal ijazah', tg('ijazah_tgl')) + '</table>';
@@ -880,6 +941,8 @@
       case 'kembali': cur = null; render(); break;
       case 'muat': idxMuat = false; idxGalat = ''; render(); break;
       case 'simpan': simpan(); break;
+      case 'nilai': tarikNilai(); break;
+      case 'pakaiOrtu': var ie = $('bif-' + (b.getAttribute('data-f') || '')); if (ie && cur && cur.siswa && cur.siswa.namaOrtu && !ie.disabled) { ie.value = String(cur.siswa.namaOrtu).slice(0, 100); ie.classList.add('bi-saran'); b.parentNode.parentNode.removeChild(b.parentNode); } break;
       case 'hapus': hapus(); break;
       case 'cetak': cetak(); break;
       case 'cetakSetuju': cetakSetuju(); break;

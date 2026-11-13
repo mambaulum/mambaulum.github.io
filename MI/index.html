@@ -123,7 +123,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=169"></script>
+  <script defer src="js/app.js?v=170"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=37"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
@@ -170,7 +170,7 @@
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
   <script defer src="js/ttd-digital.js?v=10"></script>
-  <script defer src="js/menu-hub.js?v=14"></script>
+  <script defer src="js/menu-hub.js?v=15"></script>
   <!-- Cari menu (Ctrl+K) + menu aksi topbar. WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/menu-polish.js?v=31"></script>
   <!-- Penampil versi aplikasi + Cek pembaruan (footer menu samping, #versiAppInfo). Berdiri sendiri, tidak memakai app.js. -->
@@ -216,7 +216,7 @@
   <!-- Buku Induk Siswa (Admin & Kepala; data pribadi anak, UU 27/2022). WAJIB sesudah app.js, kredensial.js & menu-hub.js. Butuh Rules buku_induk*. -->
   <!-- Persetujuan Data Siswa di Portal Orang Tua (kartu di dashboard ortu). WAJIB sesudah portal-ortu.js dan SEBELUM buku-induk.js. Butuh Rules persetujuan_ortu*. -->
   <script defer src="js/persetujuan-ortu.js?v=4"></script>
-  <script defer src="js/buku-induk.js?v=5"></script>
+  <script defer src="js/buku-induk.js?v=7"></script>
 
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
