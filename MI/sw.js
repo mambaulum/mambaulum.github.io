@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.438';
+const APP_VERSION = 'v8.441';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -141,9 +141,9 @@ const PRECACHE_URLS = [
   './js/modul-ajar.js?v=23',
   './js/buku-tamu.js?v=5',
   './js/persetujuan-ortu.js?v=4',          // Persetujuan Data Siswa di Portal Orang Tua (dimuat SESUDAH portal-ortu.js, SEBELUM buku-induk.js)
-  './js/buku-induk.js?v=7',                // Buku Induk Siswa (halaman dibuat JS; dimuat SESUDAH app.js, kredensial.js & menu-hub.js)
+  './js/buku-induk.js?v=9',                // Buku Induk Siswa (halaman dibuat JS; dimuat SESUDAH app.js, kredensial.js & menu-hub.js)
   './js/fitur-pelengkap.js?v=3',
-  './js/lengkapi-siswa.js?v=1',            // Lengkapi NISN/NIS/tempat-tgl lahir siswa dari Excel (sesudah fitur-pelengkap.js)
+  './js/lengkapi-siswa.js?v=2',            // Lengkapi NISN/NIS/tempat-tgl lahir siswa dari Excel (sesudah fitur-pelengkap.js)
   './js/tunggakan-infaq.js?v=15',
   './js/auto-logout.js?v=5',
   './js/login-kode.js?v=13',               // juga dipakai login OFFLINE (membungkus login())

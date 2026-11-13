@@ -2,6 +2,7 @@
    SI MAMBA - js/lengkapi-siswa.js (v=1)
    "Lengkapi data siswa dari Excel": mengisi NISN, (NIS), tempat lahir, dan tanggal lahir
    untuk siswa yang SUDAH ADA di menu Siswa. Tidak menambah siswa baru.
+   - Juga "Nama orang tua" (field namaOrtu di menu Siswa) dari kolom Nama Ayah/Ibu/Wali; pilihan ayah, ibu, ayah & ibu, atau wali di pratinjau (bawaan: ayah).
    - Hanya Admin. Pratinjau dulu, baru Simpan (1 update multi-path, semua atau tidak sama sekali).
    - Pencocokan: nama (tanpa beda huruf besar/kecil & spasi ganda) + kelas. Kelas dibaca dari kolom
      "Tingkat - Rombel" / "Kelas" (mis. "Kelas 6 - VI" -> Kelas 6).
@@ -15,6 +16,7 @@
 (function () {
   'use strict';
   var lksBaris = null;       // baris mentah hasil baca file
+  var lksOrtu = 'ayah';       // isi "Nama orang tua" di menu Siswa dengan: ayah | ibu | ayah_ibu | wali | '' (jangan isi)
   var lksJumlahOk = 0;       // jumlah baris "akan diperbarui" saat pratinjau terakhir
 
   function $(id) { return document.getElementById(id); }
@@ -81,19 +83,22 @@
         c.nis = r.findIndex(function (x) { return x === 'nis' || x === 'nomor induk siswa'; });
         c.tempat = r.findIndex(function (x) { return x === 'tempat lahir' || x === 'tempat'; });
         c.tgl = r.findIndex(function (x) { return x === 'tanggal lahir' || x === 'tgl lahir'; });
+        c.ayah = r.findIndex(function (x) { return x.indexOf('nama ayah') === 0; });
+        c.ibu = r.findIndex(function (x) { return x.indexOf('nama ibu') === 0; });
+        c.wali = r.indexOf('nama wali');
         c.kelas = r.findIndex(function (x) { return x === 'kelas' || x.indexOf('tingkat') === 0 || x === 'rombel' || x === 'rombongan belajar'; });
         break;
       }
     }
     if (mulai < 0) return { fatal: 'Judul kolom tidak ditemukan. File harus punya kolom "Nama Lengkap" (atau "Nama") dan "NISN".' };
-    if (c.tempat < 0 && c.tgl < 0 && c.nis < 0) return { fatal: 'Tidak ada kolom Tempat Lahir, Tanggal Lahir, atau NIS. Tidak ada yang bisa dilengkapi selain NISN.' , c: c };
+    if (c.tempat < 0 && c.tgl < 0 && c.nis < 0 && c.ayah < 0 && c.ibu < 0 && c.wali < 0) return { fatal: 'Tidak ada kolom Tempat Lahir, Tanggal Lahir, NIS, atau nama orang tua. Tidak ada yang bisa dilengkapi selain NISN.', c: c };
     var baris = [];
     for (var j = mulai; j < aoa.length; j++) {
       var row = aoa[j] || [];
       var ambil = function (k) { return k >= 0 && row[k] != null ? row[k] : ''; };
       var nama = String(ambil(c.nama)).trim();
       if (!nama && String(ambil(c.nisn)).trim() === '') continue;
-      baris.push({ baris: j + 1, nama: nama, nisn: ambil(c.nisn), nis: ambil(c.nis), tempat: ambil(c.tempat), tgl: ambil(c.tgl), kelasRaw: String(ambil(c.kelas)).trim(), adaNis: c.nis >= 0, adaTempat: c.tempat >= 0, adaTgl: c.tgl >= 0 });
+      baris.push({ baris: j + 1, nama: nama, nisn: ambil(c.nisn), nis: ambil(c.nis), tempat: ambil(c.tempat), tgl: ambil(c.tgl), kelasRaw: String(ambil(c.kelas)).trim(), ayah: ambil(c.ayah), ibu: ambil(c.ibu), wali: ambil(c.wali), adaNis: c.nis >= 0, adaTempat: c.tempat >= 0, adaTgl: c.tgl >= 0 });
     }
     return { baris: baris, c: c };
   }
@@ -141,7 +146,14 @@
       if (galat.length) { it.alasan = galat.join('; '); return it; }
       [nisn, nis, tmp, tg].forEach(function (x) { if (x.cat) it.catatan.push(x.cat); });
       if (nisn.val) { var pakai = (nisnDipakai[nisn.val] || []).filter(function (k) { return k !== s.key; }); if (pakai.length) { it.alasan = 'NISN ' + nisn.val + ' sudah dipakai siswa lain'; return it; } }
-      var kand = [['nisn', 'NISN', nisn.val], ['nis', 'NIS', nis.val], ['tempatLahir', 'Tempat lahir', tmp.val], ['tglLahir', 'Tgl lahir', tg.val]];
+      var namaOrtu = '';
+      if (lksOrtu) {
+        var tb = function (x) { return String(x == null ? '' : x).replace(/^'/, '').replace(/\s+/g, ' ').trim(); };
+        var ay = tb(r.ayah), ib = tb(r.ibu), wl = tb(r.wali);
+        namaOrtu = lksOrtu === 'ayah' ? ay : lksOrtu === 'ibu' ? ib : lksOrtu === 'wali' ? wl : (ay && ib ? ay + ' & ' + ib : ay || ib);
+        if (namaOrtu.length > 100) { it.catatan.push('Nama orang tua lebih dari 100 karakter, dilewati'); namaOrtu = ''; }
+      }
+      var kand = [['nisn', 'NISN', nisn.val], ['namaOrtu', 'Nama orang tua', namaOrtu], ['nis', 'NIS', nis.val], ['tempatLahir', 'Tempat lahir', tmp.val], ['tglLahir', 'Tgl lahir', tg.val]];
       kand.forEach(function (k) {
         if (!k[2]) return;
         var lama = s[k[0]] != null ? String(s[k[0]]).trim() : '';
@@ -166,6 +178,7 @@
       return '<tr><td>' + i.baris + '</td><td>' + escapeHtml(i.nama || '-') + '</td><td>' + escapeHtml(i.kelas || '-') + '</td><td>' + st + '</td></tr>';
     }).join('');
     box.innerHTML = '<p style="font-size:13px;font-weight:600;margin-bottom:6px;">Pratinjau: <span style="color:#059669;">' + ok + ' siswa akan dilengkapi</span>' + (lewat ? ', <span style="color:#dc2626;">' + lewat + ' baris dilewati</span>' : '') + ' (dari ' + items.length + ' baris)</p>' +
+      '<label style="display:flex;gap:6px;align-items:center;font-size:13px;margin-bottom:6px;flex-wrap:wrap;">Isi kolom "Nama orang tua" di menu Siswa dengan: <select id="siswaLengkapiOrtu" class="field" style="width:auto;" onchange="lengkapiSiswaOrtuUbah(this.value)">' + [['ayah', 'Nama ayah'], ['ibu', 'Nama ibu'], ['ayah_ibu', 'Ayah & Ibu'], ['wali', 'Nama wali'], ['', 'Jangan diisi']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === lksOrtu ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
       '<label style="display:flex;gap:6px;align-items:center;font-size:13px;margin-bottom:8px;"><input type="checkbox" id="siswaLengkapiTimpa"' + (lksTimpa ? ' checked' : '') + ' onchange="lengkapiSiswaTimpaUbah(this.checked)"> Timpa isian yang sudah ada (biasanya jangan dicentang)</label>' +
       '<div style="overflow:auto;max-height:340px;"><table><thead><tr><th>Baris</th><th>Nama</th><th>Kelas</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;"><button id="btnSimpanLengkapi" class="btn btn-success" onclick="simpanLengkapiSiswa()"' + (ok === 0 ? ' disabled' : '') + '>💾 Lengkapi ' + ok + ' Siswa</button><button class="btn btn-soft" onclick="batalLengkapiSiswa()">✖️ Batal</button></div>';
@@ -173,8 +186,10 @@
   var lksTimpa = false;
   window.lengkapiSiswaTimpaUbah = function (v) { lksTimpa = !!v; if (lksBaris) render(validasi(lksBaris, lksTimpa)); };
 
+  window.lengkapiSiswaOrtuUbah = function (v) { lksOrtu = v; if (lksBaris) render(validasi(lksBaris, lksTimpa)); };
+
   window.batalLengkapiSiswa = function () {
-    lksBaris = null; lksTimpa = false; render(null);
+    lksBaris = null; lksTimpa = false; lksOrtu = 'ayah'; render(null);
     var f = $('siswaLengkapiFile'); if (f) f.value = '';
   };
 

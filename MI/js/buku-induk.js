@@ -12,6 +12,9 @@
    FORMAT KOLOM: kolom di FIELDS dapat disesuaikan dengan format dari Kankemenag (tambah/kurangi di daftar ini + Rules di RULES-buku-induk.json).
    Perlu koneksi internet (sengaja tanpa antrean offline agar data pribadi tidak tertinggal di perangkat).
 
+   V9: Daftar menampilkan siswa AKTIF saja secara bawaan (nonaktif tetap bisa dilihat lewat filter "Semua" / "Nonaktif saja", atau saat mencari nama/NISN).
+   V8: tab "Impor" menerima file Excel Dapodik (Daftar Siswa) langsung (dapodikKeCsv -> olahCsv; sama aturan dengan impor CSV).
+
    V4: tab "Persetujuan" (status persetujuan yang diisi orang tua di Portal Orang Tua, pengingat WA, salin ke bagian G). Butuh Rules persetujuan_ortu*.
 
    V3 (format PDF Buku Induk MI): kolom ditambah (nama panggilan, saudara tiri/angkat, bahasa, jarak, telepon, pendidikan wali, STTB TK, tingkat pindah,
@@ -225,7 +228,7 @@
     var b = $('biBody'); if (!b || !idxSiap(renderDaftar, 'daftar')) return;
     var kelasList = {}; daftarSiswa().forEach(function (s) { kelasList[namaKelas(s)] = 1; });
     var ko = '<option value="">Semua kelas</option>' + Object.keys(kelasList).sort(urutKelas).map(function (k) { return '<option' + (k === filt.kelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('');
-    var so = [['', 'Semua status'], ['belum', 'Belum diisi'], ['kurang', 'Belum lengkap (<100%)'], ['stj', 'Belum ada persetujuan']].map(function (o) {
+    var so = [['', 'Siswa aktif'], ['semua', 'Semua (termasuk nonaktif)'], ['nonaktif', 'Nonaktif saja'], ['belum', 'Belum diisi'], ['kurang', 'Belum lengkap (<100%)'], ['stj', 'Belum ada persetujuan']].map(function (o) {
       return '<option value="' + o[0] + '"' + (o[0] === filt.st ? ' selected' : '') + '>' + o[1] + '</option>';
     }).join('');
     b.innerHTML = '<div class="bi-bar"><input id="biQ" class="field" placeholder="Cari nama / NISN / NIS…" value="' + esc(filt.q) + '"><select id="biK" class="field">' + ko + '</select><select id="biS" class="field">' + so + '</select>' +
@@ -233,7 +236,9 @@
     renderList();
   }
   function lolosStatus(s) {
-    if (!filt.st) return true;
+    if (filt.st === 'semua') return true;
+    if (filt.st === 'nonaktif') return !aktif(s);
+    if (!filt.st) return aktif(s) || !!filt.q;   // bawaan: hanya siswa aktif; bila sedang mencari nama/NISN, nonaktif ikut dicari
     if (!aktif(s)) return false;   // filter status hanya untuk siswa aktif (sama dengan tab Rekap)
     var d = idx && idx[s.key];
     if (filt.st === 'belum') return !d;
@@ -771,6 +776,74 @@
     if (nikOk >= 3 && nikNol / nikOk > 0.6) h.fatal = 'Hampir semua NIK berakhiran angka 0: kolom NIK kemungkinan dibulatkan Excel (hanya 15 angka pertama yang akurat). Format kolom NIK sebagai Teks, ketik ulang, lalu unggah lagi.';
     return h;
   }
+  /* ---------- v8: impor langsung dari Excel Dapodik (Daftar Siswa) ----------
+     Mengubah sheet Dapodik menjadi teks CSV berkolom id Buku Induk, lalu dilewatkan ke olahCsv() yang sama dengan impor CSV
+     (aturan: sel kosong tidak mengubah, isian lama tidak ditimpa, NIK/NISN diperiksa, pratinjau dulu). Siswa dicocokkan lewat NISN
+     -> NISN harus sudah terisi di menu Siswa (lihat js/lengkapi-siswa.js). Tidak ada perubahan Rules (kolom sama dengan simpan manual). */
+  function dapKunci(c) { return String(c == null ? '' : c).trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function dapTeks(c) { return String(c == null ? '' : c).replace(/^'/, '').replace(/\s+/g, ' ').trim(); }
+  function dapJudul(c) { return dapTeks(c).toLowerCase().replace(/(^|[\s.\-\/])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); }); }
+  // "Dusun Darungan RT.002/008 KARANGHARJO, SILO, JEMBER, JAWA TIMUR, 68184, 68184" -> alamat, rtrw, desa, kec, kab, prov, pos
+  function dapAlamat(a) {
+    var s = dapTeks(a), o = {}; if (!s) return o;
+    var p = s.split(',').map(function (x) { return x.trim(); });
+    if (p.length < 4) { o.alamat = s; return o; }
+    var m = /^(.*?)\s*\bRT\.?\s*(\d+)\s*\/\s*(\d+)\s*(.*)$/i.exec(p[0]);
+    if (m) { o.alamat = m[1].trim(); o.rtrw = m[2] + '/' + m[3]; o.desa = dapJudul(m[4]); } else o.alamat = p[0];
+    o.kec = dapJudul(p[1]); o.kab = dapJudul(p[2]); o.prov = dapJudul(p[3]);
+    for (var i = 4; i < p.length; i++) if (/^\d{5}$/.test(p[i])) { o.pos = p[i]; break; }
+    return o;
+  }
+  function dapTelp(v) {
+    var d = String(v == null ? '' : v).replace(/\D/g, '');
+    if (d.indexOf('62') === 0) d = '0' + d.slice(2);
+    return d.length >= 9 && d.length <= 15 ? d : '';
+  }
+  // aoas = array sheet, masing-masing array-of-array (header:1). -> { fatal } atau { csv, catatan[] }
+  function dapodikKeCsv(aoas) {
+    var KOL = ['nisn', 'nama', 'nik', 'jk', 'alamat', 'rtrw', 'desa', 'kec', 'kab', 'prov', 'pos', 'telp', 'ayah_nama', 'ibu_nama', 'wali_nama', 'bea_jenis'];
+    var out = [], pakai = false, wSama = 0, telpBuang = 0, adaAlamat = 0, alamatGagal = 0;
+    var csvq = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+    aoas.forEach(function (aoa, si) {
+      var hi = -1, c = {};
+      for (var i = 0; i < Math.min(aoa.length, 10) && hi < 0; i++) {
+        var r = (aoa[i] || []).map(dapKunci);
+        var iN = r.findIndex(function (x) { return x === 'nama lengkap' || x === 'nama' || x === 'nama siswa' || x === 'nama peserta didik'; });
+        var iB = r.indexOf('nisn');
+        if (iN > -1 && iB > -1) {
+          hi = i; c.nama = iN; c.nisn = iB;
+          c.nik = r.indexOf('nik'); c.jk = r.indexOf('jenis kelamin'); c.alamat = r.indexOf('alamat');
+          c.telp = r.findIndex(function (x) { return x === 'no telepon' || x === 'no hp' || x === 'telepon' || x === 'no telepon hp'; });
+          c.ayah = r.findIndex(function (x) { return x.indexOf('nama ayah') === 0; });
+          c.ibu = r.findIndex(function (x) { return x.indexOf('nama ibu') === 0; });
+          c.wali = r.indexOf('nama wali'); c.kip = r.findIndex(function (x) { return x.indexOf('kip') > -1 || x.indexOf('pip') > -1; });
+        }
+      }
+      if (hi < 0) return;
+      pakai = true;
+      if (si === 0 || !out.length) { for (var z = 0; z < hi; z++) out.push([]); out.push(KOL.map(csvq)); }   // posisi baris = nomor baris di Excel (sheet pertama)
+      else if (!out.length) out.push(KOL.map(csvq));
+      for (var j = hi + 1; j < aoa.length; j++) {
+        var row = aoa[j] || [], g = function (k) { return k > -1 && row[k] != null ? row[k] : ''; };
+        var nisn = dapTeks(g(c.nisn)).replace(/\D/g, ''), nama = dapTeks(g(c.nama));
+        if (!nisn && !nama) { out.push([]); continue; }
+        if (nisn.length === 9) nisn = '0' + nisn;
+        var al = dapAlamat(g(c.alamat)); if (al.alamat) { adaAlamat++; if (!al.kec) alamatGagal++; }
+        var ay = dapTeks(g(c.ayah)), ib = dapTeks(g(c.ibu)), wl = dapTeks(g(c.wali));
+        if (wl && (nk(wl) === nk(ay) || nk(wl) === nk(ib))) { wl = ''; wSama++; }
+        var tl = dapTelp(g(c.telp)); if (c.telp > -1 && !tl && dapTeks(g(c.telp))) telpBuang++;
+        var kip = dapTeks(g(c.kip)), jk = dapTeks(g(c.jk));
+        var v = { nisn: nisn, nama: nama, nik: dapTeks(g(c.nik)).replace(/\D/g, ''), jk: jk, alamat: al.alamat, rtrw: al.rtrw, desa: al.desa, kec: al.kec, kab: al.kab, prov: al.prov, pos: al.pos, telp: tl, ayah_nama: ay, ibu_nama: ib, wali_nama: wl, bea_jenis: kip ? 'KIP/PIP' : '' };
+        out.push(KOL.map(function (k) { return csvq(v[k] == null ? '' : v[k]); }));
+      }
+    });
+    if (!pakai) return { fatal: 'Bukan format Excel Dapodik: butuh kolom "Nama Lengkap" dan "NISN" di baris judul. Untuk file lain, simpan sebagai CSV memakai template.' };
+    var cat = ['Excel Dapodik: siswa dicocokkan lewat NISN (harus sudah terisi di menu Siswa). Yang diambil: NIK, jenis kelamin, alamat (dipecah ke RT/RW, desa, kecamatan, kabupaten, provinsi, kode pos), telepon, nama ayah/ibu/wali, dan penanda KIP/PIP (nomor KIP tidak disimpan). Kebutuhan khusus & disabilitas tidak diambil.'];
+    if (wSama) cat.push(wSama + ' baris: "Nama Wali" sama dengan ayah/ibu, tidak diisi sebagai wali.');
+    if (telpBuang) cat.push(telpBuang + ' baris: nomor telepon tidak valid (mis. 0), dilewati.');
+    if (alamatGagal) cat.push(alamatGagal + ' alamat tidak mengikuti pola Dapodik; seluruh teks alamat dimasukkan ke kolom Alamat (cek di pratinjau).');
+    return { csv: out.map(function (r) { return r.join(','); }).join('\r\n'), catatan: cat };
+  }
   function unduhTemplate() {
     var kelas = ($('biTplK') || {}).value || '', penuh = ($('biTplL') || {}).value === 'semua';
     var fs = FIELDS.filter(function (f) { return penuh || ['idn', 'alm', 'ayh', 'ibu', 'wal', 'msk'].indexOf(f.g) > -1; });
@@ -783,8 +856,24 @@
   function bacaFile(file) {
     if (!file || !canEdit()) return;
     if (sibuk) return toast('Tunggu proses yang berjalan selesai.', true);
-    if (/\.xlsx?$/i.test(file.name)) return toast('Itu file Excel. Simpan dulu sebagai CSV (UTF-8), lalu unggah.', true, 6000);
     if (file.size > IMPOR_MAX_BYTES) return toast('File terlalu besar (maks 2 MB).', true);
+    if (/\.xlsx?$/i.test(file.name)) {   // v8: Excel Dapodik dibaca langsung
+      if (typeof ensureLib !== 'function') return toast('Pembaca Excel belum tersedia. Simpan sebagai CSV (UTF-8), lalu unggah.', true, 6000);
+      toast('⏳ Membaca file Excel...', false, 1500);
+      ensureLib('xlsx').then(function () {
+        return new Promise(function (res, rej) { var f2 = new FileReader(); f2.onload = function () { res(f2.result); }; f2.onerror = function () { rej(new Error('baca')); }; f2.readAsArrayBuffer(file); });
+      }).then(function (buf) {
+        if (!canEdit()) return;
+        var wb = XLSX.read(buf, { type: 'array' });
+        var aoas = wb.SheetNames.filter(function (n) { return n !== 'Petunjuk'; }).map(function (n) { return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: true }); });
+        var d = dapodikKeCsv(aoas), h;
+        if (d.fatal) h = { fatal: d.fatal, peringatan: [], rows: [], abaikan: [] };
+        else { h = olahCsv(d.csv); h.peringatan = d.catatan.concat(h.peringatan); }
+        imp = { phase: 'pratinjau', nama: file.name, h: h, timpa: false, konf: false };
+        if (pageAktif() && tab === 'impor' && !cur) renderImporHasil();
+      }).catch(function (e) { console.warn('[buku-induk] baca Excel:', e); toast('File Excel tidak bisa dibaca. Pastikan .xlsx/.xls yang valid.', true); });
+      return;
+    }
     var fr = new FileReader();
     fr.onload = function () {
       if (!canEdit()) return;
@@ -807,7 +896,8 @@
     b.innerHTML = '<div class="bi-id"><b>Isi massal dari file CSV</b><ol style="margin:6px 0 0 18px;padding:0;line-height:1.55;">' +
       '<li>Unduh template (sudah berisi NISN, NIS &amp; nama siswa aktif).</li>' +
       '<li>Isi di Excel / Google Sheets. <b>Sel kosong = tidak diubah.</b> Simpan sebagai <b>CSV (UTF-8)</b>.</li>' +
-      '<li>Unggah di bawah, periksa pratinjau, lalu terapkan.</li></ol></div>' +
+      '<li>Unggah di bawah, periksa pratinjau, lalu terapkan.</li></ol>' +
+      '<div style="margin-top:6px;font-size:13px;">💡 <b>File Excel Dapodik</b> (Daftar Siswa) bisa diunggah langsung tanpa template: NIK, jenis kelamin, alamat, telepon, nama ayah/ibu/wali diambil otomatis. Syarat: NISN siswa sudah terisi di menu Siswa.</div></div>' +
       '<div class="bi-bar"><select id="biTplK" class="field">' + ko + '</select>' +
       '<select id="biTplL" class="field"><option value="inti">Data inti (identitas, alamat, orang tua, penerimaan)</option><option value="semua">Lengkap (+ riwayat kelas, keluar/lulus, persetujuan)</option></select>' +
       '<button class="btn btn-soft" data-bi="template">⬇️ Unduh template</button></div>' +
@@ -819,7 +909,7 @@
       '<li>Isian yang sudah ada tidak ditimpa kecuali Anda mencentang opsinya. Isian tidak bisa dikosongkan lewat impor.</li>' +
       '<li>Hapus file CSV dari perangkat setelah selesai (berisi data pribadi anak).</li></ul>' +
       '<div style="overflow-x:auto;"><table class="bi-tbl"><tr><th>Kolom</th><th>Isi</th><th>Format / pilihan</th></tr>' + ref + '</table></div></details>' +
-      '<div style="margin:10px 0;"><label class="label" for="biFile">Unggah file CSV yang sudah diisi</label><input id="biFile" type="file" accept=".csv,.txt,text/csv"></div>' +
+      '<div style="margin:10px 0;"><label class="label" for="biFile">Unggah file CSV yang sudah diisi, atau Excel Dapodik (Daftar Siswa)</label><input id="biFile" type="file" accept=".csv,.txt,text/csv,.xlsx,.xls"></div>' +
       '<div id="biImp"></div>';
     renderImporHasil();
   }
