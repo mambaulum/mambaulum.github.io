@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/lengkapi-siswa.js (v=1)
+   SI MAMBA - js/lengkapi-siswa.js (v=3: + NIS otomatis, lihat bagian bawah)
    "Lengkapi data siswa dari Excel": mengisi NISN, (NIS), tempat lahir, dan tanggal lahir
    untuk siswa yang SUDAH ADA di menu Siswa. Tidak menambah siswa baru.
    - Juga "Nama orang tua" (field namaOrtu di menu Siswa) dari kolom Nama Ayah/Ibu/Wali; pilihan ayah, ibu, ayah & ibu, atau wali di pratinjau (bawaan: ayah).
@@ -240,6 +240,101 @@
       toast('✅ ' + diterima.length + ' siswa dilengkapi.');
       addLog('lengkapi_siswa_excel', diterima.length + ' siswa (NISN/NIS/tempat-tgl lahir)');
       batalLengkapiSiswa();
+      reloadDataset('siswa', function () { try { populateClassFilterDropdowns(); } catch (e) {} });
+    });
+  };
+
+  /* ============================================================
+     NIS OTOMATIS (v=3)
+     Pola yang dipilih madrasah: TAHUN MASUK (4 angka) + NOMOR URUT per angkatan (3 angka), mis. 2021001.
+     (Tidak ada aturan Kemenag yang menetapkan format NIS; NIS ditetapkan madrasah sendiri.)
+     - Hanya mengisi siswa yang NIS-nya KOSONG; tidak pernah menimpa. Hanya Admin. Pratinjau dulu.
+     - Tahun masuk = tahun mulai tahun ajaran berjalan - (nomor kelas - 1). INI PERKIRAAN: siswa yang pernah tinggal kelas
+       atau pindahan tidak cocok. Tahun masuk per kelas bisa diubah di pratinjau sebelum disimpan.
+     - Nomor urut dalam satu angkatan: lanjut dari nomor terbesar yang sudah ada di angkatan itu (pola sama), urut abjad nama.
+       Nomor tidak pernah dipakai ulang (dicek terhadap SEMUA NIS yang ada, termasuk siswa nonaktif).
+     - Siswa nonaktif tidak diberi NIS kecuali kotak dicentang.
+  ============================================================ */
+  var nisTahun = {};        // override tahun masuk per nomor kelas: { '6': 2021 }
+  var nisNonaktif = false;
+  var nisAktifPratinjau = false;
+  var nisRencanaTerakhir = '';
+
+  function nisNoKelas(k) { var m = /(\d+)/.exec(String(k || '')); return m ? +m[1] : 0; }
+  function nisTahunMulaiTA() {
+    var m = /(\d{4})/.exec(typeof currentTahunAjaran !== 'undefined' ? String(currentTahunAjaran) : '');
+    if (m) return +m[1];
+    var d = new Date(); return d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1;
+  }
+  function nisAktif(x) { return !x || x.aktif !== false; }
+  function nisRencana() {
+    var ta = nisTahunMulaiTA(), semua = Object.create(null), terakhir = Object.create(null), kandidat = [];
+    allSiswa.forEach(function (x) {
+      var n = String(x.nis == null ? '' : x.nis).trim();
+      if (n) { semua[n] = true; var m = /^(\d{4})(\d{3})$/.exec(n); if (m) terakhir[m[1]] = Math.max(terakhir[m[1]] || 0, +m[2]); }
+      else if ((nisNonaktif || nisAktif(x)) && nisNoKelas(x.kelas) >= 1 && nisNoKelas(x.kelas) <= 6) kandidat.push(x);
+    });
+    var out = [], galat = [];
+    kandidat.forEach(function (x) { var nk = nisNoKelas(x.kelas); x.__thn = nisTahun[nk] || (ta - (nk - 1)); });
+    var tahunList = {}; kandidat.forEach(function (x) { (tahunList[x.__thn] = tahunList[x.__thn] || []).push(x); });
+    Object.keys(tahunList).sort().forEach(function (t) {
+      var grup = tahunList[t].slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id') || String(a.key).localeCompare(String(b.key)); });
+      var no = terakhir[t] || 0;
+      grup.forEach(function (x) {
+        do { no++; } while (semua[t + ('00' + no).slice(-3)] && no < 999);
+        if (no > 999) { galat.push(x.name + ' (angkatan ' + t + ' melebihi 999)'); return; }
+        var nis = t + ('00' + no).slice(-3); semua[nis] = true;
+        out.push({ key: x.key, nama: x.name || '', kelas: x.kelas || '', aktif: nisAktif(x), thn: t, nis: nis });
+      });
+    });
+    kandidat.forEach(function (x) { delete x.__thn; });
+    out.sort(function (a, b) { return nisNoKelas(a.kelas) - nisNoKelas(b.kelas) || a.nama.localeCompare(b.nama, 'id'); });
+    return { items: out, galat: galat, ta: ta, jumlahKosongNonaktif: allSiswa.filter(function (x) { return !String(x.nis == null ? '' : x.nis).trim() && !nisAktif(x); }).length };
+  }
+  function nisPetaKunci(r) { return r.items.map(function (i) { return i.key + '=' + i.nis; }).join('|'); }
+
+  function nisRender() {
+    var box = $('siswaNisPreview'); if (!box) return;
+    if (!nisAktifPratinjau) { box.innerHTML = ''; return; }
+    var r = nisRencana(); nisRencanaTerakhir = nisPetaKunci(r);
+    var kelasAda = {}; allSiswa.forEach(function (x) { var n = nisNoKelas(x.kelas); if (n >= 1 && n <= 6 && !String(x.nis == null ? '' : x.nis).trim() && (nisNonaktif || nisAktif(x))) kelasAda[n] = 1; });
+    var inputs = Object.keys(kelasAda).sort().map(function (n) {
+      var v = nisTahun[n] || (r.ta - (n - 1));
+      return '<label style="font-size:12.5px;display:inline-flex;gap:4px;align-items:center;margin:0 10px 6px 0;">Kelas ' + n + ' masuk <input type="number" class="field" style="width:84px;padding:4px 6px;" min="2000" max="2100" value="' + v + '" onchange="buatNisTahun(' + n + ',this.value)"></label>';
+    }).join('');
+    var rows = r.items.map(function (i, idx) { return '<tr><td>' + (idx + 1) + '</td><td>' + escapeHtml(i.nama) + (i.aktif ? '' : ' <span class="text-muted" style="font-size:11px;">(nonaktif)</span>') + '</td><td>' + escapeHtml(i.kelas) + '</td><td><b>' + escapeHtml(i.nis) + '</b></td></tr>'; }).join('');
+    box.innerHTML = '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">' +
+      '<p style="font-size:13px;font-weight:700;margin-bottom:4px;">🔢 NIS otomatis: tahun masuk + nomor urut (mis. 2021001)</p>' +
+      '<p style="font-size:12px;color:#92400e;margin-bottom:8px;">Tahun masuk di bawah adalah PERKIRAAN dari kelas sekarang (tahun ajaran ' + escapeHtml(String(typeof currentTahunAjaran !== 'undefined' ? currentTahunAjaran : r.ta)) + '). Siswa yang pernah tinggal kelas atau pindahan perlu dicek. Ubah tahunnya bila perlu; nomor langsung dihitung ulang. NIS yang sudah ada tidak ditimpa.</p>' +
+      '<div>' + inputs + '</div>' +
+      '<label style="display:flex;gap:6px;align-items:center;font-size:13px;margin:4px 0 8px;"><input type="checkbox"' + (nisNonaktif ? ' checked' : '') + ' onchange="buatNisNonaktif(this.checked)"> Sertakan siswa nonaktif' + (r.jumlahKosongNonaktif ? ' (' + r.jumlahKosongNonaktif + ' siswa nonaktif tanpa NIS)' : '') + '</label>' +
+      (r.galat.length ? '<p style="font-size:12px;color:#dc2626;">⚠️ ' + escapeHtml(r.galat.join('; ')) + '</p>' : '') +
+      (r.items.length ? '<p style="font-size:13px;font-weight:600;margin-bottom:6px;"><span style="color:#059669;">' + r.items.length + ' siswa akan diberi NIS</span></p><div style="overflow:auto;max-height:340px;"><table><thead><tr><th>No</th><th>Nama</th><th>Kelas</th><th>NIS baru</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p style="font-size:13px;">Tidak ada siswa yang NIS-nya masih kosong.</p>') +
+      '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;"><button id="btnSimpanNis" class="btn btn-success" onclick="simpanNisOtomatis()"' + (r.items.length ? '' : ' disabled') + '>💾 Simpan ' + r.items.length + ' NIS</button><button class="btn btn-soft" onclick="batalNisOtomatis()">✖️ Tutup</button></div></div>';
+  }
+  window.buatNisBuka = function () {
+    if (!isAdmin()) return toast('🔒 Hanya Admin!', true);
+    nisAktifPratinjau = true; nisRender();
+    var b = $('siswaNisPreview'); if (b && b.scrollIntoView) b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+  window.buatNisTahun = function (n, v) { v = parseInt(v, 10); if (v >= 2000 && v <= 2100) nisTahun[n] = v; else delete nisTahun[n]; nisRender(); };
+  window.buatNisNonaktif = function (v) { nisNonaktif = !!v; nisRender(); };
+  window.batalNisOtomatis = function () { nisAktifPratinjau = false; nisTahun = {}; nisNonaktif = false; nisRencanaTerakhir = ''; nisRender(); };
+  window.simpanNisOtomatis = function () {
+    if (!isAdmin()) return toast('🔒 Hanya Admin!', true);
+    if (isBusy('simpanNis')) return toast('⏳ Sedang menyimpan, mohon tunggu...', false, 1500);
+    if (!isReallyOnline()) return toast('⚠️ Sedang offline. Butuh koneksi internet.', true);
+    var r = nisRencana();
+    if (!r.items.length) { nisRender(); return toast('Tidak ada NIS yang bisa dibuat.', true); }
+    if (nisPetaKunci(r) !== nisRencanaTerakhir) { nisRender(); return toast('Data siswa berubah sejak pratinjau. Periksa pratinjau terbaru lalu tekan Simpan lagi.', true); }
+    var btn = $('btnSimpanNis'); setBusy('simpanNis', btn);
+    var upd = {}; r.items.forEach(function (i) { upd[i.key + '/nis'] = i.nis; });
+    db.ref('siswa').update(upd, function (err) {
+      clearBusy('simpanNis', btn);
+      if (err) return toast('Gagal menyimpan: ' + err.message, true);
+      toast('✅ ' + r.items.length + ' NIS dibuat.');
+      addLog('buat_nis_otomatis', r.items.length + ' siswa (pola tahun masuk + urut)');
+      batalNisOtomatis();
       reloadDataset('siswa', function () { try { populateClassFilterDropdowns(); } catch (e) {} });
     });
   };
