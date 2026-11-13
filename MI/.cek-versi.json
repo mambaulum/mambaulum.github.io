@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.441",
-  "disimpan": "2026-11-13T01:43:34.213Z",
+  "appVersion": "v8.442",
+  "disimpan": "2026-11-13T01:48:48.432Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -303,8 +303,8 @@
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
     },
     "js/lengkapi-siswa.js": {
-      "v": "v=2",
-      "hash": "0ae390bb9ae8160ff0705aeff668b0cd31fa1985"
+      "v": "v=3",
+      "hash": "a4741ae60601b1eb5c98bf318737112385c3bec2"
     },
     "js/tunggakan-infaq.js": {
       "v": "v=15",
