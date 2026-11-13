@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.437",
-  "disimpan": "2026-11-13T01:31:57.342Z",
+  "appVersion": "v8.438",
+  "disimpan": "2026-11-13T01:33:29.917Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -301,6 +301,10 @@
     "js/fitur-pelengkap.js": {
       "v": "v=3",
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
+    },
+    "js/lengkapi-siswa.js": {
+      "v": "v=1",
+      "hash": "afad506ddb80d06a78750b93487ffd8c5dec72a8"
     },
     "js/tunggakan-infaq.js": {
       "v": "v=15",
