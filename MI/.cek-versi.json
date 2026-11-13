@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.446",
-  "disimpan": "2026-11-13T03:03:03.205Z",
+  "appVersion": "v8.451",
+  "disimpan": "2026-11-13T12:34:02.068Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -291,20 +291,20 @@
       "hash": "08d29809809368900420dba2030ae5e86b37088c"
     },
     "js/persetujuan-ortu.js": {
-      "v": "v=4",
-      "hash": "3c7155827b1efddc2b95778fd0604207850064fe"
+      "v": "v=5",
+      "hash": "77e6f9774c4af52dbfe276c202755c1df307e27d"
     },
     "js/buku-induk.js": {
-      "v": "v=13",
-      "hash": "8f58405eed7a07cc969f3cab7ddfdb26a1789df1"
+      "v": "v=16",
+      "hash": "254158bcf00446e4123ce5270913c646daefa711"
     },
     "js/fitur-pelengkap.js": {
       "v": "v=3",
       "hash": "54e6849d39e9c644ad04d9267c46355994e05816"
     },
     "js/lengkapi-siswa.js": {
-      "v": "v=4",
-      "hash": "801f960066538f3680a3f0adea71510b87cb6dd1"
+      "v": "v=5",
+      "hash": "7fa65efbcb871d3d8589f1eb2947b7d6b9303b77"
     },
     "js/tunggakan-infaq.js": {
       "v": "v=15",
