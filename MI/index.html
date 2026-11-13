@@ -221,6 +221,7 @@
   <!-- Pelengkap: Import/Export Siswa Excel, Rekap Sikap per Siswa, Riwayat Absen Saya. Dimuat SESUDAH
        app.js karena membungkus setupSikapPage()/renderSikapRekap() milik app.js. -->
   <script defer src="js/fitur-pelengkap.js?v=3"></script>
+  <script defer src="js/lengkapi-siswa.js?v=1"></script>   <!-- Lengkapi NISN/NIS/tempat-tgl lahir siswa dari Excel (sesudah fitur-pelengkap.js) -->
 
   <!-- Tunggakan Infaq per siswa + pengingat WA + unduh PDF/Excel (kartu di halaman Infaq Mingguan) dan
        logout otomatis saat tidak aktif. Dimuat SESUDAH app.js karena memakai fungsi/variabel milik app.js
@@ -854,8 +855,10 @@
               <button class="btn btn-soft" onclick="unduhTemplatSiswaExcel()">📄 Unduh Templat</button>
               <button class="btn btn-soft" onclick="exportSiswaExcel()">📤 Ekspor Siswa (Excel)</button>
               <label class="btn btn-success" style="cursor:pointer;margin:0;">📂 Pilih File Excel<input type="file" id="siswaExcelFile" accept=".xlsx,.xls,.csv" style="display:none;" onchange="siswaExcelDipilih(this)"></label>
+              <label class="btn btn-soft" style="cursor:pointer;margin:0;" title="Mengisi NISN, NIS, tempat & tanggal lahir siswa yang sudah ada">🆔 Lengkapi NISN / Tgl Lahir dari Excel<input type="file" id="siswaLengkapiFile" accept=".xlsx,.xls,.csv" style="display:none;" onchange="lengkapiSiswaDipilih(this)"></label>
             </div>
             <div id="siswaExcelPreview" style="margin-top:12px;"></div>
+            <div id="siswaLengkapiPreview" style="margin-top:12px;"></div>
           </div>
           <div class="siswa-filter" style="margin-top:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
             <div class="sf-cari" style="flex:2;min-width:200px;"><input id="searchSiswa" class="field" placeholder="🔍 Cari siswa..." oninput="siswaPage=1;renderSiswa()"></div>
