@@ -275,19 +275,18 @@
       else if ((nisNonaktif || nisAktif(x)) && nisNoKelas(x.kelas) >= 1 && nisNoKelas(x.kelas) <= 6) kandidat.push(x);
     });
     var out = [], galat = [];
-    kandidat.forEach(function (x) { var nk = nisNoKelas(x.kelas); x.__thn = nisTahun[nk] || (ta - (nk - 1)); });
-    var tahunList = {}; kandidat.forEach(function (x) { (tahunList[x.__thn] = tahunList[x.__thn] || []).push(x); });
+    var thnDari = Object.create(null); kandidat.forEach(function (x) { var nk = nisNoKelas(x.kelas); thnDari[x.key] = nisTahun[nk] || (ta - (nk - 1)); });
+    var tahunList = {}; kandidat.forEach(function (x) { var th = thnDari[x.key]; (tahunList[th] = tahunList[th] || []).push(x); });
     Object.keys(tahunList).sort().forEach(function (t) {
       var grup = tahunList[t].slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id') || String(a.key).localeCompare(String(b.key)); });
       var no = terakhir[t] || 0;
       grup.forEach(function (x) {
-        do { no++; } while (semua[t + ('00' + no).slice(-3)] && no < 999);
+        do { no++; } while (no <= 999 && semua[t + ('00' + no).slice(-3)]);
         if (no > 999) { galat.push(x.name + ' (angkatan ' + t + ' melebihi 999)'); return; }
         var nis = t + ('00' + no).slice(-3); semua[nis] = true;
         out.push({ key: x.key, nama: x.name || '', kelas: x.kelas || '', aktif: nisAktif(x), thn: t, nis: nis });
       });
     });
-    kandidat.forEach(function (x) { delete x.__thn; });
     out.sort(function (a, b) { return nisNoKelas(a.kelas) - nisNoKelas(b.kelas) || a.nama.localeCompare(b.nama, 'id'); });
     return { items: out, galat: galat, ta: ta, jumlahKosongNonaktif: allSiswa.filter(function (x) { return !String(x.nis == null ? '' : x.nis).trim() && !nisAktif(x); }).length };
   }
