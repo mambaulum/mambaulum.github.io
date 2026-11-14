@@ -223,7 +223,7 @@
   var CSS = '.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 16px;}' +
     '@media (max-width:640px){.kpi-grid{grid-template-columns:repeat(2,1fr);}.kpi-grid>.kpi-card:last-child:nth-child(odd){grid-column:1/-1;}}' +
     '#kpiOrtu .kpi-card{margin-bottom:10px;}' +
-    '.kpi-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px;}.kpi-tabs .btn{padding:6px 12px;font-size:13px;flex:1 1 auto;min-height:36px !important;white-space:nowrap;}' +
+    '#kpiTabs.mp-tabs{margin:10px 0 12px;}' +
     '.kpi-card{border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:12px;display:flex;flex-direction:column;}' +
     '.kpi-nama{font-size:12px;opacity:.75;margin-bottom:4px;}' +
     '.kpi-val{font-size:26px;font-weight:800;line-height:1.1;}' +
@@ -538,7 +538,7 @@
     if (!NAMA_TAB[k] || !el('kpiTab_' + k)) return;
     kpiTab = k;
     Array.prototype.forEach.call(document.querySelectorAll('#page-kpi [data-kpane]'), function (d) { d.style.display = d.getAttribute('data-kpane') === kpiTab ? '' : 'none'; });
-    Array.prototype.forEach.call(document.querySelectorAll('#kpiTabs [data-ktab]'), function (b) { b.className = 'btn ' + (b.getAttribute('data-ktab') === kpiTab ? 'btn-primary' : 'btn-soft'); });
+    Array.prototype.forEach.call(document.querySelectorAll('#kpiTabs [data-ktab]'), function (b) { b.className = 'mp-tab' + (b.getAttribute('data-ktab') === kpiTab ? ' active' : ''); b.setAttribute('aria-selected', b.getAttribute('data-ktab') === kpiTab ? 'true' : 'false'); });
     var bp = el('kpiPdf'); if (bp && !bp.disabled) bp.textContent = labelPdf();
     if (k === 'tindak') autoTinggi(el('kpiTindak'));
   }
@@ -590,7 +590,7 @@
       (dataSiap ? '' : '<div class="kpi-cat" style="color:#b45309;">Data belum termuat sepenuhnya. Tunggu sebentar atau muat ulang aplikasi.</div>') +
       (arsip.galat ? '<div class="kpi-cat" style="color:#b45309;">Target tersimpan dan arsip KPI belum bisa dibaca (' + esc(arsip.galat) + '). Tambahkan blok Rules kpi_v4 (lihat catatan deploy); sementara dipakai target bawaan dan tanpa pembanding lintas tahun.</div>' : '') +
       (arsip.gagalTulis ? '<div class="kpi-cat" style="color:#b45309;">Arsip bulanan gagal disimpan (' + esc(arsip.gagalTulis) + '). Periksa Rules kpi_v4 dan sesi Admin.</div>' : '') +
-      '<div id="kpiTabs" class="kpi-tabs">' + TAB_KPI.filter(function (x) { return x[0] !== 'bulan' || adaBulan; }).map(function (x) { return '<button type="button" class="btn ' + (kpiTab === x[0] ? 'btn-primary' : 'btn-soft') + '" data-ktab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div id="kpiTabs" class="mp-tabs" role="tablist">' + TAB_KPI.filter(function (x) { return x[0] !== 'bulan' || adaBulan; }).map(function (x) { return '<button type="button" role="tab" class="mp-tab' + (kpiTab === x[0] ? ' active' : '') + '" aria-selected="' + (kpiTab === x[0]) + '" data-ktab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div id="kpiTab_ringkasan" data-kpane="ringkasan"' + (kpiTab === 'ringkasan' ? '' : ' style="display:none;"') + '>' +
       '<div class="kpi-grid">' +
       kartu('Kehadiran siswa', cur.pSiswa, KPI_TARGET.hadirSiswa, 'min', 'Alfa: ' + sis.total.A + ' siswa-hari', pb('pSiswa')) +

@@ -439,13 +439,11 @@ function bsRender() {
   else body = bsBodyGrafik();
   root.innerHTML = `
     ${bsState.err ? `<div style="padding:10px;margin-bottom:10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;">⚠️ ${bsEsc(bsState.err)} <button class="btn btn-soft" style="padding:3px 10px;font-size:12px;margin-left:6px;" onclick="bsSegarkan()">🔄 Coba lagi</button></div>` : ''}
+    <div class="mp-tabs" role="tablist">${tabs.map(([id, t]) => `<button type="button" role="tab" class="mp-tab${bsState.tab === id ? ' active' : ''}" aria-selected="${bsState.tab === id}" onclick="bsPilihTab('${id}')">${t}</button>`).join('')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
       <div style="min-width:150px;${((bsState.tab === 'rekap' && bsState.rekapMode === 'semua') || bsState.tab === 'ingatkan') ? 'display:none;' : ''}"><label class="label">Kelas</label>
         <select class="field" onchange="bsPilihKelas(this.value)">${opsiKelas || '<option value="">(tidak ada kelas)</option>'}</select></div>
       <button class="btn btn-soft" style="padding:8px 12px;" onclick="bsSegarkan()">🔄 Segarkan</button>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
-      ${tabs.map(([id, t]) => `<button class="btn ${bsState.tab === id ? 'btn-primary' : 'btn-soft'}" style="padding:8px 14px;" onclick="bsPilihTab('${id}')">${t}</button>`).join('')}
     </div>
     ${bsIsHead() ? '<p class="v4-muted" style="font-size:12px;margin-bottom:8px;">👑 Mode Kepala Madrasah: hanya melihat (target &amp; penilaian dikelola Admin/guru kelas).</p>' : ''}
     ${body}`;

@@ -143,7 +143,7 @@
   <script defer src="js/event-ujian.js?v=1"></script>
   <script defer src="js/pengingat-absen-guru.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=6"></script>
+  <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=7"></script>
   <script defer src="js/v4-pengaturan-notif-rapor.js?v=19"></script>
   <!-- Hasil pecahan app.js tahap 6 (Rekap Nilai; Kalender Akademik + "Hari Ini"; Saran & Kritik; akun Ortu sisi Admin). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/rekap-nilai.js?v=8"></script>
@@ -154,7 +154,7 @@
   <!-- Angket Keunggulan Madrasah (tab ke-3 pada halaman Angket + kartu Portal Ortu). WAJIB sesudah angket.js (membungkus setupAngketPage). -->
   <script defer src="js/angket-keunggulan.js?v=11"></script>
   <!-- KPI Madrasah (halaman Admin & Kepala, hanya membaca data). WAJIB sesudah app.js dan infaq.js. -->
-  <script defer src="js/kpi.js?v=24"></script>
+  <script defer src="js/kpi.js?v=25"></script>
   <!-- Catatan Nilai Harian: rata-rata penilaian harian mengisi NH1/NH2/NH3 di halaman Nilai. WAJIB sesudah app.js. -->
   <script defer src="js/nilai-harian.js?v=7"></script>
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
@@ -164,13 +164,13 @@
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=44"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
-  <script defer src="js/bacaan-shalat.js?v=40"></script>
+  <script defer src="js/bacaan-shalat.js?v=41"></script>
   <script defer src="js/portal-tab.js?v=13"></script>   <!-- tab Beranda/Amalan/Belajar/Angket/Lainnya Portal Ortu (HP) -->
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
   <script defer src="js/ttd-digital.js?v=10"></script>
-  <script defer src="js/menu-hub.js?v=15"></script>
+  <script defer src="js/menu-hub.js?v=16"></script>
   <!-- Cari menu (Ctrl+K) + menu aksi topbar. WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/menu-polish.js?v=31"></script>
   <!-- Penampil versi aplikasi + Cek pembaruan (footer menu samping, #versiAppInfo). Berdiri sendiri, tidak memakai app.js. -->
@@ -2067,7 +2067,7 @@
 .amalan-admin{display:flex;gap:5px;flex-wrap:wrap;padding-top:6px;border-top:1px dashed rgba(128,128,128,.3);}
 .amalan-admin .btn{padding:3px 9px;font-size:11px;min-height:28px;}
 #v4ActivityFillSection .v4-task{padding:8px 10px;margin:0 0 8px;}
-.v4-act-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:2px solid #e5e7eb;margin:0 0 8px;-webkit-overflow-scrolling:touch;}.v4-act-tab{flex:0 0 auto;border:0;background:transparent;padding:8px 14px;font-weight:600;font-size:13px;color:#6b7280;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0;white-space:nowrap;}.v4-act-tab:hover{background:#f3f4f6;}.v4-act-tab.aktif{color:#059669;border-bottom-color:#059669;background:#ecfdf5;}.v4-act-tabs-utama .v4-act-tab{flex:1 1 0;text-align:center;font-size:14px;padding:10px 8px;}.v4-act-tabs-k{border-bottom:1px solid #e5e7eb;margin:6px 0 8px;}.v4-act-tab-k{padding:6px 11px;font-size:12px;}.v4-act-tab-k.tdk{opacity:.5;text-decoration:line-through;}
+.v4-act-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:2px solid var(--c-gray-200,#e5e7eb);margin:0 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}.v4-act-tabs::-webkit-scrollbar{display:none;}.v4-act-tab{flex:0 0 auto;border:0;background:transparent;padding:8px 14px;min-height:44px;font-weight:600;font-size:13px;color:var(--c-gray-500,#6b7280);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0;white-space:nowrap;touch-action:manipulation;}.v4-act-tab:hover{color:var(--mi-green,#059669);}.v4-act-tab.aktif{color:var(--mi-green,#059669);border-bottom-color:var(--mi-green,#059669);background:transparent;}body.dark-mode .v4-act-tabs{border-bottom-color:var(--c-slate-700,#334155);}body.dark-mode .v4-act-tab{color:var(--c-slate-400,#94a3b8);}body.dark-mode .v4-act-tab:hover,body.dark-mode .v4-act-tab.aktif{color:var(--c-emerald-400,#34d399);}body.dark-mode .v4-act-tab.aktif{border-bottom-color:var(--c-emerald-400,#34d399);}.v4-act-tabs-utama .v4-act-tab{flex:1 1 0;text-align:center;font-size:14px;padding:10px 8px;}.v4-act-tabs-k{border-bottom:1px solid #e5e7eb;margin:6px 0 8px;}.v4-act-tab-k{padding:6px 11px;font-size:12px;}.v4-act-tab-k.tdk{opacity:.5;text-decoration:line-through;}
 #v4ActivityFillSection [style*="margin-top:10px"]{margin-top:6px !important;}
 #v4ActivityFillSection [style*="margin-bottom:8px"]{margin-bottom:5px !important;}
 #v4RekapReligiSiswa .v4-card{margin:0 0 8px;padding:8px 10px !important;}
@@ -2133,11 +2133,14 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
           <div class="v4-grid-2">
             <div><label class="label">Kelas</label><select id="v4TahfidzKelas" class="field" onchange="v4SetTahfidzKelas(this.value)"><option value="">-- Pilih Kelas --</option></select></div>
           </div>
-          <div id="v4TahfidzKelasPanel" style="margin-top:14px;"></div>
-          <div id="tahfidzGrafikArea" style="margin-top:14px;"></div>
-          <hr style="margin:16px 0;">
-          <h4 style="font-size:13px;margin-bottom:8px;">🕘 Riwayat Tahfidz Terbaru</h4>
-          <div id="v4TahfidzList"></div>
+          <div id="v4TahfTabs" class="mp-tabs" role="tablist" style="margin-top:14px;">
+            <button type="button" role="tab" id="v4TahfTabInput" aria-selected="true" class="mp-tab active" onclick="v4TahfidzTab('input')">📝 Target &amp; Setoran</button>
+            <button type="button" role="tab" id="v4TahfTabGrafik" aria-selected="false" class="mp-tab" onclick="v4TahfidzTab('grafik')">📊 Grafik</button>
+            <button type="button" role="tab" id="v4TahfTabRiwayat" aria-selected="false" class="mp-tab" onclick="v4TahfidzTab('riwayat')">🕘 Riwayat Terbaru</button>
+          </div>
+          <div id="v4TahfPanelInput"><div id="v4TahfidzKelasPanel"></div></div>
+          <div id="v4TahfPanelGrafik" style="display:none;"><div id="tahfidzGrafikArea"></div></div>
+          <div id="v4TahfPanelRiwayat" style="display:none;"><div id="v4TahfidzList"></div></div>
         </div>
       </div>
 

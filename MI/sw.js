@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.451';
+const APP_VERSION = 'v8.454';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -96,7 +96,7 @@ const PRECACHE_URLS = [
   './js/versi-app.js?v=2',                   // Penampil versi + Cek pembaruan (footer menu samping; berdiri sendiri)
   './js/event-ujian.js?v=1',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=4',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/v4-tahfidz-pramuka-ekskul.js?v=6',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/v4-tahfidz-pramuka-ekskul.js?v=7',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-pengaturan-notif-rapor.js?v=19',  // V4: tarif honor, pengaturan Absen QR, notifikasi, persetujuan, Rapor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/rekap-nilai.js?v=8',                // Rekap Nilai + ekspor PDF/Excel (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/kalender-akademik.js?v=1',          // Kalender Akademik/Nasional + panel "Hari Ini" (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -104,16 +104,16 @@ const PRECACHE_URLS = [
   './js/riwayat-login-ortu.js?v=6',          // Riwayat Login Orang Tua, kartu di halaman Admin (dimuat SESUDAH app.js)
   './js/angket.js?v=11',                    // Angket gabungan: Kurikulum + Profil Lulusan (dimuat SESUDAH app.js & portal-ortu.js)
   './js/angket-keunggulan.js?v=11',          // Angket Keunggulan Madrasah: tab ke-3 halaman Angket + kartu Portal Ortu (dimuat SESUDAH angket.js)
-  './js/kpi.js?v=24',
+  './js/kpi.js?v=25',
   './js/nilai-harian.js?v=7',               // Catatan Nilai Harian -> NH1/NH2/NH3 (dimuat SESUDAH app.js)                        // KPI Madrasah: dashboard Admin & Kepala (dimuat SESUDAH app.js & infaq.js)
   './js/ortu-akun-admin.js?v=4',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/link-ortu.js?v=6',                  // Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js)
   './js/amalan-kegiatan.js?v=44',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
-  './js/bacaan-shalat.js?v=40',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
+  './js/bacaan-shalat.js?v=41',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
   './js/portal-tab.js?v=13',                // Tab Portal Ortu di HP: Beranda/Amalan/Belajar/Angket/Lainnya (dimuat SESUDAH portal-ortu.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
-  './js/menu-hub.js?v=15',
+  './js/menu-hub.js?v=16',
   './js/menu-polish.js?v=31',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=7',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)

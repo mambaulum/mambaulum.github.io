@@ -1,7 +1,7 @@
 /* ============================================================
    MENU HUB -- menggabungkan item sidebar yang mirip jadi satu entri (35 item -> 15 entri).
    Catatan: 'surat' (Surat & Ijin) sengaja TIDAK jadi anggota hub; berdiri sendiri di grup Guru & Madrasah sejajar Rapat.
-   Catatan: 'buku-induk' (Buku Induk) juga sengaja TIDAK jadi anggota hub; menu berdiri sendiri di bawah grup Siswa & Orang Tua (disembunyikan/ditampilkan oleh js/buku-induk.js: hanya Admin & Kepala).
+   Catatan: 'buku-induk' (Buku Induk) juga TIDAK jadi anggota hub; item biasa di dalam grup Siswa & Orang Tua (disembunyikan/ditampilkan oleh js/buku-induk.js: hanya Admin & Kepala). Tab di dalam halamannya dibuat oleh buku-induk.js dengan gaya hub-tabs yang sama.
    Tidak ada halaman yang dihapus dan aturan hak akses per peran di app.js TIDAK diubah:
    - Item asli tetap ada di DOM (disembunyikan lewat class .hub-member) dan tetap diberi/dicabut
      class .hidden-tab oleh app.js sesuai peran. Modul ini hanya MEMBACA class itu.
@@ -20,8 +20,10 @@
     { id: 'jurnal',    label: 'Jurnal Mengajar',     pages: ['rekap-jurnal', 'journal'] },
     { id: 'komortu',   label: 'Komunikasi Ortu',     pages: ['buku-penghubung', 'info-ortu'] },
     { id: 'belajar',   label: 'Modul & Materi',      pages: ['modul-ajar', 'materi-belajar', 'tugas-siswa'] },
-    { id: 'amalan',    label: 'Religi & Tahfidz',    pages: ['religi', 'tahfidz-v4'] },
-    { id: 'ekskul',    label: 'Ekskul & Pramuka',    pages: ['ekskul-v4', 'pramuka-v4'] },
+    // Seluruh menu grup Kegiatan Siswa dalam satu deretan tab (sebelumnya: Amalan Yaumiyah & Bacaan Sholat berdiri sendiri,
+    // Religi+Tahfidz dan Ekskul+Pramuka dua hub terpisah). `short` = label tab yang lebih ringkas; teks sidebar/Cari menu tidak berubah.
+    { id: 'kegiatan',  label: 'Kegiatan Siswa',      pages: ['activities-v4', 'religi', 'tahfidz-v4', 'bacaan-shalat', 'ekskul-v4', 'pramuka-v4'],
+      short: { 'activities-v4': 'Amalan Yaumiyah', 'religi': 'Absen Religi', 'tahfidz-v4': 'Tahfidz', 'bacaan-shalat': 'Bacaan Sholat', 'ekskul-v4': 'Ekskul', 'pramuka-v4': 'Pramuka' } },
     { id: 'absenguru', label: 'Absen Guru',          pages: ['teacher-attendance', 'kelola-absen-guru'] },
     { id: 'ujian',     label: 'Ujian',               pages: ['ujian', 'administrasi-ujian'] },
     { id: 'honor',     label: 'Honor',               pages: ['honor', 'honor-slip'] },
@@ -52,7 +54,7 @@
       var members = [];
       cfg.pages.forEach(function (p) {
         var el = menu.querySelector('.menu-item[data-page="' + p + '"]');
-        if (el) members.push({ page: p, el: el, label: labelOf(el) });
+        if (el) members.push({ page: p, el: el, label: (cfg.short && cfg.short[p]) || labelOf(el) });
       });
       if (!members.length) return;
 

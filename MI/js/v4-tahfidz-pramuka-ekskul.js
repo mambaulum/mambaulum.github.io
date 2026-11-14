@@ -10,6 +10,19 @@
 
     // -------- Activity / Amalan (jenis kegiatan TETAP, absensi siswa saja, PJ ditentukan Admin) --------
     let v4PanelSiswaCache = {};   // kelas -> siswa[] (dipakai bersama Activities & Tahfidz)
+    // Halaman Tahfidz: tiga tab (Target & Setoran | Grafik | Riwayat). Semua panel tetap ada di DOM (hanya disembunyikan), jadi pemuat
+    // lama yang mengisi #v4TahfidzKelasPanel, #tahfidzGrafikArea dan #v4TahfidzList tidak berubah.
+    function v4TahfidzTab(id) {
+      const ids = { input: ['v4TahfTabInput', 'v4TahfPanelInput'], grafik: ['v4TahfTabGrafik', 'v4TahfPanelGrafik'], riwayat: ['v4TahfTabRiwayat', 'v4TahfPanelRiwayat'] };
+      if (!ids[id]) id = 'input';
+      Object.keys(ids).forEach(k => {
+        const b = document.getElementById(ids[k][0]), p = document.getElementById(ids[k][1]);
+        if (b) { b.classList.toggle('active', k === id); b.setAttribute('aria-selected', k === id ? 'true' : 'false'); }
+        if (p) p.style.display = k === id ? '' : 'none';
+      });
+      // grafik yang digambar saat panel tersembunyi perlu diukur ulang setelah tampil
+      if (id === 'grafik') { try { requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))); } catch (e) { } }
+    }
     let v4PanelSiswaGagal = {};   // kelas -> pesan error, diisi kalau query siswa gagal/timeout (dihapus saat coba lagi)
     const V4_PANEL_SISWA_TIMEOUT_MS = 10000;
 
