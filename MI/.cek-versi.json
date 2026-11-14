@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.451",
-  "disimpan": "2026-11-13T12:34:02.068Z",
+  "appVersion": "v8.454",
+  "disimpan": "2026-11-14T01:18:11.374Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -111,8 +111,8 @@
       "hash": "57784807e93230a093c8dc63f3afc5fb2de5f077"
     },
     "js/v4-tahfidz-pramuka-ekskul.js": {
-      "v": "v=6",
-      "hash": "950f942846091d106e104f52369231f9ba8602e6"
+      "v": "v=7",
+      "hash": "5b287347766f53f58c638ac00a0af5526f8ab4a1"
     },
     "js/v4-pengaturan-notif-rapor.js": {
       "v": "v=19",
@@ -139,8 +139,8 @@
       "hash": "5dd402f3971b41a4e9c813c3661d0f27bdb980a0"
     },
     "js/kpi.js": {
-      "v": "v=24",
-      "hash": "88dad97266c887648ce6c6750a3f160b35960140"
+      "v": "v=25",
+      "hash": "4711d24787c4c5b57a3d560beb2f47d2c23b4baf"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
@@ -163,8 +163,8 @@
       "hash": "5f9d4f9db3e21c81cf0ecd50c573e07aabef24b8"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=40",
-      "hash": "1a188b0427626e192fdd65a036033d4ab7cf5bcf"
+      "v": "v=41",
+      "hash": "8f207016eab52c8e0aa9d5974975d9c66bddf9f4"
     },
     "js/portal-tab.js": {
       "v": "v=13",
@@ -179,8 +179,8 @@
       "hash": "4e5b30ea841b9b361ff2ddd0a519900935f69b94"
     },
     "js/menu-hub.js": {
-      "v": "v=15",
-      "hash": "7e8ef8d4e3ea712f5ddc8e659c139ec439bd2730"
+      "v": "v=16",
+      "hash": "a78fe80aaf28795f494fb8b3bb6052f9fa6ff99c"
     },
     "js/menu-polish.js": {
       "v": "v=31",
