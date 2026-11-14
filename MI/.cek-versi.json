@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.454",
-  "disimpan": "2026-11-14T01:18:11.374Z",
+  "appVersion": "v8.457",
+  "disimpan": "2026-11-14T02:28:40.609Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -139,8 +139,8 @@
       "hash": "5dd402f3971b41a4e9c813c3661d0f27bdb980a0"
     },
     "js/kpi.js": {
-      "v": "v=25",
-      "hash": "4711d24787c4c5b57a3d560beb2f47d2c23b4baf"
+      "v": "v=27",
+      "hash": "352f21301b23067dc8da37c963a959c72a1bcc6c"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
@@ -159,12 +159,12 @@
       "hash": "819568e1639a8a8d3da165110b0b7145777199be"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=44",
-      "hash": "5f9d4f9db3e21c81cf0ecd50c573e07aabef24b8"
+      "v": "v=46",
+      "hash": "b378bdff8e999e4b1bf3cd34968ecb75e2b19482"
     },
     "js/bacaan-shalat.js": {
-      "v": "v=41",
-      "hash": "8f207016eab52c8e0aa9d5974975d9c66bddf9f4"
+      "v": "v=42",
+      "hash": "a7f25ffddc2f88e36c10cfec36dfae3e3094a71f"
     },
     "js/portal-tab.js": {
       "v": "v=13",
@@ -179,8 +179,8 @@
       "hash": "4e5b30ea841b9b361ff2ddd0a519900935f69b94"
     },
     "js/menu-hub.js": {
-      "v": "v=16",
-      "hash": "a78fe80aaf28795f494fb8b3bb6052f9fa6ff99c"
+      "v": "v=17",
+      "hash": "b4a76ac1c6733a223230c0714db4b01e4c2b7f7d"
     },
     "js/menu-polish.js": {
       "v": "v=31",
