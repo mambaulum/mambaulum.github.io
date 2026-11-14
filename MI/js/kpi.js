@@ -9,6 +9,7 @@
 //   allTeacherAttendance   -> absensi guru: { tanggal, guruKey, type:'Datang'|'Pulang'|'Izin'|'Sakit'|'Alpha', keterangan:'Telat N menit' }
 //   ortu_login_log (dibaca sekali, log ~31 hari terakhir lewat startAt pada kunci push, maks 20000) + noWaOrtu siswa -> orang tua aktif: nomor WA unik yang login berhasil <= 30 hari
 //   angket_keunggulan/{periode} (dibaca sekali) -> jumlah responden
+// v8.457: tab memakai segmen hub-tabs (menempel di bawah topbar, bisa digeser), sama dengan tab Kegiatan Siswa. Offset: var --kg-stick-top (diisi skrip di index.html).
 // v8.393: halaman dibagi tab Ringkasan/Per Bulan/Kelas/Jurnal/Guru; PDF mengikuti tab aktif; Tindak Lanjut punya draf otomatis.
 //
 // "Hari sekolah" = tanggal yang punya minimal satu catatan absensi siswa (jadi hari libur otomatis tidak dihitung).
@@ -223,7 +224,7 @@
   var CSS = '.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 16px;}' +
     '@media (max-width:640px){.kpi-grid{grid-template-columns:repeat(2,1fr);}.kpi-grid>.kpi-card:last-child:nth-child(odd){grid-column:1/-1;}}' +
     '#kpiOrtu .kpi-card{margin-bottom:10px;}' +
-    '#kpiTabs.mp-tabs{margin:10px 0 12px;}' +
+    '.hub-tabs.kpi-tabs{position:sticky;top:var(--kg-stick-top,0px);z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);margin:10px 0 12px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}.hub-tabs.kpi-tabs::-webkit-scrollbar{display:none;}.hub-tabs.kpi-tabs .hub-tab{flex:0 0 auto;white-space:nowrap;}' +
     '.kpi-card{border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:12px;display:flex;flex-direction:column;}' +
     '.kpi-nama{font-size:12px;opacity:.75;margin-bottom:4px;}' +
     '.kpi-val{font-size:26px;font-weight:800;line-height:1.1;}' +
@@ -538,7 +539,7 @@
     if (!NAMA_TAB[k] || !el('kpiTab_' + k)) return;
     kpiTab = k;
     Array.prototype.forEach.call(document.querySelectorAll('#page-kpi [data-kpane]'), function (d) { d.style.display = d.getAttribute('data-kpane') === kpiTab ? '' : 'none'; });
-    Array.prototype.forEach.call(document.querySelectorAll('#kpiTabs [data-ktab]'), function (b) { b.className = 'mp-tab' + (b.getAttribute('data-ktab') === kpiTab ? ' active' : ''); b.setAttribute('aria-selected', b.getAttribute('data-ktab') === kpiTab ? 'true' : 'false'); });
+    Array.prototype.forEach.call(document.querySelectorAll('#kpiTabs [data-ktab]'), function (b) { var on = b.getAttribute('data-ktab') === kpiTab; b.className = 'hub-tab' + (on ? ' active' : ''); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
     var bp = el('kpiPdf'); if (bp && !bp.disabled) bp.textContent = labelPdf();
     if (k === 'tindak') autoTinggi(el('kpiTindak'));
   }
@@ -590,7 +591,7 @@
       (dataSiap ? '' : '<div class="kpi-cat" style="color:#b45309;">Data belum termuat sepenuhnya. Tunggu sebentar atau muat ulang aplikasi.</div>') +
       (arsip.galat ? '<div class="kpi-cat" style="color:#b45309;">Target tersimpan dan arsip KPI belum bisa dibaca (' + esc(arsip.galat) + '). Tambahkan blok Rules kpi_v4 (lihat catatan deploy); sementara dipakai target bawaan dan tanpa pembanding lintas tahun.</div>' : '') +
       (arsip.gagalTulis ? '<div class="kpi-cat" style="color:#b45309;">Arsip bulanan gagal disimpan (' + esc(arsip.gagalTulis) + '). Periksa Rules kpi_v4 dan sesi Admin.</div>' : '') +
-      '<div id="kpiTabs" class="mp-tabs" role="tablist">' + TAB_KPI.filter(function (x) { return x[0] !== 'bulan' || adaBulan; }).map(function (x) { return '<button type="button" role="tab" class="mp-tab' + (kpiTab === x[0] ? ' active' : '') + '" aria-selected="' + (kpiTab === x[0]) + '" data-ktab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div id="kpiTabs" class="hub-tabs show kpi-tabs" role="tablist" aria-label="Bagian KPI Madrasah">' + TAB_KPI.filter(function (x) { return x[0] !== 'bulan' || adaBulan; }).map(function (x) { return '<button type="button" role="tab" aria-selected="' + (kpiTab === x[0]) + '" class="hub-tab' + (kpiTab === x[0] ? ' active' : '') + '" data-ktab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div id="kpiTab_ringkasan" data-kpane="ringkasan"' + (kpiTab === 'ringkasan' ? '' : ' style="display:none;"') + '>' +
       '<div class="kpi-grid">' +
       kartu('Kehadiran siswa', cur.pSiswa, KPI_TARGET.hadirSiswa, 'min', 'Alfa: ' + sis.total.A + ' siswa-hari', pb('pSiswa')) +

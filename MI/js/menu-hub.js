@@ -20,10 +20,10 @@
     { id: 'jurnal',    label: 'Jurnal Mengajar',     pages: ['rekap-jurnal', 'journal'] },
     { id: 'komortu',   label: 'Komunikasi Ortu',     pages: ['buku-penghubung', 'info-ortu'] },
     { id: 'belajar',   label: 'Modul & Materi',      pages: ['modul-ajar', 'materi-belajar', 'tugas-siswa'] },
-    // Seluruh menu grup Kegiatan Siswa dalam satu deretan tab (sebelumnya: Amalan Yaumiyah & Bacaan Sholat berdiri sendiri,
-    // Religi+Tahfidz dan Ekskul+Pramuka dua hub terpisah). `short` = label tab yang lebih ringkas; teks sidebar/Cari menu tidak berubah.
-    { id: 'kegiatan',  label: 'Kegiatan Siswa',      pages: ['activities-v4', 'religi', 'tahfidz-v4', 'bacaan-shalat', 'ekskul-v4', 'pramuka-v4'],
-      short: { 'activities-v4': 'Amalan Yaumiyah', 'religi': 'Absen Religi', 'tahfidz-v4': 'Tahfidz', 'bacaan-shalat': 'Bacaan Sholat', 'ekskul-v4': 'Ekskul', 'pramuka-v4': 'Pramuka' } },
+    // Grup Kegiatan Siswa: Amalan Yaumiyah & Bacaan Sholat berdiri sendiri (bukan anggota hub);
+    // Absen Religi + Tahfidz dan Ekskul + Pramuka masing-masing satu hub.
+    { id: 'amalan',    label: 'Religi & Tahfidz',    pages: ['religi', 'tahfidz-v4'] },
+    { id: 'ekskul',    label: 'Ekskul & Pramuka',    pages: ['ekskul-v4', 'pramuka-v4'] },
     { id: 'absenguru', label: 'Absen Guru',          pages: ['teacher-attendance', 'kelola-absen-guru'] },
     { id: 'ujian',     label: 'Ujian',               pages: ['ujian', 'administrasi-ujian'] },
     { id: 'honor',     label: 'Honor',               pages: ['honor', 'honor-slip'] },

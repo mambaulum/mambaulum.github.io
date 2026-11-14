@@ -312,7 +312,7 @@ function v4ActHalamanTab(id) {
   if (rek) rek.style.display = v4ActHalTab === 'rekap' ? '' : 'none';
   [['v4ActHalTabIsi', 'isi'], ['v4ActHalTabRekap', 'rekap']].forEach(x => {
     const b = document.getElementById(x[0]); if (!b) return;
-    b.classList.toggle('aktif', v4ActHalTab === x[1]); b.setAttribute('aria-selected', v4ActHalTab === x[1] ? 'true' : 'false');
+    b.classList.toggle('active', v4ActHalTab === x[1]); b.setAttribute('aria-selected', v4ActHalTab === x[1] ? 'true' : 'false');
   });
   if (v4ActHalTab === 'rekap') { try { v4RenderRekapReligiSiswa(); } catch (e) { console.warn('[SI MAMBA] Gagal render rekap sholat:', e); } }
 }
@@ -381,7 +381,7 @@ function v4RenderActivityFill() {
     return;
   }
   if (!myTypes.some(t => t.key === v4ActTabKey)) v4ActTabKey = (v4ActOpenTypeKey && myTypes.some(t => t.key === v4ActOpenTypeKey)) ? v4ActOpenTypeKey : myTypes[0].key;
-  const tabBar = myTypes.length > 1 ? `<div class="v4-act-tabs" role="tablist">${myTypes.map(t => `<button type="button" role="tab" aria-selected="${t.key === v4ActTabKey}" class="v4-act-tab${t.key === v4ActTabKey ? ' aktif' : ''}" onclick="v4ActPilihTab('${escapeJs(t.key)}')">${v4Safe(v4NamaEja(t.name))}${v4ActOpenTypeKey === t.key ? ' •' : ''}</button>`).join('')}</div>` : '';
+  const tabBar = myTypes.length > 1 ? `<div class="hub-tabs show kg-top" role="tablist">${myTypes.map(t => `<button type="button" role="tab" aria-selected="${t.key === v4ActTabKey}" class="hub-tab${t.key === v4ActTabKey ? ' active' : ''}" onclick="v4ActPilihTab('${escapeJs(t.key)}')">${v4Safe(v4NamaEja(t.name))}${v4ActOpenTypeKey === t.key ? ' •' : ''}</button>`).join('')}</div>` : '';
   fillBox.innerHTML = tabBar + myTypes.filter(t => myTypes.length === 1 || t.key === v4ActTabKey).map(type => {
     const isOpen = v4ActOpenTypeKey === type.key;
     const dateVal = v4ActDateSel[type.key] || v4Date();
@@ -525,16 +525,10 @@ function v4RenderActivityFill() {
         + '.rk-nav{display:flex;flex-direction:column;gap:8px;margin-top:10px}'
         + '.rk-pilih{display:none}.rk-pilih .field{width:100%;font-weight:600}'
         + '.rk-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}'
-        + '.rk-tab{flex:0 0 auto;padding:8px 14px;min-height:38px;border-radius:999px;border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}'
-        + '.rk-tab.aktif{background:#059669;border-color:#059669;color:#fff}'
         + '.rk-unduh{display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
         + '.rk-unduh-l{font-size:12px;opacity:.7;margin-right:2px}'
         + '.rk-unduh .btn{padding:6px 12px;font-size:12px;min-height:34px}'
         + '.rk-sub{margin-top:10px}.rk-sub-l{display:block;font-size:12px;opacity:.7;margin-bottom:4px}'
-        + '.rk-seg{display:flex;border:1px solid rgba(128,128,128,.4);border-radius:10px;overflow:hidden}'
-        + '.rk-seg-b{flex:1;padding:10px 6px;min-height:40px;border:0;background:transparent;color:inherit;font-size:13px;font-weight:600;cursor:pointer}'
-        + '.rk-seg-b+.rk-seg-b{border-left:1px solid rgba(128,128,128,.4)}'
-        + '.rk-seg-b.aktif{background:#059669;color:#fff}'
         + '.rk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 12px}'
         + '.rk-stat{padding:10px 12px;border-radius:12px;border:1px solid rgba(128,128,128,.25);background:rgba(128,128,128,.06)}'
         + '.rk-stat b{display:block;font-size:20px;line-height:1.2}.rk-stat span{font-size:11px;opacity:.7}'
@@ -565,7 +559,7 @@ function v4RenderActivityFill() {
         + '.rk-dg{display:flex;flex-wrap:wrap;gap:14px}.rk-dc{flex:1 1 260px;min-width:0}.rk-dj{font-weight:700;margin-bottom:4px}.rk-dn{margin:3px 0;line-height:1.5}.rk-dn .rk-n{min-width:20px;padding:0 7px;line-height:1.5;font-size:11px;text-align:center;vertical-align:baseline}'
         + '.rk-legend{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:11.5px;margin:10px 2px 0;opacity:.85}'
         + '@media (max-width:640px){'
-        +   '.rk-pilih{display:block}.rk-tabs{display:none}'
+        +   '.rk-pilih{display:block}.rk-tabs,.hub-tabs.show.rk-tabs{display:none}'
         +   '.v4-card .amalan-filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}'
         +   '.v4-card .amalan-filters>*{min-width:0}.v4-card .amalan-filters .field{width:100%}'
         +   '.v4-card .amalan-filters .amalan-reload{grid-column:1/-1}.v4-card .amalan-filters .amalan-reload .btn{width:100%}'
@@ -578,11 +572,11 @@ function v4RenderActivityFill() {
       const vw = v4RekapReligiState.view;
       const daftar = [['kelas','📅','Per Hari'],['siswa','🧑‍🎓','Per Siswa'],['pj','📋','Kepatuhan PJ'],['raport','📘','Raport'],['raportdesk','📝','Deskripsi Raport'],['alpa','🚨','Sering Alpa'],['petugas','👮','Petugas QR']];
       if (siswaScopeKelas().length > 1) daftar.splice(1, 0, ['banding','🏫','Bandingkan Kelas']);
-      const tabs = daftar.map(d => `<button type="button" class="rk-tab${vw===d[0]?' aktif':''}" onclick="v4RekapReligiState.view='${d[0]}';v4RenderRekapReligiSiswa();">${d[1]} ${d[2]}</button>`).join('');
+      const tabs = daftar.map(d => `<button type="button" role="tab" aria-selected="${vw===d[0]}" class="hub-tab${vw===d[0]?' active':''}" onclick="v4RekapReligiState.view='${d[0]}';v4RenderRekapReligiSiswa();">${d[1]} ${d[2]}</button>`).join('');
       const opsi = daftar.map(d => `<option value="${d[0]}" ${vw===d[0]?'selected':''}>${d[1]} ${d[2]}</option>`).join('');
       return `<div class="rk-nav">
         <div class="rk-pilih"><label class="label">Tampilan</label><select class="field" onchange="v4RekapReligiState.view=this.value;v4RenderRekapReligiSiswa();">${opsi}</select></div>
-        <div class="rk-tabs" role="tablist">${tabs}</div>
+        <div class="hub-tabs show kg-top rk-tabs" role="tablist">${tabs}</div>
         <div class="rk-unduh"><span class="rk-unduh-l">Unduh:</span><button class="btn btn-soft" onclick="v4ExportRekapReligi('xlsx')">📥 Excel</button><button class="btn btn-soft" onclick="v4ExportRekapReligi('pdf')">📄 PDF</button><button class="btn btn-soft" onclick="v4CetakRekapResmi()" title="PDF dengan kop madrasah dan tanda tangan">🖨️ Cetak Resmi</button></div>
       </div>`;
     }
@@ -704,14 +698,14 @@ function v4RenderActivityFill() {
       const tahunOptions = [tSkrg - 1, tSkrg, tSkrg + 1].map(t => `<option value="${t}" ${st.tahun===t?'selected':''}>${t}</option>`).join('');
       const adm = v4IsAdmin() || v4IsHead();
       const mode = st.petugasMode === 'guru' ? 'guru' : 'detail';
-      const modeBtn = (id, label) => `<button type="button" class="rk-seg-b${mode===id?' aktif':''}" onclick="v4RekapReligiState.petugasMode='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
+      const modeBtn = (id, label) => `<button type="button" role="tab" aria-selected="${mode===id}" class="hub-tab${mode===id?' active':''}" onclick="v4RekapReligiState.petugasMode='${id}';v4RenderRekapReligiSiswa();">${label}</button>`;
       const controlsHtml = `<div class="v4-card"><div class="amalan-filters">
         <div><label class="label">Bulan</label><select class="field" onchange="v4RekapReligiState.bulan=Number(this.value);v4RenderRekapReligiSiswa();">${bulanOptions}</select></div>
         <div><label class="label">Tahun</label><select class="field" onchange="v4RekapReligiState.tahun=Number(this.value);v4RenderRekapReligiSiswa();">${tahunOptions}</select></div>
         <div class="amalan-reload"><button class="btn btn-soft" onclick="v4RekapPetugasMuat(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true);v4HonorSholatSiapkan(v4RekapReligiState.tahun, v4RekapReligiState.bulan, true).then(() => v4RenderRekapReligiSiswa());v4RenderRekapReligiSiswa();">🔄 Muat ulang</button></div>
       </div>
       ${v4RekapReligiTabsHtml()}
-      <div class="rk-sub"><span class="rk-sub-l">Tampilkan petugas QR sebagai:</span><div class="rk-seg">${modeBtn('detail','🗒️ Rincian per Hari')}${modeBtn('guru','👤 Ringkasan per Guru')}</div></div></div>`;
+      <div class="rk-sub"><span class="rk-sub-l">Tampilkan petugas QR sebagai:</span><div class="hub-tabs show kg-top" role="tablist" aria-label="Tampilan petugas QR">${modeBtn('detail','🗒️ Rincian per Hari')}${modeBtn('guru','👤 Ringkasan per Guru')}</div></div></div>`;
 
       const ym = st.tahun + '-' + String(st.bulan).padStart(2, '0');
       v4RekapPetugasMuat(st.tahun, st.bulan, false);
@@ -1334,8 +1328,8 @@ function v4RenderActivityFillPanel(type) {
   const kelasOptions = `<option value="${V4_ACT_SEMUA_KELAS}" ${kelasVal === V4_ACT_SEMUA_KELAS ? 'selected' : ''}>📚 Semua Kelas</option>` +
     KELAS_LIST.map(x => `<option value="${escapeHtml(x)}" ${kelasVal === x ? 'selected' : ''}>${escapeHtml(x)}${v4ActKelasTidakIkut(type, x) ? ' (tidak ikut)' : ''}</option>`).join('');
   const kelasTab = [[V4_ACT_SEMUA_KELAS, '📚 Semua']].concat(KELAS_LIST.map(x => [x, x])).map(([v, t]) =>
-    `<button type="button" role="tab" aria-selected="${kelasVal === v}" class="v4-act-tab v4-act-tab-k${kelasVal === v ? ' aktif' : ''}${v !== V4_ACT_SEMUA_KELAS && v4ActKelasTidakIkut(type, v) ? ' tdk' : ''}" onclick="v4SetActivityKelas('${k}','${escapeJs(v)}')" ${v !== V4_ACT_SEMUA_KELAS && v4ActKelasTidakIkut(type, v) ? 'title="Kelas ini tidak ikut kegiatan"' : ''}>${escapeHtml(t)}</button>`).join('');
-  const kelasTabBar = `<div class="v4-act-tabs v4-act-tabs-k" role="tablist" aria-label="Pilih kelas">${kelasTab}</div>`;
+    `<button type="button" role="tab" aria-selected="${kelasVal === v}" class="hub-tab${kelasVal === v ? ' active' : ''}${v !== V4_ACT_SEMUA_KELAS && v4ActKelasTidakIkut(type, v) ? ' tdk' : ''}" onclick="v4SetActivityKelas('${k}','${escapeJs(v)}')" ${v !== V4_ACT_SEMUA_KELAS && v4ActKelasTidakIkut(type, v) ? 'title="Kelas ini tidak ikut kegiatan"' : ''}>${escapeHtml(t)}</button>`).join('');
+  const kelasTabBar = `<div class="hub-tabs show kg-top" role="tablist" aria-label="Pilih kelas">${kelasTab}</div>`;
   if (!kelasVal) {
     return `<div class="border-muted" style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:8px;">
       <label class="label">Pilih kelas untuk mulai mengisi</label>
