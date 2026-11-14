@@ -58,9 +58,16 @@
       const q = ((ortuEl('ortuAkunCari') || {}).value || '').trim().toLowerCase();
       const qDigit = q.replace(/[^0-9]/g, '');
       const fmtTgl = iso => iso ? new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-      const rows = ortuAkunCache.map(a => ({ ...a, anak: (allSiswa || []).filter(x => x.noWaOrtu && formatNomorWa(x.noWaOrtu) === a.wa) }))
+      // v8.459: filter status (menu Orang Tua) + info jumlah + statistik akun terkunci untuk angka pada tab
+      const fil = (ortuEl('ortuAkunFilter') || {}).value || '';
+      const kini = Date.now(), batasLama = kini - 30 * 86400000;
+      const terkunciNow = a => !!(a.kunciSampai && a.kunciSampai > kini);
+      const cocokFilter = a => !fil || (fil === 'kunci' && terkunciNow(a)) || (fil === 'belum' && !a.terakhirLogin) || (fil === 'lama' && a.terakhirLogin && new Date(a.terakhirLogin).getTime() < batasLama);
+      try { window.ortuAkunStat = { terkunci: ortuAkunCache.filter(terkunciNow).length, total: ortuAkunCache.length }; document.dispatchEvent(new Event('ortu-akun-stat')); } catch (e) { /* abaikan */ }
+      const rows = ortuAkunCache.filter(cocokFilter).map(a => ({ ...a, anak: (allSiswa || []).filter(x => x.noWaOrtu && formatNomorWa(x.noWaOrtu) === a.wa) }))
         .filter(a => !q || a.anak.some(x => (x.name || '').toLowerCase().includes(q)) || (qDigit && (a.wa.includes(qDigit) || a.wa.includes('62' + qDigit.replace(/^0/, '')))))
         .sort((x, y) => COLLATOR_ID.compare((x.anak[0] ? x.anak[0].name : 'zzz'), y.anak[0] ? y.anak[0].name : 'zzz'));
+      const infoEl = ortuEl('ortuAkunInfo'); if (infoEl) infoEl.textContent = `${rows.length} dari ${ortuAkunCache.length} akun`;
       if (!rows.length) { list.innerHTML = `<p class="text-muted" style="font-size:13px;">${ortuAkunCache.length ? 'Tidak ada yang cocok.' : 'Belum ada orang tua yang membuat PIN.'}</p>`; return; }
       list.innerHTML = rows.map(a => {
         const nama = a.anak.length ? a.anak.map(x => x.name).join(', ') : '(nama siswa tidak ditemukan)';

@@ -158,8 +158,8 @@
   <!-- Catatan Nilai Harian: rata-rata penilaian harian mengisi NH1/NH2/NH3 di halaman Nilai. WAJIB sesudah app.js. -->
   <script defer src="js/nilai-harian.js?v=7"></script>
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
-  <script defer src="js/riwayat-login-ortu.js?v=6"></script>
-  <script defer src="js/ortu-akun-admin.js?v=4"></script>
+  <script defer src="js/riwayat-login-ortu.js?v=7"></script>
+  <script defer src="js/ortu-akun-admin.js?v=5"></script>
   <script defer src="js/link-ortu.js?v=6"></script>   <!-- Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js) -->
   <!-- Menu Amalan Yaumiyah (dipisah dari app.js). WAJIB tepat SESUDAH app.js (memakai fungsi/variabel app.js) dan sebelum script lain. -->
   <script defer src="js/amalan-kegiatan.js?v=46"></script>
@@ -246,14 +246,16 @@
   <!-- Grafik progres & target tahfidz (halaman Tahfidz). Dimuat SESUDAH app.js; dipicu dari v4RenderTahfidz(). -->
   <script defer src="js/tahfidz-grafik.js?v=4"></script>
 
-  <!-- Kartu "Petugas per Kelas" di Dashboard (Admin & Kepsek). Dimuat SESUDAH app.js; dipicu dari renderChartsNow() dan v4RenderTahfidz(). -->
-  <script defer src="js/monitor-petugas.js?v=5"></script>
+  <!-- Kartu ringkas "Petugas per Kelas" di Dashboard + halaman/menu "Petugas & PJ" di grup Sistem (Admin & Kepsek). Dimuat SESUDAH app.js; dipicu dari renderChartsNow() dan v4RenderTahfidz(). -->
+  <script defer src="js/monitor-petugas.js?v=6"></script>
   <!-- Catatan kecil rujukan regulasi (KMA / Kepdirjen Pendis / PMA) di tiap menu & tab. Dimuat PALING AKHIR (membungkus navigateTo). -->
   <script defer src="js/rujukan.js?v=5"></script>
   <!-- Tombol KEMBALI HP/PWA: tutup modal -> halaman sebelumnya -> konfirmasi keluar di Dashboard. Dimuat PALING AKHIR (membungkus navigateTo). -->
   <script defer src="js/tombol-kembali.js?v=3"></script>
   <!-- Tab per bagian untuk halaman panjang di HP (Sikap, Infaq, dst.). Dimuat PALING AKHIR (membungkus navigateTo). -->
   <script defer src="js/tab-halaman.js?v=2"></script>
+  <!-- Menu sidebar "Orang Tua" (akun portal + riwayat login), memakai kartu di halaman Admin. Dimuat PALING AKHIR (membungkus navigateTo). -->
+  <script defer src="js/orang-tua-menu.js?v=4"></script>
 </head>
 <body>
 
@@ -420,6 +422,7 @@
             <div class="menu-item" data-page="buku-penghubung"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Penghubung</div>
             <div class="menu-item notif-badge" data-page="info-ortu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-info-ortu"/></svg></span> Info ke Ortu <span class="badge-dot" id="infoOrtuNotifDot"></span></div>
         <div class="menu-item" data-page="buku-induk"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Induk</div>
+            <div class="menu-item hidden-tab" data-page="ortu-akun" style="display:none;"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-students"/></svg></span> Akun &amp; Login Ortu</div>
           </div>
         </div>
 
@@ -478,6 +481,7 @@
             <div class="menu-item" data-page="user-management"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> User & Permission</div>
             <div class="menu-item" data-page="rekap"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> Ringkasan Sekolah</div>
             <div class="menu-item hidden-tab" data-page="kpi"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> KPI Madrasah</div>
+            <div class="menu-item hidden-tab" data-page="monitor-petugas" style="display:none;"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> Petugas &amp; PJ</div>
             <div class="menu-item" data-page="setting-jam"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-setting-jam"/></svg></span> Setting Jam</div>
           </div>
         </div>
@@ -1811,10 +1815,9 @@
            PAGE: ADMIN (SINGKAT - SAMA SEPERTI SEBELUMNYA)
       ============================================================ -->
       <div id="page-admin" class="page-content hidden">
-        <p style="font-size:13px;color:#6b7280;margin:0 2px 8px;">Untuk tambah/edit/hapus data guru &amp; pengguna, buka menu <strong>🔐 User &amp; Permission</strong>.</p>
+        <p id="adminCatatanUser" style="font-size:13px;color:#6b7280;margin:0 2px 8px;">Untuk tambah/edit/hapus data guru &amp; pengguna, buka menu <strong>🔐 User &amp; Permission</strong>.</p>
         <div id="adminTabs" class="hub-tabs show kg-top" role="tablist" aria-label="Bagian halaman Admin">
           <button type="button" role="tab" aria-selected="true" class="hub-tab active" data-atab="guru" onclick="adminTab('guru')">👩‍🏫 Absen Guru</button>
-          <button type="button" role="tab" aria-selected="false" class="hub-tab" data-atab="ortu" onclick="adminTab('ortu')">👪 Orang Tua</button>
           <button type="button" role="tab" aria-selected="false" class="hub-tab" data-atab="log" onclick="adminTab('log')">📜 Log Aktivitas</button>
           <button type="button" role="tab" aria-selected="false" class="hub-tab" data-atab="backup" onclick="adminTab('backup')">💾 Backup</button>
         </div>
@@ -1849,15 +1852,18 @@
         </div>
         </div>
 
+        <!-- v8.459: panel ini kini dibuka dari menu sidebar "Orang Tua" (js/orang-tua-menu.js); tidak ada lagi tombol tabnya di halaman Admin. -->
         <div data-apane="ortu" style="display:none;">
         <div class="card" id="ortuAkunCard">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🔑 Akun Portal Orang Tua</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Orang tua masuk dengan No. WA + PIN yang mereka buat sendiri. Kalau lupa PIN, tekan <strong>Reset PIN</strong>: PIN lama dihapus lalu orang tua membuat PIN baru lewat menu "Belum punya PIN? Buat PIN" di Portal Orang Tua.</p>
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
             <input id="ortuAkunCari" class="field" style="flex:1;min-width:160px;" placeholder="Cari nama anak / nomor WA..." oninput="renderOrtuAkunList()">
+            <select id="ortuAkunFilter" class="field" style="width:auto;" onchange="renderOrtuAkunList()"><option value="">Semua akun</option><option value="kunci">🔒 Terkunci</option><option value="belum">Belum pernah login</option><option value="lama">Tidak login &gt; 30 hari</option></select>
             <button class="btn btn-soft" onclick="renderOrtuAkunAdmin()">🔄 Muat Ulang</button>
             <button class="btn btn-primary" onclick="bukaLinkMasukOrtu()">🔗 Link Masuk WA</button>
           </div>
+          <div id="ortuAkunInfo" style="font-size:12px;color:#6b7280;margin:-4px 0 8px;"></div>
           <div id="ortuAkunList" style="max-height:340px;overflow-y:auto;"></div>
         </div>
 
@@ -2652,7 +2658,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
 })();
 </script>
 <script>
-/* v8.458: halaman Admin dibagi tab (Absen Guru | Orang Tua | Log Aktivitas | Backup). Semua elemen & id tetap ada di DOM (hanya disembunyikan), jadi pemuat data lama tidak berubah. */
+/* v8.458/v8.459: halaman Admin dibagi tab (Absen Guru | Log Aktivitas | Backup); panel Orang Tua dipindah ke menu sidebar. Semua elemen & id tetap ada di DOM (hanya disembunyikan), jadi pemuat data lama tidak berubah. */
 var adminTabAktif = 'guru';
 function adminTab(id){
   var bar=document.getElementById('adminTabs'); if(!bar) return;

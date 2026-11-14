@@ -71,6 +71,8 @@
     var l = el('rloList'); if (!l) return;
     var peta = petaNama(), baris = saring(peta);
     var rg = el('rloRingkas'); if (rg) rg.innerHTML = ringkas(peta);
+    // v8.459: umumkan jumlah login gagal hari ini (dipakai angka pada tab menu Orang Tua, js/orang-tua-menu.js)
+    try { window.rloStat = { gagalHariIni: data.filter(function (x) { return x && x.hasil !== 'berhasil' && hariIni(x.waktu); }).length }; document.dispatchEvent(new Event('rlo-stat')); } catch (e) { /* abaikan */ }
     if (!baris.length) {
       l.innerHTML = '<p style="font-size:13px;color:#6b7280;padding:8px;">' + (data.length ? 'Tidak ada catatan yang cocok.' : 'Belum ada catatan login. Catatan mulai terisi sejak versi ini dipasang.') + '</p>';
       return;

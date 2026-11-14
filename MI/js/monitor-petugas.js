@@ -28,7 +28,10 @@
    - Tombol "Ingatkan": nomor WA petugas dibaca dari guru.noWa (diisi di Edit Guru). Kalau kosong,
      WhatsApp dibuka dengan pesan siap kirim dan pengirim memilih kontaknya sendiri.
    - Dimuat SESUDAH js/app.js; dipicu dari renderChartsNow() (dashboard) dan akhir v4RenderTahfidz().
-     Kartu disisipkan tepat di bawah panel "Ringkasan Madrasah" (#dashboardKepsekExtraWrap).
+
+   v8.460: tabel lengkap DIPINDAH dari Dashboard ke menu sendiri "Petugas & PJ" (grup Sistem, Admin & Kepala),
+   dengan dua tab menempel: Per Kelas | Kegiatan & Ekskul. Dashboard hanya menampilkan satu kartu ringkas
+   (baris peringatan + tombol "Lihat rincian") tepat di bawah panel "Ringkasan Madrasah" (#dashboardKepsekExtraWrap).
 ============================================================ */
 const MONITOR_BATAS_INFAQ_HARI = 10;     // infaq dicatat mingguan
 const MONITOR_BATAS_TAHFIDZ_HARI = 14;
@@ -172,7 +175,15 @@ function monitorIngatkan(jenis, kunci) {
   try { addLog('ingatkan_petugas', `${jenis} - ${hit.lokasi} - ${hit.blok.nama}`); } catch (e) { console.error('[SI MAMBA] addLog ingatkan petugas gagal:', e); }
 }
 
-function monitorEnsureWadah() {
+// ============================================================
+// v8.460 -- tampilan: kartu ringkas di Dashboard + halaman sendiri (menu "Petugas & PJ", grup Sistem)
+// ============================================================
+const MONITOR_PAGE = 'monitor-petugas';
+let _monTab = 'kelas';          // 'kelas' | 'lain'
+
+function monitorBoleh() { return (typeof isAdmin === 'function' && isAdmin()) || (typeof isKepsek === 'function' && isKepsek()); }
+
+function monitorEnsureWadah() {   // wadah kartu ringkas di Dashboard
   let el = document.getElementById('dashboardPetugasWrap');
   if (el) return el;
   const anchor = document.getElementById('dashboardKepsekExtraWrap');
@@ -181,15 +192,35 @@ function monitorEnsureWadah() {
   anchor.insertAdjacentElement('afterend', el);
   return el;
 }
-function petugasMonitorRender() {
-  const el = monitorEnsureWadah(); if (!el) return;
-  const boleh = (typeof isAdmin === 'function' && isAdmin()) || (typeof isKepsek === 'function' && isKepsek());
-  if (!boleh) { el.innerHTML = ''; el.style.display = 'none'; return; }
-  el.style.display = '';
+function monitorEnsureHalaman() {
+  let div = document.getElementById('page-' + MONITOR_PAGE);
+  if (div) return div;
+  const host = document.getElementById('mainContent'); if (!host) return null;
+  div = document.createElement('div'); div.id = 'page-' + MONITOR_PAGE; div.className = 'page-content hidden';
+  host.appendChild(div);
+  div.addEventListener('click', e => {
+    const b = e.target.closest ? e.target.closest('[data-mt]') : null;
+    if (b) monitorSetTab(b.getAttribute('data-mt'));
+  });
+  return div;
+}
+function monitorSetTab(t) {
+  _monTab = (t === 'lain') ? 'lain' : 'kelas';
+  const div = document.getElementById('page-' + MONITOR_PAGE); if (!div) return;
+  Array.prototype.forEach.call(div.querySelectorAll('[data-mt]'), b => { const on = b.getAttribute('data-mt') === _monTab; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+  Array.prototype.forEach.call(div.querySelectorAll('[data-mpane]'), p => { p.style.display = p.getAttribute('data-mpane') === _monTab ? '' : 'none'; });
+  try { window.scrollTo(0, 0); const mc = document.querySelector('.main-content'); if (mc) mc.scrollTop = 0; } catch (e) { /* abaikan */ }
+}
+function monitorMuatKalender() {
   if (!_monKalenderDicoba && (!allKalenderAkademik || allKalenderAkademik.length === 0) && typeof reloadDataset === 'function') {
     _monKalenderDicoba = true;                  // Kalender Akademik dimuat malas; muat sekali supaya hari libur ikut dikecualikan
     reloadDataset('kalenderAkademik', () => petugasMonitorRender());
   }
+}
+
+// Susun semua bagian tampilan dari data (dipakai kartu Dashboard & halaman).
+function monitorSusun() {
+  const boleh = monitorBoleh();
   const data = monitorHitung();
   const hit = { belum: { infaq: 0, tahfidz: 0, pramuka: 0, kegiatan: 0, ekskul: 0 }, lama: { infaq: 0, tahfidz: 0, pramuka: 0, kegiatan: 0, ekskul: 0 } };
   const hitung = (s, jenis) => { if (s.masalah === 'belum') hit.belum[jenis]++; else if (s.masalah === 'lama') hit.lama[jenis]++; return s; };
@@ -214,12 +245,79 @@ function petugasMonitorRender() {
   if (hit.lama.kegiatan) masalah.push(`${hit.lama.kegiatan} kegiatan lama tidak dicatat`);
   if (hit.lama.ekskul) masalah.push(`${hit.lama.ekskul} ekskul lama tidak dicatat`);
   const ringkas = masalah.length ? masalah.join(' • ') : '<span style="color:#047857;">✅ Semua petugas sudah ditunjuk dan catatannya masih baru.</span>';
-  el.innerHTML = `<div class="dash-panel" style="margin-top:20px;">
-      <h3 style="margin-bottom:4px;">👥 Petugas &amp; Penanggung Jawab</h3>
-      <div style="font-size:12px;margin-bottom:10px;color:#92400e;">${ringkas}</div>
-      <div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Petugas Infaq</th><th>Input Infaq Terakhir</th><th>PJ Tahfidz</th><th>Catatan Tahfidz Terakhir</th><th>Pembina Pramuka</th><th>Penilaian SKU Terakhir</th></tr></thead><tbody>${baris}</tbody></table></div>
-      ${barisLain ? `<h4 style="font-size:13px;margin:14px 0 6px;">Kegiatan &amp; Ekstrakurikuler</h4>
-      <div style="overflow-x:auto;"><table><thead><tr><th>Jenis</th><th>Nama</th><th>PJ / Pembina</th><th>Catatan Terakhir</th></tr></thead><tbody>${barisLain}</tbody></table></div>` : ''}
+  return { baris, barisLain, ringkas, adaMasalah: masalah.length > 0, jumlahMasalah: masalah.length };
+}
+
+function monitorRenderHalaman(s) {
+  const div = monitorEnsureHalaman(); if (!div) return;
+  s = s || monitorSusun();
+  const jmlLain = s.barisLain ? (s.barisLain.match(/<tr>/g) || []).length : 0;
+  div.innerHTML = `<div id="monTabs" class="hub-tabs show kg-top" role="tablist" aria-label="Bagian Petugas dan Penanggung Jawab">
+      <button type="button" role="tab" class="hub-tab" data-mt="kelas">🏫 Per Kelas</button>
+      <button type="button" role="tab" class="hub-tab" data-mt="lain">🕌 Kegiatan &amp; Ekskul${jmlLain ? ` (${jmlLain})` : ''}</button>
+    </div>
+    <div class="card">
+      <div style="font-size:13px;margin-bottom:10px;color:#92400e;">${s.ringkas}</div>
+      <div data-mpane="kelas"><div style="overflow-x:auto;"><table><thead><tr><th>Kelas</th><th>Petugas Infaq</th><th>Input Infaq Terakhir</th><th>PJ Tahfidz</th><th>Catatan Tahfidz Terakhir</th><th>Pembina Pramuka</th><th>Penilaian SKU Terakhir</th></tr></thead><tbody>${s.baris}</tbody></table></div></div>
+      <div data-mpane="lain" style="display:none;">${s.barisLain ? `<div style="overflow-x:auto;"><table><thead><tr><th>Jenis</th><th>Nama</th><th>PJ / Pembina</th><th>Catatan Terakhir</th></tr></thead><tbody>${s.barisLain}</tbody></table></div>` : '<p style="font-size:13px;color:#6b7280;">Belum ada kegiatan atau ekskul yang punya penanggung jawab.</p>'}</div>
       <p style="font-size:10px;color:#6b7280;margin-top:8px;">Penunjukan dilakukan Admin di halaman masing-masing. Tanda "lama tidak input" memakai batas ${MONITOR_BATAS_INFAQ_HARI} hari (infaq), ${MONITOR_BATAS_TAHFIDZ_HARI} hari (tahfidz), ${MONITOR_BATAS_PRAMUKA_HARI} hari (SKU Pramuka), ${MONITOR_BATAS_KEGIATAN_HARI} hari (kegiatan), ${MONITOR_BATAS_EKSKUL_HARI} hari (ekskul); hari libur di Kalender Akademik tidak dihitung.${(allKalenderAkademik && allKalenderAkademik.length) ? '' : ' <span style="color:#b45309;">⚠️ Kalender Akademik masih kosong, jadi hari libur belum bisa dikecualikan.</span>'}</p>
     </div>`;
+  monitorSetTab(_monTab);
 }
+
+function monitorHalamanTampil() {
+  const d = document.getElementById('page-' + MONITOR_PAGE);
+  return !!(d && !d.classList.contains('hidden'));
+}
+
+function petugasMonitorRender() {
+  const el = monitorEnsureWadah();
+  const boleh = monitorBoleh();
+  if (!boleh) { if (el) { el.innerHTML = ''; el.style.display = 'none'; } const pg = document.getElementById('page-' + MONITOR_PAGE); if (pg) pg.innerHTML = ''; return; }
+  monitorMuatKalender();
+  const s = monitorSusun();
+  if (el) {
+    el.style.display = '';
+    el.innerHTML = `<div class="dash-panel" style="margin-top:20px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div style="min-width:0;flex:1;"><h3 style="margin-bottom:4px;">👥 Petugas &amp; Penanggung Jawab</h3>
+        <div style="font-size:12px;color:#92400e;">${s.ringkas}</div></div>
+        <button type="button" class="btn btn-soft" style="padding:6px 12px;font-size:12px;white-space:nowrap;" onclick="navigateTo('${MONITOR_PAGE}')">Lihat rincian →</button>
+      </div></div>`;
+  }
+  if (monitorHalamanTampil()) monitorRenderHalaman(s);   // halaman sedang dibuka: ikut segar saat data masuk
+}
+
+// ---- Menu sidebar "Petugas & PJ" (grup Sistem): hanya Admin & Kepala ----
+(function () {
+  function aturMenu() {
+    const ok = (typeof currentUser !== 'undefined') && !!currentUser && monitorBoleh();
+    document.querySelectorAll('[data-page="' + MONITOR_PAGE + '"]').forEach(el => { el.style.display = ok ? '' : 'none'; el.classList.toggle('hidden-tab', !ok); });
+  }
+  function init() {
+    monitorEnsureHalaman();
+    aturMenu();
+    setInterval(() => { if (!document.hidden) aturMenu(); }, 3000);
+    const orig = window.navigateTo;
+    if (typeof orig !== 'function' || orig.__monPetugas) return;
+    const w = function (page) {
+      if (page === MONITOR_PAGE && !monitorBoleh()) { try { toast('Menu ini hanya untuk Admin dan Kepala Madrasah.', true); } catch (e) { /* abaikan */ } return; }
+      const r = orig.apply(this, arguments);
+      aturMenu();
+      if (page === MONITOR_PAGE) {
+        try {
+          monitorEnsureHalaman();
+          const t = document.getElementById('pageTitle'); if (t) t.textContent = 'Petugas & Penanggung Jawab';
+          monitorMuatKalender();
+          monitorRenderHalaman();
+        } catch (e) { console.error('[monitor-petugas]', e); }
+      }
+      return r;
+    };
+    w.__monPetugas = true; window.navigateTo = w;
+  }
+  const css = document.createElement('style');
+  css.textContent = '#monTabs.hub-tabs.kg-top{position:sticky;top:var(--kg-stick-top,0px);z-index:5;margin:0 0 10px;box-shadow:0 2px 6px rgba(0,0,0,.12);}';
+  document.head.appendChild(css);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
