@@ -1811,6 +1811,15 @@
            PAGE: ADMIN (SINGKAT - SAMA SEPERTI SEBELUMNYA)
       ============================================================ -->
       <div id="page-admin" class="page-content hidden">
+        <p style="font-size:13px;color:#6b7280;margin:0 2px 8px;">Untuk tambah/edit/hapus data guru &amp; pengguna, buka menu <strong>🔐 User &amp; Permission</strong>.</p>
+        <div id="adminTabs" class="hub-tabs show kg-top" role="tablist" aria-label="Bagian halaman Admin">
+          <button type="button" role="tab" aria-selected="true" class="hub-tab active" data-atab="guru" onclick="adminTab('guru')">👩‍🏫 Absen Guru</button>
+          <button type="button" role="tab" aria-selected="false" class="hub-tab" data-atab="ortu" onclick="adminTab('ortu')">👪 Orang Tua</button>
+          <button type="button" role="tab" aria-selected="false" class="hub-tab" data-atab="log" onclick="adminTab('log')">📜 Log Aktivitas</button>
+          <button type="button" role="tab" aria-selected="false" class="hub-tab" data-atab="backup" onclick="adminTab('backup')">💾 Backup</button>
+        </div>
+
+        <div data-apane="guru">
         <div class="card" id="koreksiAbsenGuruCard">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">✏️ Koreksi Absen Guru Manual</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Untuk kasus guru lupa absen sama sekali, lupa absen Pulang, atau salah tertandai Alpha. Catatan lama yang bentrok di tanggal & jenis yang sama otomatis diganti.</p>
@@ -1832,6 +1841,15 @@
           <button class="btn btn-warning" onclick="simpanKoreksiAbsenGuru()">💾 Simpan Koreksi</button>
         </div>
 
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📋 Daftar Hadir Guru Hari Ini</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Lihat status kehadiran seluruh guru hari ini. <span style="color:#059669;font-weight:600;">✅ Hijau = Sudah Hadir</span> · <span style="color:#dc2626;font-weight:600;">❌ Merah = Belum Absen</span></p>
+          <div id="adminTeacherAttendanceList" style="max-height:300px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;"><p style="color:#6b7280;font-size:13px;">Memuat data kehadiran guru...</p></div>
+          <div id="adminTeacherAttendanceSummary" style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;"></div>
+        </div>
+        </div>
+
+        <div data-apane="ortu" style="display:none;">
         <div class="card" id="ortuAkunCard">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🔑 Akun Portal Orang Tua</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Orang tua masuk dengan No. WA + PIN yang mereka buat sendiri. Kalau lupa PIN, tekan <strong>Reset PIN</strong>: PIN lama dihapus lalu orang tua membuat PIN baru lewat menu "Belum punya PIN? Buat PIN" di Portal Orang Tua.</p>
@@ -1857,10 +1875,11 @@
           <div id="rloList" style="max-height:360px;overflow-y:auto;"></div>
         </div>
 
+        </div>
+
+        <div data-apane="log" style="display:none;">
         <div class="card">
-          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">⚙️ Admin</h3>
-          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Untuk tambah/edit/hapus data guru & pengguna, buka menu <strong>🔐 User & Permission</strong>.</p>
-          <h4 style="font-weight:700;margin-bottom:8px;">📜 Log Aktivitas Pengguna</h4>
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📜 Log Aktivitas Pengguna</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Pantau siapa saja yang login dan beraktivitas di aplikasi (login, absensi, jurnal, nilai, dll).</p>
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
             <select id="logFilterUser" class="field" style="flex:1;min-width:150px;" onchange="renderLogsFull()"><option value="">-- Semua Pengguna --</option></select>
@@ -1879,14 +1898,15 @@
           </div>
           <div id="logListFull"></div>
           <div id="logFullPagination" class="pagination"></div>
-          <hr style="margin:16px 0;">
-          <h4 style="font-weight:700;margin-bottom:8px;">📋 Daftar Hadir Guru Hari Ini</h4>
-          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Lihat status kehadiran seluruh guru hari ini. <span style="color:#059669;font-weight:600;">✅ Hijau = Sudah Hadir</span> · <span style="color:#dc2626;font-weight:600;">❌ Merah = Belum Absen</span></p>
-          <div id="adminTeacherAttendanceList" style="max-height:300px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;"><p style="color:#6b7280;font-size:13px;">Memuat data kehadiran guru...</p></div>
-          <div id="adminTeacherAttendanceSummary" style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;"></div>
-          <h4 style="font-weight:700;margin-bottom:8px;">💾 Backup</h4>
+        </div>
+        </div>
+
+        <div data-apane="backup" style="display:none;">
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">💾 Backup</h3>
           <div style="display:flex;flex-wrap:wrap;gap:8px;"><button class="btn btn-soft" onclick="manualBackup()">💾 Backup Manual</button></div>
           <p id="dataCount" style="font-size:13px;color:#6b7280;margin-top:12px;">Total data: 0 item</p>
+        </div>
         </div>
       </div>
 
@@ -2630,6 +2650,18 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',mulai); else mulai();
 })();
+</script>
+<script>
+/* v8.458: halaman Admin dibagi tab (Absen Guru | Orang Tua | Log Aktivitas | Backup). Semua elemen & id tetap ada di DOM (hanya disembunyikan), jadi pemuat data lama tidak berubah. */
+var adminTabAktif = 'guru';
+function adminTab(id){
+  var bar=document.getElementById('adminTabs'); if(!bar) return;
+  var ok=false; Array.prototype.forEach.call(document.querySelectorAll('#page-admin [data-apane]'),function(p){ if(p.getAttribute('data-apane')===id) ok=true; });
+  if(!ok) id='guru';
+  adminTabAktif=id;
+  Array.prototype.forEach.call(document.querySelectorAll('#page-admin [data-apane]'),function(p){ p.style.display=p.getAttribute('data-apane')===id?'':'none'; });
+  Array.prototype.forEach.call(bar.querySelectorAll('[data-atab]'),function(b){ var on=b.getAttribute('data-atab')===id; b.classList.toggle('active',on); b.setAttribute('aria-selected',on?'true':'false'); });
+}
 </script>
 </body>
 </html>
