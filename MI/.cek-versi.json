@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.460",
-  "disimpan": "2026-11-14T03:33:05.193Z",
+  "appVersion": "v8.462",
+  "disimpan": "2026-11-16T03:32:25.380Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -351,8 +351,12 @@
       "hash": "4b5d4ff458afe81fabb8ab23b183da353f725891"
     },
     "js/monitor-petugas.js": {
-      "v": "v=6",
-      "hash": "a7665557d91b100b80909a6d0dabdb2c601972e2"
+      "v": "v=7",
+      "hash": "7d3c72bafd2c37517f998c3b44b1d18df4801164"
+    },
+    "js/dashboard-lipat.js": {
+      "v": "v=1",
+      "hash": "28be0cc598c78e532333626b8921dadd9e9cd6c2"
     },
     "js/rujukan.js": {
       "v": "v=5",
