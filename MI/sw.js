@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.460';
+const APP_VERSION = 'v8.462';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -155,7 +155,8 @@ const PRECACHE_URLS = [
   './js/undangan-rapat.js?v=5',           // undangan rapat bernomor (tab Surat & Ijin)
   './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
-  './js/monitor-petugas.js?v=6',
+  './js/monitor-petugas.js?v=7',
+  './js/dashboard-lipat.js?v=1',            // panel Dashboard bisa dilipat (Absen Guru Hari Ini, Aktivitas Terbaru)
   './js/rujukan.js?v=5',                   // catatan rujukan regulasi per menu/tab
   './js/tombol-kembali.js?v=3',            // tombol kembali HP/PWA tersambung ke navigasi aplikasi
   './js/tab-halaman.js?v=2',               // tab per bagian untuk halaman panjang di HP
@@ -203,7 +204,10 @@ function isSameOrigin(url) {
 
 function isAppShellPath(url) {
   const scope = new URL('./', self.location).pathname;   // mis. '/' atau '/app/'
-  return url.pathname === scope || url.pathname === scope + 'index.html';
+  // v8.462: toleran terhadap alamat TANPA garis miring akhir (mis. '/MI' dari ikon layar utama / start_url manifest).
+  // Dulu '/MI' != '/MI/' -> navigasi tidak ditangani Service Worker -> saat offline muncul layar bawaan Chrome "Anda offline".
+  const tanpaGaris = scope.length > 1 ? scope.replace(/\/+$/, '') : scope;
+  return url.pathname === scope || url.pathname === tanpaGaris || url.pathname === scope + 'index.html';
 }
 
 function isNeverCacheRequest(url) {
@@ -296,6 +300,11 @@ self.addEventListener('fetch', event => {
   // dan tidak dibalas dengan index.html saat jaringan lambat.
   if (req.mode === 'navigate') {
     if (isSameOrigin(url) && isAppShellPath(url)) event.respondWith(networkFirstNavigate(req, event));
+    else if (isSameOrigin(url)) {
+      // v8.462: halaman lain milik sendiri (mis. buku-tamu.html publik): tetap ke network, tapi saat offline tampilkan
+      // offline.html milik aplikasi, bukan layar bawaan Chrome. Tidak menyentuh cache index.html.
+      event.respondWith(fetch(req).catch(async () => (await caches.match('./offline.html')) || Response.error()));
+    }
     return;
   }
 

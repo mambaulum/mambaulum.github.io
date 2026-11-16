@@ -30,8 +30,8 @@
    - Dimuat SESUDAH js/app.js; dipicu dari renderChartsNow() (dashboard) dan akhir v4RenderTahfidz().
 
    v8.460: tabel lengkap DIPINDAH dari Dashboard ke menu sendiri "Petugas & PJ" (grup Sistem, Admin & Kepala),
-   dengan dua tab menempel: Per Kelas | Kegiatan & Ekskul. Dashboard hanya menampilkan satu kartu ringkas
-   (baris peringatan + tombol "Lihat rincian") tepat di bawah panel "Ringkasan Madrasah" (#dashboardKepsekExtraWrap).
+   dengan dua tab menempel: Per Kelas | Kegiatan & Ekskul. Dashboard hanya menampilkan satu blok kecil bila ADA
+   masalah (2 peringatan pertama + tombol "Lihat rincian"); kalau semua beres, tidak tampil tepat di bawah panel "Ringkasan Madrasah" (#dashboardKepsekExtraWrap).
 ============================================================ */
 const MONITOR_BATAS_INFAQ_HARI = 10;     // infaq dicatat mingguan
 const MONITOR_BATAS_TAHFIDZ_HARI = 14;
@@ -245,7 +245,7 @@ function monitorSusun() {
   if (hit.lama.kegiatan) masalah.push(`${hit.lama.kegiatan} kegiatan lama tidak dicatat`);
   if (hit.lama.ekskul) masalah.push(`${hit.lama.ekskul} ekskul lama tidak dicatat`);
   const ringkas = masalah.length ? masalah.join(' • ') : '<span style="color:#047857;">✅ Semua petugas sudah ditunjuk dan catatannya masih baru.</span>';
-  return { baris, barisLain, ringkas, adaMasalah: masalah.length > 0, jumlahMasalah: masalah.length };
+  return { baris, barisLain, ringkas, adaMasalah: masalah.length > 0, jumlahMasalah: masalah.length, daftar: masalah };
 }
 
 function monitorRenderHalaman(s) {
@@ -277,13 +277,17 @@ function petugasMonitorRender() {
   monitorMuatKalender();
   const s = monitorSusun();
   if (el) {
-    el.style.display = '';
-    el.innerHTML = `<div class="dash-panel" style="margin-top:20px;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <div style="min-width:0;flex:1;"><h3 style="margin-bottom:4px;">👥 Petugas &amp; Penanggung Jawab</h3>
-        <div style="font-size:12px;color:#92400e;">${s.ringkas}</div></div>
-        <button type="button" class="btn btn-soft" style="padding:6px 12px;font-size:12px;white-space:nowrap;" onclick="navigateTo('${MONITOR_PAGE}')">Lihat rincian →</button>
-      </div></div>`;
+    // v8.460: kartu Dashboard hanya muncul bila ADA masalah, satu blok kecil; kalau semua beres, tidak tampil sama sekali
+    if (!s.adaMasalah) { el.innerHTML = ''; el.style.display = 'none'; }
+    else {
+      const tampil = s.daftar.slice(0, 2).join(' • ') + (s.daftar.length > 2 ? ` • +${s.daftar.length - 2} lainnya` : '');
+      el.style.display = '';
+      el.innerHTML = `<div class="dash-panel" style="margin-top:16px;padding:10px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <div style="min-width:0;flex:1;font-size:12px;color:#92400e;line-height:1.5;">⚠️ <strong>Petugas &amp; PJ:</strong> ${escapeHtml(tampil)}</div>
+          <button type="button" class="btn btn-soft" style="padding:5px 12px;font-size:12px;white-space:nowrap;" onclick="navigateTo('${MONITOR_PAGE}')">Lihat rincian →</button>
+        </div></div>`;
+    }
   }
   if (monitorHalamanTampil()) monitorRenderHalaman(s);   // halaman sedang dibuka: ikut segar saat data masuk
 }
