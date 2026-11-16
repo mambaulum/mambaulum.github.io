@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/dashboard-status.js  (v8.463)
+   SI MAMBA - js/dashboard-status.js  (v8.464)
    Baris "status sekilas" di paling atas Dashboard (gaya kartu donat), hanya Admin & Kepala Madrasah:
      1. Kehadiran Siswa   - Hadir / Izin / Sakit / Alpha dari absensi hari ini (+ jumlah kelas yang sudah diabsen)
      2. Kehadiran Guru    - Hadir / Izin / Sakit / Alpha / Belum absen (hanya guru yang berjadwal hari ini)
@@ -81,6 +81,12 @@
   function hariIniNama() { try { if (typeof getHariIni === 'function') return getHariIni(); } catch (e) { /* abaikan */ } return ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][new Date().getDay()]; }
   function tanggalHariIni() { try { if (typeof tglLokal === 'function') return tglLokal(); } catch (e) { /* abaikan */ } var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
+  // v8.464: hari libur Kalender Akademik (memakai monitorLiburSet dari monitor-petugas.js) -> tidak ada alarm palsu
+  function hariLibur() {
+    try { if (typeof monitorLiburSet === 'function') return monitorLiburSet().has(tanggalHariIni()); } catch (e) { /* abaikan */ }
+    return false;
+  }
+
   function hitungSiswa() {
     var today = tanggalHariIni(), ta = tAjaran(), c = { H: 0, I: 0, S: 0, A: 0 }, kelasSudah = {};
     arr(typeof allAttendance !== 'undefined' ? allAttendance : []).forEach(function (a) {
@@ -93,36 +99,44 @@
     return { c: c, total: total, kelasSudah: Object.keys(kelasSudah).length, kelasTotal: kelasTotal };
   }
 
-  function kunciGuruDariJadwal(j, daftarGuru) {
-    if (j.guruKey) return j.guruKey;
+  // v8.464: kunci guru dinormalkan ke g.key (dari kunci atau nama) untuk catatan absen DAN jadwal, supaya satu guru tidak terhitung dua kali
+  function kunciGuru(kunci, nama, daftarGuru) {
     var g = null;
-    try { if (typeof samaNamaGuru === 'function') g = daftarGuru.filter(function (x) { return samaNamaGuru(j.guru, x.name); })[0]; } catch (e) { g = null; }
-    if (!g) g = daftarGuru.filter(function (x) { return x.name === j.guru; })[0];
-    return g ? g.key : (j.guru || '');
+    if (kunci) g = daftarGuru.filter(function (x) { return x.key === kunci; })[0];
+    if (!g && nama) {
+      try { if (typeof samaNamaGuru === 'function') g = daftarGuru.filter(function (x) { return samaNamaGuru(nama, x.name); })[0]; } catch (e) { g = null; }
+      if (!g) g = daftarGuru.filter(function (x) { return x.name === nama; })[0];
+    }
+    return g ? g.key : (kunci || nama || '');
   }
   function hitungGuru() {
-    var today = tanggalHariIni(), ta = tAjaran(), hari = hariIniNama();
+    var today = tanggalHariIni(), ta = tAjaran(), hari = hariIniNama(), libur = hariLibur();
+    var daftarGuru = arr(typeof allGuru !== 'undefined' ? allGuru : []);
     var peta = {};   // kunci guru -> 'hadir' | 'Izin' | 'Sakit' | 'Alpha'
     arr(typeof allTeacherAttendance !== 'undefined' ? allTeacherAttendance : []).forEach(function (a) {
       if (!a || a.tanggal !== today || (ta && a.tahunAjaran !== ta)) return;
-      var k = a.guruKey || a.guru; if (!k) return;
+      var k = kunciGuru(a.guruKey, a.guru, daftarGuru); if (!k) return;
       if (a.type === 'Datang') peta[k] = 'hadir';
       else if (peta[k] !== 'hadir' && (a.type === 'Izin' || a.type === 'Sakit' || a.type === 'Alpha')) peta[k] = a.type;
     });
-    var daftarGuru = arr(typeof allGuru !== 'undefined' ? allGuru : []);
     var berjadwal = {};
-    arr(typeof allJadwal !== 'undefined' ? allJadwal : []).forEach(function (j) { if (j && j.hari === hari) berjadwal[kunciGuruDariJadwal(j, daftarGuru)] = true; });
-    var c = { hadir: 0, Izin: 0, Sakit: 0, Alpha: 0, belum: 0 };
-    Object.keys(peta).forEach(function (k) { c[peta[k]]++; });
+    if (!libur) arr(typeof allJadwal !== 'undefined' ? allJadwal : []).forEach(function (j) { if (j && j.hari === hari) berjadwal[kunciGuru(j.guruKey, j.guru, daftarGuru)] = true; });
+    var adaJadwal = Object.keys(berjadwal).length > 0;
+    var c = { hadir: 0, Izin: 0, Sakit: 0, Alpha: 0, belum: 0 }, luar = 0;
+    Object.keys(peta).forEach(function (k) {
+      if (adaJadwal && !berjadwal[k]) { luar++; return; }   // hadir tetapi tidak berjadwal hari ini: tidak masuk donat
+      c[peta[k]]++;
+    });
     Object.keys(berjadwal).forEach(function (k) { if (!peta[k]) c.belum++; });
     var total = c.hadir + c.Izin + c.Sakit + c.Alpha + c.belum;
-    return { c: c, total: total, adaJadwal: Object.keys(berjadwal).length > 0 };
+    return { c: c, total: total, adaJadwal: adaJadwal, luar: luar, libur: libur };
   }
 
   function menitSekarang() { var d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
   function menitDari(hhmm) { var m = /^(\d{1,2})[:.](\d{2})/.exec(String(hhmm || '')); return m ? (+m[1]) * 60 + (+m[2]) : null; }
   function hitungJurnal() {
     var today = tanggalHariIni(), ta = tAjaran(), hari = hariIniNama(), sudahIsi = {};
+    if (hariLibur()) return { c: { terisi: 0, belum: 0, akan: 0 }, total: 0, libur: true };
     arr(typeof allJournals !== 'undefined' ? allJournals : []).forEach(function (j) {
       if (!j || j.tanggal !== today || (ta && j.tahunAjaran !== ta) || j.status === 'ditolak') return;
       sudahIsi[String(j.kelas) + '|' + String(j.jam_ke)] = true;
@@ -132,18 +146,24 @@
     arr(typeof allJadwal !== 'undefined' ? allJadwal : []).forEach(function (j) {
       if (!j || j.hari !== hari) return;
       if (sudahIsi[String(j.kelas) + '|' + String(j.jam)]) { c.terisi++; return; }
-      var mulai = jam[j.jam] ? menitDari(jam[j.jam].mulai) : null;
-      if (mulai !== null && mulai <= kini) c.belum++; else c.akan++;
+      var js = jam[j.jam] || {};
+      var mulai = menitDari(js.mulai);
+      var selesai = menitDari(js.selesai || js.akhir || js.end);
+      // v8.464: "Belum diisi" (merah) baru setelah jam SELESAI; jam yang masih berlangsung dihitung "Akan datang".
+      // Bila waktu selesai tidak tersedia di pengaturan jam, pakai waktu mulai seperti sebelumnya.
+      var lewat = selesai !== null ? selesai <= kini : (mulai !== null && mulai <= kini);
+      if (lewat) c.belum++; else c.akan++;
     });
-    return { c: c, total: c.terisi + c.belum + c.akan };
+    return { c: c, total: c.terisi + c.belum + c.akan, libur: false };
   }
 
   function hitungPetugas() {
     try {
-      if (typeof monitorSusun !== 'function') return null;
-      var s = monitorSusun();
-      if (!s || !s.stat) return null;
-      var st = s.stat, beres = Math.max(0, st.total - st.belum - st.lama);
+      var st = null;
+      if (typeof monitorStat === 'function') st = monitorStat();
+      else if (typeof monitorSusun === 'function') { var s0 = monitorSusun(); st = s0 && s0.stat; }
+      if (!st) return null;
+      var beres = Math.max(0, st.total - st.belum - st.lama);
       return { total: st.total, belum: st.belum, lama: st.lama, beres: beres };
     } catch (e) { return null; }
   }
@@ -187,15 +207,15 @@
         { nama: 'Hadir', n: g.c.hadir, warna: HIJAU }, { nama: 'Izin', n: g.c.Izin, warna: BIRU },
         { nama: 'Sakit', n: g.c.Sakit, warna: KUNING }, { nama: 'Alpha', n: g.c.Alpha, warna: MERAH },
         { nama: 'Belum absen', n: g.c.belum, warna: ABU }
-      ], g.total ? g.c.hadir + '/' + g.total : '-', 'guru',
-      g.adaJadwal ? 'Belum absen = guru berjadwal hari ini tanpa catatan' : 'Tidak ada guru berjadwal hari ini');
+      ], g.libur && !g.total ? 'Libur' : (g.total ? g.c.hadir + '/' + g.total : '-'), 'guru',
+      g.libur ? 'Hari libur (Kalender Akademik)' : (g.adaJadwal ? 'Belum absen = guru berjadwal hari ini tanpa catatan' + (g.luar ? ' · +' + g.luar + ' hadir di luar jadwal' : '') : 'Tidak ada guru berjadwal hari ini'));
 
       var j = hitungJurnal();
       html += kartu('📓 Jurnal Hari Ini', [
         { nama: 'Terisi', n: j.c.terisi, warna: HIJAU }, { nama: 'Belum diisi', n: j.c.belum, warna: MERAH },
         { nama: 'Akan datang', n: j.c.akan, warna: ABU }
-      ], j.total ? j.c.terisi + '/' + j.total : '-', 'jam',
-      j.total ? 'Belum diisi = jam pelajaran sudah mulai, jurnal belum ada' : 'Tidak ada jadwal hari ini');
+      ], j.libur ? 'Libur' : (j.total ? j.c.terisi + '/' + j.total : '-'), 'jam',
+      j.libur ? 'Hari libur (Kalender Akademik)' : (j.total ? 'Belum diisi = jam pelajaran sudah selesai, jurnal belum ada' : 'Tidak ada jadwal hari ini'));
 
       var p = hitungPetugas();
       if (p) {
@@ -218,7 +238,7 @@
       var w = function () { var r = orig.apply(this, arguments); try { render(); } catch (e) { console.error('[dashboard-status]', e); } return r; };
       w.__dashStatus = true; window.updateDashboard = w;
     }
-    setInterval(function () { if (!document.hidden) render(); }, 30000);   // jam berjalan -> status "Belum diisi" ikut berubah
+    setInterval(function () { if (!document.hidden) render(); }, 60000);   // jam berjalan -> status "Belum diisi" ikut berubah
     document.addEventListener('visibilitychange', function () { if (!document.hidden) render(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

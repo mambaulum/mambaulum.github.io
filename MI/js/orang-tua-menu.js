@@ -161,6 +161,8 @@
 
   /* ---------- hak akses: ikut menu Admin ---------- */
   function adminBolehLihat() {
+    // v8.464: kartu akun portal hanya dirender untuk isAdmin() (ortu-akun-admin.js); peran lain (mis. Kepala) hanya akan melihat halaman kosong
+    try { if (typeof isAdmin === 'function' && !isAdmin()) return false; } catch (e) { return false; }
     var a = document.querySelector('.menu-item[data-page="admin"]');
     if (!a) return false;
     if (a.classList.contains('hidden-tab')) return false;
@@ -186,7 +188,7 @@
     if (adm && window.MutationObserver) {
       new MutationObserver(aturMenu).observe(adm, { attributes: true, attributeFilter: ['class', 'style'] });
     }
-    setInterval(function () { if (!document.hidden) aturMenu(); }, 3000);
+    setInterval(function () { if (!document.hidden) aturMenu(); }, 10000);
     document.addEventListener('ortu-akun-stat', perbaruiAngka);
     document.addEventListener('rlo-stat', perbaruiAngka);
 

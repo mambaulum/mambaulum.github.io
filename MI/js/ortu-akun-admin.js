@@ -85,7 +85,7 @@
       if (!confirm(`Reset PIN Portal Orang Tua untuk nomor ${tampil}?\n\nPIN lama dihapus. Orang tua harus membuat PIN baru lewat "Belum punya PIN? Buat PIN" di Portal Orang Tua.`)) return;
       ortuAdminSiap(false).then(() => db.ref('ortu_akun/' + waKey).remove()).then(() => {
         toast('✅ PIN direset. Minta orang tua membuat PIN baru.');
-        addLog('reset_pin_ortu', tampil);
+        addLog('reset_pin_ortu', tampil.length < 8 ? tampil : tampil.slice(0, 4) + '-xxxx-' + tampil.slice(-4));
         if (typeof onDone === 'function') onDone(); else renderOrtuAkunAdmin();
       }).catch(err => toast('Gagal reset: ' + err.message, true));
     }

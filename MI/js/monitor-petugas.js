@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/monitor-petugas.js
+   SI MAMBA - js/monitor-petugas.js  (v8.464: + monitorStat() ber-cache untuk donat Dashboard)
    Kartu "Petugas & Penanggung Jawab" di Dashboard untuk Admin & Kepala Madrasah.
    Lihat saja, kecuali tombol "Ingatkan" (kirim pengingat WA ke petugas).
 
@@ -251,6 +251,20 @@ function monitorSusun() {
   return { baris, barisLain, ringkas, adaMasalah: masalah.length > 0, jumlahMasalah: masalah.length, daftar: masalah, stat: statEntri };
 }
 
+// v8.464: hitungan ringan untuk donat Dashboard. monitorSusun() menyaring semua data dan menyusun HTML tabel; hasilnya
+// disimpan selama jumlah data tidak berubah dan umurnya < 60 dtk, supaya render Dashboard berulang tidak membebani HP lama.
+let _monStatCache = null;
+function monitorStat() {
+  const n = a => (Array.isArray(a) ? a.length : 0);
+  const sig = [n(allInfaqSiswa), V4 ? n(V4.tahfidz) : 0, V4 ? n(V4.pramukaSku) : 0, V4 ? n(V4.activityAttendance) : 0, V4 ? n(V4.ekskulAttendance) : 0,
+    V4 ? n(V4.activityTypes) : 0, V4 ? n(V4.ekskuls) : 0, n(allKalenderAkademik), (KELAS_LIST || []).length, monitorBoleh() ? 1 : 0].join('|');
+  const kini = Date.now();
+  if (_monStatCache && _monStatCache.sig === sig && kini - _monStatCache.t < 60000) return _monStatCache.stat;
+  const stat = monitorSusun().stat;
+  _monStatCache = { sig, t: kini, stat };
+  return stat;
+}
+
 function monitorRenderHalaman(s) {
   const div = monitorEnsureHalaman(); if (!div) return;
   s = s || monitorSusun();
@@ -304,7 +318,7 @@ function petugasMonitorRender() {
   function init() {
     monitorEnsureHalaman();
     aturMenu();
-    setInterval(() => { if (!document.hidden) aturMenu(); }, 3000);
+    setInterval(() => { if (!document.hidden) aturMenu(); }, 10000);
     const orig = window.navigateTo;
     if (typeof orig !== 'function' || orig.__monPetugas) return;
     const w = function (page) {

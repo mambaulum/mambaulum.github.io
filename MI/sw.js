@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.463';
+const APP_VERSION = 'v8.464';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -106,7 +106,7 @@ const PRECACHE_URLS = [
   './js/angket-keunggulan.js?v=11',          // Angket Keunggulan Madrasah: tab ke-3 halaman Angket + kartu Portal Ortu (dimuat SESUDAH angket.js)
   './js/kpi.js?v=27',
   './js/nilai-harian.js?v=7',               // Catatan Nilai Harian -> NH1/NH2/NH3 (dimuat SESUDAH app.js)                        // KPI Madrasah: dashboard Admin & Kepala (dimuat SESUDAH app.js & infaq.js)
-  './js/ortu-akun-admin.js?v=5',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/ortu-akun-admin.js?v=6',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/link-ortu.js?v=6',                  // Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js)
   './js/amalan-kegiatan.js?v=46',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=42',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
@@ -155,13 +155,13 @@ const PRECACHE_URLS = [
   './js/undangan-rapat.js?v=5',           // undangan rapat bernomor (tab Surat & Ijin)
   './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
-  './js/monitor-petugas.js?v=8',
+  './js/monitor-petugas.js?v=9',
   './js/dashboard-lipat.js?v=1',            // panel Dashboard bisa dilipat (Absen Guru Hari Ini, Aktivitas Terbaru)
-  './js/dashboard-status.js?v=1',          // baris donat status di atas Dashboard (Admin & Kepsek)
+  './js/dashboard-status.js?v=2',          // baris donat status di atas Dashboard (Admin & Kepsek)
   './js/rujukan.js?v=5',                   // catatan rujukan regulasi per menu/tab
   './js/tombol-kembali.js?v=3',            // tombol kembali HP/PWA tersambung ke navigasi aplikasi
   './js/tab-halaman.js?v=2',               // tab per bagian untuk halaman panjang di HP
-  './js/orang-tua-menu.js?v=4',            // menu sidebar Orang Tua (akun portal + riwayat login; dimuat PALING AKHIR)
+  './js/orang-tua-menu.js?v=5',            // menu sidebar Orang Tua (akun portal + riwayat login; dimuat PALING AKHIR)
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
   './vendor/firebase-app-compat.js?v=10.12.0',
   './vendor/firebase-database-compat.js?v=10.12.0',
