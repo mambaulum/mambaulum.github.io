@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.462';
+const APP_VERSION = 'v8.463';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -155,8 +155,9 @@ const PRECACHE_URLS = [
   './js/undangan-rapat.js?v=5',           // undangan rapat bernomor (tab Surat & Ijin)
   './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
-  './js/monitor-petugas.js?v=7',
+  './js/monitor-petugas.js?v=8',
   './js/dashboard-lipat.js?v=1',            // panel Dashboard bisa dilipat (Absen Guru Hari Ini, Aktivitas Terbaru)
+  './js/dashboard-status.js?v=1',          // baris donat status di atas Dashboard (Admin & Kepsek)
   './js/rujukan.js?v=5',                   // catatan rujukan regulasi per menu/tab
   './js/tombol-kembali.js?v=3',            // tombol kembali HP/PWA tersambung ke navigasi aplikasi
   './js/tab-halaman.js?v=2',               // tab per bagian untuk halaman panjang di HP

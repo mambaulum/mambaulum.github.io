@@ -245,7 +245,10 @@ function monitorSusun() {
   if (hit.lama.kegiatan) masalah.push(`${hit.lama.kegiatan} kegiatan lama tidak dicatat`);
   if (hit.lama.ekskul) masalah.push(`${hit.lama.ekskul} ekskul lama tidak dicatat`);
   const ringkas = masalah.length ? masalah.join(' • ') : '<span style="color:#047857;">✅ Semua petugas sudah ditunjuk dan catatannya masih baru.</span>';
-  return { baris, barisLain, ringkas, adaMasalah: masalah.length > 0, jumlahMasalah: masalah.length, daftar: masalah };
+  // v8.463: hitungan per entri untuk donat status Dashboard (js/dashboard-status.js): kelas x 3 jenis + kegiatan/ekskul
+  const sumHit = o => Object.keys(o).reduce((n, k) => n + o[k], 0);
+  const statEntri = { total: data.kelas.length * 3 + data.lain.length, belum: sumHit(hit.belum), lama: sumHit(hit.lama) };
+  return { baris, barisLain, ringkas, adaMasalah: masalah.length > 0, jumlahMasalah: masalah.length, daftar: masalah, stat: statEntri };
 }
 
 function monitorRenderHalaman(s) {
