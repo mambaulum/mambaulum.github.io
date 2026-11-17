@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.464",
-  "disimpan": "2026-11-16T04:24:15.085Z",
+  "appVersion": "v8.471",
+  "disimpan": "2026-11-17T00:35:20.353Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -354,13 +354,9 @@
       "v": "v=9",
       "hash": "62ed7f9cc1f85ba275b1f6d920a9ecefe847fb59"
     },
-    "js/dashboard-lipat.js": {
+    "js/dashboard-ringkas.js": {
       "v": "v=1",
-      "hash": "28be0cc598c78e532333626b8921dadd9e9cd6c2"
-    },
-    "js/dashboard-status.js": {
-      "v": "v=2",
-      "hash": "ea1b6340f48379cfcf434f282f6af68f545c8b87"
+      "hash": "bf15bb31f6679906e6e930a53d7ead3c688df0b8"
     },
     "js/rujukan.js": {
       "v": "v=5",
