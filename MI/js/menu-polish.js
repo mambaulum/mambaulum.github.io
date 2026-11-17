@@ -487,7 +487,8 @@
           var pg = n.closest('.page-content');
           var label = pg && ADD_BTN_BY_PAGE[pg.id];
           // ajakan: tombol tambah hanya bila tombolnya memang tampil (bukan untuk peran yang tak berhak)
-          var openBtn = pg && Array.prototype.filter.call(pg.querySelectorAll('.mp-pagebar .btn, .mp-add-btn'), function (b) { return !b.hidden && b.textContent.trim() === label; })[0];
+          // v8.473: TIDAK di Dashboard -- teks kosong di sana (Jadwal/Jurnal Hari Ini, dll.) bukan daftar pengumuman, jadi tombol "Kelola Pengumuman" salah tempat
+          var openBtn = pg && pg.id !== 'page-dashboard' && Array.prototype.filter.call(pg.querySelectorAll('.mp-pagebar .btn, .mp-add-btn'), function (b) { return !b.hidden && b.textContent.trim() === label; })[0];
           // belum ada siswa sama sekali (bukan sekadar pencarian tak cocok) dan pengguna boleh menambah -> ajakan khusus
           if (openBtn && pg.id === 'page-students' && typeof allSiswa !== 'undefined' && allSiswa.length === 0) n.textContent = 'Belum ada siswa. Tambah siswa pertama.';
           if (openBtn && !n.querySelector('.mp-empty-cta')) {

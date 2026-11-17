@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/dashboard-ringkas.js (v8.471)
+   SI MAMBA - js/dashboard-ringkas.js (v8.472)
    GABUNGAN (isi tidak berubah) dari empat berkas Dashboard sebelumnya, masing-masing tetap sebagai IIFE terpisah:
      1) dashboard-lipat.js   panel pelengkap bisa dilipat
      2) dashboard-status.js  baris donat status + penyembunyian elemen ganda untuk Admin/Kepala
@@ -105,6 +105,7 @@
     var st = document.createElement('style');
     st.id = 'dashStatusCss';
     st.textContent =
+      '.ds-sembunyi{display:none !important;}' +
       '#dashboardStatusRow.tk-hide{display:grid !important;}' +
       /* v8.467: Admin & Kepala -> ringkasan "hari ini" cukup di baris donat; elemen TETAP ada di DOM (diisi app.js), hanya disembunyikan */
       'body.dash-ringkas #page-dashboard .mp-dash-cards,body.dash-ringkas #page-dashboard #statusBar,body.dash-ringkas #page-dashboard #dashboardPetugasWrap,' +
@@ -275,7 +276,12 @@
   }
 
   function render() {
-    try { document.body.classList.toggle('dash-ringkas', !!boleh()); } catch (e) { /* abaikan */ }
+    try {
+      document.body.classList.toggle('dash-ringkas', !!boleh());
+      // v8.472: panel "Jadwal Hari Ini" & "Jurnal Hari Ini" (pasangan grid-2) disembunyikan untuk Admin/Kepala; sudah diwakili donat
+      var jd = document.getElementById('dashboardJadwalList'), pg = jd && jd.closest ? jd.closest('.grid-2') : null;
+      if (pg) pg.classList.toggle('ds-sembunyi', !!boleh());
+    } catch (e) { /* abaikan */ }
     var el = wadah(); if (!el) return;
     if (!boleh()) { el.innerHTML = ''; el.style.display = 'none'; return; }
     css();
@@ -291,12 +297,20 @@
       s.kelasTotal ? s.kelasSudah + ' dari ' + s.kelasTotal + ' kelas sudah diabsen' : '');
 
       var g = hitungGuru();
+      // v8.474: sebelum jam masuk (waktu mulai paling awal di Pengaturan Jam) guru berjadwal yang belum absen berstatus "Menunggu" (abu-abu);
+      // sesudahnya "Belum absen" berwarna ungu supaya terlihat. Bila jam masuk tidak diketahui, perilaku lama (Belum absen, abu-abu).
+      var jamMasuk = null, jamMasukTeks = '';
+      try {
+        var jsAll = (typeof jamSettings !== 'undefined' && jamSettings) ? jamSettings : {};
+        Object.keys(jsAll).forEach(function (k) { var m = menitDari(jsAll[k] && jsAll[k].mulai); if (m !== null && (jamMasuk === null || m < jamMasuk)) { jamMasuk = m; jamMasukTeks = String(jsAll[k].mulai).slice(0, 5); } });
+      } catch (e) { jamMasuk = null; }
+      var sebelumMasuk = jamMasuk !== null && !g.libur && g.adaJadwal && menitSekarang() < jamMasuk;
       html += kartu('👩‍🏫 Kehadiran Guru', [
         { nama: 'Hadir', n: g.c.hadir, warna: HIJAU }, { nama: 'Izin', n: g.c.Izin, warna: BIRU },
         { nama: 'Sakit', n: g.c.Sakit, warna: KUNING }, { nama: 'Alpha', n: g.c.Alpha, warna: MERAH },
-        { nama: 'Belum absen', n: g.c.belum, warna: ABU }
+        { nama: sebelumMasuk ? 'Menunggu' : 'Belum absen', n: g.c.belum, warna: sebelumMasuk ? ABU : '#8b5cf6' }
       ], g.libur && !g.total ? 'Libur' : (g.total ? g.c.hadir + '/' + g.total : '-'), 'guru',
-      g.libur ? 'Hari libur (Kalender Akademik)' : (g.adaJadwal ? (g.luar ? '+' + g.luar + ' hadir di luar jadwal' : '') : 'Tidak ada guru berjadwal hari ini'));
+      g.libur ? 'Hari libur (Kalender Akademik)' : (g.adaJadwal ? ((sebelumMasuk ? 'Jam masuk ' + jamMasukTeks : '') + (g.luar ? (sebelumMasuk ? ' · ' : '') + '+' + g.luar + ' hadir di luar jadwal' : '')) : 'Tidak ada guru berjadwal hari ini'));
 
       var j = hitungJurnal();
       html += kartu('📓 Jurnal Hari Ini', [
@@ -678,6 +692,12 @@
     ctx.style.display = 'none';
     induk.style.height = 'auto'; induk.style.minHeight = '0';
     if (!((config.data && config.data.labels) || []).length) { box.innerHTML = '<div class="mi-kosong">Belum ada data</div>'; return box; }
+    var semuaNol = !(config.data.datasets || []).some(function (d) { return (d.data || []).some(function (v) { return num(v) > 0; }); });
+    if (semuaNol) {
+      var nilai = (config.data.datasets[0] && config.data.datasets[0].label) === 'Rata-rata Nilai';
+      box.innerHTML = '<div class="mi-kosong">' + (nilai ? 'Belum ada nilai rapor final.<br><small>Nilai dihitung bila NH, MID, dan PAS sudah terisi.</small>' : 'Belum ada data untuk ditampilkan') + '</div>';
+      return box;
+    }
     var info = bangun(config);
     box.innerHTML = info.html;
     pasangInteraksi(box, info);

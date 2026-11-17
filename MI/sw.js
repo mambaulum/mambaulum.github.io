@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.471';
+const APP_VERSION = 'v8.474';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -114,7 +114,7 @@ const PRECACHE_URLS = [
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=17',
-  './js/menu-polish.js?v=31',
+  './js/menu-polish.js?v=32',
   './js/rekap-jurnal.js?v=1',            // halaman Rekap Jurnal Mengajar (menu Pembelajaran; dimuat SESUDAH app.js & menu-hub.js)
   './js/rapat.js?v=7',                    // menu Rapat (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/data-pkg-mi.js?v=1',              // instrumen & rumus PKG Guru MI (dimuat SEBELUM pkg.js)
@@ -156,7 +156,7 @@ const PRECACHE_URLS = [
   './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
   './js/tahfidz-grafik.js?v=4',
   './js/monitor-petugas.js?v=9',
-  './js/dashboard-ringkas.js?v=1',          // Dashboard ringkas: lipat + donat status + donat bulanan + grafik SVG (gabungan 4 berkas lama)
+  './js/dashboard-ringkas.js?v=3',          // Dashboard ringkas: lipat + donat status + donat bulanan + grafik SVG (gabungan 4 berkas lama)
   './js/rujukan.js?v=5',                   // catatan rujukan regulasi per menu/tab
   './js/tombol-kembali.js?v=3',            // tombol kembali HP/PWA tersambung ke navigasi aplikasi
   './js/tab-halaman.js?v=2',               // tab per bagian untuk halaman panjang di HP
