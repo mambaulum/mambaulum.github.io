@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.474",
-  "disimpan": "2026-11-17T01:29:07.989Z",
+  "appVersion": "v8.481",
+  "disimpan": "2026-11-17T02:53:33.608Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -223,16 +223,16 @@
       "hash": "4a4a50f55fddb13be0a9aa3fe7527449da6d8a37"
     },
     "js/data-tp-mi.js": {
-      "v": "v=3",
-      "hash": "70d59bb8eba12e6a2329378c5d3c8e92ed11e497"
+      "v": "v=5",
+      "hash": "b0a83905906b1b4e5209cec51f043248354d7b53"
     },
     "js/data-tp-umum.js": {
       "v": "v=1",
       "hash": "183cf034f805d85bc75a180e11f30aedec96a204"
     },
     "js/data-soal-semua.js": {
-      "v": "v=1",
-      "hash": "75a55a2737130f45bd3d1a4af077afdd06322f75"
+      "v": "v=2",
+      "hash": "bd79e17729cc1f9186af6a3837b69cd39f157622"
     },
     "js/data-soal-aqh-tambahan.js": {
       "v": "v=1",
@@ -250,6 +250,14 @@
       "v": "v=1",
       "hash": "9efaeafed43c6e595c5379600fcbde66d52100f8"
     },
+    "js/data-soal-ba-bacaan-tambahan.js": {
+      "v": "v=1",
+      "hash": "0d0c01e8cf1e3b3ebc887c0ddad223642a55d561"
+    },
+    "js/data-soal-aqh-surah-b-tambahan.js": {
+      "v": "v=1",
+      "hash": "1f3d592c66986a6ec83e76572cc522a01be911f0"
+    },
     "js/perangkat-rpe.js": {
       "v": "v=15",
       "hash": "65376e314bc31464888ebf1e528c4526551eaa7a"
@@ -263,8 +271,8 @@
       "hash": "d6219784455c6749c394a7564e982f0cb3dbdefe"
     },
     "js/data-kisi-resmi-mi.js": {
-      "v": "v=3",
-      "hash": "5ed5a2388cdd7ff2fd90d00225916961ebfd1501"
+      "v": "v=6",
+      "hash": "53fef948e7f51fb63bcbe412571368bb8da539d9"
     },
     "js/perangkat-kisi.js": {
       "v": "v=12",
