@@ -508,7 +508,7 @@
       I('L1', 'Arti "بُرْتُقَالٌ" adalah ....', 'jeruk'),
       U('L1', 'Tuliskan arti dari: تُفَّاحٌ, عِنَبٌ, dan مَوْزٌ!', 'apel; anggur; pisang. Skor sebanding jumlah arti yang benar.'),
       P('L1', 'Arti "تُفَّاحٌ" adalah ...', 'apel', 'pisang', 'jeruk', 'anggur'),
-      P('L1', 'Bahasa Arab "pisang" adalah ...', 'مَوْزٌ', 'بُرْتُقَالٌ', 'عِنَبٌ', 'أَنَنَاسٌ'),
+      P('L1', 'Bahasa Arab "pisang" adalah ...', 'مَوْزٌ', 'بُرْتُقَالٌ', 'عِنَبٌ', 'أَنَانَاسٌ'),
       P('L1', 'Arti "بُرْتُقَالٌ" adalah ...', 'jeruk', 'anggur', 'nanas', 'semangka'),
       I('L1', 'Arti "عِنَبٌ" adalah ....', 'anggur')
     ],

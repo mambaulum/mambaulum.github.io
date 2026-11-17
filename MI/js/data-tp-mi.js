@@ -8,14 +8,33 @@
    Bentuk TP: [elemen, tujuan pembelajaran, materi pokok (singkat, dipakai sebagai materi di Prota/Promes)].
    Verifikasi (Oktober 2026): setiap TP dan CP per fase dicocokkan dengan naskah SK 9941/2025 bagian MI
    (Al-Qur'an Hadis, Akidah Akhlak, Fikih, SKI, Bahasa Arab). Konten sudah sesuai; tidak ada perbedaan materi.
-   Belum dicek: urutan rumusan kata per kata dan kisi-kisi/bank soal terhadap SK ini.
+   Audit 17 Nov 2026: tiap elemen Fase A-C dicek ulang terhadap kompilasi tabel CP MI SK 9941/2025 (bukan naskah PDF). Al-Qur'an Hadis, Akidah Akhlak, Fikih,
+   dan SKI sesuai; rumusan TP Bahasa Arab disesuaikan di tempat (urutan entri tidak diubah). Teks alur proses Al-Qur'an Hadis, Akidah Akhlak, dan Fikih dibuat per fase
+   mengikuti keterampilan proses di SK (SKI dan Bahasa Arab sama untuk semua fase yang ada).
+   Perbaikan 17 Nov 2026: frasa "dengan bantuan/bimbingan guru" ditambahkan pada alur proses AQH B-C dan Akidah Akhlak B-C sesuai SK; topik Bahasa Arab Fase C
+   "kegiatan liburan" diberi awalan "saya suka" mengikuti SK (urutan entri tidak berubah, kunci TP tetap).
+   Cek 17 Nov 2026: kisi-kisi (js/data-kisi-resmi-mi.js) dicocokkan dengan PDF Kisi-kisi Ujian Madrasah 2025/2026 (Kepdirjen 3302) dan dengan TP di sini;
+   CP/topik AQH dan Bahasa Arab Fase B-C sama, 23 kunci kisi menunjuk TP yang benar. Bank soal (js/data-soal-*.js): 270 kunci, tidak ada kunci tanpa TP
+   dan tidak ada TP MI tanpa soal; struktur soal valid. Isi soal masih DRAF dan belum dicek butir per butir terhadap SK.
 ============================================================ */
 (function () {
   'use strict';
   const PROSES = {
-    aqh: 'Alur proses: mengamati, bertanya dan memprediksi, merencanakan dan melakukan penyelidikan, mengolah data, evaluasi dan refleksi, mengomunikasikan hasil; kemandirian murid meningkat dari fase ke fase.',
-    aa: 'Alur proses: mengamati, bertanya dan mengumpulkan informasi, menganalisis dan menyimpulkan, mengomunikasikan, menghafal dan menerapkan, refleksi dan rencana tindak lanjut.',
-    fikih: 'Alur proses: mengamati ibadah/muamalah, menanya, mengumpulkan data, menganalisis data, menyimpulkan dan merefleksikan, mengomunikasikan hasil.',
+    aqh: {
+      A: 'Alur proses: mengamati dan mencatat hasil pengamatan sederhana, bertanya dengan bantuan guru, merencanakan dan melakukan penyelidikan, mengolah data dan informasi dengan bantuan guru, evaluasi dan refleksi, mengomunikasikan hasil secara lisan, tulisan, atau berbagai media.',
+      B: 'Alur proses: mengamati dan mengidentifikasi, bertanya dan memprediksi dengan bantuan guru, merencanakan dan melakukan penyelidikan melalui observasi, mengolah data dalam bentuk gambar atau diagram dengan bantuan guru lalu membandingkan hasil dengan prediksi, evaluasi dan refleksi, mengomunikasikan hasil.',
+      C: 'Alur proses: mengamati, mengidentifikasi, dan mengklasifikasikan serta mencari persamaan dan perbedaan, bertanya dan memprediksi dengan bantuan guru, melakukan penyelidikan melalui observasi dengan bantuan guru, mengolah data dalam bentuk gambar atau diagram dengan bantuan guru lalu membandingkan hasil dengan prediksi, evaluasi dan refleksi, mengomunikasikan hasil.'
+    },
+    aa: {
+      A: 'Alur proses: mengamati, menanya dan mengumpulkan informasi, menyimpulkan dengan bimbingan guru, mengomunikasikan hasil, menghafal dan menerapkan, merefleksikan dan menyusun rencana tindak lanjut.',
+      B: 'Alur proses: mengamati, mempertanyakan dan memprediksi melalui bimbingan guru, merencanakan dan melakukan penyelidikan, memproses dan menganalisis informasi, mengomunikasikan hasil, merefleksikan dan menyusun rencana tindak lanjut.',
+      C: 'Alur proses: mengamati, menanya dan mengumpulkan informasi, menganalisis dan menyimpulkan melalui diskusi kelompok dengan bimbingan guru, mengomunikasikan, menerapkan, merefleksikan dan menyusun rencana tindak lanjut.'
+    },
+    fikih: {
+      A: 'Alur proses: mengamati ibadah, menanya, mengumpulkan data, menganalisis data, menyimpulkan dan merefleksikan, mengomunikasikan hasil.',
+      B: 'Alur proses: mengamati ibadah, menanya, mengumpulkan data, menganalisis data, menyimpulkan dan merefleksikan, mengomunikasikan hasil.',
+      C: 'Alur proses: mengamati ibadah dan muamalah, menanya, mengumpulkan data, menganalisis data, menyimpulkan dan merefleksikan, mengomunikasikan hasil.'
+    },
     ski: 'Alur proses: mengamati, mempertanyakan dan memprediksi, merencanakan dan melakukan penyelidikan, menganalisis data (peta konsep), evaluasi dan refleksi (ibrah), mengomunikasikan hasil.',
     ba: 'Keterampilan bahasa: menyimak, berbicara, membaca, memirsa, menulis, dan mempresentasikan.'
   };
@@ -26,9 +45,9 @@
       aqh: {
         nama: "Al-Qur'an Hadis",
         cp: {
-          A: ["Pemahaman Konsep: mengenal dan menulis huruf hijaiyah serta tanda baca, hukum gunnah, Alif Lam Qamariyah/Syamsiyah; menghafal dan menjelaskan surah pendek pilihan; menghafal hadis tentang kebersihan, keutamaan belajar, dan berbakti kepada orang tua.", PROSES.aqh],
-          B: ["Pemahaman Konsep: tajwid kalkalah, mad tabi'i, izhar halqi, ikhfa' hakiki, idgam bigunnah/bilagunnah, iqlab; menghafal, menulis, dan menjelaskan surah pendek; hadis tentang salat berjemaah, persaudaraan, takwa, niat, dan silaturahmi.", PROSES.aqh],
-          C: ["Pemahaman Konsep: tajwid mim sukun, waqaf wasal, ra' tafkhim/tarqiq, jawazul wajhain; ayat/surah dan hadis tentang ciri orang munafik, menyayangi anak yatim, keutamaan memberi, dan amal saleh.", PROSES.aqh]
+          A: ["Pemahaman Konsep: mengenal dan menulis huruf hijaiyah serta tanda baca, hukum gunnah, Alif Lam Qamariyah/Syamsiyah; menghafal dan menjelaskan surah pendek pilihan; menghafal hadis tentang kebersihan, keutamaan belajar, dan berbakti kepada orang tua.", PROSES.aqh.A],
+          B: ["Pemahaman Konsep: tajwid kalkalah, mad tabi'i, izhar halqi, ikhfa' hakiki, idgam bigunnah/bilagunnah, iqlab; menghafal, menulis, dan menjelaskan surah pendek; hadis tentang salat berjemaah, persaudaraan, takwa, niat, dan silaturahmi.", PROSES.aqh.B],
+          C: ["Pemahaman Konsep: tajwid mim sukun, waqaf wasal, ra' tafkhim/tarqiq, jawazul wajhain; ayat/surah dan hadis tentang ciri orang munafik, menyayangi anak yatim, keutamaan memberi, dan amal saleh.", PROSES.aqh.C]
         },
         tp: {
           A: [
@@ -75,9 +94,9 @@
       aa: {
         nama: 'Akidah Akhlak',
         cp: {
-          A: ['Pemahaman Konsep: akidah (dua kalimat syahadat, rukun iman, sifat wajib Allah, iman kepada malaikat, contoh asmaulhusna); akhlak (kalimah thayyibah, hidup bersih dan sehat, jujur, terima kasih, rendah hati, menghindari malas, berkata kasar, dan berbohong); adab sehari-hari; kisah Nabi Muhammad saw. dan Nabi Nuh a.s.', PROSES.aa],
-          B: ['Pemahaman Konsep: asmaulhusna, iman kepada kitab Allah serta nabi dan rasul; kalimah thayyibah; bersyukur, pantang menyerah, pemberani, tolong-menolong, amanah, dan menghindari serakah, kikir, kufur nikmat; adab kepada orang tua, guru, teman; kisah Nabi Ibrahim a.s. dan Nabi Ismail a.s.', PROSES.aa],
-          C: ['Pemahaman Konsep: perilaku yang mencerminkan asmaulhusna, hari akhir, qada dan qadar; kalimah thayyibah; akhlak terpuji (sabar, disiplin, mandiri, pemaaf, tanggung jawab, adil, bijaksana) dan menghindari akhlak tercela; adab bertamu dan kepada tetangga/lingkungan; kisah Nabi Musa a.s. dan Nabi Isa a.s.', PROSES.aa]
+          A: ['Pemahaman Konsep: akidah (dua kalimat syahadat, rukun iman, sifat wajib Allah, iman kepada malaikat, contoh asmaulhusna); akhlak (kalimah thayyibah, hidup bersih dan sehat, jujur, terima kasih, rendah hati, menghindari malas, berkata kasar, dan berbohong); adab sehari-hari; kisah Nabi Muhammad saw. dan Nabi Nuh a.s.', PROSES.aa.A],
+          B: ['Pemahaman Konsep: asmaulhusna, iman kepada kitab Allah serta nabi dan rasul; kalimah thayyibah; bersyukur, pantang menyerah, pemberani, tolong-menolong, amanah, dan menghindari serakah, kikir, kufur nikmat; adab kepada orang tua, guru, teman; kisah Nabi Ibrahim a.s. dan Nabi Ismail a.s.', PROSES.aa.B],
+          C: ['Pemahaman Konsep: perilaku yang mencerminkan asmaulhusna, hari akhir, qada dan qadar; kalimah thayyibah; akhlak terpuji (sabar, disiplin, mandiri, pemaaf, tanggung jawab, adil, bijaksana) dan menghindari akhlak tercela; adab bertamu dan kepada tetangga/lingkungan; kisah Nabi Musa a.s. dan Nabi Isa a.s.', PROSES.aa.C]
         },
         tp: {
           A: [
@@ -138,9 +157,9 @@
       fikih: {
         nama: 'Fikih',
         cp: {
-          A: ['Pemahaman Konsep (Ibadah): menyebutkan rukun Islam; meniru dan melafalkan syahadatain; meniru praktik taharah, salat fardu, salat berjemaah, azan, ikamah, dan zikir sesudah salat.', PROSES.fikih],
-          B: ['Pemahaman Konsep (Ibadah): tata cara puasa Ramadan, salat Jumat dan beberapa salat sunah, rukhsah pada salat, khitan, tanda-tanda balig, dan bersuci dari hadas besar.', PROSES.fikih],
-          C: ['Pemahaman Konsep: ibadah (zakat fitrah, infak, sedekah, hewan kurban dan hikmahnya, haji dan umrah, halal dan haram) serta muamalah (jual beli, pinjam meminjam, gasab, barang temuan/luqathah).', PROSES.fikih]
+          A: ['Pemahaman Konsep (Ibadah): menyebutkan rukun Islam; meniru dan melafalkan syahadatain; meniru praktik taharah, salat fardu, salat berjemaah, azan, ikamah, dan zikir sesudah salat.', PROSES.fikih.A],
+          B: ['Pemahaman Konsep (Ibadah): tata cara puasa Ramadan, salat Jumat dan beberapa salat sunah, rukhsah pada salat, khitan, tanda-tanda balig, dan bersuci dari hadas besar.', PROSES.fikih.B],
+          C: ['Pemahaman Konsep: ibadah (zakat fitrah, infak, sedekah, hewan kurban dan hikmahnya, haji dan umrah, halal dan haram) serta muamalah (jual beli, pinjam meminjam, gasab, barang temuan/luqathah).', PROSES.fikih.C]
         },
         tp: {
           A: [
@@ -203,7 +222,7 @@
         cp: {
           A: ['Komponen Bahasa: mengenali bunyi dan kosakata tentang perkenalan, keluargaku, rumahku, madrasahku, hobiku, nama-nama buah, warna, alat transportasi, dan pemandangan alam beserta pola kalimatnya. Keterampilan: menyimak, berbicara, membaca, memirsa, menulis, mempresentasikan.', PROSES.ba],
           B: ['Komponen Bahasa: mengidentifikasi kalimat sapaan dan pertanyaan tentang materi pelajaran, binatang, penyakit, olahraga, teman-temanku, taman, alamat, profesi, cita-citaku, di rumah, anggota keluarga, dan cinta Indonesia. Keterampilan: enam keterampilan berbahasa.', PROSES.ba],
-          C: ['Komponen Bahasa: mengidentifikasi informasi dan bacaan sederhana tentang anggota tubuh, kebun binatang, di ruang tamu dan ruang belajar, di perpustakaan, di kantin, jam, saya suka bahasa Arab, kegiatan liburan, dan piknik. Keterampilan: enam keterampilan berbahasa.', PROSES.ba]
+          C: ['Komponen Bahasa: mengidentifikasi informasi dan bacaan sederhana tentang anggota tubuh, kebun binatang, di ruang tamu dan ruang belajar, di perpustakaan, di kantin, jam, saya suka bahasa Arab, saya suka kegiatan liburan, dan piknik. Keterampilan: enam keterampilan berbahasa.', PROSES.ba]
         },
         tp: {
           A: [
@@ -212,25 +231,25 @@
             ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata serta pola kalimat tentang rumahku.', 'Rumahku'],
             ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata serta pola kalimat tentang madrasahku.', 'Madrasahku'],
             ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata serta pola kalimat tentang hobiku.', 'Hobiku'],
-            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata tentang nama-nama buah.', 'Nama-nama buah'],
-            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata tentang warna-warna.', 'Warna-warna'],
-            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata tentang alat transportasi.', 'Alat transportasi'],
-            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata tentang pemandangan alam.', 'Pemandangan alam'],
+            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata serta pola kalimat tentang nama-nama buah.', 'Nama-nama buah'],
+            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata serta pola kalimat tentang warna-warna.', 'Warna-warna'],
+            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata serta pola kalimat tentang alat transportasi.', 'Alat transportasi'],
+            ['Komponen Bahasa', 'Murid mampu mengenali bunyi dan kosakata serta pola kalimat tentang pemandangan alam.', 'Pemandangan alam'],
             ['Keterampilan Bahasa', 'Murid mampu menerapkan keterampilan menyimak, berbicara, membaca, memirsa, menulis, dan mempresentasikan pada topik yang dipelajari.', 'Keterampilan berbahasa']
           ],
           B: [
             ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang materi pelajaran.', 'Materi pelajaran'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang nama-nama binatang.', 'Nama-nama binatang'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang penyakit.', 'Penyakit'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang olahraga.', 'Olahraga'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang teman-temanku.', 'Teman-temanku'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang taman.', 'Taman'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang nama-nama binatang.', 'Nama-nama binatang'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang penyakit.', 'Penyakit'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang olahraga.', 'Olahraga'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang teman-temanku.', 'Teman-temanku'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang taman.', 'Taman'],
             ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang alamat.', 'Alamat'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang profesi.', 'Profesi'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang cita-citaku.', 'Cita-citaku'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang di rumah.', 'Di rumah'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang anggota keluarga.', 'Anggota keluarga'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat dan kosakata tentang cinta Indonesia.', 'Cinta Indonesia'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang profesi.', 'Profesi'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang cita-citaku.', 'Cita-citaku'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang di rumah.', 'Di rumah'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang anggota keluarga.', 'Anggota keluarga'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi kalimat sapaan dan pertanyaan tentang cinta Indonesia.', 'Cinta Indonesia'],
             ['Keterampilan Bahasa', 'Murid mampu menerapkan keterampilan menyimak, berbicara, membaca, memirsa, menulis, dan mempresentasikan pada topik yang dipelajari.', 'Keterampilan berbahasa']
           ],
           C: [
@@ -241,7 +260,7 @@
             ['Komponen Bahasa', 'Murid mampu mengidentifikasi informasi dan bacaan sederhana tentang di kantin.', 'Di kantin'],
             ['Komponen Bahasa', 'Murid mampu mengidentifikasi informasi dan bacaan sederhana tentang jam.', 'Jam'],
             ['Komponen Bahasa', 'Murid mampu mengidentifikasi informasi dan bacaan sederhana tentang saya suka bahasa Arab.', 'Saya suka bahasa Arab'],
-            ['Komponen Bahasa', 'Murid mampu mengidentifikasi informasi dan bacaan sederhana tentang kegiatan liburan.', 'Kegiatan liburan'],
+            ['Komponen Bahasa', 'Murid mampu mengidentifikasi informasi dan bacaan sederhana tentang saya suka kegiatan liburan.', 'Saya suka kegiatan liburan'],
             ['Komponen Bahasa', 'Murid mampu mengidentifikasi informasi dan bacaan sederhana tentang piknik.', 'Piknik'],
             ['Keterampilan Bahasa', 'Murid mampu menerapkan keterampilan menyimak, berbicara, membaca, memirsa, menulis, dan mempresentasikan pada topik yang dipelajari.', 'Keterampilan berbahasa']
           ]

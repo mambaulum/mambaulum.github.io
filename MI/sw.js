@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.474';
+const APP_VERSION = 'v8.481';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -123,17 +123,19 @@ const PRECACHE_URLS = [
   './js/pkg.js?v=97',                     // menu PKG Guru (halaman dibuat JS; dimuat SESUDAH app.js & menu-hub.js)
   './js/pkg-surat.js?v=4',                // surat PKG berQR Kepala (dimuat SESUDAH pkg.js)
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
-  './js/data-tp-mi.js?v=3',
+  './js/data-tp-mi.js?v=5',
   './js/data-tp-umum.js?v=1',            // bank TP mapel umum (dimuat sesudah data-tp-mi.js)
-  './js/data-soal-semua.js?v=1',          // bank soal gabungan semua mapel (menggantikan data-soal-mi.js)
+  './js/data-soal-semua.js?v=2',          // bank soal gabungan semua mapel (menggantikan data-soal-mi.js)
   './js/data-soal-aqh-tambahan.js?v=1',
   './js/data-soal-pai-tambahan.js?v=1',
   './js/data-soal-umum-tambahan.js?v=1',
   './js/data-soal-pai-fase-a-tambahan.js?v=1',
+  './js/data-soal-ba-bacaan-tambahan.js?v=1',  // soal dialog dan bacaan Bahasa Arab
+  './js/data-soal-aqh-surah-b-tambahan.js?v=1',  // soal surah contoh Fase B (aqh-B-8)
   './js/perangkat-rpe.js?v=15',
   './js/perangkat-prota-promes.js?v=9',
   './js/perangkat-atp-tp.js?v=11',
-  './js/data-kisi-resmi-mi.js?v=3',
+  './js/data-kisi-resmi-mi.js?v=6',
   './js/perangkat-kisi.js?v=12',
   './js/perangkat-soal.js?v=26',
   './js/perangkat-paket.js?v=4',
