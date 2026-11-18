@@ -6,6 +6,7 @@
      2) Absensi Sholat Dhuha & Dzuhur (activity_attendance_v4) ikut tercatat I/S
         pada hari yang memang ada sholatnya (Dhuha Sen-Sab, Dzuhur Sen-Kam).
    Node: ijin_ortu/{id}, ijin_ortu_foto/{id} (foto surat dokter, opsional, base64 kecil)
+   v6: tombol Admin "Bersihkan foto lama" (hapus foto surat > 60 hari; data pengajuan tetap).
    v5: tab Lama (pengajuan basi), penanda belum diproses 07:30 WIB, penyetuju PENGGANTI per hari (node ijin_ortu_pengganti).
    Dimuat SESUDAH app.js & portal-ortu.js.
    ============================================================ */
@@ -16,7 +17,7 @@
   var _daftarAdm = [];   // pengajuan yang sedang tampil di halaman Wali Kelas/Admin
   var _filterStatus = 'menunggu', _filterKelas = '';
   // v5: penyetuju PENGGANTI per hari (node ijin_ortu_pengganti), pengajuan basi -> tab Lama, penanda belum diproses.
-  var NODE_PENG = 'ijin_ortu_pengganti', BASI_HARI = 3, BATAS_ESKALASI = '07:30';
+  var NODE_PENG = 'ijin_ortu_pengganti', BASI_HARI = 3, BATAS_ESKALASI = '07:30', FOTO_SIMPAN_HARI = 60;
   var _pengKelas = [], _pengTs = 0, _pengTgl = '', _pengMuat = null, _pengPraKelas = '';   // kelas yang saya gantikan HARI INI
 
   function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
@@ -209,7 +210,8 @@
     isi.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">' +
       '<select id="ijinFilterStatus" class="field" style="max-width:170px;" onchange="ijinOrtuFilter()">' +
       ['menunggu:⏳ Menunggu', 'disetujui:✅ Disetujui', 'ditolak:❌ Ditolak', 'lama:🗂️ Lama (> ' + BASI_HARI + ' hari lewat)', 'semua:Semua'].map(function (o) { var a = o.split(':'); return '<option value="' + a[0] + '"' + (a[0] === _filterStatus ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('') + '</select>' + kelasOpt +
-      '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ijinOrtuMuatDaftar()">🔄 Muat ulang</button></div>' +
+      '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ijinOrtuMuatDaftar()">🔄 Muat ulang</button>' +
+      (isAdmin() ? '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ijinOrtuBersihFoto()" title="Hapus foto surat dari pengajuan yang sudah lebih dari ' + FOTO_SIMPAN_HARI + ' hari">🧹 Bersihkan foto lama</button>' : '') + '</div>' +
       '<div id="ijinOrtuDaftar"></div>';
     ijinOrtuMuatDaftar();
   };
@@ -587,6 +589,35 @@
       ijinOrtuTab('antrean');
       setTimeout(function () { ijinOrtuMuatDaftar().then(function () { ijinOrtuSetujui(ref.key); }); }, 50);
     });
+  };
+
+  /* ---------- 7) BERSIHKAN FOTO LAMA (Admin; hemat penyimpanan Firebase gratis) ---------- */
+  // Menghapus HANYA foto surat (ijin_ortu_foto) dari pengajuan yang sudah diproses dan lebih dari FOTO_SIMPAN_HARI hari.
+  // Data pengajuan (nama, tanggal, jenis, status) tetap; field hasFoto diubah false supaya tombol "Lihat foto surat" hilang.
+  window.ijinOrtuBersihFoto = function () {
+    if (!isAdmin() || isBusy('ijinBersih')) return;
+    if (!navigator.onLine) { toast('📡 Butuh koneksi internet.', true); return; }
+    var batas = geser(hariIni(), -FOTO_SIMPAN_HARI);
+    setBusy('ijinBersih', null);
+    db.ref(NODE).orderByChild('waktuKirim').endAt(batas).limitToLast(500).once('value').then(function (snap) {
+      var keys = [];
+      snap.forEach(function (c) { var v = c.val() || {}; if (v.hasFoto === true && v.status !== 'menunggu' && String(v.tglSelesai || '') < batas) keys.push(c.key); });
+      if (!keys.length) { toast('Tidak ada foto lama yang perlu dibersihkan.'); return; }
+      if (!confirm('Hapus ' + keys.length + ' foto surat dari pengajuan yang sudah lebih dari ' + FOTO_SIMPAN_HARI + ' hari?\n\nData pengajuan (nama, tanggal, jenis, status) tetap ada. Foto yang dihapus tidak bisa dikembalikan.')) return;
+      var potong = []; for (var i = 0; i < keys.length; i += 50) potong.push(keys.slice(i, i + 50));
+      return potong.reduce(function (rantai, grup) {
+        return rantai.then(function () {
+          var fotoNull = {}, tandai = {};
+          grup.forEach(function (k) { fotoNull[k] = null; tandai[k + '/hasFoto'] = false; });
+          return db.ref(NODE_FOTO).update(fotoNull).then(function () { return db.ref(NODE).update(tandai); });
+        });
+      }, Promise.resolve()).then(function () {
+        if (typeof addLog === 'function') addLog('ijin_ortu_bersih_foto', keys.length + ' foto > ' + FOTO_SIMPAN_HARI + ' hari');
+        toast('🧹 ' + keys.length + ' foto lama dihapus.');
+        ijinOrtuMuatDaftar();
+      });
+    }).catch(function (e) { toast('❌ Gagal membersihkan: ' + (e && e.message), true); })
+      .then(function () { clearBusy('ijinBersih', null); });
   };
 
   /* ---------- 6) PENYETUJU PENGGANTI PER HARI (Admin) ---------- */
