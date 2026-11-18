@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.488",
-  "disimpan": "2026-11-18T02:32:06.438Z",
+  "appVersion": "v8.490",
+  "disimpan": "2026-11-18T02:44:17.366Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=172",
-      "hash": "07e069451943390d9f23850fd0df26fa1d18532a"
+      "v": "v=173",
+      "hash": "c091562120ad47aa6222ed619fae35e4a258671d"
     },
     "js/portal-ortu.js": {
       "v": "v=38",
@@ -159,8 +159,8 @@
       "hash": "819568e1639a8a8d3da165110b0b7145777199be"
     },
     "js/amalan-kegiatan.js": {
-      "v": "v=46",
-      "hash": "b378bdff8e999e4b1bf3cd34968ecb75e2b19482"
+      "v": "v=47",
+      "hash": "af5689a125854caa95d96d0a1462c95efd1d82fb"
     },
     "js/bacaan-shalat.js": {
       "v": "v=42",
@@ -343,8 +343,8 @@
       "hash": "3bf7f830ed4f0d07f4d3299a9b3b74d0c6841377"
     },
     "js/ijin-ortu.js": {
-      "v": "v=4",
-      "hash": "d1472fa85c68ece331e3343ff4411c13c7ede600"
+      "v": "v=5",
+      "hash": "30d6c75e468f6b5e4161ae33e3e436e4a1e4a278"
     },
     "js/agenda-surat.js": {
       "v": "v=5",
