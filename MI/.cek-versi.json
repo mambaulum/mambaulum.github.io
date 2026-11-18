@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.494",
-  "disimpan": "2026-11-18T12:56:21.295Z",
+  "appVersion": "v8.495",
+  "disimpan": "2026-11-18T13:15:00.438Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=173",
-      "hash": "c091562120ad47aa6222ed619fae35e4a258671d"
+      "v": "v=174",
+      "hash": "728c3aa90a736b5129320cff49ccffd330159678"
     },
     "js/portal-ortu.js": {
       "v": "v=38",
@@ -89,6 +89,10 @@
     "js/jadwal.js": {
       "v": "v=6",
       "hash": "9d87a4d45671acfce1e63649dac3cd7c2b14714c"
+    },
+    "js/cek-data.js": {
+      "v": "v=1",
+      "hash": "03f257d0cac199d3dc48f78f13f99e32ea4dd275"
     },
     "js/laporan-rekap.js": {
       "v": "v=4",
