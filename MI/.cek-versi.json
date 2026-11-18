@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.482",
-  "disimpan": "2026-11-18T00:57:36.276Z",
+  "appVersion": "v8.483",
+  "disimpan": "2026-11-18T02:06:24.675Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,8 +59,8 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=170",
-      "hash": "4cdd13ab465a6ddcb798cb346b849d43dbf5224c"
+      "v": "v=171",
+      "hash": "ca27197df16d61b3377ae4eb2662ffd514c2b575"
     },
     "js/portal-ortu.js": {
       "v": "v=37",
@@ -339,8 +339,8 @@
       "hash": "34fcc78c75bfdd332e865ce7fa353c617711525a"
     },
     "js/surat-guru.js": {
-      "v": "v=47",
-      "hash": "e854c10a51ec38234b146275a0a8c64522508e66"
+      "v": "v=48",
+      "hash": "3bf7f830ed4f0d07f4d3299a9b3b74d0c6841377"
     },
     "js/agenda-surat.js": {
       "v": "v=5",
