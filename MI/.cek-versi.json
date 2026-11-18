@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.491",
-  "disimpan": "2026-11-18T02:47:15.743Z",
+  "appVersion": "v8.492",
+  "disimpan": "2026-11-18T03:36:01.505Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -343,8 +343,8 @@
       "hash": "3bf7f830ed4f0d07f4d3299a9b3b74d0c6841377"
     },
     "js/ijin-ortu.js": {
-      "v": "v=6",
-      "hash": "5c1719a7473e11f0ffecd2b2b18b4da29bfc2ed1"
+      "v": "v=7",
+      "hash": "fa1fe5a49dcd56330d2fe2426deec08df97b60d5"
     },
     "js/agenda-surat.js": {
       "v": "v=5",
