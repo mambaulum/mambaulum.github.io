@@ -809,6 +809,7 @@
           </div>
           ${gagalMuat.length ? '<div class="card" style="margin-bottom:8px;border-left:4px solid #d97706;font-size:12px;">⚠️ Sebagian data belum bisa dimuat. Tarik ke bawah untuk muat ulang, atau hubungi Admin bila berulang.</div>' : ''}
           <div id="persetujuanOrtuSlot"></div>
+          <div id="ijinOrtuSlot"></div>
           ${ringkasHtml}
           ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
           ${nilaiBuka ? poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false, 'poAccNilai') : poAcc('📝 Nilai Terakhir', poBadge('Belum dibuka'), '<p class="text-muted" style="font-size:13px;">Nilai raport belum dibuka oleh madrasah. Silakan menunggu informasi dari wali kelas.</p>', false, 'poAccNilai')}
@@ -836,6 +837,7 @@
           </details>
           ${PO_ACC_CSS}
         `;
+        try { if (typeof ijinOrtuRender === 'function') ijinOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Ijin/Sakit Anak (Portal Ortu) gagal dirender:', e); }
         try { if (typeof bsOrtuRender === 'function') bsOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Bacaan Shalat (Portal Ortu) gagal dirender:', e); }
         try { if (typeof angketProfilOrtuRender === 'function') angketProfilOrtuRender(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Profil Lulusan (Portal Ortu) gagal dirender:', e); }
         try { angketOrtuMuat(siswa); angketSiswaMuat(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Kurikulum (Portal Ortu) gagal dimuat:', e); }

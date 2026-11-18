@@ -123,9 +123,9 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=171"></script>
+  <script defer src="js/app.js?v=172"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=37"></script>
+  <script defer src="js/portal-ortu.js?v=38"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=6"></script>
@@ -165,7 +165,7 @@
   <script defer src="js/amalan-kegiatan.js?v=46"></script>
   <!-- Menu Bacaan Shalat (target hafalan, penilaian setoran, grafik) + checklist amalan di rumah (Portal Orang Tua) + Mode Anak. Sesudah app.js. -->
   <script defer src="js/bacaan-shalat.js?v=42"></script>
-  <script defer src="js/portal-tab.js?v=13"></script>   <!-- tab Beranda/Amalan/Belajar/Angket/Lainnya Portal Ortu (HP) -->
+  <script defer src="js/portal-tab.js?v=14"></script>   <!-- tab Beranda/Amalan/Belajar/Angket/Lainnya Portal Ortu (HP) -->
   <!-- [KREDENSIAL v1] Verifikasi PIN guru lewat indeks login_kredensial + panel Keamanan Login (Admin). Harus SESUDAH app.js. -->
   <script defer src="js/kredensial.js?v=8"></script>
   <!-- Tanda tangan digital (QR verifikasi + gambar) untuk semua cetak PDF/HTML + halaman verifikasi publik (?verifikasi=KODE). WAJIB sesudah app.js. Dipakai kas.js, rapat.js, administrasi-ujian.js, modul-ajar.js, perangkat-*.js saat mencetak. -->
@@ -241,6 +241,7 @@
   <script defer src="js/peran-ganda.js?v=4"></script>
   <script defer src="js/absen-manual-gps.js?v=5"></script>   <!-- konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (sesudah app.js) -->
   <script defer src="js/surat-guru.js?v=48"></script>
+  <script defer src="js/ijin-ortu.js?v=4"></script>   <!-- Ijin/Sakit Anak: form Portal Ortu + persetujuan Wali Kelas (sesudah app.js & portal-ortu.js) -->
   <script defer src="js/agenda-surat.js?v=5"></script>
   <!-- Undangan Rapat bernomor (tab di Surat & Ijin). WAJIB sesudah surat-guru.js dan agenda-surat.js. -->
   <script defer src="js/undangan-rapat.js?v=5"></script>
@@ -427,6 +428,7 @@
             <div class="menu-item" data-page="students"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-students"/></svg></span> Siswa</div>
             <div class="menu-item" data-page="promotion"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-promotion"/></svg></span> Kenaikan Kelas</div>
             <div class="menu-item" data-page="buku-penghubung"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Penghubung</div>
+            <div class="menu-item notif-badge" data-page="ijin-ortu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-surat"/></svg></span> Ijin/Sakit Ortu <span class="badge" id="ijinOrtuMenuBadge" style="display:none;"></span></div>
             <div class="menu-item notif-badge" data-page="info-ortu"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-info-ortu"/></svg></span> Info ke Ortu <span class="badge-dot" id="infoOrtuNotifDot"></span></div>
         <div class="menu-item" data-page="buku-induk"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-buku-penghubung"/></svg></span> Buku Induk</div>
             <div class="menu-item hidden-tab" data-page="ortu-akun" style="display:none;"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-students"/></svg></span> Akun &amp; Login Ortu</div>
@@ -941,6 +943,14 @@
       <!-- ============================================================
            PAGE: BUKU PENGHUBUNG
       ============================================================ -->
+      <div id="page-ijin-ortu" class="page-content hidden">
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🤒 Ijin/Sakit Ortu</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Pengajuan ijin/sakit anak dari Portal Orang Tua. Bila disetujui, absensi kelas dan absensi Dhuha/Dzuhur anak pada tanggal itu otomatis tercatat Ijin atau Sakit.</p>
+          <div id="ijinOrtuPageBody"></div>
+        </div>
+      </div>
+
       <div id="page-buku-penghubung" class="page-content hidden">
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📖 Buku Penghubung</h3>
