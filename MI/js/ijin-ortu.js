@@ -6,6 +6,7 @@
      2) Absensi Sholat Dhuha & Dzuhur (activity_attendance_v4) ikut tercatat I/S
         pada hari yang memang ada sholatnya (Dhuha Sen-Sab, Dzuhur Sen-Kam).
    Node: ijin_ortu/{id}, ijin_ortu_foto/{id} (foto surat dokter, opsional, base64 kecil)
+   v5: tab Lama (pengajuan basi), penanda belum diproses 07:30 WIB, penyetuju PENGGANTI per hari (node ijin_ortu_pengganti).
    Dimuat SESUDAH app.js & portal-ortu.js.
    ============================================================ */
 (function () {
@@ -14,6 +15,9 @@
   var JENIS = { S: 'Sakit', I: 'Ijin' };
   var _daftarAdm = [];   // pengajuan yang sedang tampil di halaman Wali Kelas/Admin
   var _filterStatus = 'menunggu', _filterKelas = '';
+  // v5: penyetuju PENGGANTI per hari (node ijin_ortu_pengganti), pengajuan basi -> tab Lama, penanda belum diproses.
+  var NODE_PENG = 'ijin_ortu_pengganti', BASI_HARI = 3, BATAS_ESKALASI = '07:30';
+  var _pengKelas = [], _pengTs = 0, _pengTgl = '', _pengMuat = null, _pengPraKelas = '';   // kelas yang saya gantikan HARI INI
 
   function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
   function js(s) { return (typeof escapeJs === 'function') ? escapeJs(s) : String(s == null ? '' : s).replace(/[\\'"]/g, '\\$&'); }
@@ -141,16 +145,42 @@
   /* ============================================================
      BAGIAN B - WALI KELAS / ADMIN
      ============================================================ */
-  function bolehBuka() { return !!currentUser && (isAdmin() || isKepsek() || (typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned())); }
-  function bolehSetujui(p) { return !!currentUser && (isAdmin() || (currentUser.waliKelasOf && currentUser.waliKelasOf === p.kelas)); }
+  function bolehBuka() { return !!currentUser && (isAdmin() || isKepsek() || _pengKelas.length > 0 || (typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned())); }
+  function bolehSetujui(p) { return !!currentUser && (isAdmin() || (currentUser.waliKelasOf && currentUser.waliKelasOf === p.kelas) || _pengKelas.indexOf(p.kelas) >= 0); }
+  // Kelas yang boleh saya proses (Wali Kelas + penyetuju pengganti hari ini). Admin/Kepala -> null (semua kelas, untuk daftar).
+  function kelasWewenang() { var a = []; if (currentUser && currentUser.waliKelasOf) a.push(currentUser.waliKelasOf); _pengKelas.forEach(function (k) { if (a.indexOf(k) < 0) a.push(k); }); return a; }
+  function kelasSaya() { return (isAdmin() || isKepsek()) ? null : kelasWewenang(); }
+  function tandaiBasi(p) { return p.status === 'menunggu' && String(p.tglSelesai || '') < geser(hariIni(), -BASI_HARI); }
+  function menitWib() { var d = new Date(Date.now() + 7 * 3600 * 1000); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
+  function menitBatas() { var q = BATAS_ESKALASI.split(':'); return (+q[0]) * 60 + (+q[1]); }
+  // Belum diproses: pengajuan menunggu yang mencakup HARI INI dan sudah lewat 07:30 WIB.
+  function perluEskalasi(p) { var t = hariIni(); return p.status === 'menunggu' && p.tglMulai <= t && p.tglSelesai >= t && menitWib() >= menitBatas(); }
+  function pengKey(kelas, tgl) { return String(kelas).replace(/[.#$\[\]\/]/g, '_') + '_' + tgl; }
+  function sayaGuru(refKey, refNama) { return !!currentUser && !!((refKey && currentUser.key && refKey === currentUser.key) || (refNama && refNama === currentUser.name)); }
+  // Muat penunjukan pengganti HARI INI (kecil; TTL 5 menit). Bila kelas saya berubah: perbarui menu + listener.
+  function muatPengganti(paksa) {
+    if (typeof db === 'undefined' || !db || !currentUser || !navigator.onLine) return Promise.resolve(false);
+    if (_pengMuat) return _pengMuat;
+    var t = hariIni();
+    if (!paksa && _pengTs && _pengTgl === t && Date.now() - _pengTs < 300000) return Promise.resolve(false);
+    _pengMuat = db.ref(NODE_PENG).orderByChild('tanggal').equalTo(t).once('value').then(function (snap) {
+      var baru = []; snap.forEach(function (c) { var v = c.val() || {}; if (v.tanggal === t && sayaGuru(v.guruKey, v.guruNama) && baru.indexOf(v.kelas) < 0) baru.push(v.kelas); });
+      baru.sort(); var ubah = baru.join('|') !== _pengKelas.slice().sort().join('|');
+      _pengKelas = baru; _pengTs = Date.now(); _pengTgl = t;
+      if (ubah) { _lisKey = ''; try { if (typeof v4ApplyMode === 'function') v4ApplyMode(); } catch (e) {} }
+      return ubah;
+    }).catch(function () { _pengTs = Date.now() - 240000; _pengTgl = t; return false; }).then(function (x) { _pengMuat = null; return x; });
+    return _pengMuat;
+  }
   window.ijinOrtuBolehBuka = bolehBuka;
 
-  function refDaftar() {
-    var r = db.ref(NODE);
-    if (!isAdmin() && !isKepsek() && currentUser.waliKelasOf) return r.orderByChild('kelas').equalTo(currentUser.waliKelasOf).limitToLast(150);
-    if (_filterKelas) return r.orderByChild('kelas').equalTo(_filterKelas).limitToLast(150);
-    if (_filterStatus !== 'semua') return r.orderByChild('status').equalTo(_filterStatus).limitToLast(150);
-    return r.orderByChild('waktuKirim').limitToLast(150);
+  function refsDaftar() {
+    var r = db.ref(NODE), ks = kelasSaya();
+    if (ks) return ks.map(function (k) { return r.orderByChild('kelas').equalTo(k).limitToLast(150); });
+    if (_filterKelas) return [r.orderByChild('kelas').equalTo(_filterKelas).limitToLast(150)];
+    if (_filterStatus === 'lama') return [r.orderByChild('status').equalTo('menunggu').limitToLast(150)];
+    if (_filterStatus !== 'semua') return [r.orderByChild('status').equalTo(_filterStatus).limitToLast(150)];
+    return [r.orderByChild('waktuKirim').limitToLast(150)];
   }
 
   var _tab = 'antrean';
@@ -165,11 +195,12 @@
     _tab = t;
     var bar = document.getElementById('ijinTabBar'), isi = document.getElementById('ijinOrtuTabIsi');
     if (!bar || !isi) return;
-    bar.innerHTML = [['antrean', '📥 Antrean'], ['rekap', '📊 Rekap Bulanan'], ['input', '➕ Input atas nama Ortu']].map(function (x) {
+    bar.innerHTML = [['antrean', '📥 Antrean'], ['rekap', '📊 Rekap Bulanan'], ['input', '➕ Input atas nama Ortu']].concat(isAdmin() ? [['pengganti', '🔁 Penyetuju Pengganti']] : []).map(function (x) {
       return '<button class="btn ' + (x[0] === t ? 'btn-primary' : 'btn-secondary') + '" style="font-size:12px;padding:6px 12px;" onclick="ijinOrtuTab(\'' + x[0] + '\')">' + x[1] + '</button>';
     }).join('');
     if (t === 'rekap') return ijinOrtuRekapUI(isi);
     if (t === 'input') return ijinOrtuInputUI(isi);
+    if (t === 'pengganti' && isAdmin()) return ijinOrtuPengUI(isi);
     var sudahWali = !isAdmin() && !isKepsek(), kelasOpt = '';
     if (!sudahWali) {
       var ks = {}; (typeof allSiswa !== 'undefined' ? allSiswa : []).forEach(function (x) { if (x.kelas) ks[x.kelas] = 1; });
@@ -177,7 +208,7 @@
     }
     isi.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">' +
       '<select id="ijinFilterStatus" class="field" style="max-width:170px;" onchange="ijinOrtuFilter()">' +
-      ['menunggu:⏳ Menunggu', 'disetujui:✅ Disetujui', 'ditolak:❌ Ditolak', 'semua:Semua'].map(function (o) { var a = o.split(':'); return '<option value="' + a[0] + '"' + (a[0] === _filterStatus ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('') + '</select>' + kelasOpt +
+      ['menunggu:⏳ Menunggu', 'disetujui:✅ Disetujui', 'ditolak:❌ Ditolak', 'lama:🗂️ Lama (> ' + BASI_HARI + ' hari lewat)', 'semua:Semua'].map(function (o) { var a = o.split(':'); return '<option value="' + a[0] + '"' + (a[0] === _filterStatus ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('') + '</select>' + kelasOpt +
       '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ijinOrtuMuatDaftar()">🔄 Muat ulang</button></div>' +
       '<div id="ijinOrtuDaftar"></div>';
     ijinOrtuMuatDaftar();
@@ -191,14 +222,20 @@
     var box = document.getElementById('ijinOrtuDaftar');
     if (!box) return Promise.resolve();
     box.innerHTML = '<p class="text-muted" style="text-align:center;padding:14px;">⏳ Memuat...</p>';
-    return refDaftar().once('value').then(function (snap) {
-      var arr = []; snap.forEach(function (c) { var v = c.val() || {}; v.key = c.key; arr.push(v); });
-      if (_filterStatus !== 'semua') arr = arr.filter(function (p) { return p.status === _filterStatus; });
-      arr.sort(function (a, b) { return String(b.waktuKirim || '').localeCompare(String(a.waktuKirim || '')); });
+    return Promise.all(refsDaftar().map(function (q) { return q.once('value'); })).then(function (snaps) {
+      var arr = [], ada = {};
+      snaps.forEach(function (snap) { snap.forEach(function (c) { if (ada[c.key]) return; ada[c.key] = 1; var v = c.val() || {}; v.key = c.key; arr.push(v); }); });
+      if (_filterStatus === 'lama') arr = arr.filter(tandaiBasi);
+      else if (_filterStatus === 'menunggu') arr = arr.filter(function (p) { return p.status === 'menunggu' && !tandaiBasi(p); });
+      else if (_filterStatus !== 'semua') arr = arr.filter(function (p) { return p.status === _filterStatus; });
+      arr.sort(function (x, y) { return (perluEskalasi(y) ? 1 : 0) - (perluEskalasi(x) ? 1 : 0) || String(y.waktuKirim || '').localeCompare(String(x.waktuKirim || '')); });
       _daftarAdm = arr;
-      ijinOrtuHitungBadge(arr, snap);
-      if (!arr.length) { box.innerHTML = '<p class="text-muted" style="text-align:center;padding:14px;">Tidak ada pengajuan.</p>'; return; }
-      box.innerHTML = arr.map(kartuAdm).join('');
+      ijinOrtuHitungBadge(arr);
+      if (!arr.length) { box.innerHTML = '<p class="text-muted" style="text-align:center;padding:14px;">' + (_filterStatus === 'lama' ? 'Tidak ada pengajuan lama.' : 'Tidak ada pengajuan.') + '</p>'; return; }
+      var nEsk = arr.filter(perluEskalasi).length;
+      var banner = nEsk ? '<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12px;">⚠️ ' + nEsk + ' pengajuan untuk HARI INI belum diproses (lewat ' + BATAS_ESKALASI + ' WIB).' + (isAdmin() ? ' Bila Wali Kelasnya tidak masuk, proses di sini atau tunjuk penyetuju pengganti.' : '') + '</div>' : '';
+      var catLama = _filterStatus === 'lama' ? '<div class="text-muted" style="font-size:11px;margin-bottom:6px;">Pengajuan menunggu yang tanggalnya sudah lewat lebih dari ' + BASI_HARI + ' hari. Tidak ikut dihitung di lencana dan notifikasi. Boleh disetujui/ditolak bila masih perlu dirapikan.</div>' : '';
+      box.innerHTML = banner + catLama + arr.map(kartuAdm).join('');
     }).catch(function (e) { box.innerHTML = '<p style="color:#dc2626;padding:12px;">❌ Gagal memuat: ' + esc(e && e.message) + '</p>'; });
   };
   function kartuAdm(p) {
@@ -206,6 +243,7 @@
     return '<div class="card" id="ijinKartu_' + esc(p.key) + '" style="margin-bottom:8px;">' +
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap;"><div><strong>' + esc(p.siswaNama) + '</strong> <span class="text-muted" style="font-size:12px;">· ' + esc(p.kelas) + '</span>' +
       '<div style="font-size:13px;margin-top:2px;">' + (p.jenis === 'S' ? '🤒 Sakit' : '📝 Ijin') + ' · ' + esc(rentangTxt(p)) + '</div></div>' + badgeStatus(p.status) + '</div>' +
+      (perluEskalasi(p) ? '<div style="color:#b91c1c;font-size:12px;font-weight:700;margin-top:4px;">⚠️ Belum diproses (lewat ' + BATAS_ESKALASI + ' WIB)</div>' : '') +
       '<div style="font-size:13px;margin:6px 0;">' + esc(p.keterangan) + '</div>' +
       '<div class="text-muted" style="font-size:11px;">Dikirim ' + (p.dikirimOleh ? '(oleh ' + esc(p.dikirimOleh) + ') ' : '') + esc(String(p.waktuKirim || '').slice(0, 16).replace('T', ' ')) + '</div>' +
       (p.status === 'ditolak' && p.catatan ? '<div style="color:#b91c1c;font-size:12px;margin-top:4px;">Alasan: ' + esc(p.catatan) + '</div>' : '') +
@@ -216,7 +254,8 @@
       (p.status === 'menunggu' && bisa ? '<button class="btn btn-success" style="font-size:12px;padding:5px 12px;" onclick="ijinOrtuSetujui(\'' + js(p.key) + '\')">✅ Setujui</button><button class="btn btn-danger" style="font-size:12px;padding:5px 12px;" onclick="ijinOrtuTolak(\'' + js(p.key) + '\')">❌ Tolak</button>' : '') +
       (p.status !== 'menunggu' ? '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px;" onclick="ijinOrtuWa(\'' + js(p.key) + '\')">💬 Kabari Ortu (WA)</button>' : '') +
       (p.status === 'disetujui' && bisa ? '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px;" onclick="ijinOrtuBatalSetuju(\'' + js(p.key) + '\')">↩️ Batalkan persetujuan</button>' : '') +
-      (p.status === 'menunggu' && !bisa ? '<span class="text-muted" style="font-size:12px;">Hanya Wali Kelas ' + esc(p.kelas) + ' atau Admin yang bisa memproses.</span>' : '') +
+      (p.status === 'menunggu' && isAdmin() ? '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px;" onclick="ijinOrtuTunjuk(\'' + js(p.kelas) + '\')">🔁 Tunjuk pengganti</button>' : '') +
+      (p.status === 'menunggu' && !bisa ? '<span class="text-muted" style="font-size:12px;">Hanya Wali Kelas ' + esc(p.kelas) + ', penyetuju pengganti, atau Admin yang bisa memproses.</span>' : '') +
       '</div></div>';
   }
   window.ijinOrtuLihatFoto = function (key) {
@@ -232,33 +271,49 @@
 
   // Menu sidebar: jumlah pengajuan menunggu (hanya dari data yang baru dimuat; tidak ada listener terus-menerus, hemat kuota Spark).
   function ijinOrtuHitungBadge(arr) {
-    var n = arr.filter(function (p) { return p.status === 'menunggu' && bolehSetujui(p); }).length;
+    var n = arr.filter(function (p) { return p.status === 'menunggu' && !tandaiBasi(p) && bolehSetujui(p); }).length;
     var el = document.getElementById('ijinOrtuMenuBadge');
     if (el) { el.textContent = n || ''; el.style.display = n ? '' : 'none'; }
   }
   var _lisRef = null, _lisKey = '', _lastN = -1;
+  var _lisData = [], _eskTgl = '', _eskN = -1;
+  // Admin/Kepala: pengajuan HARI INI yang belum diproses lewat 07:30 WIB -> pemberitahuan (sekali per hari, atau bila jumlahnya bertambah).
+  function eskalasiCek() {
+    if (!currentUser || !(isAdmin() || isKepsek())) return;
+    var n = _lisData.filter(perluEskalasi).length, t = hariIni();
+    if (n && (_eskTgl !== t || n > _eskN)) {
+      _eskTgl = t; _eskN = n;
+      toast('⚠️ ' + n + ' pengajuan ijin/sakit hari ini belum diproses (lewat ' + BATAS_ESKALASI + ' WIB).', true, 8000);
+      try { if (typeof v4Notify === 'function' && currentUser.key) v4Notify('Ijin/Sakit belum diproses', n + ' pengajuan untuk hari ini belum diproses.', 'INFO', currentUser.key, 'ijin_ortu', ''); } catch (e) {}
+    }
+  }
   window.ijinOrtuCekAntrean = function () {
-    if (typeof db === 'undefined' || !db || !currentUser || !bolehBuka()) return;
-    var wali = (!isAdmin() && !isKepsek() && currentUser.waliKelasOf) ? currentUser.waliKelasOf : '';
-    var kunci = (currentUser.key || currentUser.name || '') + '|' + wali;
-    if (_lisRef && _lisKey === kunci) return;
-    if (_lisRef) { try { _lisRef.off('value'); } catch (e) {} }
-    var r = db.ref(NODE);
-    // Satu listener kecil (tanpa foto): lencana menu & pemberitahuan langsung saat ada pengajuan baru.
-    _lisRef = wali ? r.orderByChild('kelas').equalTo(wali).limitToLast(150) : r.orderByChild('status').equalTo('menunggu').limitToLast(150);
-    _lisKey = kunci; _lastN = -1;
-    _lisRef.on('value', function (snap) {
-      var a = []; snap.forEach(function (c) { var v = c.val() || {}; v.key = c.key; a.push(v); });
-      ijinOrtuHitungBadge(a);
-      var n = a.filter(function (x) { return x.status === 'menunggu' && bolehSetujui(x); }).length;
-      if (_lastN >= 0 && n > _lastN) {
-        toast('📩 Ada pengajuan ijin/sakit baru dari orang tua (' + n + ' menunggu).', false, 7000);
-        try { if (typeof v4Notify === 'function' && currentUser.key) v4Notify('Pengajuan Ijin/Sakit baru', n + ' pengajuan menunggu persetujuan Anda.', 'INFO', currentUser.key, 'ijin_ortu', ''); } catch (e) {}
-        var pg = document.getElementById('page-ijin-ortu');
-        if (pg && !pg.classList.contains('hidden') && _tab === 'antrean') ijinOrtuMuatDaftar();
-      }
-      _lastN = n;
-    }, function () { _lisRef = null; });
+    if (typeof db === 'undefined' || !db || !currentUser) return;
+    muatPengganti(false).then(function () {
+      if (!bolehBuka()) return;
+      var ks = kelasSaya();
+      var kunci = (currentUser.key || currentUser.name || '') + '|' + (ks ? ks.join(',') : '*');
+      if (_lisRef && _lisKey === kunci) { eskalasiCek(); return; }
+      if (_lisRef) { try { _lisRef.off('value'); } catch (e) {} }
+      var r = db.ref(NODE);
+      // Satu listener kecil (tanpa foto): lencana menu & pemberitahuan langsung saat ada pengajuan baru.
+      _lisRef = (ks && ks.length === 1) ? r.orderByChild('kelas').equalTo(ks[0]).limitToLast(150) : r.orderByChild('status').equalTo('menunggu').limitToLast(150);
+      _lisKey = kunci; _lastN = -1;
+      _lisRef.on('value', function (snap) {
+        var a = []; snap.forEach(function (c) { var v = c.val() || {}; v.key = c.key; a.push(v); });
+        _lisData = a.filter(function (x) { return x.status === 'menunggu' && !tandaiBasi(x); });
+        ijinOrtuHitungBadge(a);
+        var n = _lisData.filter(bolehSetujui).length;
+        if (_lastN >= 0 && n > _lastN) {
+          toast('📩 Ada pengajuan ijin/sakit baru dari orang tua (' + n + ' menunggu).', false, 7000);
+          try { if (typeof v4Notify === 'function' && currentUser.key) v4Notify('Pengajuan Ijin/Sakit baru', n + ' pengajuan menunggu persetujuan Anda.', 'INFO', currentUser.key, 'ijin_ortu', ''); } catch (e) {}
+          var pg = document.getElementById('page-ijin-ortu');
+          if (pg && !pg.classList.contains('hidden') && _tab === 'antrean') ijinOrtuMuatDaftar();
+        }
+        _lastN = n;
+        eskalasiCek();
+      }, function () { _lisRef = null; });
+    });
   };
 
   window.ijinOrtuTolak = function (key) {
@@ -458,12 +513,12 @@
     if (!box || !inp || !inp.value) return;
     var ym = inp.value, awal = ym + '-01', akhir = ym + '-31';
     box.innerHTML = '<p class="text-muted" style="text-align:center;padding:14px;">⏳ Menghitung...</p>';
-    var r = db.ref(NODE), wali = (!isAdmin() && !isKepsek() && currentUser.waliKelasOf) ? currentUser.waliKelasOf : '';
-    var q = wali ? r.orderByChild('kelas').equalTo(wali).limitToLast(500) : r.orderByChild('status').equalTo('disetujui').limitToLast(500);
+    var r = db.ref(NODE), ks = kelasSaya();
+    var q = (ks && ks.length === 1) ? r.orderByChild('kelas').equalTo(ks[0]).limitToLast(500) : r.orderByChild('status').equalTo('disetujui').limitToLast(500);
     q.once('value').then(function (snap) {
       var per = {};
       snap.forEach(function (c) {
-        var v = c.val() || {}; if (v.status !== 'disetujui' || v.tglSelesai < awal || v.tglMulai > akhir) return;
+        var v = c.val() || {}; if (v.status !== 'disetujui' || v.tglSelesai < awal || v.tglMulai > akhir || (ks && ks.indexOf(v.kelas) < 0)) return;
         var o = per[v.siswaKey] || (per[v.siswaKey] = { nama: v.siswaNama, kelas: v.kelas, S: 0, I: 0, nS: 0 });
         daftarTanggal(v.tglMulai, v.tglSelesai).forEach(function (t) { if (t.slice(0, 7) === ym) o[v.jenis]++; });
         if (v.jenis === 'S') o.nS++;
@@ -488,8 +543,8 @@
   }
   function ijinOrtuInputUI(isi) {
     var ks = {}; (typeof allSiswa !== 'undefined' ? allSiswa : []).forEach(function (x) { if (x.kelas) ks[x.kelas] = 1; });
-    var daftarKelas = isAdmin() ? Object.keys(ks).sort() : (currentUser.waliKelasOf ? [currentUser.waliKelasOf] : []);
-    if (!daftarKelas.length) { isi.innerHTML = '<p class="text-muted">Hanya Wali Kelas dan Admin yang bisa menginput atas nama orang tua.</p>'; return; }
+    var daftarKelas = isAdmin() ? Object.keys(ks).sort() : kelasWewenang();
+    if (!daftarKelas.length) { isi.innerHTML = '<p class="text-muted">Hanya Wali Kelas, penyetuju pengganti, dan Admin yang bisa menginput atas nama orang tua.</p>'; return; }
     var t = hariIni();
     isi.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0 0 8px;">Untuk orang tua yang tidak memakai Portal (mis. memberi kabar lewat WhatsApp). Setelah disimpan, langsung diproses sebagai persetujuan.</p>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">' +
@@ -532,6 +587,63 @@
       ijinOrtuTab('antrean');
       setTimeout(function () { ijinOrtuMuatDaftar().then(function () { ijinOrtuSetujui(ref.key); }); }, 50);
     });
+  };
+
+  /* ---------- 6) PENYETUJU PENGGANTI PER HARI (Admin) ---------- */
+  // Dipakai saat Wali Kelas tidak masuk: Admin menunjuk 1 guru (mis. guru pendamping atau Kepala) untuk kelas itu pada 1 tanggal.
+  // Selama tanggal itu guru tersebut melihat menu "Ijin/Sakit Ortu" dan boleh Setujui/Tolak/Input untuk kelas itu saja.
+  window.ijinOrtuTunjuk = function (kelas) { _pengPraKelas = kelas || ''; ijinOrtuTab('pengganti'); };
+  function ijinOrtuPengUI(isi) {
+    var ks = {}; (typeof allSiswa !== 'undefined' ? allSiswa : []).forEach(function (x) { if (x.kelas) ks[x.kelas] = 1; });
+    var t = hariIni(), pra = _pengPraKelas; _pengPraKelas = '';
+    var guru = (typeof allGuru !== 'undefined' ? allGuru : []).filter(function (g) { return g && g.name; }).slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+    isi.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0 0 8px;">Untuk hari ketika Wali Kelas tidak masuk. Guru yang ditunjuk bisa menyetujui/menolak ijin-sakit <strong>kelas itu saja</strong> pada tanggal yang dipilih. Menunya muncul di aplikasinya dalam beberapa menit (atau setelah masuk ulang).</p>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">' +
+      '<div><label class="label">Kelas</label><select id="pengKelas" class="field">' + Object.keys(ks).sort().map(function (k) { return '<option' + (k === pra ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
+      '<div><label class="label">Tanggal</label><input type="date" id="pengTgl" class="field" value="' + t + '" min="' + t + '" max="' + geser(t, MAKS_MAJU) + '"></div>' +
+      '<div style="grid-column:1/-1;"><label class="label">Guru penyetuju pengganti</label><select id="pengGuru" class="field"><option value="">— pilih guru —</option>' + guru.map(function (g) { return '<option value="' + esc(g.key || g.name) + '">' + esc(g.name) + '</option>'; }).join('') + '</select></div></div>' +
+      '<button class="btn btn-primary" id="btnPengSimpan" onclick="ijinOrtuPengSimpan()">💾 Simpan Penunjukan</button> <span id="pengStatus" style="font-size:12px;margin-left:6px;"></span>' +
+      '<h4 style="margin:14px 0 6px;font-size:13px;">Penunjukan hari ini dan yang akan datang</h4><div id="pengDaftar"><p class="text-muted" style="font-size:12px;">⏳ Memuat...</p></div>';
+    ijinOrtuPengDaftar();
+  }
+  function ijinOrtuPengDaftar() {
+    var box = document.getElementById('pengDaftar'); if (!box) return;
+    db.ref(NODE_PENG).orderByChild('tanggal').startAt(hariIni()).limitToLast(60).once('value').then(function (snap) {
+      var arr = []; snap.forEach(function (c) { var v = c.val() || {}; v.key = c.key; arr.push(v); });
+      arr.sort(function (a, b) { return String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.kelas).localeCompare(String(b.kelas)); });
+      if (!arr.length) { box.innerHTML = '<p class="text-muted" style="font-size:12px;">Belum ada penunjukan.</p>'; return; }
+      box.innerHTML = arr.map(function (v) {
+        return '<div class="card" style="margin-bottom:6px;padding:8px 10px;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;"><div style="font-size:13px;"><strong>' + esc(tglId(v.tanggal)) + '</strong> · Kelas ' + esc(v.kelas) + ' → <strong>' + esc(v.guruNama) + '</strong><div class="text-muted" style="font-size:11px;">Ditunjuk oleh ' + esc(v.oleh) + '</div></div>' +
+          '<button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;" onclick="ijinOrtuPengHapus(\'' + js(v.key) + '\')">🗑️ Hapus</button></div>';
+      }).join('');
+    }).catch(function (e) { box.innerHTML = '<p style="color:#dc2626;font-size:12px;">❌ Gagal memuat: ' + esc(e && e.message) + '</p>'; });
+  }
+  window.ijinOrtuPengSimpan = function () {
+    if (!isAdmin() || isBusy('pengSimpan')) return;
+    var st = document.getElementById('pengStatus'), btn = document.getElementById('btnPengSimpan');
+    var warn = function (m) { if (st) st.innerHTML = '<span style="color:#dc2626;">' + m + '</span>'; };
+    var kelas = document.getElementById('pengKelas').value, tgl = document.getElementById('pengTgl').value, gk = document.getElementById('pengGuru').value, t = hariIni();
+    var g = (typeof allGuru !== 'undefined' ? allGuru : []).filter(function (x) { return x && (x.key || x.name) === gk; })[0];
+    if (!kelas) return warn('⚠️ Pilih kelas.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl) || tgl < t || tgl > geser(t, MAKS_MAJU)) return warn('⚠️ Tanggal tidak valid (hari ini sampai ' + MAKS_MAJU + ' hari ke depan).');
+    if (!g) return warn('⚠️ Pilih guru penyetuju.');
+    if (!navigator.onLine) return warn('📡 Butuh koneksi internet.');
+    setBusy('pengSimpan', btn);
+    db.ref(NODE_PENG + '/' + pengKey(kelas, tgl)).set({ kelas: kelas, tanggal: tgl, guruKey: String(g.key || g.name).slice(0, 120), guruNama: String(g.name).slice(0, 100), oleh: String(currentUser.name || 'Admin').slice(0, 100), waktu: new Date().toISOString() }).then(function () {
+      if (typeof addLog === 'function') addLog('ijin_ortu_pengganti', g.name + ' · Kelas ' + kelas + ' · ' + tgl);
+      try { if (typeof v4Notify === 'function' && g.key) v4Notify('Anda ditunjuk menyetujui Ijin/Sakit', 'Kelas ' + kelas + ' pada ' + tglId(tgl) + ' (menu Ijin/Sakit Ortu).', 'INFO', g.key, 'ijin_ortu', ''); } catch (e) {}
+      toast('✅ ' + g.name + ' ditunjuk untuk kelas ' + kelas + ' (' + tglId(tgl) + ').');
+      if (st) st.innerHTML = '';
+      return muatPengganti(true);
+    }).catch(function (e) { warn('❌ Gagal menyimpan: ' + esc(e && e.message)); })
+      .then(function () { clearBusy('pengSimpan', btn); ijinOrtuPengDaftar(); });
+  };
+  window.ijinOrtuPengHapus = function (key) {
+    if (!isAdmin() || !confirm('Hapus penunjukan pengganti ini?')) return;
+    db.ref(NODE_PENG + '/' + key).remove().then(function () {
+      if (typeof addLog === 'function') addLog('ijin_ortu_pengganti_hapus', key);
+      toast('Penunjukan dihapus.'); return muatPengganti(true);
+    }).catch(function (e) { toast('❌ Gagal: ' + (e && e.message), true); }).then(ijinOrtuPengDaftar);
   };
 
   // Cek antrean sekali setelah login (ditunda supaya tidak ikut memperlambat boot).

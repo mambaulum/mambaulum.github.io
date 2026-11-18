@@ -20,6 +20,9 @@
    v2: check-in petugas harian lewat QR + klaim pengganti (lihat bagian "CHECK-IN PETUGAS" di bawah).
    Butuh node Firebase baru activity_checkin_v4 dan field activity_types_v4/<key>/{qrToken,jamMulai}.
 
+   v47: kartu "Ijin/Sakit tgl ..." (hanya lihat) di blok kegiatan Dhuha/Dzuhur untuk PJ: pengajuan ijin_ortu yang masih MENUNGGU
+   (dibaca 1x/menit) + yang sudah disetujui (dari absensi kegiatan yang sudah dimuat). Lihat v4ActIjinCardHtml.
+
    v3: KELAS YANG TIDAK IKUT suatu kegiatan (mis. kelas 1 & 2 pulang lebih awal sehingga tidak ikut Sholat Dzuhur).
    Field baru activity_types_v4/<key>/kelasTidakIkut (string, kelas dipisah '|', mis. "1|2"); diatur Admin lewat tombol
    "Kelas Peserta" di kartu kegiatan. Kelas itu dikeluarkan dari "Semua Kelas", dari syarat kelengkapan absensi (honor sholat
@@ -50,6 +53,7 @@ function amalanKegiatanResetState() {
   v4RekapReligiState = { kelas: '', bulan: null, tahun: null, view: 'kelas', petugasMode: 'detail', alpaMin: 3 };
   v4RekapPetugasCache = {};
   v4HonorSholatCache = {}; v4HonorSiswaCache = {};
+  v4ActIjin = { daftar: [], ts: 0, memuat: false, gagal: false };
   v4ActBersihkanCheckin();
 }
 
@@ -372,6 +376,88 @@ function v4ActPilihTab(typeKey) {
   v4ActOpenTypeKey = typeKey; delete v4ActAttendanceDraft[typeKey]; if (!v4ActKelasSel[typeKey]) v4ActKelasSel[typeKey] = '';
   v4RenderActivityFill();
 }
+// ===== v47: IJIN/SAKIT HARI INI untuk PJ Dhuha/Dzuhur (HANYA LIHAT) =====
+// Dhuha mulai 06:30, Wali Kelas biasanya memproses ijin/sakit sesudahnya. Supaya PJ tidak menunggu anak yang
+// sebenarnya tidak masuk, kartu ini menampilkan: (1) pengajuan ijin_ortu yang masih MENUNGGU (dibaca langsung,
+// status 'menunggu', kecil) dan (2) yang sudah DISETUJUI (dibaca dari absensi kegiatan yang sudah dimuat, tanpa
+// unduhan tambahan). Tidak ada tombol setujui/tolak: wewenang tetap di Wali Kelas/Admin (js/ijin-ortu.js).
+let v4ActIjin = { daftar: [], ts: 0, memuat: false, gagal: false };
+function v4ActIjinMuat(paksa) {
+  if (v4ActIjin.memuat) return;
+  if (!paksa && v4ActIjin.ts && Date.now() - v4ActIjin.ts < 60000) return;   // cukup 1x per menit (hemat kuota Firebase)
+  if (!db || !currentUser || !navigator.onLine) { v4ActIjin.gagal = true; return; }
+  v4ActIjin.memuat = true;
+  const batas = new Promise(res => setTimeout(() => res(null), 12000));
+  const baca = db.ref('ijin_ortu').orderByChild('status').equalTo('menunggu').limitToLast(200).once('value').then(s => s, () => null);
+  Promise.race([baca, batas]).then(snap => {
+    v4ActIjin.memuat = false;
+    if (!snap) { v4ActIjin.gagal = true; v4ActIjin.ts = Date.now() - 45000; }   // coba lagi sekitar 15 detik kemudian
+    else {
+      const arr = [];
+      snap.forEach(c => {
+        const v = c.val() || {};
+        if (v.status !== 'menunggu') return;
+        arr.push({ key: c.key, siswaKey: v.siswaKey, siswaNama: v.siswaNama || '', kelas: v.kelas || '', jenis: v.jenis === 'S' ? 'S' : 'I', tglMulai: v.tglMulai || '', tglSelesai: v.tglSelesai || '' });
+      });
+      v4ActIjin.daftar = arr; v4ActIjin.gagal = false; v4ActIjin.ts = Date.now();
+    }
+    v4ActIjinSegarkan();
+  });
+}
+// Perbarui isi kartu saja (bukan seluruh panel), supaya isian absensi yang sedang dikerjakan tidak terganggu.
+function v4ActIjinSegarkan() {
+  document.querySelectorAll('[data-ijin-box]').forEach(el => {
+    const t = v4ActTypeByKey(el.getAttribute('data-tk'));
+    if (t) el.innerHTML = v4ActIjinIsi(t, el.getAttribute('data-tgl'));
+  });
+}
+function v4ActIjinIsi(type, dateVal) {
+  const aktif = v4ActKelasAktif(type);   // kelas yang tidak ikut kegiatan ini (mis. kelas 1-2 untuk Dzuhur) dilewati
+  const peta = {};
+  (V4.activityAttendance || []).forEach(r => {
+    if (r.activityTypeId !== type.key || r.tanggal !== dateVal || r.sumber !== 'ijin_ortu') return;
+    const st = v4NormStatusKegiatan(r.status);
+    if (st !== 'S' && st !== 'I') return;
+    peta[r.studentId] = { siswaNama: r.studentName || '', kelas: r.kelas || '', jenis: st, disetujui: true };
+  });
+  v4ActIjin.daftar.forEach(p => {
+    if (dateVal < p.tglMulai || dateVal > p.tglSelesai || !p.siswaKey || peta[p.siswaKey]) return;
+    peta[p.siswaKey] = { siswaNama: p.siswaNama, kelas: p.kelas, jenis: p.jenis, disetujui: false };
+  });
+  const arr = Object.keys(peta).map(k => peta[k]).filter(x => !x.kelas || aktif.includes(x.kelas));
+  const nTunggu = arr.filter(x => !x.disetujui).length;
+  const urut = (a, b) => (KELAS_LIST.indexOf(a.kelas) - KELAS_LIST.indexOf(b.kelas)) || COLLATOR_ID.compare(a.siswaNama, b.siswaNama);
+  arr.sort(urut);
+  let isi;
+  if (!arr.length) {
+    isi = `<div class="v4-muted" style="font-size:12px;">${v4ActIjin.memuat && !v4ActIjin.ts ? '⏳ Memuat pengajuan…' : 'Tidak ada ijin/sakit untuk tanggal ini.'}</div>`;
+  } else {
+    const grup = {};
+    arr.forEach(x => { (grup[x.kelas || '-'] = grup[x.kelas || '-'] || []).push(x); });
+    isi = Object.keys(grup).map(kl => {
+      const chips = grup[kl].map(x => {
+        const sakit = x.jenis === 'S';
+        const bg = x.disetujui ? (sakit ? '#fef9c3' : '#dbeafe') : '#fff';
+        const bd = x.disetujui ? (sakit ? '#fde047' : '#93c5fd') : '#f59e0b';
+        return `<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:999px;border:1.5px ${x.disetujui ? 'solid' : 'dashed'} ${bd};background:${bg};font-size:12px;">${sakit ? '🤒' : '📝'} ${v4Safe(x.siswaNama)} <span style="font-size:11px;color:#6b7280;">${x.disetujui ? '✅ disetujui' : '⏳ menunggu Wali Kelas'}</span></span>`;
+      }).join('');
+      return `<div style="margin-top:4px;"><strong style="font-size:12px;">Kelas ${v4Safe(kl)}</strong> ${chips}</div>`;
+    }).join('');
+  }
+  const peringatan = (v4ActIjin.gagal && !v4ActIjin.memuat) ? `<div style="margin-top:6px;font-size:11px;color:#92400e;">⚠️ Pengajuan yang masih menunggu belum bisa dimuat (offline/koneksi). Yang tampil hanya yang sudah disetujui.</div>` : '';
+  return `<details class="border-muted" open style="margin-top:8px;padding:8px 10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;">
+    <summary style="cursor:pointer;font-weight:700;font-size:13px;">🤒 Ijin/Sakit tgl ${v4Safe(dateVal)} · ${arr.length} anak${nTunggu ? ` · ⏳ ${nTunggu} menunggu persetujuan` : ''}</summary>
+    ${isi}
+    <div style="margin-top:6px;font-size:11px;color:#6b7280;">Hanya informasi supaya anak ini tidak perlu ditunggu. Bila ternyata hadir, tetap tandai Hadir. Persetujuan tetap oleh Wali Kelas/Admin.</div>
+    ${peringatan}
+  </details>`;
+}
+function v4ActIjinCardHtml(type, dateVal) {
+  const jenis = v4ActJenisSholat(type);
+  if (!jenis || !v4HariDiizinkanSholat(jenis, dateVal)) return '';   // hanya Dhuha/Dzuhur, hanya pada hari ada sholatnya
+  setTimeout(() => v4ActIjinMuat(false), 0);
+  return `<div data-ijin-box="1" data-tk="${v4Safe(type.key)}" data-tgl="${v4Safe(dateVal)}">${v4ActIjinIsi(type, dateVal)}</div>`;
+}
 function v4RenderActivityFill() {
   const fillBox = document.getElementById('v4ActivityFillSection'); if (!fillBox) return;
   const types = V4.activityTypes || [];
@@ -395,6 +481,7 @@ function v4RenderActivityFill() {
         <div class="v4-task-main"><div class="v4-task-title">🕌 ${v4Safe(v4NamaEja(type.name))}</div><div class="v4-task-meta">${countToday} siswa tercatat tgl ${v4Safe(dateVal)}${subNote}</div></div>
         <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" onclick="v4ToggleActivityFill('${escapeJs(type.key)}')">${isOpen ? '✖️ Tutup' : '📋 Isi Absensi'}</button>
       </div>
+      ${v4ActIjinCardHtml(type, dateVal)}
       ${isOpen ? (v4ActBolehIsi(type, dateVal) ? v4RenderActivityFillPanel(type) : v4ActRenderCheckinBlock(type, dateVal)) : ''}
     </div>`;
   }).join('');
@@ -1390,7 +1477,7 @@ function v4RenderActivityFillPanel(type) {
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
       <label class="label" style="margin:0;">Tanggal:</label>
       <input type="date" class="field" style="max-width:150px;" value="${v4Safe(dateVal)}" max="${v4Safe(v4Date())}" onchange="v4SetActivityDate('${k}', this.value)">
-      <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" title="Muat ulang data dari server (lihat isian guru lain)" onclick="v4LoadCore()">🔄 Segarkan</button>
+      <button class="btn btn-soft" style="padding:4px 10px;font-size:11px;" title="Muat ulang data dari server (lihat isian guru lain)" onclick="v4LoadCore(); v4ActIjinMuat(true)">🔄 Segarkan</button>
     </div>
     ${siswa.length > 0 ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;"><button class="btn ${fast ? 'btn-success' : 'btn-soft'}" style="padding:6px 12px;font-size:12px;" onclick="v4ToggleActivityFast('${k}')">${fast ? '⚡ Mode Cepat (aktif) · ketuk untuk ganti ke Tabel' : '📋 Mode Tabel · ketuk untuk ganti ke Mode Cepat'}</button><button class="btn btn-soft" style="padding:6px 12px;font-size:12px;" onclick="v4FillAllActivityHadir('${k}')">✅ Isi Semua Hadir (yang belum diisi)</button></div>` : ''}
     ${listHtml}
