@@ -32,10 +32,12 @@
     return n >= 1 && n <= 2 ? 'A' : n >= 3 && n <= 4 ? 'B' : n >= 5 && n <= 6 ? 'C' : '';
   }
   // Usulan level kognitif dari kata kerja pertama TP: L1 mengingat/mengenali, L2 memahami/menerapkan, L3 menalar.
+  // Bila TP diawali kata kerja L1 tetapi berlanjut ke menjelaskan/menerapkan/menceritakan/mempraktikkan, usulannya L2 (v8.482).
   function levelDari(t) {
     const w = String(t || '').toLowerCase().trim().replace(/^murid\s+mampu\s+/, '');
     if (/^(menganalisis|merefleksikan|membandingkan|mengevaluasi|menyimpulkan)/.test(w)) return 'L3';
-    if (/^(menghafal|menyebutkan|mengenali|mengenal|mengidentifikasi|meniru|menemukan)/.test(w)) return 'L1';
+    if (/^(menghafal|menyebutkan|mengenali|mengenal|mengidentifikasi|meniru|menemukan)/.test(w))
+      return /\b(menjelaskan|menerapkan|menceritakan|mempraktikkan)\b/.test(w) ? 'L2' : 'L1';   // TP berantai (menghafal ... lalu menjelaskan/menerapkan) = L2
     return 'L2';
   }
   // Butir kisi-kisi resmi (js/data-kisi-resmi-mi.js) untuk satu TP; [] bila tidak ada.
