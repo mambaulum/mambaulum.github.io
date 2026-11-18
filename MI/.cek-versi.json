@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.492",
-  "disimpan": "2026-11-18T11:55:43.533Z",
+  "appVersion": "v8.494",
+  "disimpan": "2026-11-18T11:56:17.913Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -250,13 +250,9 @@
       "v": "v=1",
       "hash": "9efaeafed43c6e595c5379600fcbde66d52100f8"
     },
-    "js/data-soal-ba-bacaan-tambahan.js": {
+    "js/data-soal-tambahan-gabung.js": {
       "v": "v=1",
-      "hash": "0d0c01e8cf1e3b3ebc887c0ddad223642a55d561"
-    },
-    "js/data-soal-aqh-surah-b-tambahan.js": {
-      "v": "v=1",
-      "hash": "1f3d592c66986a6ec83e76572cc522a01be911f0"
+      "hash": "a762983978ea9060d204de054f6c86ce7b75243d"
     },
     "js/perangkat-rpe.js": {
       "v": "v=15",
