@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.483",
-  "disimpan": "2026-11-18T02:06:24.675Z",
+  "appVersion": "v8.488",
+  "disimpan": "2026-11-18T02:32:06.438Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,12 +59,12 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=171",
-      "hash": "ca27197df16d61b3377ae4eb2662ffd514c2b575"
+      "v": "v=172",
+      "hash": "07e069451943390d9f23850fd0df26fa1d18532a"
     },
     "js/portal-ortu.js": {
-      "v": "v=37",
-      "hash": "06c38abc59ab4b7b15e541de40ae8dcb812bde2a"
+      "v": "v=38",
+      "hash": "da0ee6037bf90ecad5169bede8fb7252fd9d59a3"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -167,8 +167,8 @@
       "hash": "a7f25ffddc2f88e36c10cfec36dfae3e3094a71f"
     },
     "js/portal-tab.js": {
-      "v": "v=13",
-      "hash": "50568c48333e9039407869deaaddd80288d70a41"
+      "v": "v=14",
+      "hash": "58a033eabe6627af21315857a208f18b8513d1f2"
     },
     "js/kredensial.js": {
       "v": "v=8",
@@ -341,6 +341,10 @@
     "js/surat-guru.js": {
       "v": "v=48",
       "hash": "3bf7f830ed4f0d07f4d3299a9b3b74d0c6841377"
+    },
+    "js/ijin-ortu.js": {
+      "v": "v=4",
+      "hash": "d1472fa85c68ece331e3343ff4411c13c7ede600"
     },
     "js/agenda-surat.js": {
       "v": "v=5",
