@@ -7994,6 +7994,40 @@
         toast('❌ Gagal menyimpan koreksi (catatan lama tidak diubah): ' + (err && err.message || err), true);
       });
     }
+    // ---- Tugas Tambahan guru (mis. Guru BK, Operator Madrasah) -- disimpan di data guru, field `tugasTambahan` (array teks).
+    // Dipakai oleh js/surat-guru.js (SK Pembagian Tugas). Wali Kelas TIDAK di sini: ia diatur lewat Role + "Wali Kelas dari kelas".
+    // Kolom isian disuntikkan lewat JS (tidak perlu mengubah index.html), tepat di bawah isian No. WhatsApp.
+    window.SIMAMBA_TUGAS_TAMBAHAN = window.SIMAMBA_TUGAS_TAMBAHAN || ['Guru BK', 'Operator Madrasah', 'Pembina Pramuka', 'Bendahara BOS', 'Calon Guru', 'Koordinator Bidang Pendidikan', 'Komite'];
+    function tugasTambahanList(v) { return (Array.isArray(v) ? v : String(v || '').split('\n')).map(x => String(x == null ? '' : x).trim()).filter(Boolean); }
+    // Menyuntikkan kolom Tugas Tambahan setelah elemen `sesudah`; id kolom = idDasar + 'Tambahan' (teks), idDasar + 'Pilih', idDasar + 'Tambah'.
+    function suntikKolomTugas(idDasar, sesudah, kelasWrap) {
+      const idTa = idDasar + 'Tambahan';
+      if (document.getElementById(idTa)) return true;
+      if (!sesudah || !sesudah.parentElement) return false;
+      const w = document.createElement('div'); w.className = kelasWrap || ''; w.style.marginBottom = '12px'; w.id = idDasar + 'Wrap';
+      w.innerHTML = '<label class="label" for="' + idTa + '">Tugas Tambahan (opsional, satu per baris)</label>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;"><select id="' + idDasar + 'Pilih" class="field" style="flex:1;min-width:160px;"><option value="">-- Pilih tugas tambahan --</option>' +
+        window.SIMAMBA_TUGAS_TAMBAHAN.map(t => '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>').join('') + '</select>' +
+        '<button type="button" class="btn btn-soft" id="' + idDasar + 'Tambah" style="padding:6px 14px;font-size:13px;">+ Tambah</button></div>' +
+        '<textarea id="' + idTa + '" class="field" rows="3" placeholder="mis. Guru BK"></textarea>' +
+        '<p style="font-size:11px;color:#6b7280;margin:3px 0 0;">Tampil otomatis di SK Pembagian Tugas (surat guru). Wali Kelas diatur lewat Role, bukan di sini.</p>';
+      sesudah.insertAdjacentElement('afterend', w);
+      document.getElementById(idDasar + 'Tambah').addEventListener('click', () => {
+        const sel = document.getElementById(idDasar + 'Pilih'), ta = document.getElementById(idTa), t = sel.value;
+        if (!t) return toast('Pilih tugas tambahan terlebih dahulu!', true);
+        const ada = tugasTambahanList(ta.value);
+        if (ada.some(x => x.toLowerCase() === t.toLowerCase())) return toast('Tugas itu sudah ada.', true);
+        ada.push(t); ta.value = ada.join('\n'); sel.value = '';
+      });
+      return true;
+    }
+    function pastikanKolomTugasTambahan() {                 // form Edit Guru: di bawah isian No. WhatsApp
+      const noWa = document.getElementById('editGuruNoWa');
+      return suntikKolomTugas('editGuruTugas', noWa, noWa && noWa.parentElement ? noWa.parentElement.className : '');
+    }
+    function pastikanKolomTugasTambahanBaru() {             // form Tambah Pengguna: di bawah pilihan Wali Kelas
+      return suntikKolomTugas('userTugas', document.getElementById('userWaliKelasOfContainer'), '');
+    }
     function openEditGuruModal(key) {
       if (!isAdmin()) return toast('Hanya Admin!', true);
       const guru = allGuru.find(g => g.key === key);
@@ -8007,6 +8041,7 @@
       document.getElementById('editWaliKelasOfContainer').style.display = (guru.role === 'wali_kelas') ? 'block' : 'none';
       document.getElementById('editGuruTunjanganMasaKerja').value = guru.tunjanganMasaKerja || '';
       document.getElementById('editGuruNoWa').value = guru.noWa || '';
+      if (pastikanKolomTugasTambahan()) document.getElementById('editGuruTugasTambahan').value = tugasTambahanList(guru.tugasTambahan).join('\n');
       document.getElementById('editGuruBantuanTransportasi').value = guru.bantuanTransportasi || '';
       document.querySelectorAll('.edit-class-check').forEach(cb => { cb.checked = false; cb.disabled = false; });
       document.getElementById('editAllClassCheck').checked = false;
@@ -8052,6 +8087,7 @@
       const noWaGuru = (document.getElementById('editGuruNoWa').value || '').trim();
       if (noWaGuru && formatNomorWa(noWaGuru).length < 10) return toast('Nomor WhatsApp guru tidak valid!', true);
       updateData.noWa = noWaGuru || null;
+      { const tt = document.getElementById('editGuruTugasTambahan'); if (tt) { const lst = tugasTambahanList(tt.value); updateData.tugasTambahan = lst.length ? lst : null; } }   // null = hapus field
       const guruKeyEdit = editingGuruKey;
       if (pinBaruEdit && typeof kredAdminSetPin !== 'function') return toast('Modul kredensial belum termuat. Muat ulang halaman lalu coba lagi.', true);
       // FIX: tombol Simpan dikunci selama menyimpan (dulu bisa diketuk berkali-kali dan jendela baru menutup setelah server menjawab).
@@ -8215,6 +8251,7 @@
     // NEW FEATURE: MANAJEMEN USER
     // ============================================================
     function renderUserList() {
+      try { pastikanKolomTugasTambahanBaru(); } catch (e) { console.warn('[SI MAMBA] Kolom tugas tambahan (tambah pengguna):', e); }
       const list = document.getElementById('userList');
       const pagination = document.getElementById('userPagination');
       
@@ -8313,6 +8350,7 @@
         if (!waliKelasOf) return toast('Pilih Wali Kelas dari kelas berapa!', true);
       }
 
+      const tugasBaru = tugasTambahanList((document.getElementById('userTugasTambahan') || {}).value);
       const allClass = document.getElementById('userAllClass').checked;
       let checkedClasses = [];
       if (allClass) {
@@ -8333,6 +8371,7 @@
         semuaKelas: allClass,
         role: role,
         waliKelasOf: waliKelasOf || null,
+        ...(tugasBaru.length ? { tugasTambahan: tugasBaru } : {}),   // kredAdminTambahGuru menulis seluruh objek ini ke guru/{key} secara atomik
         dibuat: new Date().toISOString()
       }, pin, err => {
         clearBusy('tambahUser', btnTambahUser);
@@ -8345,6 +8384,7 @@
           document.querySelectorAll('.user-class-check').forEach(cb => cb.checked = false);
           document.getElementById('userAllClass').checked = false;
           document.getElementById('userWaliKelasOf').value = '';
+          { const tt = document.getElementById('userTugasTambahan'); if (tt) tt.value = ''; }
           document.getElementById('userWaliKelasOfContainer').style.display = 'none';
           document.getElementById('userRole').value = 'guru';
           reloadDataset('logs');
@@ -8692,7 +8732,7 @@
       document.getElementById('v4ProfileName')&&(document.getElementById('v4ProfileName').textContent=currentUser.name);
       document.getElementById('v4ProfileScope')&&(document.getElementById('v4ProfileScope').textContent=(v4IsAdmin()||v4IsHead())?'Semua Kelas':(currentUser.kelas||[]).join(', ')||'-');
       const guru=(allGuru||[]).find(g=>g.key===currentUser.key)||{};
-      const assigns=[]; if(guru.waliKelasOf) assigns.push('🌟 Wali Kelas: '+guru.waliKelasOf); if(guru.kelas) assigns.push('📚 Mengajar: '+(Array.isArray(guru.kelas)?guru.kelas.join(', '):guru.kelas)); if(guru.assignmentActivity) assigns.push('🕌 Petugas kegiatan'); if(guru.assignmentEkskul) assigns.push('🎯 Pembina ekskul');
+      const assigns=[]; if(guru.waliKelasOf) assigns.push('🌟 Wali Kelas: '+guru.waliKelasOf); if(guru.kelas) assigns.push('📚 Mengajar: '+(Array.isArray(guru.kelas)?guru.kelas.join(', '):guru.kelas)); if(guru.tugasTambahan) tugasTambahanList(guru.tugasTambahan).forEach(t=>assigns.push('📌 '+t)); if(guru.assignmentActivity) assigns.push('🕌 Petugas kegiatan'); if(guru.assignmentEkskul) assigns.push('🎯 Pembina ekskul');
       document.getElementById('v4Assignments')&&(document.getElementById('v4Assignments').innerHTML=assigns.length?assigns.map(x=>`<div style="margin-bottom:6px;">${v4Safe(x)}</div>`).join(''):'<span>Belum ada assignment tambahan.</span>');
       // Bacaan Sholat: guru PJ per kelas (bs_pj_kelas) ikut menentukan menu. Data PJ dimuat SEKALI di sini, lalu menu
       // diterapkan ulang (satu kali saja, supaya tidak berputar). Hanya guru yang perlu; Admin/Kepala sudah pasti.

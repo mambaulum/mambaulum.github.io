@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/surat-guru.js  (v7)
+   SI MAMBA - js/surat-guru.js  (v9)
    Surat resmi untuk GURU, disatukan dengan halaman "Surat & Ijin" (siswa) yang sudah ada,
    tetapi kodenya terpisah dari app.js.
 
@@ -35,9 +35,24 @@
    - Surat SISWA (preview/PDF/simpan) kini juga dikerjakan di file ini dan memakai counter yang sama
      (lihat bagian "SURAT SISWA" di bawah); fungsi lamanya sudah dihapus dari app.js (v92).
 
+   - [v8] Perbaikan hasil audit: (1) nomor lama tidak lagi terbawa saat ganti guru/jenis (Simpan/Download menunggu hitungan nomor);
+     (2) guard klik ganda Download PDF; (3) counter punya cek offline + batas waktu 15 dtk (naikkanCounter); (4) pembuatan PDF
+     dibungkus try/catch + pesan galat; (5) Simpan surat siswa merender ulang preview & wajib tanggal ijin/sakit; (6) Simpan Data Guru
+     diblok bila data belum selesai dimuat; (7) cache guru tambahan ikut diperbarui; (8) isian yang disembunyikan tidak ikut tercetak;
+     (9) kop PDF tidak lagi mencetak "undefined"; (10) peringatan bila tanggal diubah setelah nomor terkunci; (11) validasi tanggal Surat Tugas.
+
+   - [v9] SK Pembagian Tugas — SEMUA Guru: Kepala Madrasah ditambahkan sebagai baris pertama bila belum ada di daftar guru (sebelumnya
+     tidak pernah tampil, sehingga tugas tambahannya hilang); pencocokan nama pada "Tugas tambahan per guru" tidak lagi peka gelar/huruf
+     besar-kecil; baris yang tidak cocok dengan guru mana pun kini diberi peringatan (dulu dibuang diam-diam).
+
+   - [v10] Tugas tambahan guru: (1) pilihan cepat (Guru BK, Operator Madrasah, Pembina Pramuka, Bendahara BOS, Koordinator Bidang
+     Pendidikan, Komite, Calon Guru, Wali Kelas) di kolom tugas tambahan; (2) tugas tambahan dibaca dari data guru (field guru.tugasTambahan,
+     diisi di menu Data Guru -- app.js v171) dan digabung dengan Wali Kelas & isian manual, tanpa duplikat; (3) SK semua guru: baris Kepala
+     Madrasah otomatis bertugas "Kepala Madrasah". Daftar pilihan dibagi bersama app.js lewat window.SIMAMBA_TUGAS_TAMBAHAN.
+
    KETERGANTUNGAN (app.js): currentUser, allGuru, allJadwal, jamSettings, MADRASAH,
    currentTahunAjaran, currentSemesterAktif, db, toast, escapeHtml, tglLokal, addLog,
-   selectedSiswaSurat, isWaliKelas, buatIsiSuratPlain, loadSuratRiwayat,
+   selectedSiswaSurat, isWaliKelas, isWaliKelasAssigned, buatIsiSuratPlain, loadSuratRiwayat,
    isAdmin, isKepsek, isBusy/setBusy/clearBusy, samaNamaGuru, generateKopSuratHTML,
    ensureLib, v4LoadLogoForPdf, v4LoadTtdKepalaForPdf, v4TambahLogoKeKopPdf, ttdKepalaPdf.
    Dimuat SESUDAH app.js.
@@ -134,7 +149,7 @@
     ketuaYys:{ l: 'Nama Ketua Yayasan (penandatangan SK)', t: 'text' },
     guruKecuali:{ l: 'Guru yang TIDAK dimasukkan ke SK (opsional, mis. guru nonaktif) — tahan Ctrl / tekan lama untuk memilih beberapa', t: 'multi' },
     tugasSemua:{ l: 'Tugas tambahan per guru (opsional) — satu baris per guru, format: Nama guru = tugas 1; tugas 2  (wali kelas terisi otomatis bila tercatat di data guru)', t: 'area' },
-    tugasTbh:{ l: 'Tugas tambahan — satu baris per butir (mis. Wali Kelas IV, Pembina Pramuka, Operator Madrasah). Wali kelas terisi otomatis bila tercatat di data guru', t: 'area' },
+    tugasTbh:{ l: 'Tugas tambahan — satu baris per butir (mis. Wali Kelas IV, Pembina Pramuka). Wali kelas & tugas tambahan yang sudah diisi di menu Data Guru terisi otomatis; kolom ini untuk tambahan khusus surat ini', t: 'area' },
     tembusan:{ l: 'Tembusan — satu baris per butir', t: 'area' }
   };
   var JENIS = {
@@ -160,6 +175,7 @@
   var NODE_PEG = 'data_pegawai';
   var PEGAWAI = ['nip', 'nuptk', 'ttl', 'pend', 'jabatan', 'status', 'tmt', 'nosk', 'tglsk'];   // kolom yang disimpan per guru
   var cachePeg = {};
+  var pegSiap = false;                                       // true bila data kepegawaian guru terpilih sudah selesai dimuat (syarat Simpan Data Guru)
   var EKSTRA = {};                                           // tab tambahan dari modul lain
   window.SIMambaSuratTab = { daftar: function (def) { if (def && def.id) EKSTRA[def.id] = def; } };
 
@@ -180,6 +196,13 @@
     var k = $('sg_guru') ? $('sg_guru').value : '';
     if (!k) return null;
     return (allGuru || []).filter(function (g) { return (g.key || g.name) === k; })[0] || null;
+  }
+  // Tugas tambahan dari menu Data Guru (field guru.tugasTambahan: array atau teks per baris), tanpa duplikat.
+  function teksWali(k) { return 'Wali Kelas ' + String(k || '').replace(/^kelas\s+/i, ''); }   // 'Kelas 3' -> 'Wali Kelas 3' (dulu tercetak 'Wali Kelas Kelas 3')
+  function tugasGuru(g) {
+    var v = g && g.tugasTambahan, a = (Array.isArray(v) ? v : String(v || '').split('\n')), out = [];
+    a.forEach(function (x) { x = String(x == null ? '' : x).trim(); if (x && !out.some(function (y) { return y.toLowerCase() === x.toLowerCase(); })) out.push(x); });
+    return out;
   }
   function jadwalGuru(g) {
     var daftar = (allJadwal || []).filter(function (j) {
@@ -251,11 +274,12 @@
         i.addEventListener('input', function () { i.dataset.edit = '1'; });
         i.addEventListener('change', function () { isiNomor(false).then(function () { preview(true); }); });
       }
-      if (k === 'tanggal') i.addEventListener('change', function () { isiNomor(false).then(function () { preview(true); }); });
+      if (k === 'tanggal') i.addEventListener('change', function () { isiNomor(false).then(function () { cekNomorTanggal(); preview(true); }); });
       w.appendChild(l); w.appendChild(i);
       if (k === 'nomor') { var inf = el('p', null, 'font-size:11px;color:#6b7280;margin:3px 0 0;'); inf.id = 'sg_nomorInfo'; w.appendChild(inf); }
       if (k === 'kepala') i.addEventListener('change', function () { catatanTA(); });
       if (k === 'nipKepala') { var infK = el('p', null, 'font-size:11px;color:#b45309;margin:3px 0 0;display:none;'); infK.id = 'sg_kepInfo'; w.appendChild(infK); }
+      if (k === 'tugasTbh' || k === 'tugasSemua') w.appendChild(buatPilihTugas(k));
       if (k === 'smt') { var infT = el('p', null, 'font-size:11px;color:#b45309;margin:3px 0 0;display:none;'); infT.id = 'sg_taInfo'; w.appendChild(infT); }
       kolom.appendChild(w);
     });
@@ -280,6 +304,61 @@
     });
     return true;
   }
+  // ---------- Pilihan cepat tugas tambahan ----------
+  // Dropdown + tombol "Tambah": menambahkan baris ke kolom tugas tambahan (tetap bisa diedit manual).
+  var TUGAS_PILIHAN = (window.SIMAMBA_TUGAS_TAMBAHAN || ['Guru BK', 'Operator Madrasah', 'Pembina Pramuka', 'Bendahara BOS', 'Calon Guru', 'Koordinator Bidang Pendidikan', 'Komite']).concat(['Wali Kelas']);   // daftar bersama dengan menu Data Guru (app.js)
+  function buatPilihTugas(k) {
+    var semua = k === 'tugasSemua', r = el('div', null, 'display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;align-items:center;');
+    var sg = null;
+    if (semua) { sg = el('select', 'field', 'flex:1;min-width:160px;'); sg.id = 'sg_tugasGuru'; r.appendChild(sg); }
+    var st = el('select', 'field', 'flex:1;min-width:160px;'); st.id = 'sg_tugasPilih_' + k;
+    var o0 = el('option'); o0.value = ''; o0.textContent = '-- Pilih tugas tambahan --'; st.appendChild(o0);
+    TUGAS_PILIHAN.forEach(function (t) { var o = el('option'); o.value = t; o.textContent = t; st.appendChild(o); });
+    r.appendChild(st);
+    var b = el('button', 'btn btn-soft', 'padding:6px 14px;font-size:13px;'); b.type = 'button'; b.textContent = '+ Tambah';
+    b.addEventListener('click', function () { tambahTugasCepat(k, sg ? sg.value : '', st.value, st); });
+    r.appendChild(b);
+    return r;
+  }
+  function tambahTugasCepat(k, namaGuru, tugas, selTugas) {
+    if (!tugas) return toast('Pilih tugas tambahan terlebih dahulu!', true);
+    var semua = k === 'tugasSemua';
+    if (semua && !namaGuru) return toast('Pilih guru terlebih dahulu!', true);
+    if (tugas === 'Wali Kelas') {
+      var kls = window.prompt('Wali Kelas berapa? (mis. IV atau 4). Kosongkan bila tidak perlu menyebut kelas.', '');
+      if (kls === null) return;
+      tugas = 'Wali Kelas' + (kls.trim() ? ' ' + kls.trim().replace(/^kelas\s+/i, '') : '');
+    }
+    var ta = $('sg_' + k); if (!ta) return;
+    var baris = ta.value.split('\n').map(function (x) { return x.replace(/\s+$/, ''); }).filter(function (x) { return x.trim(); });
+    if (!semua) {
+      if (baris.some(function (x) { return x.trim().toLowerCase() === tugas.toLowerCase(); })) return toast('Tugas itu sudah ada di daftar.', true);
+      baris.push(tugas);
+    } else {
+      var ada = -1;
+      baris.forEach(function (x, i) { var q = x.indexOf('='); if (q >= 0 && kunciNama(x.slice(0, q)) === kunciNama(namaGuru)) ada = i; });
+      if (ada < 0) baris.push(namaGuru + ' = ' + tugas);
+      else {
+        var q2 = baris[ada].indexOf('='), nm = baris[ada].slice(0, q2).trim(), ts = baris[ada].slice(q2 + 1).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
+        if (ts.some(function (x) { return x.toLowerCase() === tugas.toLowerCase(); })) return toast('Tugas itu sudah ada untuk guru tersebut.', true);
+        ts.push(tugas); baris[ada] = nm + ' = ' + ts.join('; ');
+      }
+    }
+    ta.value = baris.join('\n'); ta.dataset.edit = '1';
+    if (selTugas) selTugas.value = '';
+    preview(true);
+  }
+  function isiPilihGuruTugas() {                              // daftar guru untuk "Tugas tambahan per guru": Kepala Madrasah + semua guru
+    var s = $('sg_tugasGuru'); if (!s) return;
+    var lama = s.value; s.innerHTML = '';
+    var o0 = el('option'); o0.value = ''; o0.textContent = '-- Pilih guru --'; s.appendChild(o0);
+    var kep = String(MADRASAH.kepala_sekolah || '').trim(), nama = [];
+    if (kep) nama.push(kep);
+    (allGuru || []).slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); })
+      .forEach(function (g) { if (g.name && kunciNama(g.name) !== kunciNama(kep)) nama.push(g.name); });
+    nama.forEach(function (n, i) { var o = el('option'); o.value = n; o.textContent = (i === 0 && kep ? n + ' (Kepala Madrasah)' : n); s.appendChild(o); });
+    if (lama) s.value = lama;
+  }
   function isiDropdownGuru() {
     var s = $('sg_guru'); if (!s) return;
     var lama = s.value;
@@ -293,6 +372,7 @@
   // ---------- Surat Tugas untuk beberapa guru ----------
   var cachePegLain = {};                                      // data kepegawaian guru tambahan (terpisah dari cachePeg)
   function isiGuruLain() {                                    // daftar guru tambahan = semua guru kecuali yang dipilih utama
+    isiPilihGuruTugas();
     var s = $('sg_guruLain'); if (!s) return;
     var utama = $('sg_guru') ? $('sg_guru').value : '', pilih = {};
     Array.prototype.forEach.call(s.options || [], function (o) { if (o.selected) pilih[o.value] = true; });
@@ -331,16 +411,16 @@
   function saatGuruBerganti() {
     isiGuruLain();
     isiNomor(true).then(function () { preview(true); });
-    kosongkanPeg(); setStatusPeg(''); sesuaikan();           // kosongkan dulu supaya data guru sebelumnya tidak terbawa
+    pegSiap = false; kosongkanPeg(); setStatusPeg(''); sesuaikan();           // kosongkan dulu supaya data guru sebelumnya tidak terbawa
     var g = guruTerpilih();
     if (!g || g.semuaGuru) { preview(true); return; }
     if (!g.key) { setStatusPeg('Guru ini tidak punya key; data kepegawaian tidak bisa disimpan permanen.', '#b45309'); preview(true); return; }
     var k = g.key, masihGuruIni = function () { var e = $('sg_guru'); return !!e && e.value === (g.key || g.name); };
-    if (cachePeg[k]) { isiPeg(cachePeg[k]); setStatusPeg(infoPeg(cachePeg[k])); preview(true); return; }
+    if (cachePeg[k]) { pegSiap = true; isiPeg(cachePeg[k]); setStatusPeg(infoPeg(cachePeg[k])); preview(true); return; }
     setStatusPeg('Memuat data guru…');
     db.ref(NODE_PEG + '/' + k).once('value').then(function (snap) {
       if (!masihGuruIni()) return;                           // pengguna sudah memilih guru lain
-      var v = snap.val();
+      var v = snap.val(); pegSiap = true;
       if (v) { cachePeg[k] = v; isiPeg(v); setStatusPeg(infoPeg(v)); }
       else setStatusPeg('Belum ada data tersimpan untuk guru ini. Isi lalu klik "Simpan Data Guru" agar tidak perlu mengetik ulang.');
       preview(true);
@@ -354,14 +434,15 @@
     var g = guruTerpilih(); if (!g) return toast('Pilih guru terlebih dahulu!', true);
     if (g.semuaGuru) return toast('Pilih jenis surat lain dan satu guru untuk menyimpan data kepegawaian.', true);
     if (!g.key) return toast('Guru ini tidak punya key; data tidak bisa disimpan.', true);
+    if (!pegSiap) return toast('Data guru belum selesai dimuat (atau gagal dimuat). Pilih ulang guru dulu agar data tersimpan tidak tertimpa kosong.', true);
     if (isBusy('simpanDataGuru')) return toast('Sedang menyimpan...', false, 1500);
-    var d = ambil(), data = { updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, btn = $('btnSimpanDataGuru');
+    var d = ambil(true), data = { updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, btn = $('btnSimpanDataGuru');   // ambil(true): nilai mentah, termasuk kolom yang sedang disembunyikan
     PEGAWAI.forEach(function (k) { data[k] = d[k] || ''; });
     setBusy('simpanDataGuru', btn);
     db.ref(NODE_PEG + '/' + g.key).set(data, function (err) {
       clearBusy('simpanDataGuru', btn);
       if (err) return toast('Gagal simpan: ' + err.message, true);
-      cachePeg[g.key] = data; setStatusPeg(infoPeg(data)); toast('✅ Data guru tersimpan!'); addLog('simpan_data_guru', g.name);
+      cachePeg[g.key] = data; delete cachePegLain[g.key]; setStatusPeg(infoPeg(data)); toast('✅ Data guru tersimpan!'); addLog('simpan_data_guru', g.name);
     });
   }
 
@@ -467,7 +548,7 @@
   }
 
   // ---------- Isi surat (satu sumber untuk HTML & PDF) ----------
-  function ambil() {
+  function ambil(mentah) {
     var d = {};
     Object.keys(FIELD).forEach(function (k) {
       var e = $('sg_' + k);
@@ -475,9 +556,11 @@
       d[k] = e ? String(e.value || '').trim() : '';
     });
     // ta/smt hanya berlaku untuk jenis surat yang memuatnya (pilihan tersembunyi tidak boleh terbawa); SK Pengangkatan: hanya bila masa = per tahun ajaran
+    if (mentah) return d;
     var jn = JENIS[$('sg_jenis') ? $('sg_jenis').value : '']; if (jn) {
       ['ta', 'smt', 'kepala', 'nipKepala'].forEach(function (k) { if (jn.f.indexOf(k) < 0) d[k] = ''; });
       if ($('sg_jenis').value === 'sk-pengangkatan' && d.masa !== 'ta') d.ta = '';
+      PEGAWAI.forEach(function (k) { if (jn.f.indexOf(k) < 0) d[k] = ''; });   // kolom kepegawaian yang disembunyikan untuk jenis ini tidak ikut tercetak (mis. PegID/Status di SK Jadwal)
     }
     return d;
   }
@@ -591,7 +674,11 @@
     baris(String(MADRASAH.nama || '').toUpperCase(), 'bold', 16, 5.5, false);
     if (MADRASAH.nsm) baris('NSM: ' + MADRASAH.nsm, 'bold', 10, 4.6, false);
     baris(MADRASAH.alamat, 'normal', 10, 4.4, true);
-    baris('Telp: ' + MADRASAH.telp + '  |  Email: ' + MADRASAH.email + '  |  Web: ' + MADRASAH.website, 'normal', 10, 4.4, true);
+    var kontak = [];
+    if (MADRASAH.telp) kontak.push('Telp: ' + MADRASAH.telp);
+    if (MADRASAH.email) kontak.push('Email: ' + MADRASAH.email);
+    if (MADRASAH.website) kontak.push('Web: ' + MADRASAH.website);
+    baris(kontak.join('  |  '), 'normal', 10, 4.4, true);
     var yb = Math.max(y + 0.5, y0 + ukuran + 2, 38);
     doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(20, yb, pw - 20, yb); doc.line(20, yb + 2, pw - 20, yb + 2);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
@@ -726,6 +813,11 @@
     while (t.length > 1 && /^(s|m|d)\.[a-z.]+$/i.test(t[t.length - 1])) t.pop();
     return titleCase(t.join(' '));
   }
+  function kunciNama(n) { return tanpaGelar(n).toLowerCase().replace(/\s+/g, ' '); }   // pencocokan nama: tanpa gelar, huruf kecil, spasi tunggal
+  function peringatTugasTakCocok(S) {
+    if (S && S.tugasTakCocok && S.tugasTakCocok.length)
+      toast('⚠ Baris "Tugas tambahan per guru" tidak cocok dengan nama guru mana pun dan TIDAK tercetak: ' + S.tugasTakCocok.join(', ') + '. Samakan penulisan nama dengan daftar guru.', true, 7000);
+  }
   function tembusanBlok(arr) {                               // 1 penerima: tanpa nomor; >1: bernomor, ';' dan 'dan'
     var a = (arr || []).map(function (x) { return String(x).trim().replace(/[;.\s]+$/, ''); }).filter(Boolean);
     if (!a.length) return null;
@@ -746,13 +838,32 @@
     return p.join('/');
   }
   function setInfoNomor(teks, warna) { var e = $('sg_nomorInfo'); if (e) { e.textContent = teks || ''; e.style.color = warna || '#6b7280'; } }
+  var nomorTunggu = null;                                    // promise isiNomor terakhir: Simpan/Download menunggu hitungan nomor selesai
+  function batasWaktu(p, ms, pesan) {                        // gagal bila p tak selesai dalam ms (koneksi putus / transaction menggantung)
+    return new Promise(function (res, rej) {
+      var t = setTimeout(function () { rej(new Error(pesan || 'waktu habis')); }, ms);
+      p.then(function (v) { clearTimeout(t); res(v); }, function (er) { clearTimeout(t); rej(er); });
+    });
+  }
+  // Naikkan counter (+1, atomik): dipakai surat guru, surat siswa, dan SIMambaNomor.kunci. Offline / lebih dari 15 dtk -> ditolak dengan pesan.
+  // Catatan: bila batas waktu habis lalu koneksi pulih, transaction yang tertunda tetap bisa tercatat (nomor itu terlewat, tidak terpakai).
+  function naikkanCounter(jenis, yy) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(new Error('perangkat sedang offline'));
+    return batasWaktu(new Promise(function (res, rej) {
+      db.ref(kunciCounter(jenis, yy)).transaction(function (cur) { return (parseInt(cur, 10) || 0) + 1; }, function (err, committed, snap) {
+        if (err || !committed) return rej(err || new Error('penomoran dibatalkan'));
+        res(snap.val());
+      });
+    }), 15000, 'koneksi lambat/terputus (waktu habis 15 detik)');
+  }
   function isiNomor(force) {                                 // tampilkan nomor berikutnya (belum dikunci)
     var e = $('sg_nomor'), j = $('sg_jenis'); if (!e || !j) return Promise.resolve();
     if (!force && (e.dataset.manual === '1' || e.dataset.final === '1')) return Promise.resolve();
     var jenis = j.value, d = ambil(), t = bagianTanggal(d), tok = ++nomorToken;
     e.dataset.manual = '0'; e.dataset.final = '0'; e.dataset.auto = '0';
+    e.value = '';                                            // nomor surat sebelumnya tidak boleh terbaca sebagai nomor manual selama menghitung
     setInfoNomor('Menghitung nomor otomatis…');
-    return db.ref(kunciCounter(jenis, t.yy)).once('value').then(function (snap) {
+    nomorTunggu = batasWaktu(db.ref(kunciCounter(jenis, t.yy)).once('value'), 10000, 'waktu habis membaca counter').then(function (snap) {
       if (tok !== nomorToken) return;
       var n = (parseInt(snap.val(), 10) || 0) + 1;
       e.value = susunNomor(jenis, n, d); e.dataset.auto = '1';
@@ -762,20 +873,27 @@
       e.value = '';
       setInfoNomor('Gagal membaca penomoran (' + (err && err.message ? err.message : err) + '). Isi nomor manual, atau izinkan node "nomor_surat" di Firebase Rules.', '#b91c1c');
     });
+    return nomorTunggu;
   }
   function pastikanNomor(jenis, d) {                         // kunci nomor (counter +1) hanya sekali per surat
-    var e = $('sg_nomor');
-    if (!e || e.dataset.auto !== '1') return Promise.resolve(e ? e.value.trim() : '');
-    var t = bagianTanggal(d);
-    return new Promise(function (res, rej) {
-      db.ref(kunciCounter(jenis, t.yy)).transaction(function (cur) { return (parseInt(cur, 10) || 0) + 1; }, function (err, committed, snap) {
-        if (err || !committed) return rej(err || new Error('penomoran dibatalkan'));
-        var nomor = susunNomor(jenis, snap.val(), d);
+    return Promise.resolve(nomorTunggu).then(function () {   // tunggu hitungan nomor terakhir selesai dulu
+      var e = $('sg_nomor');
+      if (!e || e.dataset.auto !== '1') return e ? e.value.trim() : '';
+      var t = bagianTanggal(d);
+      return naikkanCounter(jenis, t.yy).then(function (n) {
+        var nomor = susunNomor(jenis, n, d);
         e.value = nomor; e.dataset.auto = '0'; e.dataset.final = '1';
         setInfoNomor('✅ Nomor ' + nomor + ' sudah dikunci untuk surat ini.', '#047857');
-        res(nomor);
+        return nomor;
       });
     });
+  }
+  // Tanggal surat diubah SESUDAH nomor terkunci: bulan/tahun di nomor tidak ikut berubah -> beri peringatan.
+  function cekNomorTanggal() {
+    var e = $('sg_nomor'); if (!e || e.dataset.final !== '1') return;
+    var t = bagianTanggal(ambil()), p = e.value.trim().split('/');
+    if (p.length >= 2 && (p[p.length - 2] !== t.mm || p[p.length - 1] !== t.yy))
+      setInfoNomor('⚠ Nomor ini sudah terkunci untuk bulan/tahun ' + p[p.length - 2] + '/' + p[p.length - 1] + ', tidak sama dengan tanggal surat. Kosongkan kolom Nomor untuk meminta nomor baru (nomor lama tidak terpakai).', '#b45309');
   }
   function kvTugas(g, d) {
     var r = [['Nama', tanpaGelar(g.name)]];
@@ -872,9 +990,10 @@
         break;
       case 'sk-tugas':
         jadwal = jadwalGuru(g);
-        var jabKepT = 'KEPALA ' + mU, mapelT = [], tbh = (d.tugasTbh || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+        var jabKepT = 'KEPALA ' + mU, mapelT = [], tbh = tugasGuru(g);
+        (d.tugasTbh || '').split('\n').forEach(function (x) { x = x.trim(); if (x && !tbh.some(function (y) { return y.toLowerCase() === x.toLowerCase(); })) tbh.push(x); });
         jadwal.forEach(function (j) { if (j.mapel && mapelT.indexOf(j.mapel) < 0) mapelT.push(j.mapel); });
-        if (g.waliKelasOf && !tbh.some(function (x) { return /wali\s*kelas/i.test(x); })) tbh.unshift('Wali Kelas ' + g.waliKelasOf);
+        if (g.waliKelasOf && !tbh.some(function (x) { return /wali\s*kelas/i.test(x); })) tbh.unshift(teksWali(g.waliKelasOf));
         S.sk = true; S.judul = ['KEPUTUSAN', jabKepT]; S.tentang = ['PEMBAGIAN TUGAS MENGAJAR GURU DAN TUGAS TAMBAHAN', 'TAHUN AJARAN ' + ta.toUpperCase()];
         pembukaSK(jabKepT);
         B.push({ t: 'p', s: 'Menimbang :', b: true });
@@ -896,14 +1015,18 @@
         S.jadwalKosong = !jadwal.length;
         break;
       case 'sk-tugas-semua':
-        var jabKepS = 'KEPALA ' + mU, tambahan = {};
+        var jabKepS = 'KEPALA ' + mU, tambahan = {}, namaTambahan = {}, terpakai = {};
         (d.tugasSemua || '').split('\n').forEach(function (ln) {
           var i = ln.indexOf('='); if (i < 0) return;
           var nm = ln.slice(0, i).trim(), ts = ln.slice(i + 1).split(';').map(function (x) { return x.trim(); }).filter(Boolean);
-          if (nm && ts.length) tambahan[nm.toLowerCase()] = ts;
+          if (nm && ts.length) { tambahan[kunciNama(nm)] = ts; namaTambahan[kunciNama(nm)] = nm; }
         });
         var kecualiS = String(d.guruKecuali || '').split('\n').filter(Boolean);
-        var barisS = (allGuru || []).filter(function (gg) { return kecualiS.indexOf(gg.key || gg.name) < 0; }).sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); }).map(function (gg, i) {
+        var daftarS = (allGuru || []).filter(function (gg) { return kecualiS.indexOf(gg.key || gg.name) < 0; }).sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'id'); });
+        var namaKepS = String(MADRASAH.kepala_sekolah || '').trim();
+        // Kepala Madrasah umumnya tidak ada di daftar guru -> tambahkan sebagai baris pertama (kecuali sudah ada di daftar guru, termasuk yang sengaja dikecualikan)
+        if (namaKepS && !(allGuru || []).some(function (gg) { return kunciNama(gg.name) === kunciNama(namaKepS); })) daftarS.unshift({ name: namaKepS, tugasDefault: ['Kepala Madrasah'] });
+        var barisS = daftarS.map(function (gg, i) {
           var jd = jadwalGuru(gg), peta = {}, urut = [];
           jd.forEach(function (j) { var m0 = j.mapel || '-'; if (!peta[m0]) { peta[m0] = []; urut.push(m0); } if (j.kelas && peta[m0].indexOf(j.kelas) < 0) peta[m0].push(j.kelas); });
           var ringkasKelas = function (arr) {                      // ['Kelas 4','Kelas 3'] -> 'Kelas 3, 4'
@@ -911,10 +1034,13 @@
             return a2.every(function (x) { return /^Kelas\s+\S+$/i.test(x); }) ? 'Kelas ' + a2.map(function (x) { return String(x).replace(/^Kelas\s+/i, ''); }).join(', ') : a2.join(', ');
           };
           var mengajar = urut.length ? urut.map(function (m0) { return m0 + (peta[m0].length ? ' (' + ringkasKelas(peta[m0]) + ')' : ''); }).join('; ') : '-';
-          var tb = (tambahan[String(gg.name || '').toLowerCase()] || []).slice();
-          if (gg.waliKelasOf && !tb.some(function (x) { return /wali\s*kelas/i.test(x); })) tb.unshift('Wali Kelas ' + gg.waliKelasOf);
+          var tb = (gg.tugasDefault || []).concat(tugasGuru(gg)).filter(function (x, i2, ar) { return ar.findIndex(function (y) { return y.toLowerCase() === x.toLowerCase(); }) === i2; });
+          (tambahan[kunciNama(gg.name)] || []).forEach(function (x) { if (!tb.some(function (y) { return y.toLowerCase() === x.toLowerCase(); })) tb.push(x); });
+          terpakai[kunciNama(gg.name)] = true;
+          if (gg.waliKelasOf && !tb.some(function (x) { return /wali\s*kelas/i.test(x); })) tb.unshift(teksWali(gg.waliKelasOf));
           return [String(i + 1), gg.name || '-', mengajar, jd.length ? String(jd.length) : '-', tb.length ? tb.join('; ') : '-'];
         });
+        S.tugasTakCocok = Object.keys(namaTambahan).filter(function (k) { return !terpakai[k]; }).map(function (k) { return namaTambahan[k]; });   // baris tugas tambahan yang namanya tak cocok dengan siapa pun
         S.padat = true;                                           // tata letak rapat: judul lebih rapat, tabel lebih kecil -> muat 2 lembar
         S.sk = true; S.judul = ['KEPUTUSAN', jabKepS]; S.tentang = ['PEMBAGIAN TUGAS MENGAJAR GURU DAN TUGAS TAMBAHAN', 'TAHUN AJARAN ' + ta.toUpperCase()];
         pembukaSK(jabKepS);
@@ -1045,6 +1171,7 @@
     if (!g) return 'Pilih guru terlebih dahulu!';
     var j = JENIS[jenis], salah = (j.wajib || []).filter(function (k) { return !d[k]; });
     if (jenis === 'sk-pengangkatan' && d.masa === 'kustom') { if (!d.mulai || !d.selesai) return 'Masa berlaku "Atur tanggal sendiri": isi Tanggal Mulai dan Tanggal Selesai.'; if (d.selesai < d.mulai) return 'Tanggal Selesai tidak boleh sebelum Tanggal Mulai.'; }
+    if (jenis === 'surat-tugas' && d.mulai && d.selesai && d.selesai < d.mulai) return 'Tanggal Selesai tidak boleh sebelum Tanggal Mulai.';
     if (salah.length) return 'Lengkapi dulu: ' + salah.map(function (k) { return FIELD[k].l; }).join(', ') + '.';
     return '';
   }
@@ -1063,12 +1190,14 @@
       if (w) toast(w, true); else toast('👁️ Preview diperbarui', false, 1200);
     }
     if (S.jadwalKosong && !otomatis) toast('Guru ini belum punya jadwal di menu Jadwal Pelajaran.', true);
+    if (!otomatis) peringatTugasTakCocok(S);
     return true;
   }
   function simpan() {
     if (!bolehGuru()) return toast('Hanya Admin & Kepala Madrasah!', true);
     var g = guruTerpilih(), jenis = $('sg_jenis').value, d = ambil(), w = cekWajib(jenis, d, g);
     if (w) return toast(w, true);
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return toast('Perangkat sedang offline; surat belum bisa disimpan.', true);
     if (isBusy('simpanSuratGuru')) return toast('Sedang menyimpan...', false, 1500);
     var btn = $('btnSimpanSuratGuru'), label = JENIS[jenis].label;
     setBusy('simpanSuratGuru', btn);
@@ -1089,7 +1218,15 @@
       toast('❌ Nomor otomatis gagal: ' + (err && err.message ? err.message : err) + '. Isi nomor manual atau cek Firebase Rules node nomor_surat.', true);
     });
   }
-  async function unduhPDF() {
+  var sibukPdfGuru = false;
+  async function unduhPDF() {                                // pembungkus: cegah klik ganda & tampilkan galat apa pun
+    if (sibukPdfGuru) return toast('PDF sedang dibuat, mohon tunggu…', false, 1500);
+    sibukPdfGuru = true;
+    try { await unduhPDFInti(); }
+    catch (e) { console.error('[SI MAMBA] PDF surat guru gagal:', e); toast('❌ Gagal membuat PDF: ' + (e && e.message ? e.message : e), true); }
+    finally { sibukPdfGuru = false; }
+  }
+  async function unduhPDFInti() {
     if (!bolehGuru()) return toast('Hanya Admin & Kepala Madrasah!', true);
     var g = guruTerpilih(), jenis = $('sg_jenis').value, d = ambil(), w = cekWajib(jenis, d, g);
     if (w) return toast(w, true);
@@ -1100,6 +1237,7 @@
     catch (e) { return toast('❌ Nomor otomatis gagal: ' + (e && e.message ? e.message : e) + '. Isi nomor manual atau cek Firebase Rules node nomor_surat.', true); }
     d = ambil();
     var S = susun(jenis, d, g), jsPDF = window.jspdf.jsPDF, doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });   // semua surat: A4; compress = ukuran berkas kecil
+    peringatTugasTakCocok(S);
     var pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
     var mk = 30, mr = 20, lebar = pw - mk - mr, LH = S.yys ? 6 : (S.padat ? 5.5 : 6.3), y = 0;                                                    // margin PMA 12/2026 (Lampiran, Tata Letak No. 12): kiri 3 cm, kanan 2 cm, bawah 2,5 cm, atas 2 cm
     var data = await Promise.all([S.yys ? null : Promise.resolve().then(function () { return v4LoadLogoForPdf(); }).then(muatLogoMadrasah, function () { return muatLogoMadrasah(null); }), null, S.yys ? muatLogoYayasan() : null]), logo = data[0], logoYys = data[2];
@@ -1266,18 +1404,18 @@
       setNomorPreview(sPrev.nomor, k);
     }).catch(function (err) { console.error('[SI MAMBA] Gagal membaca penomoran surat siswa:', err); });
   }
+  var sProses = {};                                          // kunci surat -> promise penguncian yang sedang berjalan (cegah counter naik dua kali)
   function kunciNomorSiswa(jenis, iso, k) {                  // kunci nomor (counter +1) sekali per surat
     if (sKunci[k]) return Promise.resolve(sKunci[k]);
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(new Error('perangkat sedang offline'));
+    if (sProses[k]) return sProses[k];
     var t = bagianTanggal({ tanggal: iso });
-    return new Promise(function (res, rej) {
-      db.ref(kunciCounter(jenis, t.yy)).transaction(function (cur) { return (parseInt(cur, 10) || 0) + 1; }, function (err, committed, snap) {
-        if (err || !committed) return rej(err || new Error('penomoran dibatalkan'));
-        sKunci[k] = susunNomor(jenis, snap.val(), { tanggal: iso, klas: klasSiswa(jenis) });
-        setNomorPreview(sKunci[k], k);
-        res(sKunci[k]);
-      });
-    });
+    sProses[k] = naikkanCounter(jenis, t.yy).then(function (n) {
+      delete sProses[k];
+      sKunci[k] = susunNomor(jenis, n, { tanggal: iso, klas: klasSiswa(jenis) });
+      setNomorPreview(sKunci[k], k);
+      return sKunci[k];
+    }, function (e) { delete sProses[k]; throw e; });
+    return sProses[k];
   }
 
   // ---- Disalin dari js/app.js (previewSurat / downloadSuratPDF / simpanSurat); perubahan hanya di bagian nomor ----
@@ -1340,13 +1478,14 @@
       kertasTerakhir = 'A4';
       return true;
     }
-    async function downloadSuratPDF() {
+    async function downloadSuratPDFInti() {
       const siswa = selectedSiswaSurat;
       if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
       const jenis = document.getElementById('suratJenisSelect').value;
       const namaJenis = { 'aktif':'Keterangan_Aktif','pindah':'Keterangan_Pindah','ijin':'Surat_Ijin','sakit':'Surat_Sakit' }[jenis] || 'Surat';
       const perluTanggalIjin = (jenis === 'ijin' || jenis === 'sakit');
       const tanggalIjinRaw = document.getElementById('suratTanggalIjin') ? document.getElementById('suratTanggalIjin').value : '';
+      if (perluTanggalIjin && !tanggalIjinRaw) { toast('Pilih tanggal ijin/sakit terlebih dahulu!', true); return; }
       const tanggal = perluTanggalIjin && tanggalIjinRaw
         ? new Date(tanggalIjinRaw + 'T00:00:00').toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })
         : new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
@@ -1450,11 +1589,14 @@
       if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
       const jenis = document.getElementById('suratJenisSelect').value;
       const namaJenis = { 'aktif':'Keterangan Aktif','pindah':'Keterangan Pindah','ijin':'Surat Ijin','sakit':'Surat Sakit' }[jenis] || 'Surat';
+      if (jenis === 'ijin' || jenis === 'sakit') { const te = document.getElementById('suratTanggalIjin'); if (!(te && te.value)) { toast('Pilih tanggal ijin/sakit terlebih dahulu!', true); return; } }
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return toast('Perangkat sedang offline; surat belum bisa disimpan.', true);
       if (isBusy('simpanSurat')) return toast('Sedang menyimpan...', false, 1500);
       const btnSimpanSurat = document.getElementById('btnSimpanSurat');
       setBusy('simpanSurat', btnSimpanSurat);
       const isoSurat = tglSuratSiswa(jenis), kSurat = kunciSiswa(siswa, jenis, isoSurat);
       kunciNomorSiswa(jenis, isoSurat, kSurat).then(() => {
+      if (!previewSurat()) { clearBusy('simpanSurat', btnSimpanSurat); return; }   // render ulang dari siswa & jenis yang dipilih (nomor sudah terkunci), bukan isi preview lama
       const html = document.getElementById('suratPreview').innerHTML;      // dibaca SESUDAH nomor terkunci
       const ref = db.ref('surat').push();
       ref.set({ siswaKey: siswa.key, siswaName: siswa.name, kelas: siswa.kelas, jenis, jenisLabel: namaJenis, tanggal: new Date().toISOString(), tahunAjaran: currentTahunAjaran, dibuatOleh: currentUser.name, guruKey: currentUser.key || null, htmlContent: hematHtmlSurat(html, 'kepala'), createdAt: new Date().toISOString() }, err => {
@@ -1467,6 +1609,14 @@
         toast('❌ Nomor otomatis gagal: ' + (e && e.message ? e.message : e) + '. Cek koneksi internet atau Firebase Rules node nomor_surat.', true);
       });
     }
+  var sibukPdfSiswa = false;
+  async function downloadSuratPDF() {                        // pembungkus: cegah klik ganda & tampilkan galat apa pun
+    if (sibukPdfSiswa) return toast('PDF sedang dibuat, mohon tunggu…', false, 1500);
+    sibukPdfSiswa = true;
+    try { await downloadSuratPDFInti(); }
+    catch (e) { console.error('[SI MAMBA] PDF surat siswa gagal:', e); toast('❌ Gagal membuat PDF: ' + (e && e.message ? e.message : e), true); }
+    finally { sibukPdfSiswa = false; }
+  }
   window.previewSurat = previewSurat;
   window.previewSuratCetak = function () { if (previewSurat()) bukaPratinjau('A4'); };   // tombol Preview surat siswa
   window.downloadSuratPDF = downloadSuratPDF;
@@ -1485,13 +1635,9 @@
       });
     },
     kunci: function (jenis, iso, klas, opsi) {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(new Error('perangkat sedang offline'));
       var t = bagianTanggal({ tanggal: iso });
-      return new Promise(function (res, rej) {
-        db.ref(kunciCounter(jenis, t.yy)).transaction(function (cur) { return (parseInt(cur, 10) || 0) + 1; }, function (err, committed, snap) {
-          if (err || !committed) return rej(err || new Error('penomoran dibatalkan'));
-          res(susunNomor(jenis, snap.val(), { tanggal: iso, klas: klas, internal: !!(opsi && opsi.internal) }));
-        });
+      return naikkanCounter(jenis, t.yy).then(function (n) {
+        return susunNomor(jenis, n, { tanggal: iso, klas: klas, internal: !!(opsi && opsi.internal) });
       });
     }
   };

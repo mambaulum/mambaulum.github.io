@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.482';
+const APP_VERSION = 'v8.483';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -82,7 +82,7 @@ const PRECACHE_URLS = [
   './js/offline-db.js',
   './js/kas.js?v=10',
   './js/administrasi-ujian.js?v=4',
-  './js/app.js?v=170',
+  './js/app.js?v=171',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=37',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=6',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -152,7 +152,7 @@ const PRECACHE_URLS = [
   './js/impersonate.js?v=7',
   './js/peran-ganda.js?v=4',              // peran ganda: guru yang juga Kepala beralih Guru/Kepala tanpa logout (dimuat SESUDAH app.js, kredensial.js, login-kode.js)
   './js/absen-manual-gps.js?v=5',          // konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (dimuat SESUDAH app.js)
-  './js/surat-guru.js?v=47',               // surat resmi guru + kerangka tab Surat & Ijin
+  './js/surat-guru.js?v=48',               // surat resmi guru + kerangka tab Surat & Ijin
   './js/agenda-surat.js?v=5',             // agenda & rekap surat masuk/keluar (+ API SIMambaAgenda)
   './js/undangan-rapat.js?v=5',           // undangan rapat bernomor (tab Surat & Ijin)
   './js/edaran-wali.js?v=5',              // surat edaran wali murid (tab Surat & Ijin)
