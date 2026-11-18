@@ -6,6 +6,7 @@
      2) Absensi Sholat Dhuha & Dzuhur (activity_attendance_v4) ikut tercatat I/S
         pada hari yang memang ada sholatnya (Dhuha Sen-Sab, Dzuhur Sen-Kam).
    Node: ijin_ortu/{id}, ijin_ortu_foto/{id} (foto surat dokter, opsional, base64 kecil)
+   v7: batal setuju mengembalikan catatan sholat guru yang sempat tertimpa (statusAwal) & tidak menghapus bila status sudah diubah guru; batas ukuran foto 8 MB.
    v6: tombol Admin "Bersihkan foto lama" (hapus foto surat > 60 hari; data pengajuan tetap).
    v5: tab Lama (pengajuan basi), penanda belum diproses 07:30 WIB, penyetuju PENGGANTI per hari (node ijin_ortu_pengganti).
    Dimuat SESUDAH app.js & portal-ortu.js.
@@ -114,6 +115,7 @@
     if (daftarTanggal(mulai, selesai).length > MAKS_HARI) return warn('⚠️ Maksimal ' + MAKS_HARI + ' hari per pengajuan. Buat pengajuan lanjutan bila perlu.');
     if (!ket) return warn('⚠️ Isi keterangan singkat.');
     if (file && !/^image\//.test(file.type)) return warn('⚠️ File harus berupa gambar.');
+    if (file && file.size > 8 * 1024 * 1024) return warn('⚠️ Ukuran foto maksimal 8 MB. Pilih foto yang lebih kecil.');
     var tumpang = (window._ijinOrtuRiwayat || []).some(function (p) { return p.status !== 'ditolak' && !(selesai < p.tglMulai || mulai > p.tglSelesai); });
     if (tumpang) return warn('⚠️ Sudah ada pengajuan (menunggu/disetujui) yang tanggalnya beririsan. Batalkan dulu bila ingin mengganti.');
     setBusy('ijinKirim', btn); setTimeout(function () { clearBusy('ijinKirim', btn); }, 30000);
@@ -393,6 +395,12 @@
               var kunci = sh.id + '_' + t + '_' + p.siswaKey, rf = db.ref('activity_attendance_v4/' + kunci);
               jobs.push(rf.once('value').then(function (sn) {
                 var data = Object.assign({ activityTypeId: sh.id, studentId: p.siswaKey, studentName: p.siswaNama, kelas: p.kelas, tanggal: t, tahunAjaran: p.tahunAjaran || currentTahunAjaran }, sn.val() || {});
+                var awal = sn.val();
+                if (awal && !awal.ijinKey && awal.status) {   // catatan buatan guru: simpan dulu supaya bisa dikembalikan saat persetujuan dibatalkan
+                  data.statusAwal = awal.status;
+                  if (awal.recordedBy) data.awalOleh = awal.recordedBy;
+                  if (awal.recordedAt) data.awalAt = awal.recordedAt;
+                }
                 data.status = st; data.recordedBy = currentUser.name || ''; data.guruKey = me; data.recordedAt = new Date().toISOString(); data.sumber = 'ijin_ortu'; data.ijinKey = key;
                 return rf.set(data).then(function () {
                   nSholat++;
@@ -465,6 +473,14 @@
           var kunci = sh.id + '_' + t + '_' + p.siswaKey, rf = db.ref('activity_attendance_v4/' + kunci);
           jobs.push(rf.once('value').then(function (sn) {
             var v = sn.val(); if (!v || v.ijinKey !== key) return;
+            if (v.status !== p.jenis) return;   // sudah diubah guru ke status lain: jangan disentuh (sama seperti absensi kelas)
+            if (v.statusAwal) {   // sebelum persetujuan sudah ada catatan guru: kembalikan, jangan hapus
+              var pulih = { status: v.statusAwal, recordedBy: v.awalOleh || v.recordedBy || '', recordedAt: v.awalAt || new Date().toISOString(), guruKey: (typeof v4ActMyId === 'function' ? v4ActMyId() : null) || currentUser.key || v.guruKey || null, sumber: null, ijinKey: null, statusAwal: null, awalOleh: null, awalAt: null };
+              return rf.update(pulih).then(function () {
+                var L = (V4.activityAttendance = V4.activityAttendance || []), ix = L.findIndex(function (a) { return a.key === kunci; });
+                if (ix >= 0) { var r = Object.assign({}, L[ix], pulih); ['sumber', 'ijinKey', 'statusAwal', 'awalOleh', 'awalAt'].forEach(function (f) { delete r[f]; }); L[ix] = r; }
+              });
+            }
             return rf.remove().then(function () { V4.activityAttendance = (V4.activityAttendance || []).filter(function (a) { return a.key !== kunci; }); });
           }));
         });
