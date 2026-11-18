@@ -123,7 +123,7 @@
        jalan berurutan sesuai posisi di dokumen, tepat sebelum DOMContentLoaded). Tetap aman:
        app.js hanya mengakses elemen DOM di dalam fungsi yang dipanggil setelah halaman siap,
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
-  <script defer src="js/app.js?v=173"></script>
+  <script defer src="js/app.js?v=174"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
   <script defer src="js/portal-ortu.js?v=38"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
@@ -135,6 +135,7 @@
   <script defer src="js/materi-tugas.js?v=1"></script>
   <script defer src="js/kelola-absen-guru.js?v=7"></script>
   <script defer src="js/jadwal.js?v=6"></script>
+  <script defer src="js/cek-data.js?v=1"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey; sesudah app.js & jadwal.js -->
   <script defer src="js/laporan-rekap.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/honor-guru.js?v=27"></script>
@@ -485,6 +486,7 @@
           <div class="menu-group-header" onclick="toggleMenuGroup('sistem-v4')">Sistem <span class="chevron">▲</span></div>
           <div class="menu-group-items">
             <div class="menu-item notif-badge" data-page="admin"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-admin"/></svg></span> Admin <span class="badge-dot" id="adminNotifDot"></span></div>
+            <div class="menu-item" data-page="cek-data"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-admin"/></svg></span> Cek Data</div>
             <div class="menu-item" data-page="user-management"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> User & Permission</div>
             <div class="menu-item" data-page="rekap"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> Ringkasan Sekolah</div>
             <div class="menu-item hidden-tab" data-page="kpi"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> KPI Madrasah</div>
@@ -941,6 +943,14 @@
       <!-- ============================================================
            PAGE: BUKU PENGHUBUNG
       ============================================================ -->
+      <div id="page-cek-data" class="page-content hidden">
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🔍 Cek Data</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Mendeteksi guru ganda dan jadwal yang belum terhubung ke akun guru. Perbaikan selalu diawali unduhan cadangan.</p>
+          <div id="cekDataBody"></div>
+        </div>
+      </div>
+
       <div id="page-ijin-ortu" class="page-content hidden">
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🤒 Ijin/Sakit Ortu</h3>
