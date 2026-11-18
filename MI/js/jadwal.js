@@ -21,18 +21,24 @@
       }
     }
     function jadwalDaftarKelas() { return (typeof KELAS_LIST !== 'undefined' && KELAS_LIST.length) ? KELAS_LIST.slice() : [...new Set(allJadwal.map(j => j.kelas))].sort(COLLATOR_ID.compare); }
+    // Nilai filter guru untuk satu baris jadwal. Baris lama tanpa guruKey dipetakan ke key guru
+    // yang namanya sama (kalau cuma ada SATU guru bernama itu), supaya tidak muncul dobel di dropdown.
+    function jadwalGuruVal(j) {
+      if (j.guruKey) return j.guruKey;
+      const m = (typeof allGuru !== 'undefined' ? allGuru : []).filter(g => g.key && samaNamaGuru(g.name, j.guru));
+      return m.length === 1 ? m[0].key : (j.guru || '');
+    }
     function populateJadwalGuruFilter() {
-      // FIX: dulu opsi filter dibangun dari SET NAMA unik (allJadwal.map(j=>j.guru)) -- kalau ada
-      // 2 guru bernama sama, cuma muncul 1 opsi di dropdown ini dan memilihnya menampilkan jadwal
-      // GABUNGAN keduanya (lihat renderJadwal di bawah), padahal Admin mengira sedang melihat
-      // jadwal satu orang saja. Sekarang opsi dibangun per guruKey unik (fallback ke nama untuk
-      // baris jadwal lama yang belum punya guruKey), value = guruKey, label tetap nama guru.
       const select = document.getElementById('jadwalGuruFilter');
       select.innerHTML = '<option value="">Semua Guru</option>';
       const seen = new Map(); // value (guruKey/nama) -> nama tampilan
-      allJadwal.forEach(j => { if (!j.guru) return; const val = j.guruKey || j.guru; if (!seen.has(val)) seen.set(val, j.guru); });
-      [...seen.entries()].sort((a, b) => COLLATOR_ID.compare(a[1], b[1])).forEach(([val, nama]) => {
-        select.innerHTML += `<option value="${escapeHtml(val)}">${escapeHtml(nama)}</option>`;
+      allJadwal.forEach(j => { if (!j.guru) return; const val = jadwalGuruVal(j); if (!seen.has(val)) seen.set(val, j.guru); });
+      const entries = [...seen.entries()].sort((a, b) => COLLATOR_ID.compare(a[1], b[1]));
+      // Kalau masih ada nama kembar (benar-benar 2 akun guru), beri penanda supaya bisa dibedakan.
+      const hitung = {}; entries.forEach(([v, n]) => { hitung[n] = (hitung[n] || 0) + 1; });
+      entries.forEach(([val, nama]) => {
+        const label = hitung[nama] > 1 ? `${nama} (ID …${String(val).slice(-4)})` : nama;
+        select.innerHTML += `<option value="${escapeHtml(val)}">${escapeHtml(label)}</option>`;
       });
     }
     function setJadwalView(view) {
@@ -104,7 +110,7 @@
       let filtered = allJadwal.filter(j => j.kelas === kelas);
       if (jadwalView === 'permapel') { renderJadwalPerMapel(filtered, kelas); return; }
       if (filterGuru) {
-        filtered = filtered.filter(j => (j.guruKey || j.guru) === filterGuru);
+        filtered = filtered.filter(j => jadwalGuruVal(j) === filterGuru);
       }
 
       if (jadwalView === 'mingguan') {
@@ -174,7 +180,7 @@
       const isAdminUser = isAdmin(), kelasList = jadwalDaftarKelas();
       const guruSelect = document.getElementById('jadwalGuruFilter');
       const filterGuruNama = guruSelect && guruSelect.selectedIndex > 0 ? guruSelect.options[guruSelect.selectedIndex].textContent : '';
-      const pakaiGuru = j => !filterGuru || (j.guruKey || j.guru) === filterGuru;
+      const pakaiGuru = j => !filterGuru || jadwalGuruVal(j) === filterGuru;
       if (jadwalView === 'harian') {
         const urutKelas = k => { const i = kelasList.indexOf(k); return i < 0 ? 999 : i; };
         const filtered = allJadwal.filter(j => j.hari === hari && pakaiGuru(j)).sort((a, b) => urutKelas(a.kelas) - urutKelas(b.kelas) || (a.jam || 0) - (b.jam || 0));
@@ -390,7 +396,7 @@
       const semua = kelas === JADWAL_SEMUA, kl = jadwalDaftarKelas(), urutK = k => { const i = kl.indexOf(k); return i < 0 ? 999 : i; };
       const gSel = document.getElementById('jadwalGuruFilter'), guruVal = gSel ? gSel.value : '';
       const guruNama = gSel && gSel.selectedIndex > 0 ? gSel.options[gSel.selectedIndex].textContent : '';
-      const filtered = allJadwal.filter(j => (semua || j.kelas === kelas) && (semuaHari || j.hari === hariPilih) && (!guruVal || (j.guruKey || j.guru) === guruVal));
+      const filtered = allJadwal.filter(j => (semua || j.kelas === kelas) && (semuaHari || j.hari === hariPilih) && (!guruVal || jadwalGuruVal(j) === guruVal));
       filtered.sort((a, b) => (semuaHari ? HARI.indexOf(a.hari) - HARI.indexOf(b.hari) : 0) || (semua ? urutK(a.kelas) - urutK(b.kelas) : 0) || (a.jam || 0) - (b.jam || 0));
       const labelHari = semuaHari ? 'Semua Hari' : hariPilih, labelKelas = (semua ? 'Semua Kelas' : 'Kelas ' + kelas) + (guruNama ? ' - ' + guruNama : '');
       if (filtered.length === 0) return toast(`Tidak ada jadwal untuk ${semua ? 'semua kelas' : kelas} - ${labelHari.toLowerCase()}${guruNama ? ' (guru ' + guruNama + ')' : ''}`, true);
