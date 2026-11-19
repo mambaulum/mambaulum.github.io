@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.495",
-  "disimpan": "2026-11-18T13:15:00.438Z",
+  "appVersion": "v8.498",
+  "disimpan": "2026-11-19T00:30:51.311Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,12 +59,12 @@
       "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
     },
     "js/app.js": {
-      "v": "v=174",
-      "hash": "728c3aa90a736b5129320cff49ccffd330159678"
+      "v": "v=175",
+      "hash": "5133a7b0c7a8645f88b554b0489ef6848aebdaa3"
     },
     "js/portal-ortu.js": {
-      "v": "v=38",
-      "hash": "da0ee6037bf90ecad5169bede8fb7252fd9d59a3"
+      "v": "v=40",
+      "hash": "9703339357e22204c51a4543ecb8bc6440a20d79"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -91,8 +91,8 @@
       "hash": "9d87a4d45671acfce1e63649dac3cd7c2b14714c"
     },
     "js/cek-data.js": {
-      "v": "v=1",
-      "hash": "03f257d0cac199d3dc48f78f13f99e32ea4dd275"
+      "v": "v=3",
+      "hash": "22a65adb79df8abf3760908a22ea966faac5b1ba"
     },
     "js/laporan-rekap.js": {
       "v": "v=4",
@@ -171,8 +171,8 @@
       "hash": "a7f25ffddc2f88e36c10cfec36dfae3e3094a71f"
     },
     "js/portal-tab.js": {
-      "v": "v=14",
-      "hash": "58a033eabe6627af21315857a208f18b8513d1f2"
+      "v": "v=15",
+      "hash": "a541684a20f7872fea8f99b016925825a81dfd3d"
     },
     "js/kredensial.js": {
       "v": "v=8",
