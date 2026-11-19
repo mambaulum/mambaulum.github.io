@@ -5837,7 +5837,17 @@
     // - Admin & Kepsek: semua mapel. Wali Kelas: semua mapel di KELAS YANG DIA WALI-I.
     // - Guru lain / Wali Kelas di kelas ajar non-walinya: hanya mapel yang ada di Jadwal-nya untuk kelas tsb.
     // Mengembalikan null (= semua mapel) atau Set nama mapel ternormalisasi.
-    function normMapel(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+    // Alias penulisan mapel -> bentuk baku (yang dipakai daftar mapel Input Nilai). Jadwal hasil impor/ketik manual kadang
+    // memakai singkatan atau tulisan lain (mis. "Seni Budaya", "SBdP", "PJOK"), sehingga guru tidak melihat mapelnya di Input Nilai.
+    const MAPEL_ALIAS = {
+      senibudaya: 'senidanbudaya', senibudayadanprakarya: 'senidanbudaya', senibudayaprakarya: 'senidanbudaya', sbdp: 'senidanbudaya', sbk: 'senidanbudaya',
+      senibudayadanketerampilan: 'senidanbudaya', senidanbudayadanprakarya: 'senidanbudaya',
+      penjasorkes: 'pendidikanjasmaniolahragadankesehatan', pjok: 'pendidikanjasmaniolahragadankesehatan', pendidikanjasmanikesehatandanolahraga: 'pendidikanjasmaniolahragadankesehatan',
+      pkn: 'pendidikanpancasila', ppkn: 'pendidikanpancasila', pancasila: 'pendidikanpancasila', pendidikankewarganegaraan: 'pendidikanpancasila',
+      ipas: 'ilmupengetahuanalamdansosial', mtk: 'matematika', bindo: 'bahasaindonesia', binggris: 'bahasainggris',
+      alquranhadis: 'alquranhadis', quranhadis: 'alquranhadis', ski: 'sejarahkebudayaanislam', tahfidz: 'tahfidzulquran', tahfidzquran: 'tahfidzulquran'
+    };
+    function normMapel(x) { const n = String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); return MAPEL_ALIAS[n] || n; }
     function mapelGuruUntukKelas(kelas) {
       if (isAdmin() || isKepsek()) return null;
       if (typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned() && currentUser.waliKelasOf === kelas) return null;

@@ -739,6 +739,20 @@
         const totalPrestasi = sikap.filter(d=>d.jenis==='prestasi').reduce((s,d)=>s+(Number(d.poin)||0),0);
         const netSikap = totalPrestasi - totalPelanggaran;
         const sikapRows = [...sikap].sort((a,b)=>COLLATOR_ID.compare((b.tanggal||''), a.tanggal||'')).slice(0,5).map(d => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;"><span style="color:${d.jenis==='prestasi'?'#059669':'#dc2626'};font-weight:600;">${d.jenis==='prestasi'?'🌟':'⚠️'} ${escapeHtml(d.kategori||'-')}</span> <span class="text-muted">(${Number(d.poin) || 0} poin) — ${escapeHtml(d.tanggal||'-')}</span></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada catatan.</p>';
+        // Kartu Sikap & Kedisiplinan bergaya "Mode Anak" (kartu lipat putih berikon, js/bacaan-shalat.js bsLipat). Letaknya di tab Amalan, di atas kotak Amalan (css: js/portal-tab.js).
+        // Kalau bsLipat belum ada, dipakai kartu lipat biasa (poAcc).
+        const nSikapPrestasi = sikap.filter(d=>d.jenis==='prestasi').length, nSikapPelanggaran = sikap.filter(d=>d.jenis==='pelanggaran').length;
+        // Otomatis: kartu terbuka sendiri bila ada pelanggaran dalam 7 hari terakhir; selebihnya tertutup (belum ada catatan -> teks "Belum ada catatan").
+        const batasSikapBaru = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+        const nSikapPelanggaranBaru = sikap.filter(d => d.jenis === 'pelanggaran' && String(d.tanggal || '') >= batasSikapBaru).length;
+        if (typeof bsLipatBuka !== 'undefined') bsLipatBuka.sikap = nSikapPelanggaranBaru > 0;
+        const sikapRingkas = sikap.length
+          ? `<strong style="color:${netSikap<0?'#dc2626':'#059669'};">${netSikap>=0?'+':''}${netSikap} poin</strong> · ${nSikapPrestasi} prestasi · ${nSikapPelanggaran} pelanggaran${nSikapPelanggaranBaru ? ` · <strong style="color:#dc2626;">${nSikapPelanggaranBaru} baru</strong>` : ''}`
+          : 'Belum ada catatan';
+        const sikapIsi = `<p style="font-size:13px;margin-bottom:6px;">Net Poin: <strong style="color:${netSikap>=0?'#059669':'#dc2626'};">${netSikap>=0?'+':''}${netSikap}</strong> (⚠️ ${totalPelanggaran} / 🌟 ${totalPrestasi})</p>${sikapRows}`;
+        const sikapKartu = (typeof bsLipat === 'function')
+          ? bsLipat('sikap', 'bintang', '#0d9488', 'Sikap &amp; Kedisiplinan', sikapRingkas, sikapIsi, 'background:#fff;border:0;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);color:#111827;')
+          : poAcc('🌟 Sikap &amp; Kedisiplinan', poBadge((netSikap >= 0 ? '+' : '') + netSikap + ' poin', netSikap < 0 ? 'bad' : (netSikap > 0 ? 'ok' : '')), sikapIsi, false);
         const iuranMingguIni = iuran.find(it => it.minggu === isoMingguKey());
         // Diagnosis infaq: bandingkan jumlah catatan mentah milik anak ini dengan yang lolos filter tahun ajaran.
         // Hanya ke Console (tidak ditampilkan ke orang tua). Buka Console HP/Chrome desktop untuk melihatnya.
@@ -816,7 +830,7 @@
           ${poAcc('📆 Agenda Terdekat', agendaList.length ? poBadge(agendaList.length + ' agenda') : poBadge('Kosong'), agendaRows, false)}
           ${poAcc('📘 Hasil Belajar Hari Ini', journalHariIni.length ? poBadge(journalHariIni.length + ' jam') : poBadge('Kosong'), journalRows, false)}
           ${poAcc('📚 Materi Belajar Terbaru', materi.length ? poBadge(Math.min(materi.length, 5) + ' materi') : poBadge('Kosong'), materiRows, false)}
-          ${poAcc('🌟 Sikap &amp; Kedisiplinan', poBadge((netSikap >= 0 ? '+' : '') + netSikap + ' poin', netSikap < 0 ? 'bad' : (netSikap > 0 ? 'ok' : '')), `<p style="font-size:13px;margin-bottom:6px;">Net Poin: <strong style="color:${netSikap>=0?'#059669':'#dc2626'};">${netSikap>=0?'+':''}${netSikap}</strong> (⚠️ ${totalPelanggaran} / 🌟 ${totalPrestasi})</p>${sikapRows}`, false)}
+          ${sikapKartu}
           ${infaqCardHtml}
           ${poAcc('📖 Buku Penghubung Terbaru', buku.length ? poBadge(Math.min(buku.length, 5) + ' catatan') : poBadge('Kosong'), bukuRows, false)}
           <div id="angketOrtuSlot"></div>

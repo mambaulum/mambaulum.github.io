@@ -123,7 +123,7 @@
   function tabUntuk(c) {
     var id = c.id || '';
     if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda' || id === 'persetujuanOrtuSlot' || id === 'ijinOrtuSlot') return 'home';   // v8.432: kartu persetujuan (belum mengisi/tarik) tampil di Beranda; baris kecil 'persetujuanOrtuBawah' sengaja ikut tab Lainnya
-    if (id === 'bsOrtuBox' || id === 'portalOrtuSholatCard') return 'amalan';
+    if (id === 'bsOrtuBox' || id === 'portalOrtuSholatCard' || id === 'bsLp_sikap') return 'amalan';   // bsLp_sikap = kartu Sikap & Kedisiplinan bergaya Mode Anak
     if (id === 'poAccNilai') return 'belajar';
     if (id === 'poAngketKosong' || ID_ANGKET.indexOf(id) >= 0) return 'angket';
     if (c.tagName === 'DETAILS') {
@@ -347,6 +347,7 @@
     + '#poTabBar .pt-dot{position:absolute;top:2px;left:calc(50% + 6px);width:8px;height:8px;border-radius:50%;background:#dc2626}#poTabBar .pt-dot[hidden]{display:none}'
     + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="angket"]>:not([data-ptab="angket"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
     + '#portalOrtuContent[data-pt="angket"]{display:flex;flex-direction:column}#angketOrtuSlot{order:1}#angketSiswaSlot{order:2}#angketKeunggulanOrtuSlot{order:3}#angketKeunggulanSiswaSlot{order:4}#p8OrtuBox{order:5}#poAngketKosong{order:0}'
+    + '#portalOrtuContent[data-pt="amalan"]{display:flex;flex-direction:column}#portalOrtuContent[data-pt="amalan"]>#bsLp_sikap{order:-1}'
     + '}';
   // Tema hijau (v10): pita header hijau, latar halaman hijau muda, tab aktif hijau penuh. Warna utama ada di satu tempat (--po-hijau) supaya mudah diganti.
   // Juga memperbaiki ikon yang tadinya turun ke baris sendiri (styles.css membuat svg display:block).
