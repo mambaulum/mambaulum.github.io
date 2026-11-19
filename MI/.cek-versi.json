@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.501",
-  "disimpan": "2026-11-19T01:09:48.157Z",
+  "appVersion": "v8.507",
+  "disimpan": "2026-11-19T01:54:20.604Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -75,8 +75,8 @@
       "hash": "b3fbf5e3a3769ea5ce90dc80b37bafb05a9ddb80"
     },
     "js/sikap-buku.js": {
-      "v": "v=2",
-      "hash": "b741352c528ec1a199ee1eada6a930d0ad48801f"
+      "v": "v=4",
+      "hash": "1d0f3e974297674ec8c0a7a7d4b6cc0fb776d722"
     },
     "js/materi-tugas.js": {
       "v": "v=1",
@@ -91,8 +91,8 @@
       "hash": "9d87a4d45671acfce1e63649dac3cd7c2b14714c"
     },
     "js/cek-data.js": {
-      "v": "v=3",
-      "hash": "22a65adb79df8abf3760908a22ea966faac5b1ba"
+      "v": "v=4",
+      "hash": "cca289ef95d4dc8f4b2a4c952e5d1ab8a5c5fb6d"
     },
     "js/laporan-rekap.js": {
       "v": "v=4",
@@ -143,8 +143,8 @@
       "hash": "5dd402f3971b41a4e9c813c3661d0f27bdb980a0"
     },
     "js/kpi.js": {
-      "v": "v=27",
-      "hash": "352f21301b23067dc8da37c963a959c72a1bcc6c"
+      "v": "v=29",
+      "hash": "c428950eb2032c1bf98e6d251c77b3546825a1ea"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
@@ -199,8 +199,12 @@
       "hash": "07ceda334e272a630ce6c34912582630af6001d2"
     },
     "js/dashboard-sikap.js": {
+      "v": "v=6",
+      "hash": "a8ac43ef40dc10e52709fb666019a65490c57109"
+    },
+    "js/notif-pembinaan.js": {
       "v": "v=2",
-      "hash": "8035fe76acaae361b4c4a1d8e41204e1c34a0089"
+      "hash": "fd81a6482b91ea770fb49361d1fb86ce47d334cf"
     },
     "js/rapat.js": {
       "v": "v=7",
@@ -343,8 +347,8 @@
       "hash": "34fcc78c75bfdd332e865ce7fa353c617711525a"
     },
     "js/surat-guru.js": {
-      "v": "v=48",
-      "hash": "3bf7f830ed4f0d07f4d3299a9b3b74d0c6841377"
+      "v": "v=49",
+      "hash": "5c803edd50c6180261105369a61f198caa238f38"
     },
     "js/ijin-ortu.js": {
       "v": "v=7",
