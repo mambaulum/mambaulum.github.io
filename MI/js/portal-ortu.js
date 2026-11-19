@@ -500,7 +500,7 @@
       return `<details class="card po-acc"${id ? ' id="' + id + '"' : ''} style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${poID(judul)}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
     }
     const poBadge = (teks, kelas) => `<span class="po-badge${kelas ? ' ' + kelas : ''}">${teks}</span>`;
-    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:span 2}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:19px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}#bsOrtuBox summary::-webkit-details-marker{display:none}@media(max-width:759px){#portalOrtuContent .card{padding:10px 12px!important;margin-bottom:8px!important}.po-ub{padding:7px 8px}.po-ub-j{font-size:11px}.po-ub-u{font-size:17px}.po-ub-s{font-size:10.5px}}#portalOrtuAnakWrap,#portalOrtuGantiPin{max-width:600px}@media(min-width:760px){#portalOrtuContent{column-count:2;column-gap:12px}#portalOrtuContent .card,#portalOrtuContent details{break-inside:avoid;-webkit-column-break-inside:avoid}#portalOrtuContent #poKopKehadiran,#portalOrtuContent #poRingkas{column-span:all}}</style>`;
+    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:span 2}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:19px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}#bsOrtuBox summary::-webkit-details-marker{display:none}@media(max-width:759px){#portalOrtuContent .card{padding:10px 12px!important;margin-bottom:8px!important}.po-ub{padding:7px 8px}.po-ub-j{font-size:11px}.po-ub-u{font-size:17px}.po-ub-s{font-size:10.5px}}#portalOrtuAnakWrap,#portalOrtuGantiPin{max-width:600px}@media(min-width:760px){#portalOrtuContent{column-count:2;column-gap:12px}#portalOrtuContent .card,#portalOrtuContent details{break-inside:avoid;-webkit-column-break-inside:avoid}#portalOrtuContent #poKopKehadiran,#portalOrtuContent #poRingkas{column-span:all}}.po-ub-sikap{grid-column:1/-1;flex-direction:row!important;align-items:center!important;gap:12px!important;padding:10px 12px!important}.po-sk-donat{position:relative;width:66px;height:66px;flex:none}.po-sk-donat svg{width:100%;height:100%;display:block}.po-sk-bg{stroke:#e5e7eb}.po-sk-tot{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;pointer-events:none}.po-sk-tot b{font-size:17px;font-weight:800;color:#111827}.po-sk-tot i{font-style:normal;font-size:9px;color:#6b7280;margin-top:2px}.po-sk-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}.po-sk-leg{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;font-size:10.5px;color:#475569}.po-sk-leg span{display:inline-flex;align-items:center;gap:4px}.po-sk-leg em{width:8px;height:8px;border-radius:50%;display:inline-block}.po-sk-baru{align-self:flex-start;margin-top:4px;font-size:10.5px;font-weight:700;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:2px 8px}.po-sk-go{flex:none;color:#94a3b8;font-size:20px;line-height:1}.po-sk-rinci{display:flex;align-items:center;gap:12px;margin-bottom:8px}.po-sk-donat-b{width:78px;height:78px}.po-sk-ket{flex:1;min-width:0}</style>`;
     // ---------- Ringkasan satu layar (kartu #poRingkas, tepat di bawah kop anak) ----------
     // Kotak Kehadiran, Nilai, Infaq dihitung di sini. Kotak Amalan & Hafalan diisi js/bacaan-shalat.js lewat poIsiUbin()
     // begitu datanya selesai dimuat. Mengetuk kotak membuka bagian rinciannya dan menggulir ke sana.
@@ -530,6 +530,37 @@
       if (r.lunasIni) return { utama: 'Lancar', warna: '#059669', sub: 'lunas minggu ini' };
       return { utama: 'Belum', warna: '#d97706', sub: 'minggu ini' };
     }
+    // Donat komposisi catatan sikap (SVG murni, tanpa Chart.js): prestasi hijau, pelanggaran merah. Argumen hanya angka jumlah.
+    function poDonatSikap(nPr, nPl) {
+      const C = 2 * Math.PI * 44, tot = nPr + nPl;
+      const seg = (w, len, mulai) => `<circle cx="60" cy="60" r="44" fill="none" stroke="${w}" stroke-width="15" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-mulai).toFixed(2)}" transform="rotate(-90 60 60)"></circle>`;
+      let isi = '<circle class="po-sk-bg" cx="60" cy="60" r="44" fill="none" stroke-width="15"></circle>';
+      if (tot > 0) {
+        const celah = (nPr > 0 && nPl > 0) ? 3 : 0, lp = nPr / tot * C, ll = nPl / tot * C;
+        if (nPr > 0) isi += seg('#10b981', Math.max(lp - celah, 0.1), 0);
+        if (nPl > 0) isi += seg('#ef4444', Math.max(ll - celah, 0.1), lp);
+      }
+      return `<svg viewBox="0 0 120 120" role="img" aria-label="Sikap: ${nPr} prestasi, ${nPl} pelanggaran">${isi}</svg>`;
+    }
+    // Kotak Sikap & Kedisiplinan di Ringkasan (lebar penuh): donat + net poin. Diketuk -> membuka kartu rincian Sikap di tab Amalan.
+    function poUbinSikap(sk) {
+      const ada = sk.n > 0;
+      const warna = !ada ? '#6b7280' : (sk.net < 0 ? '#dc2626' : '#059669');
+      const utama = ada ? (sk.net >= 0 ? '+' : '') + sk.net + ' poin' : 'Belum ada';
+      const sub = ada ? sk.pr + ' prestasi · ' + sk.pl + ' pelanggaran' : 'Belum ada catatan sikap';
+      const tujuan = (typeof bsLipat === 'function') ? 'bsLp_sikap' : 'poAccSikap';
+      return `<button type="button" id="poRingkasSikap" class="po-ub po-ub-penuh po-ub-sikap" onclick="poBukaBagian('${tujuan}')">
+            <span class="po-sk-donat">${poDonatSikap(sk.pr, sk.pl)}<span class="po-sk-tot"><b>${sk.n}</b><i>catatan</i></span></span>
+            <span class="po-sk-info">
+              <span class="po-ub-j">${poID('🌟 Sikap &amp; Kedisiplinan')}</span>
+              <span class="po-ub-u" style="color:${warna}">${utama}</span>
+              <span class="po-ub-s">${sub}</span>
+              ${ada ? '<span class="po-sk-leg"><span><em style="background:#10b981"></em>Prestasi</span><span><em style="background:#ef4444"></em>Pelanggaran</span></span>' : ''}
+              ${sk.baru > 0 ? `<span class="po-sk-baru">${sk.baru} pelanggaran baru (7 hari)</span>` : ''}
+            </span>
+            <span class="po-sk-go" aria-hidden="true">&rsaquo;</span>
+          </button>`;
+    }
     function poRingkasHtml(o) {
       const persen = o.totalAbsen > 0 ? Math.round(o.hadir / o.totalAbsen * 100) : null;
       const wHadir = persen === null ? '#6b7280' : persen >= 90 ? '#059669' : persen >= 75 ? '#d97706' : '#dc2626';
@@ -545,6 +576,7 @@
           ${poUbin('poRingkasInfaq', 'poAccInfaq', '💵 Infaq', inf.utama, inf.warna, inf.sub)}
           ${poUbin('poRingkasAmalan', 'bsLp_amalan', '🏡 Amalan hari ini', '⏳', '#6b7280', 'Memuat...')}
           ${poUbin('poRingkasHafalan', 'bsLp_setoran', '📿 Hafalan bacaan sholat', '⏳', '#6b7280', 'Memuat...', true)}
+          ${poUbinSikap(o.sikap || { n: 0, pr: 0, pl: 0, net: 0, baru: 0 })}
         </div></div>`;
     }
     function portalOrtuInfaqHtml(siswa, iuran, kalenderSnap) {
@@ -749,10 +781,14 @@
         const sikapRingkas = sikap.length
           ? `<strong style="color:${netSikap<0?'#dc2626':'#059669'};">${netSikap>=0?'+':''}${netSikap} poin</strong> · ${nSikapPrestasi} prestasi · ${nSikapPelanggaran} pelanggaran${nSikapPelanggaranBaru ? ` · <strong style="color:#dc2626;">${nSikapPelanggaranBaru} baru</strong>` : ''}`
           : 'Belum ada catatan';
-        const sikapIsi = `<p style="font-size:13px;margin-bottom:6px;">Net Poin: <strong style="color:${netSikap>=0?'#059669':'#dc2626'};">${netSikap>=0?'+':''}${netSikap}</strong> (⚠️ ${totalPelanggaran} / 🌟 ${totalPrestasi})</p>${sikapRows}`;
+        const sikapNetHtml = `<p style="font-size:13px;margin:0 0 6px;">Net Poin: <strong style="color:${netSikap>=0?'#059669':'#dc2626'};">${netSikap>=0?'+':''}${netSikap}</strong> (⚠️ ${totalPelanggaran} / 🌟 ${totalPrestasi})</p>`;
+        // Donat komposisi catatan di atas daftar (hanya bila ada catatan); angka sama dengan kotak Ringkasan di Beranda.
+        const sikapIsi = (sikap.length
+          ? `<div class="po-sk-rinci"><span class="po-sk-donat po-sk-donat-b">${poDonatSikap(nSikapPrestasi, nSikapPelanggaran)}<span class="po-sk-tot"><b>${sikap.length}</b><i>catatan</i></span></span><div class="po-sk-ket">${sikapNetHtml}<div class="po-sk-leg"><span><em style="background:#10b981"></em>${nSikapPrestasi} prestasi</span><span><em style="background:#ef4444"></em>${nSikapPelanggaran} pelanggaran</span></div></div></div>`
+          : sikapNetHtml) + sikapRows;
         const sikapKartu = (typeof bsLipat === 'function')
           ? bsLipat('sikap', 'bintang', '#0d9488', 'Sikap &amp; Kedisiplinan', sikapRingkas, sikapIsi, 'background:#fff;border:0;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);color:#111827;')
-          : poAcc('🌟 Sikap &amp; Kedisiplinan', poBadge((netSikap >= 0 ? '+' : '') + netSikap + ' poin', netSikap < 0 ? 'bad' : (netSikap > 0 ? 'ok' : '')), sikapIsi, false);
+          : poAcc('🌟 Sikap &amp; Kedisiplinan', poBadge((netSikap >= 0 ? '+' : '') + netSikap + ' poin', netSikap < 0 ? 'bad' : (netSikap > 0 ? 'ok' : '')), sikapIsi, false, 'poAccSikap');
         const iuranMingguIni = iuran.find(it => it.minggu === isoMingguKey());
         // Diagnosis infaq: bandingkan jumlah catatan mentah milik anak ini dengan yang lolos filter tahun ajaran.
         // Hanya ke Console (tidak ditampilkan ke orang tua). Buka Console HP/Chrome desktop untuk melihatnya.
@@ -797,7 +833,8 @@
         const ringkasHtml = poRingkasHtml({
           hadir, totalAbsen: jumlahAbsen(rekapAbsen[bulanTampil]), labelBulan: labelBulan(bulanTampil),
           rataNilai: dasarNilai.length ? dasarNilai.reduce((a, st) => a + st.nilai, 0) / dasarNilai.length : null,
-          nMapel: dasarNilai.length, nilaiSementara: stFinal.length === 0, nilaiTutup: !nilaiBuka, labelSemester: pakaiSem ? 'Semester ' + semAktif : 'TA ' + currentTahunAjaran
+          nMapel: dasarNilai.length, nilaiSementara: stFinal.length === 0, nilaiTutup: !nilaiBuka, labelSemester: pakaiSem ? 'Semester ' + semAktif : 'TA ' + currentTahunAjaran,
+          sikap: { n: sikap.length, pr: nSikapPrestasi, pl: nSikapPelanggaran, net: netSikap, baru: nSikapPelanggaranBaru }
         });
         content.innerHTML = `
           <div class="card" id="poKopKehadiran" style="margin-bottom:8px;">
