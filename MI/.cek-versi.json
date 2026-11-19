@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.507",
-  "disimpan": "2026-11-19T01:54:20.604Z",
+  "appVersion": "v8.508",
+  "disimpan": "2026-11-19T02:25:23.090Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -91,8 +91,8 @@
       "hash": "9d87a4d45671acfce1e63649dac3cd7c2b14714c"
     },
     "js/cek-data.js": {
-      "v": "v=4",
-      "hash": "cca289ef95d4dc8f4b2a4c952e5d1ab8a5c5fb6d"
+      "v": "v=5",
+      "hash": "cd09999e130b9234945c9e89401bd0f8169954a8"
     },
     "js/laporan-rekap.js": {
       "v": "v=4",
@@ -143,8 +143,20 @@
       "hash": "5dd402f3971b41a4e9c813c3661d0f27bdb980a0"
     },
     "js/kpi.js": {
-      "v": "v=29",
-      "hash": "c428950eb2032c1bf98e6d251c77b3546825a1ea"
+      "v": "v=30",
+      "hash": "1d16d34c761487207d5cfef5b11809f458184e82"
+    },
+    "js/docx-mini.js": {
+      "v": "v=1",
+      "hash": "2cfba195cb2c47e6c7d3a4b15899fd9722e9de68"
+    },
+    "js/dokumen-kepala-data.js": {
+      "v": "v=1",
+      "hash": "baf3e4c75b7af462ee5ae3587d1940b079eee11d"
+    },
+    "js/dokumen-kepala.js": {
+      "v": "v=1",
+      "hash": "1d57b3f0c6150c52e37b52ffffd07eb6b0e1b1ff"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
