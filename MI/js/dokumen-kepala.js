@@ -135,7 +135,7 @@
   function perluRevisi(p) { return !!p && (p.lv === 'lewat' || p.lv === 'segera'); }
 
   // ---------- CSS ----------
-  var CSS = '#page-dokumen-kepala{color-scheme:light dark;}' +
+  var CSS = '#page-dokumen-kepala{color-scheme:light;}body.dark-mode #page-dokumen-kepala{color-scheme:dark;}' +
     '.hub-tabs.dk-tabs{position:sticky;top:var(--kg-stick-top,0px);z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);margin:10px 0 12px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}.hub-tabs.dk-tabs::-webkit-scrollbar{display:none;}.hub-tabs.dk-tabs .hub-tab{flex:0 0 auto;white-space:nowrap;}' +
     '.dk-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0 12px;}@media (max-width:640px){.dk-sum{grid-template-columns:repeat(2,1fr);}}' +
     '.dk-box{border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:10px 12px;}.dk-box .n{font-size:22px;font-weight:800;line-height:1.1;}.dk-box .l{font-size:12px;opacity:.75;}' +
@@ -156,8 +156,8 @@
     '.dk-kpi{font-size:12px;margin-top:6px;padding:6px 10px;border-radius:8px;border:1px dashed rgba(128,128,128,.5);display:flex;gap:8px;align-items:center;flex-wrap:wrap;}' +
     '.dk-prog{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;}.dk-prog .dk-bar{flex:1;margin:0;}' +
     '.dk-ker{border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:12px;margin:0 0 10px;}.dk-ker h3{margin:0 0 2px;font-size:15px;}.dk-ker ol{margin:6px 0 8px 20px;padding:0;font-size:12px;opacity:.85;columns:2;column-gap:20px;}@media (max-width:640px){.dk-ker ol{columns:1;}}' +
-    '.dk-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;}.dk-modal>div{background:var(--card-bg,Canvas);color:inherit;color-scheme:light dark;border-radius:14px;padding:16px;width:100%;max-width:560px;box-shadow:0 10px 40px rgba(0,0,0,.35);margin:auto 0;}' +
-    '.dk-modal h3{margin:0 0 10px;font-size:16px;}.dk-f{display:flex;flex-direction:column;gap:3px;font-size:12px;margin-bottom:10px;}.dk-f .dk-in{font-size:14px;}.dk-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}@media (max-width:480px){.dk-2{grid-template-columns:1fr;}}' +
+    '.dk-modal{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px 16px calc(96px + env(safe-area-inset-bottom,0px));overflow:auto;}.dk-modal>div{background:#fff;color:#1f2937;color-scheme:light;border-radius:14px;padding:16px;width:100%;max-width:560px;box-shadow:0 10px 40px rgba(0,0,0,.35);margin:auto 0;}' +
+    'body.dark-mode .dk-modal>div{background:#1e293b;color:#e5e7eb;color-scheme:dark;}.dk-modal h3{margin:0 0 10px;font-size:16px;}.dk-f{display:flex;flex-direction:column;gap:3px;font-size:12px;margin-bottom:10px;}.dk-f .dk-in{font-size:14px;}.dk-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}@media (max-width:480px){.dk-2{grid-template-columns:1fr;}}' +
     '.dk-act{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px;}.dk-del{color:#dc2626;}';
   function pasangCss() { if (el('dokumenKepalaCss')) return; var s = document.createElement('style'); s.id = 'dokumenKepalaCss'; s.textContent = CSS; document.head.appendChild(s); }
 
@@ -652,15 +652,34 @@
 
   // ---------- modal ----------
   function modal(html) {
-    tutupModal();
+    var m0 = el('dkModal'); if (m0) m0.remove();
     var m = document.createElement('div'); m.id = 'dkModal'; m.className = 'dk-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
     m.innerHTML = '<div>' + html + '</div>';
     m.addEventListener('mousedown', function (ev) { if (ev.target === m) tutupModal(); });
     m.addEventListener('click', function (ev) { if (ev.target.closest && ev.target.closest('[data-tutup]')) tutupModal(); });
     document.body.appendChild(m);
-    var f = m.querySelector('input,select,textarea'); if (f) try { f.focus(); } catch (e) {}
+    if (!S.mh) { try { history.pushState({ dkModal: 1 }, ''); S.mh = true; } catch (e) {} }
+    var layarSentuh = false; try { layarSentuh = !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches); } catch (e) {}
+    var f = m.querySelector('input,select,textarea'); if (f && !layarSentuh) try { f.focus(); } catch (e) {}   // di HP keyboard tidak dibuka otomatis
   }
-  function tutupModal() { var m = el('dkModal'); if (m) m.remove(); }
+  // Tombol Kembali di HP: formulir mendaftarkan satu entri riwayat. Kembali pertama menutup keyboard (jika ada kolom aktif), Kembali kedua menutup formulir.
+  // Keduanya tidak diteruskan ke penanganan Kembali aplikasi, jadi halaman tidak berpindah.
+  function tutupModal(tanpaRiwayat) {
+    var m = el('dkModal'); if (m) m.remove();
+    if (S.mh) { S.mh = false; if (!tanpaRiwayat) { S.mhSkip = true; try { history.back(); } catch (e) { S.mhSkip = false; } } }
+  }
+  window.addEventListener('popstate', function (ev) {
+    if (S.mhSkip) { S.mhSkip = false; ev.stopImmediatePropagation(); return; }
+    var m = el('dkModal'); if (!m || !S.mh) return;
+    ev.stopImmediatePropagation();
+    var a = document.activeElement;
+    if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && m.contains(a)) {
+      var kb = !(window.SimambaKembali && window.SimambaKembali.keyboardTampak) || window.SimambaKembali.keyboardTampak();   // keyboard sudah tertutup oleh sistem? maka langsung tutup formulir
+      try { a.blur(); } catch (e) {}
+      if (kb) { try { history.pushState({ dkModal: 1 }, ''); } catch (e2) {} return; }
+    }
+    S.mh = false; m.remove();
+  }, true);
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') tutupModal(); });
 
   // ---------- penangan klik & ubah (satu kali pasang) ----------
@@ -721,7 +740,7 @@
         S.coba = false; S.muat = false; S.pkgPer = null; S.pkgGalat = null; S.angket = {};   // baca ulang dari Firebase setiap halaman dibuka
         try { render(); } catch (e) { pg.innerHTML = '<div class="card"><p class="text-muted">Halaman gagal dimuat: ' + esc(e && e.message ? e.message : e) + '</p></div>'; try { console.error('[dokumen-kepala]', e); } catch (e2) {} }
       }
-      if (!tampil) tutupModal();
+      if (!tampil) tutupModal(true);
       tampilSebelumnya = tampil;
     }).observe(pg, { attributes: true, attributeFilter: ['class'] });
     var judul = el('pageTitle');
