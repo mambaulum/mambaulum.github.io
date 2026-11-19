@@ -12,6 +12,7 @@
 //   allKedisiplinan + allSiswa -> indikator Sikap (v8.503): % siswa yang punya minimal satu catatan PELANGGARAN dalam sebulan (maks. target; makin kecil makin baik).
 //       Semester/tahun ajaran = jumlah siswa-bulan melanggar / jumlah siswa-bulan aktif (rata-rata bulanan, bisa dijumlahkan di arsip: kunci kN, kD).
 //       Bulan tanpa satu pun catatan sikap (prestasi/pelanggaran) TIDAK dihitung (dianggap belum dipakai/libur), supaya tidak menampilkan 0% yang menyesatkan.
+// v8.508: window.KPI.snapshot() (hanya baca) untuk Pemantau RKT di js/dokumen-kepala.js. Perhitungan tidak berubah.
 // v8.507: kartu indikator dirapikan (lencana status di samping nilai, bar capaian dengan penanda target), ringkasan jumlah tercapai/mendekati/belum, toolbar berlatar, tabel berselang-seling. Perhitungan tidak berubah.
 // v8.457: tab memakai segmen hub-tabs (menempel di bawah topbar, bisa digeser), sama dengan tab Kegiatan Siswa. Offset: var --kg-stick-top (diisi skrip di index.html).
 // v8.393: halaman dibagi tab Ringkasan/Per Bulan/Kelas/Jurnal/Guru; PDF mengikuti tab aktif; Tindak Lanjut punya draf otomatis.
@@ -532,6 +533,7 @@
   }
 
   var terakhir = null; // hasil terakhir untuk CSV & PDF
+  var terakhirWaktu = 0; // kapan 'terakhir' dihitung (dipakai snapshot untuk Pemantau RKT)
 
   // Absensi guru dimuat belakangan oleh app.js (setelah data inti). Bila KPI dibuka sebelum selesai (atau pemuatannya sempat timeout),
   // allTeacherAttendance masih kosong -> kartu guru kosong. Di sini dimuat ulang sekali per pembukaan halaman, lalu tampilan dirender ulang.
@@ -714,7 +716,7 @@
     h += '</div>';
     p.innerHTML = h;
     el('kpiPeriode').addEventListener('change', render);
-    terakhir = { per: per, pemb: pemb, cur: cur, prev: prev, rincian: rincian, ortu: null, gb: gb, jg: jg };
+    terakhir = { per: per, pemb: pemb, cur: cur, prev: prev, rincian: rincian, ortu: null, gb: gb, jg: jg }; terakhirWaktu = Date.now();
     try { tandaiTabTindak(); } catch (eT) {}
     el('page-kpi').onclick = function (ev) {   // satu penangan klik untuk tombol WA di tabel guru
       var b = ev.target && ev.target.closest ? ev.target.closest('[data-wa]') : null;
@@ -1376,5 +1378,12 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasang); else pasang();
 
-  window.KPI = { hitungSiswa: hitungSiswa, hitungInfaq: hitungInfaq, hitungJurnal: hitungJurnal, hitungGuru: hitungGuru, hitungOrtu: hitungOrtu, selisih: selisih, teksPembanding: teksPembanding, target: KPI_TARGET };
+  // v8.508: nilai KPI periode yang terakhir dibuka (hanya baca) untuk Pemantau RKT di js/dokumen-kepala.js. null bila halaman KPI belum pernah dibuka.
+  function snapshot() {
+    var t = terakhir; if (!t || !t.per) return null;
+    var items = {};
+    barisIndikator(t).forEach(function (r) { items[r.key] = { nama: r.nama, nilai: r.nilai, target: r.target, mode: r.mode, status: r.st.t, warna: r.st.w }; });
+    return { periode: t.per.label, waktu: terakhirWaktu, items: items };
+  }
+  window.KPI = { snapshot: snapshot, hitungSiswa: hitungSiswa, hitungInfaq: hitungInfaq, hitungJurnal: hitungJurnal, hitungGuru: hitungGuru, hitungOrtu: hitungOrtu, selisih: selisih, teksPembanding: teksPembanding, target: KPI_TARGET };
 })();

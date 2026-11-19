@@ -135,7 +135,7 @@
   <script defer src="js/materi-tugas.js?v=1"></script>
   <script defer src="js/kelola-absen-guru.js?v=7"></script>
   <script defer src="js/jadwal.js?v=6"></script>
-  <script defer src="js/cek-data.js?v=4"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey, dampak ke honor; sesudah app.js & jadwal.js -->
+  <script defer src="js/cek-data.js?v=5"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey, dampak ke honor; sesudah app.js & jadwal.js -->
   <script defer src="js/laporan-rekap.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/honor-guru.js?v=27"></script>
@@ -155,7 +155,11 @@
   <!-- Angket Keunggulan Madrasah (tab ke-3 pada halaman Angket + kartu Portal Ortu). WAJIB sesudah angket.js (membungkus setupAngketPage). -->
   <script defer src="js/angket-keunggulan.js?v=11"></script>
   <!-- KPI Madrasah (halaman Admin & Kepala, hanya membaca data). WAJIB sesudah app.js dan infaq.js. -->
-  <script defer src="js/kpi.js?v=29"></script>
+  <script defer src="js/kpi.js?v=30"></script>
+  <!-- Dokumen Kepala Madrasah (daftar periksa dokumen, Pemantau RKT, kerangka RKJM/RKT/Laporan RKT ke Word). Hanya Admin & Kepala. Urutan WAJIB: docx-mini -> data -> halaman; SESUDAH app.js & kpi.js. Butuh Rules dokumen_kepala_v1. -->
+  <script defer src="js/docx-mini.js?v=1"></script>
+  <script defer src="js/dokumen-kepala-data.js?v=1"></script>
+  <script defer src="js/dokumen-kepala.js?v=1"></script>
   <!-- Catatan Nilai Harian: rata-rata penilaian harian mengisi NH1/NH2/NH3 di halaman Nilai. WAJIB sesudah app.js. -->
   <script defer src="js/nilai-harian.js?v=7"></script>
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
@@ -494,6 +498,7 @@
             <div class="menu-item" data-page="user-management"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> User & Permission</div>
             <div class="menu-item" data-page="rekap"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> Ringkasan Sekolah</div>
             <div class="menu-item hidden-tab" data-page="kpi"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rekap"/></svg></span> KPI Madrasah</div>
+            <div class="menu-item hidden-tab" data-page="dokumen-kepala"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-journal"/></svg></span> Dokumen Kepala</div>
             <div class="menu-item hidden-tab" data-page="monitor-petugas" style="display:none;"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-user-management"/></svg></span> Petugas &amp; PJ</div>
             <div class="menu-item" data-page="setting-jam"><span class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-setting-jam"/></svg></span> Setting Jam</div>
           </div>
@@ -2272,6 +2277,7 @@ body.dark-mode .amalan-isi-ringkas{background:#1f2937;}
            PAGE: ANGKET (diisi oleh js/angket.js + js/angket-keunggulan.js): tab Kurikulum | Profil Lulusan | Keunggulan
       ============================================================ -->
       <div id="page-kpi" class="page-content hidden"></div>
+      <div id="page-dokumen-kepala" class="page-content hidden"></div>
       <div id="page-catatan-nilai" class="page-content hidden"></div>
       <div id="page-angket" class="page-content hidden">
         <div id="angketTabBar" class="akq-tabs hidden" style="margin-bottom:12px;"></div>

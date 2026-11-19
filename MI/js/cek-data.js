@@ -135,7 +135,11 @@
       var a = peta[id]; if (a.length < 2) return;
       var j0 = a[0].j;
       var ekstra = a.slice(1).reduce(function (t, x) { return t + x.rp; }, 0); gandaRp += ekstra;
-      T.ganda.push({ guru: j0.guru || '', tanggal: j0.tanggal, jam: j0.jam_ke, kelas: j0.kelas, jumlah: a.length, rpLebih: ekstra, keys: a.map(function (x) { return x.j.key; }) });
+      // Salinan yang disimpan = yang paling layak: bukan pending, kegiatan paling lengkap, lalu yang tersimpan paling awal (kunci push berurutan waktu).
+      var skor = function (j) { return (j.status === 'pending' ? -500 : 0) + String(j.activity || '').length; };
+      var urut = a.slice().sort(function (p, q) { return skor(q.j) - skor(p.j) || String(p.j.key).localeCompare(String(q.j.key)); });
+      T.ganda.push({ guru: j0.guru || '', tanggal: j0.tanggal, jam: j0.jam_ke, kelas: j0.kelas, jumlah: a.length, rpLebih: ekstra, keys: a.map(function (x) { return x.j.key; }),
+        anggota: urut.map(function (x) { return { key: x.j.key, mapel: x.j.subject || '', kegiatan: x.j.activity || '', status: x.j.status || '', data: x.j }; }) });
     });
     T.pending.sort(function (a, b) { return String(a.tanggal).localeCompare(b.tanggal); });
     T.ganda.sort(function (a, b) { return String(a.tanggal).localeCompare(b.tanggal); });
@@ -300,8 +304,12 @@
     // 7. Jurnal ganda
     if (!T.ganda.length) out += bagian('Jurnal ganda', true, '<p class="text-muted">Tidak ada jurnal ganda (guru + tanggal + jam + kelas sama).</p>');
     else out += bagian('Jurnal ganda (' + T.ganda.length + ' kelompok, kelebihan ± ' + rp(d.gandaRp) + ')', false,
-      '<p class="text-muted" style="font-size:12px;">Guru, tanggal, jam ke, dan kelas sama tetapi tersimpan lebih dari sekali; tiap salinan dihitung honor. Hapus yang berlebih lewat menu Jurnal (tidak diperbaiki otomatis).</p>' +
-      tabel(['Guru', 'Tanggal', 'Jam', 'Kelas', 'Salinan', 'Kelebihan'], T.ganda.slice(0, 30).map(function (r) { return [esc(r.guru), esc(r.tanggal), esc(r.jam), esc(r.kelas), r.jumlah, rp(r.rpLebih)]; })) + (T.ganda.length > 30 ? '<p class="text-muted">…dan ' + (T.ganda.length - 30) + ' lainnya.</p>' : ''));
+      '<p class="text-muted" style="font-size:12px;">Guru, tanggal, jam ke, dan kelas sama tetapi tersimpan lebih dari sekali; tiap salinan dihitung honor. Salinan bertanda ✅ disimpan (yang paling lengkap), bertanda 🗑️ akan dihapus. Periksa isinya dulu; cadangan JSON diunduh sebelum penghapusan.</p>' +
+      '<div style="margin:6px 0;"><button class="btn btn-danger" data-aksi="hapus-ganda" data-gi="semua">🗑️ Hapus semua salinan berlebih (' + T.ganda.reduce(function (t, r) { return t + r.jumlah - 1; }, 0) + ' jurnal)</button></div>' +
+      tabel(['Guru', 'Tanggal', 'Jam', 'Kelas', 'Isi salinan', 'Kelebihan', 'Aksi'], T.ganda.slice(0, 30).map(function (r, gi) {
+        var isi = (r.anggota || []).map(function (m, k) { var tx = (m.mapel ? m.mapel + ': ' : '') + String(m.kegiatan).slice(0, 90) + (m.status ? ' [' + m.status + ']' : ''); return (k === 0 ? '✅ ' : '🗑️ ') + esc(tx); }).join('<br>');
+        return [esc(r.guru), esc(r.tanggal), esc(r.jam), esc(r.kelas), isi, rp(r.rpLebih), '<button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" data-aksi="hapus-ganda" data-gi="' + gi + '">Hapus ' + (r.jumlah - 1) + ' salinan</button>'];
+      })) + (T.ganda.length > 30 ? '<p class="text-muted">…dan ' + (T.ganda.length - 30) + ' lainnya (tombol “Hapus semua” ikut menghapusnya; atau hapus 30 pertama dulu, lalu periksa ulang).</p>' : ''));
 
     // 8. jam tak dikenal & tipe kosong
     if (!d.jamPunya) out += bagian('Jam pelajaran', true, '<p class="text-muted">Pengaturan jam belum termuat, pemeriksaan jam dilewati.</p>');
@@ -454,6 +462,37 @@
     try { if (typeof honorSholatInvalidate === 'function') honorSholatInvalidate(); } catch (e) {}
   }
 
+  // Hapus salinan jurnal ganda: simpan salinan pertama (paling layak) tiap kelompok, hapus sisanya. gi = indeks kelompok atau 'semua'.
+  function aksiHapusGanda(btn, gi) {
+    var T = _honor && _honor.T; if (!T) return toast('Jalankan pemeriksaan dulu.', true);
+    var grup = (gi === 'semua') ? T.ganda.slice(0, 30).concat(T.ganda.slice(30)) : [T.ganda[parseInt(gi, 10)]];
+    var hapus = [];
+    grup.forEach(function (g) { if (g && g.anggota) g.anggota.slice(1).forEach(function (m) { if (m.key) hapus.push(m); }); });
+    if (!hapus.length) return toast('Tidak ada salinan yang perlu dihapus.');
+    if (!confirm('Hapus ' + hapus.length + ' salinan jurnal ganda?\n\nDi tiap kelompok, salinan yang paling lengkap tetap disimpan. Sebuah file cadangan JSON akan diunduh dulu. Lanjutkan?')) return;
+    if (typeof isBusy === 'function' && isBusy('cekDataTulis')) return toast('Sedang menyimpan…', false, 1500);
+    setBusy('cekDataTulis', btn);
+    var lepas = function () { clearBusy('cekDataTulis', btn); };
+    tulisAdmin('cekDataTulis', btn, function () {
+      try { unduhCadanganUmum('Cadangan jurnal ganda sebelum dihapus (Cek Data)', { journal: hapus.map(function (m) { return m.data; }) }); }
+      catch (e) { lepas(); return toast('Gagal membuat cadangan, penghapusan dibatalkan.', true); }
+      var u = {}; hapus.forEach(function (m) { u['journal/' + m.key] = null; });
+      var keys = Object.keys(u), paket = [];
+      for (var i = 0; i < keys.length; i += 400) { var p = {}; keys.slice(i, i + 400).forEach(function (k) { p[k] = null; }); paket.push(p); }
+      paket.reduce(function (pr, p) { return pr.then(function () { return db.ref().update(p); }); }, Promise.resolve())
+        .then(function () {
+          var set = {}; hapus.forEach(function (m) { set[m.key] = true; });
+          try { if (typeof allJournals !== 'undefined') { for (var i = allJournals.length - 1; i >= 0; i--) if (allJournals[i] && set[allJournals[i].key]) allJournals.splice(i, 1); } } catch (e) {}
+          try { if (typeof bumpJournalRev === 'function') bumpJournalRev(); } catch (e) {}
+          try { if (typeof honorSholatInvalidate === 'function') honorSholatInvalidate(); } catch (e) {}
+          try { addLog('Cek Data', 'Hapus ' + hapus.length + ' salinan jurnal ganda'); } catch (e) {}
+          toast('✅ ' + hapus.length + ' salinan jurnal ganda dihapus.');
+          lepas(); jalankan();
+        })
+        .catch(function (e) { lepas(); toast('Gagal menghapus: ' + ((e && e.message) || e), true); });
+    }, lepas);
+  }
+
   function aksiIsiKey(btn) {
     var u = {}; _hasil.unik.forEach(function (r) { u['jadwal/' + r.jadwalKey + '/guruKey'] = r.guruKey; });
     terapkan(btn, u, 'Isi guruKey otomatis untuk ' + _hasil.unik.length + ' baris jadwal lama.');
@@ -526,6 +565,7 @@
         else if (a === 'alihkan') aksiAlihkan(b, parseInt(b.dataset.g, 10), b.dataset.target);
         else if (a === 'diagnosa-nilai') aksiDiagnosaNilai();
         else if (a === 'honor-isikey') aksiHonorIsiKey(b);
+        else if (a === 'hapus-ganda') aksiHapusGanda(b, b.dataset.gi);
         else if (a === 'honor-alihkan') aksiHonorAlihkan(b, parseInt(b.dataset.g, 10), b.dataset.target);
       });
     }

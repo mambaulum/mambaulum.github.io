@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.507';
+const APP_VERSION = 'v8.508';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -90,7 +90,7 @@ const PRECACHE_URLS = [
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/kelola-absen-guru.js?v=7',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=6',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/cek-data.js?v=4',                  // Cek Data Admin (dimuat SESUDAH app.js & jadwal.js)
+  './js/cek-data.js?v=5',                  // Cek Data Admin (dimuat SESUDAH app.js & jadwal.js)
   './js/laporan-rekap.js?v=4',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-guru.js?v=27',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-kebersihan.js?v=3',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
@@ -105,7 +105,10 @@ const PRECACHE_URLS = [
   './js/riwayat-login-ortu.js?v=7',          // Riwayat Login Orang Tua, kartu di halaman Admin (dimuat SESUDAH app.js)
   './js/angket.js?v=11',                    // Angket gabungan: Kurikulum + Profil Lulusan (dimuat SESUDAH app.js & portal-ortu.js)
   './js/angket-keunggulan.js?v=11',          // Angket Keunggulan Madrasah: tab ke-3 halaman Angket + kartu Portal Ortu (dimuat SESUDAH angket.js)
-  './js/kpi.js?v=29',
+  './js/kpi.js?v=30',
+  './js/docx-mini.js?v=1',                 // pembuat berkas Word tanpa pustaka luar (dimuat SEBELUM dokumen-kepala.js)
+  './js/dokumen-kepala-data.js?v=1',       // daftar dokumen, bidang RKT, kerangka RKJM/RKT/Laporan RKT
+  './js/dokumen-kepala.js?v=1',            // Dokumen Kepala Madrasah + Pemantau RKT + Kerangka Dokumen (SESUDAH app.js & kpi.js)
   './js/nilai-harian.js?v=7',               // Catatan Nilai Harian -> NH1/NH2/NH3 (dimuat SESUDAH app.js)                        // KPI Madrasah: dashboard Admin & Kepala (dimuat SESUDAH app.js & infaq.js)
   './js/ortu-akun-admin.js?v=6',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/link-ortu.js?v=6',                  // Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js)
