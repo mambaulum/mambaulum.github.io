@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.498",
-  "disimpan": "2026-11-19T00:30:51.311Z",
+  "appVersion": "v8.501",
+  "disimpan": "2026-11-19T01:09:48.157Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -63,8 +63,8 @@
       "hash": "5133a7b0c7a8645f88b554b0489ef6848aebdaa3"
     },
     "js/portal-ortu.js": {
-      "v": "v=40",
-      "hash": "9703339357e22204c51a4543ecb8bc6440a20d79"
+      "v": "v=42",
+      "hash": "cfb851edc7340c730fb27a32be8ae44ba7b91a38"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -197,6 +197,10 @@
     "js/rekap-jurnal.js": {
       "v": "v=1",
       "hash": "07ceda334e272a630ce6c34912582630af6001d2"
+    },
+    "js/dashboard-sikap.js": {
+      "v": "v=2",
+      "hash": "8035fe76acaae361b4c4a1d8e41204e1c34a0089"
     },
     "js/rapat.js": {
       "v": "v=7",
