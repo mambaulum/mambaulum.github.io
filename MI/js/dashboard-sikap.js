@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/dashboard-sikap.js (v2)
+   SI MAMBA - js/dashboard-sikap.js (v4)
    Kartu "Sikap & Kedisiplinan" di Dashboard (Home), lengkap dengan grafik donat.
 
    - Hanya MEMBACA data yang sudah dimuat app.js (allKedisiplinan, allSiswa). Tidak ada query Firebase baru,
@@ -11,6 +11,13 @@
          (school_settings/sikapAmbang; 0 = nonaktif), (b) perbandingan antar kelas (ketuk baris = saring kelas), (c) tren 6 bulan
          dengan pembanding ▲▼ bulan lalu. Ambang dibaca lewat listener anak school_settings (data sudah ada di cache listener
          school_settings milik app.js, jadi tidak mengunduh ulang).
+   - v3: tombol "Surat panggilan" pada siswa yang sudah mencapai ambang (membuka Surat & Ijin dengan jenis "Panggilan Orang Tua",
+         lewat window.SIMambaSuratPanggilan dari js/surat-guru.js v11) + window.SIMambaSikapRingkas(siswaKey) -> {poin, ambang}
+         yang dipakai isi surat. Tidak ada query Firebase baru.
+         + window.SIMambaSikapPembinaan() -> daftar siswa yang mencapai ambang; dipakai js/notif-pembinaan.js (lonceng Wali Kelas),
+         yang dipanggil di akhir setiap render kartu ini.
+   - v4: tampilan dirapikan: header 1 baris (ikon, judul, pilihan kelas), periode berupa segmen, isi dibagi tab bergaya hub-tabs
+         (Ringkasan | Tren | Kelas | Siswa | Terbaru), donat + angka berdampingan; status bar Dashboard (Status Jurnal + Absen Guru) jadi 1 baris (CSS saja).
    - Halaman Sikap Siswa (js/sikap-buku.js) tetap ada untuk input dan riwayat lengkap; kartu ini hanya ringkasannya.
    - Dimuat SESUDAH app.js. Butuh: allKedisiplinan, allSiswa, loaderScopeKelas, sikapCanAccess, tglLokal,
      currentTahunAjaran, escapeHtml, navigateTo, db, isAdmin, tulisSettingsAdmin, toast (semuanya dari app.js).
@@ -24,7 +31,7 @@
     { k: 'ta', t: 'Tahun ajaran' }
   ];
   var WARNA = { prestasi: '#10b981', pelanggaran: '#ef4444' };
-  var state = { periode: 'ta', kelas: '' };
+  var state = { periode: 'ta', kelas: '', tab: 'ringkas' };
   var BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
   var ambang = 0, ambangPasang = false;   // ambang poin pelanggaran untuk pembinaan (0 = nonaktif)
 
@@ -74,6 +81,35 @@
     return '';
   }
 
+
+  // Total poin pelanggaran satu siswa (tahun ajaran ini) + ambang aktif; dipakai isi Surat Panggilan Orang Tua.
+  window.SIMambaSikapRingkas = function (siswaKey) {
+    if (!siswaKey) return null;
+    try { pasangAmbang(); } catch (e) {}
+    var p = 0;
+    dataDasar(true).forEach(function (d) { if (d.jenis === 'pelanggaran' && d.siswaKey === siswaKey) p += poin(d); });
+    return { poin: p, ambang: ambang };
+  };
+  // Daftar siswa (dalam cakupan user) yang total poin pelanggarannya mencapai ambang. [] bila ambang nonaktif / data belum dimuat.
+  window.SIMambaSikapPembinaan = function () {
+    try { pasangAmbang(); } catch (e) {}
+    if (!(ambang > 0)) return [];
+    if (typeof dataLoaded !== 'undefined' && !dataLoaded) return [];
+    var tot = {}, mapS = {};
+    ((typeof allSiswa !== 'undefined' && Array.isArray(allSiswa)) ? allSiswa : []).forEach(function (x) { mapS[x.key] = x; });
+    dataDasar(true).forEach(function (d) {
+      if (d.jenis !== 'pelanggaran' || !d.siswaKey) return;
+      if (!tot[d.siswaKey]) tot[d.siswaKey] = { key: d.siswaKey, nama: d.siswaNama || '', kelas: d.kelas, poin: 0, ambang: ambang };
+      tot[d.siswaKey].poin += poin(d);
+    });
+    return Object.keys(tot).map(function (k) { var x = tot[k]; if (mapS[k] && mapS[k].name) x.nama = mapS[k].name; return x; })
+      .filter(function (x) { return x.poin >= ambang; });
+  };
+  function bolehSurat() {
+    try { return (typeof isAdmin === 'function' && isAdmin()) || (typeof isKepsek === 'function' && isKepsek()) ||
+      (typeof isWaliKelas === 'function' && isWaliKelas()) || (typeof isWaliKelasAssigned === 'function' && isWaliKelasAssigned()); }
+    catch (e) { return false; }
+  }
 
   // ---------- Ambang pembinaan (school_settings/sikapAmbang) ----------
   function pasangAmbang() {
@@ -188,88 +224,133 @@
   }
 
   // ---------- CSS ----------
+  var TABS = [
+    { k: 'ringkas', t: '📊 Ringkasan' },
+    { k: 'tren', t: '📈 Tren' },
+    { k: 'kelas', t: '🏫 Kelas' },
+    { k: 'siswa', t: '👥 Siswa' },
+    { k: 'terbaru', t: '🕒 Terbaru' }
+  ];
+
+  // Status bar Dashboard (Status Jurnal + Absen Guru) dijadikan 1 baris. Hanya CSS; id elemen tidak berubah,
+  // jadi pengisi nilai/titiknya (app.js, dashboard-status.js) tetap bekerja. Tidak memakai !important pada display,
+  // supaya penyembunyian status bar (atribut hidden / style inline / kelas hidden) tetap menang.
+  function pasangCssStatus() {
+    if (document.getElementById('dskStatusStyle')) return;
+    var st = document.createElement('style');
+    st.id = 'dskStatusStyle';
+    st.textContent =
+      '#statusBar:not([hidden]):not(.hidden){display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;}' +
+      '#statusBar .status-item{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:8px;padding:8px 10px;margin:0;}' +
+      '#statusBar .status-item[hidden]{display:none;}' +
+      '#statusBar .status-icon{font-size:18px;line-height:1;flex:none;}' +
+      '#statusBar .status-info{flex:1;min-width:0;}' +
+      '#statusBar .status-label{font-size:10.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '#statusBar .status-value{font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '#statusBar .status-dot{flex:none;margin-left:0;}' +
+      '@media (max-width:360px){#statusBar .status-item{padding:7px 8px;gap:6px;}#statusBar .status-icon{font-size:16px;}#statusBar .status-value{font-size:12px;}}';
+    document.head.appendChild(st);
+  }
+
   function pasangCss() {
     if (document.getElementById('dskStyle')) return;
     var st = document.createElement('style');
     st.id = 'dskStyle';
     st.textContent =
-      '.dsk-card{margin-top:16px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 2px 10px rgba(15,23,42,.06);overflow:hidden;color:#0f172a;}' +
-      '.dsk-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;background:linear-gradient(135deg,#ecfdf5 0%,#f0fdfa 100%);border-bottom:1px solid #d1fae5;}' +
-      '.dsk-ico{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:linear-gradient(135deg,#0d9488,#10b981);box-shadow:0 2px 6px rgba(13,148,136,.35);flex:none;}' +
-      '.dsk-title{flex:1;min-width:150px;}' +
-      '.dsk-title b{display:block;font-size:15px;line-height:1.2;}' +
-      '.dsk-title span{font-size:12px;color:#64748b;}' +
-      '.dsk-baru{font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:3px 9px;white-space:nowrap;}' +
-      '.dsk-tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 16px 0;}' +
-      '.dsk-chip{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;min-height:34px;font-family:inherit;}' +
-      '.dsk-chip[aria-pressed="true"]{background:#0d9488;border-color:#0d9488;color:#fff;}' +
-      '.dsk-sel{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:600;min-height:34px;font-family:inherit;margin-left:auto;}' +
-      '.dsk-main{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:14px 16px;}' +
-      '.dsk-donutbox{position:relative;width:132px;height:132px;flex:none;margin:0 auto;}' +
+      /* kartu */
+      '.dsk-card{margin-top:14px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 2px 10px rgba(15,23,42,.06);overflow:hidden;color:#0f172a;}' +
+      /* header: ikon + judul + pilihan kelas (1 baris) */
+      '.dsk-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,#ecfdf5 0%,#f0fdfa 100%);border-bottom:1px solid #d1fae5;}' +
+      '.dsk-ico{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px;background:linear-gradient(135deg,#0d9488,#10b981);box-shadow:0 2px 6px rgba(13,148,136,.3);flex:none;}' +
+      '.dsk-title{flex:1;min-width:0;}' +
+      '.dsk-title b{display:block;font-size:15px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '.dsk-title span{display:block;font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '.dsk-sel{flex:none;max-width:42%;border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:10px;padding:6px 8px;font-size:12px;font-weight:600;min-height:34px;font-family:inherit;}' +
+      /* penanda ringkas */
+      '.dsk-flags{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 0;}' +
+      '.dsk-baru,.dsk-pembinaan{font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 10px;line-height:1.2;}' +
+      '.dsk-baru{color:#b91c1c;background:#fee2e2;}' +
+      '.dsk-pembinaan{color:#9a3412;background:#ffedd5;}' +
+      /* periode: segmen 3 kolom penuh */
+      '.dsk-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin:10px 14px 0;padding:3px;background:#f1f5f9;border-radius:12px;}' +
+      '.dsk-chip{border:0;background:transparent;color:#475569;border-radius:9px;padding:7px 4px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:34px;font-family:inherit;}' +
+      '.dsk-chip[aria-pressed="true"]{background:#fff;color:#0f766e;box-shadow:0 1px 3px rgba(15,23,42,.18);}' +
+      /* tab (memakai gaya hub-tabs yang sama dengan menu lain) */
+      '.dsk-card .hub-tabs.dsk-tabs{position:static;margin:10px 14px 0 !important;max-width:calc(100% - 28px);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}' +
+      '.dsk-card .hub-tabs.dsk-tabs::-webkit-scrollbar{display:none;}' +
+      '.dsk-card .hub-tabs.dsk-tabs .hub-tab{flex:0 0 auto;white-space:nowrap;}' +
+      /* isi tab */
+      '.dsk-panel{padding:12px 14px 4px;}' +
+      '.dsk-sum{display:grid;grid-template-columns:104px 1fr;gap:14px;align-items:center;}' +
+      '.dsk-donutbox{position:relative;width:104px;height:104px;}' +
       '.dsk-donut{width:100%;height:100%;display:block;}' +
       '.dsk-ring-bg{stroke:#e5e7eb;}' +
       '.dsk-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}' +
-      '.dsk-center b{font-size:26px;line-height:1;}' +
-      '.dsk-center span{font-size:11px;color:#64748b;margin-top:2px;}' +
-      '.dsk-tiles{flex:1;min-width:210px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}' +
-      '.dsk-tile{border-radius:12px;padding:9px 10px;}' +
-      '.dsk-tile small{display:block;font-size:11px;color:#475569;margin-bottom:2px;}' +
-      '.dsk-tile b{font-size:18px;line-height:1.1;}' +
-      '.dsk-tile em{display:block;font-style:normal;font-size:11px;margin-top:1px;}' +
-      '.dsk-t-ok{background:#ecfdf5;}.dsk-t-ok b,.dsk-t-ok em{color:#047857;}' +
-      '.dsk-t-bad{background:#fef2f2;}.dsk-t-bad b,.dsk-t-bad em{color:#b91c1c;}' +
-      '.dsk-t-net{background:#f1f5f9;}' +
-      '.dsk-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;padding:0 16px 14px;}' +
-      '.dsk-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;}' +
-      '.dsk-box h4{margin:0 0 8px;font-size:12px;font-weight:700;color:#475569;letter-spacing:.2px;}' +
-      '.dsk-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px dashed #e2e8f0;}' +
+      '.dsk-center b{font-size:22px;line-height:1;}' +
+      '.dsk-center span{font-size:10.5px;color:#64748b;margin-top:2px;}' +
+      '.dsk-stats{min-width:0;}' +
+      '.dsk-stat{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px dashed #e2e8f0;}' +
+      '.dsk-stat:last-child{border-bottom:0;}' +
+      '.dsk-dot{width:10px;height:10px;border-radius:50%;flex:none;}' +
+      '.dsk-dot.g{background:#10b981;}.dsk-dot.r{background:#ef4444;}' +
+      '.dsk-sl{flex:1;min-width:0;line-height:1.2;}' +
+      '.dsk-sl small{display:block;font-size:10.5px;color:#64748b;}' +
+      '.dsk-stat b{font-size:16px;line-height:1;min-width:24px;text-align:right;}' +
+      '.dsk-stat em{font-style:normal;font-size:11.5px;font-weight:700;min-width:58px;text-align:right;}' +
+      '.dsk-stat.net{padding-top:8px;}.dsk-stat.net b{font-size:18px;min-width:0;}' +
+      '.dsk-stat .ok,.dsk-g{color:#047857;}.dsk-stat .bad,.dsk-r{color:#b91c1c;}' +
+      '.dsk-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-top:12px;}' +
+      '.dsk-box h4{margin:0 0 8px;font-size:11.5px;font-weight:700;color:#475569;letter-spacing:.3px;}' +
+      '.dsk-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px dashed #e2e8f0;}' +
       '.dsk-row:last-child{border-bottom:0;}' +
       '.dsk-row .dsk-nm{flex:1;min-width:0;}' +
       '.dsk-row .dsk-nm b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       '.dsk-row .dsk-nm small{color:#64748b;font-size:11px;}' +
       '.dsk-pt{font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap;}' +
       '.dsk-pt.ok{background:#d1fae5;color:#047857;}.dsk-pt.bad{background:#fee2e2;color:#b91c1c;}' +
+      '.dsk-kat{padding:4px 0;font-size:13px;}.dsk-kat div:first-child{display:flex;justify-content:space-between;gap:8px;}' +
       '.dsk-bar{height:7px;border-radius:99px;background:#fee2e2;overflow:hidden;margin-top:3px;}' +
       '.dsk-bar i{display:block;height:100%;border-radius:99px;background:#ef4444;}' +
       '.dsk-empty{font-size:12px;color:#64748b;margin:0;}' +
-      '.dsk-foot{display:flex;justify-content:flex-end;padding:0 16px 14px;}' +
-      '.dsk-btn{border:0;background:#00543f;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;min-height:40px;font-family:inherit;}' +
       '.dsk-load{padding:18px 16px;font-size:13px;color:#64748b;}' +
-      'body.dark-mode .dsk-card{background:#1e293b;border-color:#334155;color:#e2e8f0;box-shadow:none;}' +
-      'body.dark-mode .dsk-head{background:linear-gradient(135deg,#0f2f2a,#12332e);border-color:#134e4a;}' +
-      'body.dark-mode .dsk-title span,body.dark-mode .dsk-center span,body.dark-mode .dsk-row .dsk-nm small,body.dark-mode .dsk-empty,body.dark-mode .dsk-load{color:#94a3b8;}' +
-      'body.dark-mode .dsk-chip,body.dark-mode .dsk-sel{background:#0f172a;border-color:#475569;color:#cbd5e1;}' +
-      'body.dark-mode .dsk-chip[aria-pressed="true"]{background:#0d9488;border-color:#0d9488;color:#fff;}' +
-      'body.dark-mode .dsk-ring-bg{stroke:#334155;}' +
-      'body.dark-mode .dsk-t-ok{background:#064e3b;}body.dark-mode .dsk-t-ok b,body.dark-mode .dsk-t-ok em{color:#6ee7b7;}' +
-      'body.dark-mode .dsk-t-bad{background:#450a0a;}body.dark-mode .dsk-t-bad b,body.dark-mode .dsk-t-bad em{color:#fca5a5;}' +
-      'body.dark-mode .dsk-t-net{background:#0f172a;}body.dark-mode .dsk-tile small{color:#94a3b8;}' +
-      'body.dark-mode .dsk-box{background:#0f172a;border-color:#334155;}body.dark-mode .dsk-box h4{color:#94a3b8;}' +
-      'body.dark-mode .dsk-row{border-color:#334155;}' +
-      'body.dark-mode .dsk-pt.ok{background:#064e3b;color:#6ee7b7;}body.dark-mode .dsk-pt.bad{background:#450a0a;color:#fca5a5;}' +
-      'body.dark-mode .dsk-bar{background:#450a0a;}body.dark-mode .dsk-baru{background:#450a0a;color:#fca5a5;}' +
-      '.dsk-alert{margin:0 16px 12px;border-radius:12px;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;}' +
-      '.dsk-alert h4{margin:0 0 6px;font-size:12px;font-weight:700;color:#9a3412;letter-spacing:.2px;}' +
-      '.dsk-pb{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px dashed #fed7aa;}.dsk-pb:last-of-type{border-bottom:0;}' +
+      /* peringatan pembinaan */
+      '.dsk-alert{margin-top:12px;border-radius:12px;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;}' +
+      '.dsk-alert h4{margin:0 0 6px;font-size:11.5px;font-weight:700;color:#9a3412;letter-spacing:.2px;line-height:1.35;}' +
+      '.dsk-pb{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px dashed #fed7aa;}.dsk-pb:last-of-type{border-bottom:0;}' +
       '.dsk-pb .dsk-nm{flex:1;min-width:0;}.dsk-pb .dsk-nm b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.dsk-pb .dsk-nm small{color:#64748b;font-size:11px;}' +
       '.dsk-prog{height:6px;border-radius:99px;background:#fde7d2;overflow:hidden;margin-top:4px;}.dsk-prog i{display:block;height:100%;border-radius:99px;background:#f59e0b;}.dsk-prog i.full{background:#dc2626;}' +
       '.dsk-st{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap;}.dsk-st.full{background:#fee2e2;color:#b91c1c;}.dsk-st.near{background:#fef3c7;color:#92400e;}' +
       '.dsk-pj{font-size:12px;font-weight:700;white-space:nowrap;color:#475569;}' +
-      '.dsk-wide{grid-column:1/-1;}' +
+      '.dsk-sp{border:1px solid #fb923c;background:#fff;color:#9a3412;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex:none;}' +
+      /* tren & perbandingan kelas */
       '.dsk-tren{width:100%;height:auto;display:block;max-height:150px;}.dsk-gl{stroke:#e2e8f0;stroke-width:1;}.dsk-tx{fill:#64748b;font-size:9px;}' +
-      '.dsk-dls{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:11px;}.dsk-dls>span{display:inline-flex;align-items:center;gap:5px;}.dsk-dls em{width:8px;height:8px;border-radius:50%;display:inline-block;}' +
+      '.dsk-dls{display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:12px;}.dsk-dls>span{display:flex;align-items:center;flex-wrap:wrap;gap:5px;}.dsk-dls em{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;}' +
       '.dsk-dl{font-weight:700;color:#64748b;}.dsk-dl.ok{color:#047857;}.dsk-dl.bad{color:#b91c1c;}' +
-      '.dsk-kr{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;padding:5px 6px;border-radius:8px;font:inherit;color:inherit;cursor:pointer;text-align:left;}.dsk-kr.on{background:#e0f2f1;}' +
+      '.dsk-kr{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;padding:6px;border-radius:8px;font:inherit;color:inherit;cursor:pointer;text-align:left;min-height:36px;}.dsk-kr.on{background:#e0f2f1;}' +
       '.dsk-kl{width:34px;font-size:12px;font-weight:700;flex:none;}.dsk-kb{flex:1;display:flex;height:9px;border-radius:99px;background:#e5e7eb;overflow:hidden;}.dsk-kb i{display:block;height:100%;}.dsk-kb i.dsk-g{background:#10b981;}.dsk-kb i.dsk-r{background:#ef4444;}' +
-      '.dsk-kn{font-size:12px;min-width:44px;text-align:right;flex:none;}.dsk-g{color:#047857;}.dsk-r{color:#b91c1c;}' +
+      '.dsk-kn{font-size:12px;min-width:44px;text-align:right;flex:none;}' +
       '.dsk-note{margin:6px 0 0;font-size:10.5px;color:#64748b;}' +
-      '.dsk-foot{justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}.dsk-btn2{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;min-height:38px;font-family:inherit;}' +
-      '.dsk-pembinaan{font-size:11px;font-weight:700;color:#9a3412;background:#ffedd5;border-radius:999px;padding:3px 9px;white-space:nowrap;}' +
+      /* kaki */
+      '.dsk-foot{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px 14px;}' +
+      '.dsk-btn{flex:1 1 150px;border:0;background:#00543f;color:#fff;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;min-height:40px;font-family:inherit;}' +
+      '.dsk-btn2{flex:1 1 150px;border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;min-height:40px;font-family:inherit;}' +
+      /* mode gelap */
+      'body.dark-mode .dsk-card{background:#1e293b;border-color:#334155;color:#e2e8f0;box-shadow:none;}' +
+      'body.dark-mode .dsk-head{background:linear-gradient(135deg,#0f2f2a,#12332e);border-color:#134e4a;}' +
+      'body.dark-mode .dsk-title span,body.dark-mode .dsk-center span,body.dark-mode .dsk-row .dsk-nm small,body.dark-mode .dsk-empty,body.dark-mode .dsk-load,body.dark-mode .dsk-sl small,body.dark-mode .dsk-note,body.dark-mode .dsk-pb .dsk-nm small{color:#94a3b8;}' +
+      'body.dark-mode .dsk-sel,body.dark-mode .dsk-btn2{background:#0f172a;border-color:#475569;color:#cbd5e1;}' +
+      'body.dark-mode .dsk-seg{background:#0f172a;}body.dark-mode .dsk-chip{color:#94a3b8;}' +
+      'body.dark-mode .dsk-chip[aria-pressed="true"]{background:#334155;color:#5eead4;box-shadow:none;}' +
+      'body.dark-mode .dsk-ring-bg{stroke:#334155;}body.dark-mode .dsk-stat,body.dark-mode .dsk-row{border-color:#334155;}' +
+      'body.dark-mode .dsk-box{background:#0f172a;border-color:#334155;}body.dark-mode .dsk-box h4{color:#94a3b8;}' +
+      'body.dark-mode .dsk-pt.ok{background:#064e3b;color:#6ee7b7;}body.dark-mode .dsk-pt.bad{background:#450a0a;color:#fca5a5;}' +
+      'body.dark-mode .dsk-bar{background:#450a0a;}body.dark-mode .dsk-baru{background:#450a0a;color:#fca5a5;}body.dark-mode .dsk-pembinaan{background:#431407;color:#fdba74;}' +
       'body.dark-mode .dsk-alert{background:#431407;border-color:#7c2d12;}body.dark-mode .dsk-alert h4{color:#fdba74;}body.dark-mode .dsk-pb{border-color:#7c2d12;}body.dark-mode .dsk-prog{background:#7c2d12;}' +
       'body.dark-mode .dsk-st.full{background:#450a0a;color:#fca5a5;}body.dark-mode .dsk-st.near{background:#422006;color:#fcd34d;}body.dark-mode .dsk-pj{color:#cbd5e1;}' +
-      'body.dark-mode .dsk-gl{stroke:#334155;}body.dark-mode .dsk-tx{fill:#94a3b8;}body.dark-mode .dsk-dl.ok,body.dark-mode .dsk-g{color:#6ee7b7;}body.dark-mode .dsk-dl.bad,body.dark-mode .dsk-r{color:#fca5a5;}' +
-      'body.dark-mode .dsk-kr.on{background:#134e4a;}body.dark-mode .dsk-kb{background:#334155;}body.dark-mode .dsk-btn2{background:#0f172a;border-color:#475569;color:#cbd5e1;}body.dark-mode .dsk-pembinaan{background:#431407;color:#fdba74;}' +
-      '@media (max-width:480px){.dsk-tiles{grid-template-columns:repeat(3,1fr);}.dsk-tile b{font-size:16px;}.dsk-sel{margin-left:0;}}';
+      'body.dark-mode .dsk-gl{stroke:#334155;}body.dark-mode .dsk-tx{fill:#94a3b8;}' +
+      'body.dark-mode .dsk-g,body.dark-mode .dsk-dl.ok,body.dark-mode .dsk-stat .ok{color:#6ee7b7;}body.dark-mode .dsk-r,body.dark-mode .dsk-dl.bad,body.dark-mode .dsk-stat .bad{color:#fca5a5;}' +
+      'body.dark-mode .dsk-kr.on{background:#134e4a;}body.dark-mode .dsk-kb{background:#334155;}body.dark-mode .dsk-sp{background:#0f172a;border-color:#c2410c;color:#fdba74;}' +
+      '@media (max-width:360px){.dsk-sum{grid-template-columns:88px 1fr;gap:10px;}.dsk-donutbox{width:88px;height:88px;}.dsk-center b{font-size:19px;}.dsk-stat em{min-width:50px;}}';
     document.head.appendChild(st);
   }
 
@@ -283,11 +364,13 @@
     el.id = 'dashSikapCard';
     patokan.parentNode.insertBefore(el, patokan);
     el.addEventListener('click', function (e) {
-      var t = e.target.closest ? e.target.closest('[data-dsk-periode],[data-dsk-buka],[data-dsk-kls],[data-dsk-ambang]') : null;
+      var t = e.target.closest ? e.target.closest('[data-dsk-periode],[data-dsk-tab],[data-dsk-buka],[data-dsk-kls],[data-dsk-ambang],[data-dsk-surat]') : null;
       if (!t) return;
       if (t.hasAttribute('data-dsk-periode')) { state.periode = t.getAttribute('data-dsk-periode'); render(); }
+      else if (t.hasAttribute('data-dsk-tab')) { state.tab = t.getAttribute('data-dsk-tab'); render(); }
       else if (t.hasAttribute('data-dsk-kls')) { var k = t.getAttribute('data-dsk-kls'); state.kelas = (state.kelas === k) ? '' : k; render(); }
       else if (t.hasAttribute('data-dsk-ambang')) aturAmbang();
+      else if (t.hasAttribute('data-dsk-surat')) { if (typeof window.SIMambaSuratPanggilan === 'function') window.SIMambaSuratPanggilan(t.getAttribute('data-dsk-surat'), t.getAttribute('data-dsk-nama')); }
       else if (typeof navigateTo === 'function') navigateTo('sikap-siswa');
     });
     el.addEventListener('change', function (e) {
@@ -306,29 +389,25 @@
 
     var dasar = dataDasar();
     var dasarSemuaKelas = dataDasar(true);
-    var scope = (typeof loaderScopeKelas === 'function') ? loaderScopeKelas().slice().sort() : [];
+    var scope = (typeof loaderScopeKelas === 'function') ? loaderScopeKelas().slice().sort(urutKelas) : [];
     if (state.kelas && scope.indexOf(state.kelas) < 0) state.kelas = '';
+    var banyakKelas = scope.length > 1;
+    if (!banyakKelas && state.tab === 'kelas') state.tab = 'ringkas';
 
     var memuat = (typeof dataLoaded !== 'undefined' && !dataLoaded && dasar.length === 0);
+    var sub = state.kelas ? labelKelas(state.kelas) : (banyakKelas ? 'Semua kelas' : (scope[0] ? labelKelas(scope[0]) : ''));
+    var pilihKelas = banyakKelas
+      ? '<select class="dsk-sel" data-dsk-kelas aria-label="Pilih kelas"><option value="">Semua kelas</option>' +
+        scope.map(function (k) { return '<option value="' + esc(k) + '"' + (k === state.kelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select>'
+      : '';
     var head = '<div class="dsk-head"><div class="dsk-ico" aria-hidden="true">🌟</div>' +
-      '<div class="dsk-title"><b>Sikap &amp; Kedisiplinan</b><span>' + (state.kelas ? esc(labelKelas(state.kelas)) : (scope.length > 1 ? 'Semua kelas' : (scope[0] ? esc(labelKelas(scope[0])) : ''))) + '</span></div>';
+      '<div class="dsk-title"><b>Sikap &amp; Kedisiplinan</b><span>' + esc(sub) + '</span></div>' + pilihKelas + '</div>';
+
+    if (memuat) { el.innerHTML = '<div class="dsk-card">' + head + '<div class="dsk-load">Memuat data sikap…</div></div>'; return; }
 
     // pelanggaran baru 7 hari terakhir (tidak ikut filter periode)
     var batas7 = geserHari(tglLokal(), -6);
     var baru = dasar.filter(function (d) { return d.jenis === 'pelanggaran' && String(d.tanggal || '') >= batas7; }).length;
-    if (baru > 0) head += '<span class="dsk-baru">⚠️ ' + baru + ' pelanggaran baru (7 hari)</span>';
-    head += '@@PEMBINAAN_CHIP@@</div>';
-
-    if (memuat) { el.innerHTML = '<div class="dsk-card">' + head.replace('@@PEMBINAAN_CHIP@@', '') + '<div class="dsk-load">Memuat data sikap…</div></div>'; return; }
-
-    var tools = '<div class="dsk-tools">' + PERIODE.map(function (p) {
-      return '<button type="button" class="dsk-chip" data-dsk-periode="' + p.k + '" aria-pressed="' + (state.periode === p.k) + '">' + p.t + '</button>';
-    }).join('');
-    if (scope.length > 1) {
-      tools += '<select class="dsk-sel" data-dsk-kelas aria-label="Pilih kelas"><option value="">Semua kelas</option>' +
-        scope.map(function (k) { return '<option value="' + esc(k) + '"' + (k === state.kelas ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select>';
-    }
-    tools += '</div>';
 
     var batas = batasPeriode();
     var data = batas ? dasar.filter(function (d) { return String(d.tanggal || '') >= batas; }) : dasar;
@@ -350,46 +429,6 @@
     ((typeof allSiswa !== 'undefined' && Array.isArray(allSiswa)) ? allSiswa : []).forEach(function (s) { mapSiswa[s.key] = s; });
     function namaSiswa(d) { var s = mapSiswa[d.siswaKey]; return (s && s.name) || d.siswaNama || '-'; }
 
-    var utama = '<div class="dsk-main"><div class="dsk-donutbox">' + donat(nPr, nPl) +
-      '<div class="dsk-center"><b>' + total + '</b><span>catatan</span></div></div>' +
-      '<div class="dsk-tiles">' +
-      '<div class="dsk-tile dsk-t-ok"><small>🌟 Prestasi</small><b>' + nPr + '</b><em>+' + pPr + ' poin</em></div>' +
-      '<div class="dsk-tile dsk-t-bad"><small>⚠️ Pelanggaran</small><b>' + nPl + '</b><em>−' + pPl + ' poin</em></div>' +
-      '<div class="dsk-tile dsk-t-net"><small>Net poin</small><b style="color:' + (net < 0 ? '#dc2626' : '#059669') + ';">' + (net >= 0 ? '+' : '') + net + '</b><em style="color:#64748b;">prestasi − pelanggaran</em></div>' +
-      '</div></div>';
-
-    // Kategori pelanggaran terbanyak
-    var katArr = Object.keys(kat).map(function (k) { return { k: k, n: kat[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 3);
-    var maks = katArr.length ? katArr[0].n : 1;
-    var boxKat = '<div class="dsk-box"><h4>PELANGGARAN TERBANYAK</h4>' + (katArr.length
-      ? katArr.map(function (x) {
-          return '<div style="padding:4px 0;font-size:13px;"><div style="display:flex;justify-content:space-between;gap:8px;"><span>' + esc(x.k) + '</span><b>' + x.n + '×</b></div>' +
-            '<div class="dsk-bar"><i style="width:' + Math.round(x.n / maks * 100) + '%;"></i></div></div>';
-        }).join('')
-      : '<p class="dsk-empty">' + (total ? '👏 Tidak ada pelanggaran pada periode ini.' : 'Belum ada catatan pada periode ini.') + '</p>') + '</div>';
-
-    // Siswa perlu perhatian
-    var sisArr = Object.keys(sis).map(function (k) { return sis[k]; }).sort(function (a, b) { return b.p - a.p || b.n - a.n; }).slice(0, 3);
-    var boxSis = '<div class="dsk-box"><h4>PERLU PERHATIAN</h4>' + (sisArr.length
-      ? sisArr.map(function (x) {
-          var s = mapSiswa[x.key];
-          return '<div class="dsk-row"><div class="dsk-nm"><b>' + esc((s && s.name) || x.nama || '-') + '</b><small>' + esc(x.kelas || '') + ' · ' + x.n + ' catatan</small></div><span class="dsk-pt bad">−' + x.p + '</span></div>';
-        }).join('')
-      : '<p class="dsk-empty">Belum ada siswa dengan catatan pelanggaran.</p>') + '</div>';
-
-    // Catatan terbaru
-    var terbaru = data.slice().sort(function (a, b) {
-      var ta = String(a.tanggal || ''), tb = String(b.tanggal || '');
-      return ta < tb ? 1 : ta > tb ? -1 : (String(b.key || '') < String(a.key || '') ? -1 : 1);
-    }).slice(0, 4);
-    var boxBaru = '<div class="dsk-box"><h4>CATATAN TERBARU</h4>' + (terbaru.length
-      ? terbaru.map(function (d) {
-          var pr = d.jenis === 'prestasi';
-          return '<div class="dsk-row"><div class="dsk-nm"><b>' + (pr ? '🌟 ' : '⚠️ ') + esc(d.kategori || '-') + '</b><small>' + esc(namaSiswa(d)) + ' · ' + esc(d.kelas || '') + ' · ' + tglPendek(d.tanggal) + '</small></div>' +
-            '<span class="dsk-pt ' + (pr ? 'ok' : 'bad') + '">' + (pr ? '+' : '−') + poin(d) + '</span></div>';
-        }).join('')
-      : '<p class="dsk-empty">Belum ada catatan pada periode ini.</p>') + '</div>';
-
     // ---- Perlu pembinaan: total poin pelanggaran siswa pada tahun ajaran ini (tidak ikut filter periode) ----
     var alertHtml = '', nPembinaan = 0;
     if (ambang > 0) {
@@ -405,36 +444,87 @@
         .sort(function (a, b) { return b.p - a.p; });
       nPembinaan = calon.filter(function (x) { return x.p >= ambang; }).length;
       if (calon.length) {
-        alertHtml = '<div class="dsk-alert"><h4>PERLU PEMBINAAN · ambang ' + ambang + ' poin pelanggaran (tahun ajaran ini)</h4>' +
+        alertHtml = '<div class="dsk-alert"><h4>PERLU PEMBINAAN · ambang ' + ambang + ' poin (tahun ajaran ini)</h4>' +
           calon.slice(0, 5).map(function (x) {
             var s = mapSiswa[x.key], penuh = x.p >= ambang;
             return '<div class="dsk-pb"><div class="dsk-nm"><b>' + esc((s && s.name) || x.nama || '-') + '</b><small>' + esc(x.kelas || '') + '</small>' +
               '<div class="dsk-prog"><i class="' + (penuh ? 'full' : '') + '" style="width:' + Math.min(100, Math.round(x.p / ambang * 100)) + '%"></i></div></div>' +
-              '<span class="dsk-pj">' + x.p + '/' + ambang + '</span><span class="dsk-st ' + (penuh ? 'full' : 'near') + '">' + (penuh ? 'Pembinaan' : 'Mendekati') + '</span></div>';
+              '<span class="dsk-pj">' + x.p + '/' + ambang + '</span><span class="dsk-st ' + (penuh ? 'full' : 'near') + '">' + (penuh ? 'Pembinaan' : 'Mendekati') + '</span>' +
+              ((penuh && x.key && bolehSurat() && typeof window.SIMambaSuratPanggilan === 'function') ? '<button type="button" class="dsk-sp" data-dsk-surat="' + esc(x.key) + '" data-dsk-nama="' + esc((s && s.name) || x.nama || '') + '" title="Buat surat panggilan orang tua">✉️ Surat</button>' : '') + '</div>';
           }).join('') +
           (calon.length > 5 ? '<p class="dsk-note">+ ' + (calon.length - 5) + ' siswa lain. Lihat selengkapnya di halaman Sikap Siswa.</p>' : '') + '</div>';
       }
     }
-    head = head.replace('@@PEMBINAAN_CHIP@@', nPembinaan > 0 ? '<span class="dsk-pembinaan">🚨 ' + nPembinaan + ' siswa perlu pembinaan</span>' : '');
 
-    // ---- Tren 6 bulan ----
-    var tr = tren(dasar);
-    var boxTren = '<div class="dsk-box"><h4>TREN 6 BULAN</h4>' + (tr.total
-      ? tr.svg + '<div class="dsk-dls"><span><em style="background:#ef4444"></em>Pelanggaran bulan ini: <b>' + tr.pl[5] + '</b> ' + deltaChip(tr.pl[5], tr.pl[4], 'turun') + '</span>' +
-        '<span><em style="background:#10b981"></em>Prestasi bulan ini: <b>' + tr.pr[5] + '</b> ' + deltaChip(tr.pr[5], tr.pr[4], 'naik') + '</span></div>'
-      : '<p class="dsk-empty">Belum ada catatan dalam 6 bulan terakhir.</p>') + '</div>';
+    // ---- Penanda ringkas (pelanggaran baru + pembinaan) ----
+    var flags = '';
+    if (baru > 0) flags += '<span class="dsk-baru">⚠️ ' + baru + ' pelanggaran baru (7 hari)</span>';
+    if (nPembinaan > 0) flags += '<span class="dsk-pembinaan">🚨 ' + nPembinaan + ' siswa perlu pembinaan</span>';
+    flags = flags ? '<div class="dsk-flags">' + flags + '</div>' : '';
 
-    // ---- Perbandingan antar kelas (hanya bila cakupan lebih dari satu kelas) ----
-    var boxBanding = scope.length > 1
-      ? '<div class="dsk-box"><h4>PERBANDINGAN ANTAR KELAS</h4>' + bandingKelas(scope, dasarSemuaKelas) + '</div>' : '';
+    // ---- Periode (segmen) + tab ----
+    var seg = '<div class="dsk-seg" role="group" aria-label="Periode">' + PERIODE.map(function (p) {
+      return '<button type="button" class="dsk-chip" data-dsk-periode="' + p.k + '" aria-pressed="' + (state.periode === p.k) + '">' + p.t + '</button>';
+    }).join('') + '</div>';
+    var tabs = '<div class="hub-tabs show kg-top dsk-tabs" role="tablist" aria-label="Bagian Sikap dan Kedisiplinan">' + TABS.filter(function (x) { return x.k !== 'kelas' || banyakKelas; }).map(function (x) {
+      var on = state.tab === x.k;
+      return '<button type="button" role="tab" aria-selected="' + on + '" class="hub-tab' + (on ? ' active' : '') + '" data-dsk-tab="' + x.k + '">' + x.t + '</button>';
+    }).join('') + '</div>';
+
+    // ---- Isi tab ----
+    var panel = '';
+    if (state.tab === 'tren') {
+      var tr = tren(dasar);
+      panel = '<div class="dsk-box" style="margin-top:0;"><h4>TREN 6 BULAN TERAKHIR</h4>' + (tr.total
+        ? tr.svg + '<div class="dsk-dls"><span><em style="background:#ef4444"></em>Pelanggaran bulan ini: <b>' + tr.pl[5] + '</b> ' + deltaChip(tr.pl[5], tr.pl[4], 'turun') + '</span>' +
+          '<span><em style="background:#10b981"></em>Prestasi bulan ini: <b>' + tr.pr[5] + '</b> ' + deltaChip(tr.pr[5], tr.pr[4], 'naik') + '</span></div>'
+        : '<p class="dsk-empty">Belum ada catatan dalam 6 bulan terakhir.</p>') + '</div>';
+    } else if (state.tab === 'kelas') {
+      panel = '<div class="dsk-box" style="margin-top:0;"><h4>PERBANDINGAN ANTAR KELAS</h4>' + bandingKelas(scope, dasarSemuaKelas) + '</div>';
+    } else if (state.tab === 'siswa') {
+      var sisArr = Object.keys(sis).map(function (k) { return sis[k]; }).sort(function (a, b) { return b.p - a.p || b.n - a.n; }).slice(0, 6);
+      panel = '<div class="dsk-box" style="margin-top:0;"><h4>SISWA PERLU PERHATIAN</h4>' + (sisArr.length
+        ? sisArr.map(function (x) {
+            var s = mapSiswa[x.key];
+            return '<div class="dsk-row"><div class="dsk-nm"><b>' + esc((s && s.name) || x.nama || '-') + '</b><small>' + esc(x.kelas || '') + ' · ' + x.n + ' catatan</small></div><span class="dsk-pt bad">−' + x.p + '</span></div>';
+          }).join('')
+        : '<p class="dsk-empty">Belum ada siswa dengan catatan pelanggaran.</p>') + '</div>';
+    } else if (state.tab === 'terbaru') {
+      var terbaru = data.slice().sort(function (a, b) {
+        var ta = String(a.tanggal || ''), tb = String(b.tanggal || '');
+        return ta < tb ? 1 : ta > tb ? -1 : (String(b.key || '') < String(a.key || '') ? -1 : 1);
+      }).slice(0, 6);
+      panel = '<div class="dsk-box" style="margin-top:0;"><h4>CATATAN TERBARU</h4>' + (terbaru.length
+        ? terbaru.map(function (d) {
+            var pr = d.jenis === 'prestasi';
+            return '<div class="dsk-row"><div class="dsk-nm"><b>' + (pr ? '🌟 ' : '⚠️ ') + esc(d.kategori || '-') + '</b><small>' + esc(namaSiswa(d)) + ' · ' + esc(d.kelas || '') + ' · ' + tglPendek(d.tanggal) + '</small></div>' +
+              '<span class="dsk-pt ' + (pr ? 'ok' : 'bad') + '">' + (pr ? '+' : '−') + poin(d) + '</span></div>';
+          }).join('')
+        : '<p class="dsk-empty">Belum ada catatan pada periode ini.</p>') + '</div>';
+    } else {
+      state.tab = 'ringkas';
+      var katArr = Object.keys(kat).map(function (k) { return { k: k, n: kat[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 3);
+      var maks = katArr.length ? katArr[0].n : 1;
+      var boxKat = '<div class="dsk-box"><h4>PELANGGARAN TERBANYAK</h4>' + (katArr.length
+        ? katArr.map(function (x) {
+            return '<div class="dsk-kat"><div><span>' + esc(x.k) + '</span><b>' + x.n + '×</b></div><div class="dsk-bar"><i style="width:' + Math.round(x.n / maks * 100) + '%;"></i></div></div>';
+          }).join('')
+        : '<p class="dsk-empty">' + (total ? '👏 Tidak ada pelanggaran pada periode ini.' : 'Belum ada catatan pada periode ini.') + '</p>') + '</div>';
+      panel = '<div class="dsk-sum"><div class="dsk-donutbox">' + donat(nPr, nPl) +
+        '<div class="dsk-center"><b>' + total + '</b><span>catatan</span></div></div>' +
+        '<div class="dsk-stats">' +
+        '<div class="dsk-stat"><i class="dsk-dot g"></i><span class="dsk-sl">Prestasi</span><b>' + nPr + '</b><em class="ok">+' + pPr + ' poin</em></div>' +
+        '<div class="dsk-stat"><i class="dsk-dot r"></i><span class="dsk-sl">Pelanggaran</span><b>' + nPl + '</b><em class="bad">−' + pPl + ' poin</em></div>' +
+        '<div class="dsk-stat net"><span class="dsk-sl">Net poin<small>prestasi − pelanggaran</small></span><b class="' + (net < 0 ? 'bad' : 'ok') + '">' + (net >= 0 ? '+' : '−') + Math.abs(net) + '</b></div>' +
+        '</div></div>' + alertHtml + boxKat;
+    }
 
     var foot = '<div class="dsk-foot">' +
-      ((typeof isAdmin === 'function' && isAdmin()) ? '<button type="button" class="dsk-btn2" data-dsk-ambang>⚙️ ' + (ambang > 0 ? 'Ambang pembinaan: ' + ambang + ' poin' : 'Atur ambang pembinaan') + '</button>' : '<span></span>') +
+      ((typeof isAdmin === 'function' && isAdmin()) ? '<button type="button" class="dsk-btn2" data-dsk-ambang>⚙️ ' + (ambang > 0 ? 'Ambang: ' + ambang + ' poin' : 'Atur ambang pembinaan') + '</button>' : '') +
       '<button type="button" class="dsk-btn" data-dsk-buka>Buka Sikap Siswa →</button></div>';
 
-    el.innerHTML = '<div class="dsk-card">' + head + tools + utama + alertHtml +
-      '<div class="dsk-cols">' + boxTren + boxBanding + '</div>' +
-      '<div class="dsk-cols">' + boxKat + boxSis + boxBaru + '</div>' + foot + '</div>';
+    el.innerHTML = '<div class="dsk-card">' + head + flags + seg + tabs + '<div class="dsk-panel">' + panel + '</div>' + foot + '</div>';
+    try { if (typeof window.SIMambaNotifPembinaan === 'function') window.SIMambaNotifPembinaan(); } catch (e) { console.warn('[SI MAMBA] notif pembinaan gagal:', e); }
   }
 
   // ---------- Pasang ----------
@@ -451,5 +541,6 @@
     }
     window.renderDashboardSikap = render;
   }
+  try { pasangCssStatus(); } catch (e) {}
   pasang();
 })();

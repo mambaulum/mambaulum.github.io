@@ -9,6 +9,10 @@
 //   allTeacherAttendance   -> absensi guru: { tanggal, guruKey, type:'Datang'|'Pulang'|'Izin'|'Sakit'|'Alpha', keterangan:'Telat N menit' }
 //   ortu_login_log (dibaca sekali, log ~31 hari terakhir lewat startAt pada kunci push, maks 20000) + noWaOrtu siswa -> orang tua aktif: nomor WA unik yang login berhasil <= 30 hari
 //   angket_keunggulan/{periode} (dibaca sekali) -> jumlah responden
+//   allKedisiplinan + allSiswa -> indikator Sikap (v8.503): % siswa yang punya minimal satu catatan PELANGGARAN dalam sebulan (maks. target; makin kecil makin baik).
+//       Semester/tahun ajaran = jumlah siswa-bulan melanggar / jumlah siswa-bulan aktif (rata-rata bulanan, bisa dijumlahkan di arsip: kunci kN, kD).
+//       Bulan tanpa satu pun catatan sikap (prestasi/pelanggaran) TIDAK dihitung (dianggap belum dipakai/libur), supaya tidak menampilkan 0% yang menyesatkan.
+// v8.507: kartu indikator dirapikan (lencana status di samping nilai, bar capaian dengan penanda target), ringkasan jumlah tercapai/mendekati/belum, toolbar berlatar, tabel berselang-seling. Perhitungan tidak berubah.
 // v8.457: tab memakai segmen hub-tabs (menempel di bawah topbar, bisa digeser), sama dengan tab Kegiatan Siswa. Offset: var --kg-stick-top (diisi skrip di index.html).
 // v8.393: halaman dibagi tab Ringkasan/Per Bulan/Kelas/Jurnal/Guru; PDF mengikuti tab aktif; Tindak Lanjut punya draf otomatis.
 //
@@ -27,10 +31,10 @@
 (function () {
   'use strict';
 
-  var KPI_TARGET = { hadirSiswa: 95, infaq: 90, jurnal: 90, jurnalHariSama: 80, hadirGuru: 95, telatGuru: 5, tanpaPulang: 5, ortuAktif: 70 };
+  var KPI_TARGET = { hadirSiswa: 95, infaq: 90, jurnal: 90, jurnalHariSama: 80, hadirGuru: 95, telatGuru: 5, tanpaPulang: 5, ortuAktif: 70, sikap: 15 };
   var KPI_DEFAULT = {}; Object.keys(KPI_TARGET).forEach(function (k) { KPI_DEFAULT[k] = KPI_TARGET[k]; });
   var LABEL_TARGET = [['hadirSiswa', 'Kehadiran siswa (min. %)'], ['infaq', 'Infaq lunas (min. %)'], ['jurnal', 'Jurnal terisi (min. %)'], ['jurnalHariSama', 'Jurnal di hari yang sama (min. %)'],
-    ['hadirGuru', 'Kehadiran guru (min. %)'], ['telatGuru', 'Guru datang terlambat (maks. %)'], ['tanpaPulang', 'Guru tidak absen pulang (maks. %)'], ['ortuAktif', 'Orang tua aktif (min. %)']];
+    ['hadirGuru', 'Kehadiran guru (min. %)'], ['telatGuru', 'Guru datang terlambat (maks. %)'], ['tanpaPulang', 'Guru tidak absen pulang (maks. %)'], ['ortuAktif', 'Orang tua aktif (min. %)'], ['sikap', 'Siswa melanggar per bulan (maks. %)']];
   var HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   var NAMA_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   var ORTU_AKTIF_HARI = 30;
@@ -71,6 +75,34 @@
       });
     });
     return { kelas: kelas, total: total, hariSekolah: Object.keys(hari).sort() };
+  }
+
+  // Sikap. ked = allKedisiplinan; siswa = allSiswa (aktif); yms = daftar 'YYYY-MM'; nonaktif = {siswaKey:true}.
+  // Per bulan (yang sudah dimulai dan punya minimal satu catatan sikap): N = siswa unik dengan >=1 pelanggaran, D = siswa aktif.
+  // Hasil periode = jumlah N dan D antarbulan (rata-rata bulanan). kelas = rincian yang sama per kelas.
+  function hitungSikap(ked, siswa, yms, today, nonaktif, kelasList) {
+    nonaktif = nonaktif || {};
+    var bs = bulanSet(yms), aktif = {}, perBulan = {}, unik = {}, N = 0, D = 0, kelas = {}, bulanHitung = 0;
+    (kelasList || []).forEach(function (k) { kelas[k] = { n: 0, d: 0 }; });
+    (siswa || []).forEach(function (x) { if (x && x.key && !nonaktif[x.key] && x.aktif !== false) aktif[x.key] = x.kelas || '-'; });
+    var jmlKelas = {}; Object.keys(aktif).forEach(function (sk) { jmlKelas[aktif[sk]] = (jmlKelas[aktif[sk]] || 0) + 1; });
+    var jmlAktif = Object.keys(aktif).length;
+    (ked || []).forEach(function (d) {
+      if (!d || !d.tanggal || (d.jenis !== 'pelanggaran' && d.jenis !== 'prestasi')) return;
+      var ym = String(d.tanggal).slice(0, 7);
+      if (!bs[ym] || d.tanggal > today) return;
+      var b = perBulan[ym] || (perBulan[ym] = { ada: true, langgar: {} });
+      if (d.jenis === 'pelanggaran' && d.siswaKey && aktif[d.siswaKey] !== undefined) { b.langgar[d.siswaKey] = true; unik[d.siswaKey] = true; }
+    });
+    Object.keys(perBulan).forEach(function (ym) {
+      bulanHitung++;
+      var l = perBulan[ym].langgar, ks = Object.keys(l);
+      N += ks.length; D += jmlAktif;
+      ks.forEach(function (sk) { var k = aktif[sk]; if (!kelas[k]) kelas[k] = { n: 0, d: 0 }; kelas[k].n++; });
+      Object.keys(jmlKelas).forEach(function (k) { if (!kelas[k]) kelas[k] = { n: 0, d: 0 }; kelas[k].d += jmlKelas[k]; });
+    });
+    (kelasList || []).forEach(function (k) { if (kelas[k] && !kelas[k].d) kelas[k].d = 0; });
+    return { N: N, D: D, pct: pct(N, D), unik: Object.keys(unik).length, bulan: bulanHitung, kelas: kelas };
   }
 
   // Infaq. weeks = daftar kunci minggu 'YYYY-Www' milik bulan itu yang sudah dimulai.
@@ -250,7 +282,16 @@
     '.kpi-tl-act{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}.kpi-tl-act .btn{padding:8px 16px;font-size:13px;}' +
     '.kpi-tl-draf{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:8px 0 12px;}.kpi-tl-draf .btn{padding:8px 14px;font-size:13px;}' +
     '.kpi-tabn{display:inline-block;min-width:18px;box-sizing:border-box;margin-left:5px;padding:0 6px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;}' +
-    '.card .btn.kpi-tl-mini{padding:4px 12px !important;min-height:32px !important;font-size:12px !important;margin-top:6px;}';
+    '.card .btn.kpi-tl-mini{padding:4px 12px !important;min-height:32px !important;font-size:12px !important;margin-top:6px;}' +
+    /* v8.507: kartu indikator, ringkasan, toolbar, tabel */
+    '.kpi-row{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;}.kpi-row .kpi-badge{margin:0;align-self:center;white-space:nowrap;}' +
+    '.kpi-meter{position:relative;height:6px;border-radius:99px;background:rgba(128,128,128,.25);margin:8px 0 2px;}.kpi-meter i{display:block;height:100%;border-radius:99px;}' +
+    '.kpi-meter b{position:absolute;top:-3px;width:2px;height:12px;margin-left:-1px;background:currentColor;opacity:.55;border-radius:1px;}' +
+    '.kpi-sum{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;}.kpi-sum span{font-size:12px;font-weight:700;color:#fff;border-radius:999px;padding:4px 10px;}' +
+    '.kpi-bar{background:rgba(128,128,128,.08);border:1px solid rgba(128,128,128,.2);border-radius:12px;padding:10px;}' +
+    '.kpi-h{border-left:4px solid #0d9488;padding-left:8px;}' +
+    '.kpi-tbl th{background:rgba(128,128,128,.14);font-weight:700;}.kpi-tbl tr:nth-child(even) td{background:rgba(128,128,128,.06);}' +
+    '.kpi-info{background:rgba(128,128,128,.05);}';
   function pasangCss() {
     if (el('kpiCss')) return;
     var s = document.createElement('style'); s.id = 'kpiCss'; s.textContent = CSS; document.head.appendChild(s);
@@ -277,9 +318,20 @@
   }
   function kartu(nama, nilai, target, mode, sub, pb) {
     var st = status(nilai, target, mode);
-    return '<div class="kpi-card"><div class="kpi-nama">' + esc(nama) + '</div><div class="kpi-val" style="color:' + st.w + ';">' + f1(nilai) + '</div>' +
-      '<div class="kpi-sub">Target ' + (mode === 'max' ? 'maksimal ' : 'minimal ') + target + '%' + (sub ? '<br>' + esc(sub) : '') + '</div><span class="kpi-badge" style="background:' + st.w + ';">' + st.t + '</span>' +
+    var skala = mode === 'max' ? target * 3 : 100;   // 'max': bar 0..3x target, penanda di target; 'min': bar 0..100%
+    var isi = nilai == null ? 0 : Math.max(0, Math.min(100, nilai / skala * 100)), tanda = Math.max(0, Math.min(100, target / skala * 100));
+    return '<div class="kpi-card"><div class="kpi-nama">' + esc(nama) + '</div>' +
+      '<div class="kpi-row"><div class="kpi-val" style="color:' + st.w + ';">' + f1(nilai) + '</div><span class="kpi-badge" style="background:' + st.w + ';">' + st.t + '</span></div>' +
+      '<div class="kpi-meter" aria-hidden="true"><i style="width:' + isi.toFixed(1) + '%;background:' + st.w + ';"></i><b style="left:' + tanda.toFixed(1) + '%;"></b></div>' +
+      '<div class="kpi-sub">Target ' + (mode === 'max' ? 'maksimal ' : 'minimal ') + target + '%' + (sub ? '<br>' + esc(sub) : '') + '</div>' +
       barisPembanding(nilai, mode, pb) + '</div>';
+  }
+  // Ringkasan jumlah indikator: tercapai / mendekati / belum tercapai (indikator tanpa data tidak dihitung).
+  function kpiRingkas(daftar) {
+    var n = { '#059669': 0, '#d97706': 0, '#dc2626': 0 };
+    daftar.forEach(function (x) { if (x[0] == null) return; var w = status(x[0], x[1], x[2]).w; if (n[w] != null) n[w]++; });
+    if (!(n['#059669'] + n['#d97706'] + n['#dc2626'])) return '';
+    return '<div class="kpi-sum"><span style="background:#059669;">✅ ' + n['#059669'] + ' tercapai</span><span style="background:#d97706;">🟠 ' + n['#d97706'] + ' mendekati</span><span style="background:#dc2626;">🔴 ' + n['#dc2626'] + ' belum tercapai</span></div>';
   }
   function warna(v, target, mode) { return status(v, target, mode).w; }
 
@@ -325,11 +377,11 @@
   var arsip = { data: null, sedang: false, coba: false, galat: null, gagalTulis: null, sedangTulis: false };
   function arsipBulan(ta, ym) { var d = arsip.data; return d && d.arsip && d.arsip[ta] && d.arsip[ta].bulan && d.arsip[ta].bulan[ym] || null; }
   function arsipOrtu(ym) { var d = arsip.data, ta = taKeyDariYm(ym); return d && d.arsip && d.arsip[ta] && d.arsip[ta].ortu && d.arsip[ta].ortu[ym] || null; }
-  var KUNCI_C = ['sH', 'sTot', 'iN', 'iD', 'jF', 'jE', 'jT', 'jTD', 'gH', 'gW', 'gTel', 'gTP', 'hari'];
+  var KUNCI_C = ['sH', 'sTot', 'iN', 'iD', 'jF', 'jE', 'jT', 'jTD', 'gH', 'gW', 'gTel', 'gTP', 'hari', 'kN', 'kD'];
   function sumC(list) { var o = {}; KUNCI_C.forEach(function (k) { o[k] = 0; list.forEach(function (c) { o[k] += +(c && c[k]) || 0; }); }); return o; }
   function persenDariC(c) {
     return { pSiswa: pct(c.sH, c.sTot), pInfaq: pct(c.iN, c.iD), pJur: pct(c.jF, c.jE), pJurHari: pct(c.jT, c.jTD),
-      pHadirGuru: pct(c.gH, c.gW), pTelat: pct(c.gTel, c.gH), pTanpaPulang: pct(c.gTP, c.gH) };
+      pHadirGuru: pct(c.gH, c.gW), pTelat: pct(c.gTel, c.gH), pTanpaPulang: pct(c.gTP, c.gH), pSikap: pct(c.kN, c.kD) };
   }
   function setLokal(path, val) {   // cerminkan penulisan ke arsip.data supaya tidak perlu baca ulang
     if (!arsip.data) arsip.data = {};
@@ -466,15 +518,16 @@
     var gr = hitungGuru(allTeacherAttendance, guruList, yms, hariSetLalu);
     if (!adaAbsenGuru()) { gr.hadirPct = null; gr.telatPct = null; gr.tanpaPulangPct = null; }   // jangan tampil 0% yang menyesatkan saat datanya belum ada
     var ta0 = adaAbsenGuru();
+    var sik = hitungSikap((typeof allKedisiplinan !== 'undefined') ? allKedisiplinan : [], (typeof allSiswa !== 'undefined') ? allSiswa : [], yms, today, nonaktif, KELAS_LIST);
     var c = { sH: sis.total.H, sTot: sis.total.H + sis.total.S + sis.total.I + sis.total.A, iN: inf ? inf.lunas : 0, iD: inf ? inf.wajib : 0,
       jF: jur.total.fill, jE: jur.total.exp, jT: jur.total.tepat, jTD: jur.total.tepatDen,
-      gH: ta0 ? gr.hadirTotal : 0, gW: ta0 ? gr.wajibTotal : 0, gTel: ta0 ? gr.telatTotal : 0, gTP: ta0 ? gr.tanpaPulang : 0, hari: sis.hariSekolah.length };
+      gH: ta0 ? gr.hadirTotal : 0, gW: ta0 ? gr.wajibTotal : 0, gTel: ta0 ? gr.telatTotal : 0, gTP: ta0 ? gr.tanpaPulang : 0, hari: sis.hariSekolah.length, kN: sik.N, kD: sik.D };
     return {
-      c: c, yms: yms, sis: sis, inf: inf, infaqBerjalan: infaqBerjalan, jur: jur, gr: gr,
+      c: c, yms: yms, sis: sis, inf: inf, infaqBerjalan: infaqBerjalan, jur: jur, gr: gr, sik: sik,
       pSiswa: pct(sis.total.H, sis.total.H + sis.total.S + sis.total.I + sis.total.A),
       pInfaq: inf ? pct(inf.lunas, inf.wajib) : null,
       pJur: pct(jur.total.fill, jur.total.exp), pJurHari: pct(jur.total.tepat, jur.total.tepatDen),
-      pHadirGuru: gr.hadirPct, pTelat: gr.telatPct, pTanpaPulang: gr.tanpaPulangPct
+      pHadirGuru: gr.hadirPct, pTelat: gr.telatPct, pTanpaPulang: gr.tanpaPulangPct, pSikap: sik.pct
     };
   }
 
@@ -519,6 +572,18 @@
     setTimeout(function () { akhir(null); }, 15000);
   }
 
+  function ketSikap(sk) {
+    if (!sk || !sk.bulan) return 'Belum ada catatan sikap pada periode ini';
+    var t = sk.N + ' siswa-bulan melanggar dari ' + sk.D + ' (' + sk.unik + ' siswa berbeda)';
+    try {
+      if (typeof window.SIMambaSikapPembinaan === 'function') {
+        var n = window.SIMambaSikapPembinaan().length;
+        if (n > 0) t += ' · ' + n + ' siswa melewati ambang pembinaan';
+      }
+    } catch (e) {}
+    return t;
+  }
+
   var ENTRI_INDIKATOR = [   // urutan & nama indikator (layar, CSV, PDF)
     { k: 'pSiswa',      nama: 'Kehadiran siswa',          target: 'hadirSiswa',     mode: 'min' },
     { k: 'pInfaq',      nama: 'Infaq lunas',              target: 'infaq',          mode: 'min' },
@@ -526,7 +591,8 @@
     { k: 'pJurHari',    nama: 'Jurnal di hari yang sama', target: 'jurnalHariSama', mode: 'min' },
     { k: 'pHadirGuru',  nama: 'Kehadiran guru',           target: 'hadirGuru',      mode: 'min' },
     { k: 'pTelat',      nama: 'Guru datang terlambat',    target: 'telatGuru',      mode: 'max' },
-    { k: 'pTanpaPulang', nama: 'Guru tidak absen pulang', target: 'tanpaPulang',    mode: 'max' }
+    { k: 'pTanpaPulang', nama: 'Guru tidak absen pulang', target: 'tanpaPulang',    mode: 'max' },
+    { k: 'pSikap',      nama: 'Siswa melanggar per bulan', target: 'sikap',        mode: 'max' }
   ];
 
   var kpiTab = 'ringkasan';   // tab aktif halaman KPI: 'ringkasan' | 'bulan' | 'kelas' | 'jurnal' | 'guru' (bertahan saat render ulang)
@@ -593,6 +659,8 @@
       (arsip.gagalTulis ? '<div class="kpi-cat" style="color:#b45309;">Arsip bulanan gagal disimpan (' + esc(arsip.gagalTulis) + '). Periksa Rules kpi_v4 dan sesi Admin.</div>' : '') +
       '<div id="kpiTabs" class="hub-tabs show kpi-tabs" role="tablist" aria-label="Bagian KPI Madrasah">' + TAB_KPI.filter(function (x) { return x[0] !== 'bulan' || adaBulan; }).map(function (x) { return '<button type="button" role="tab" aria-selected="' + (kpiTab === x[0]) + '" class="hub-tab' + (kpiTab === x[0] ? ' active' : '') + '" data-ktab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div id="kpiTab_ringkasan" data-kpane="ringkasan"' + (kpiTab === 'ringkasan' ? '' : ' style="display:none;"') + '>' +
+      kpiRingkas([[cur.pSiswa, KPI_TARGET.hadirSiswa, 'min'], [cur.pInfaq, KPI_TARGET.infaq, 'min'], [cur.pJur, KPI_TARGET.jurnal, 'min'], [cur.pJurHari, KPI_TARGET.jurnalHariSama, 'min'],
+        [cur.pHadirGuru, KPI_TARGET.hadirGuru, 'min'], [cur.pTelat, KPI_TARGET.telatGuru, 'max'], [cur.pTanpaPulang, KPI_TARGET.tanpaPulang, 'max'], [cur.pSikap, KPI_TARGET.sikap, 'max']]) +
       '<div class="kpi-grid">' +
       kartu('Kehadiran siswa', cur.pSiswa, KPI_TARGET.hadirSiswa, 'min', 'Alfa: ' + sis.total.A + ' siswa-hari', pb('pSiswa')) +
       kartu('Infaq lunas', cur.pInfaq, KPI_TARGET.infaq, 'min', inf ? inf.minggu + ' minggu dihitung' + (cur.infaqBerjalan ? ' (termasuk minggu berjalan, belum selesai)' : '') : 'Data infaq belum termuat', pb('pInfaq')) +
@@ -601,6 +669,7 @@
       kartu('Kehadiran guru', cur.pHadirGuru, KPI_TARGET.hadirGuru, 'min', ketGuru || (guruList.length + ' guru, ' + gr.hari + ' hari tanpa hari ini'), pb('pHadirGuru')) +
       kartu('Guru datang terlambat', cur.pTelat, KPI_TARGET.telatGuru, 'max', ketGuru || 'dari semua catatan Datang', pb('pTelat')) +
       kartu('Guru tidak absen pulang', cur.pTanpaPulang, KPI_TARGET.tanpaPulang, 'max', ketGuru || (gr.tanpaPulang + ' dari ' + gr.hadirTotal + ' hari hadir tanpa catatan Pulang'), pb('pTanpaPulang')) +
+      kartu('Siswa melanggar per bulan', cur.pSikap, KPI_TARGET.sikap, 'max', ketSikap(cur.sik), pb('pSikap')) +
       '<div class="kpi-card" id="kpiOrtuKartu"><div class="kpi-nama">Orang tua aktif</div><div class="kpi-sub">Memuat...</div></div>' +
       '</div>' +
       '<div id="kpiOrtu"></div></div>' + pane('tindak', '<div id="kpiTindak"></div>');
@@ -611,21 +680,21 @@
     if (per.jenis !== 'bulan') {
       rincian = per.bulan.map(function (b) { return { b: b, m: hitungPeriode([b], today, nonaktif, guruList) }; });
       var sel = function (v, tk, mode) { return '<td style="color:' + warna(v, KPI_TARGET[tk], mode) + ';font-weight:700;">' + f1(v) + '</td>'; };
-      hBulan += '<div class="kpi-h">Rincian per Bulan</div><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Bulan</th><th>Hadir siswa</th><th>Infaq</th><th>Jurnal</th><th>Jurnal hari sama</th><th>Hadir guru</th><th>Telat</th><th>Tanpa absen pulang</th></tr>' +
+      hBulan += '<div class="kpi-h">Rincian per Bulan</div><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Bulan</th><th>Hadir siswa</th><th>Infaq</th><th>Jurnal</th><th>Jurnal hari sama</th><th>Hadir guru</th><th>Telat</th><th>Tanpa absen pulang</th><th>Siswa melanggar</th></tr>' +
         rincian.map(function (r) {
           var m = r.m;
           return '<tr><td>' + esc(r.b.label) + '</td>' + sel(m.pSiswa, 'hadirSiswa', 'min') + sel(m.pInfaq, 'infaq', 'min') + sel(m.pJur, 'jurnal', 'min') + sel(m.pJurHari, 'jurnalHariSama', 'min') +
-            sel(m.pHadirGuru, 'hadirGuru', 'min') + sel(m.pTelat, 'telatGuru', 'max') + sel(m.pTanpaPulang, 'tanpaPulang', 'max') + '</tr>';
+            sel(m.pHadirGuru, 'hadirGuru', 'min') + sel(m.pTelat, 'telatGuru', 'max') + sel(m.pTanpaPulang, 'tanpaPulang', 'max') + sel(m.pSikap, 'sikap', 'max') + '</tr>';
         }).join('') + '</table></div>' +
         '<div class="kpi-cat">Angka di baris Semester/Tahun ajaran (kartu di atas) dihitung dari seluruh hari dan minggu pada periode itu, bukan rata-rata angka bulanan.</div>';
     }
 
     // per kelas
-    var hKelas = '<div class="kpi-h">Per Kelas</div><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Kelas</th><th>Hadir siswa</th><th>Alfa</th><th>Hari absensi</th><th>Infaq lunas</th></tr>' +
+    var hKelas = '<div class="kpi-h">Per Kelas</div><div class="kpi-scroll"><table class="kpi-tbl"><tr><th>Kelas</th><th>Hadir siswa</th><th>Alfa</th><th>Hari absensi</th><th>Infaq lunas</th><th>Siswa melanggar</th></tr>' +
       KELAS_LIST.map(function (k) {
         var s = sis.kelas[k], i = inf && inf.kelas[k];
-        var ps = s ? pct(s.H, s.H + s.S + s.I + s.A) : null, pi = i ? pct(i.lunas, i.pembagi) : null;
-        return '<tr><td>' + esc(k) + '</td><td style="color:' + warna(ps, KPI_TARGET.hadirSiswa, 'min') + ';font-weight:700;">' + f1(ps) + '</td><td>' + (s ? s.A : '-') + '</td><td>' + (s ? Object.keys(s.hari).length : 0) + '</td><td style="color:' + warna(pi, KPI_TARGET.infaq, 'min') + ';font-weight:700;">' + f1(pi) + (i ? ' <span style="opacity:.7;font-weight:400;">(' + i.siswa + ' siswa)</span>' : '') + '</td></tr>';
+        var ps = s ? pct(s.H, s.H + s.S + s.I + s.A) : null, pi = i ? pct(i.lunas, i.pembagi) : null, kk = cur.sik && cur.sik.kelas[k], pk = kk ? pct(kk.n, kk.d) : null;
+        return '<tr><td>' + esc(k) + '</td><td style="color:' + warna(ps, KPI_TARGET.hadirSiswa, 'min') + ';font-weight:700;">' + f1(ps) + '</td><td>' + (s ? s.A : '-') + '</td><td>' + (s ? Object.keys(s.hari).length : 0) + '</td><td style="color:' + warna(pi, KPI_TARGET.infaq, 'min') + ';font-weight:700;">' + f1(pi) + (i ? ' <span style="opacity:.7;font-weight:400;">(' + i.siswa + ' siswa)</span>' : '') + '</td><td style="color:' + warna(pk, KPI_TARGET.sikap, 'max') + ';font-weight:700;">' + f1(pk) + '</td></tr>';
       }).join('') + '</table></div>';
 
     // jurnal per guru (terendah dulu)
@@ -828,6 +897,9 @@
         return { penyebab: n1 + ' dari ' + bar.length + ' guru tercatat datang terlambat pada periode ini.', tindakan: 'Sampaikan pengingat jam datang; Kepala Madrasah membahas penyebab keterlambatan dengan guru terkait.' };
       case 'pTanpaPulang': n1 = bar.filter(function (b) { return b.tanpaPulang > 0; }).length;
         return { penyebab: n1 + ' guru tidak absen pulang, total ' + (c.gr.tanpaPulang || 0) + ' hari.', tindakan: 'Kirim pengingat lewat tombol WA di tab Guru; ingatkan menekan absen Pulang setiap selesai mengajar.' };
+      case 'pSikap': var sk = c.sik || { kelas: {} };
+        kl = KELAS_LIST.map(function (k) { var q = sk.kelas[k]; return { k: k, p: q ? pct(q.n, q.d) : null }; }).filter(function (x) { return x.p != null && x.p > KPI_TARGET.sikap; }).sort(function (a, b) { return b.p - a.p; });
+        return { penyebab: (kl.length ? 'Kelas di atas target: ' + daftar(kl) + '. ' : '') + sk.unik + ' siswa berbeda tercatat melanggar pada periode ini.', tindakan: 'Wali kelas membina siswa yang berulang melanggar; siswa yang mencapai ambang pembinaan dipanggil bersama orang tua (menu Surat & Ijin, jenis Panggilan Orang Tua).' };
       case 'ortu': if (!t.ortu) return null;
         return { penyebab: t.ortu.tanpaWa + ' siswa belum punya nomor WA wali dan ' + t.ortu.belum + ' nomor belum login dalam 30 hari.', tindakan: 'Lengkapi nomor WA di Data Siswa, lalu kirim pengingat portal lewat tombol WA pada kartu Orang tua aktif.' };
     }
@@ -1039,14 +1111,15 @@
     barisIndikator(t).forEach(function (r) {
       baris.push([r.nama, n1(r.nilai), targetTeks(r), n1(r.prev), r.d == null ? '' : (r.d > 0 ? '+' : '-') + n1(Math.abs(r.d)), r.pembText]);
     });
-    baris.push([], ['Kelas', 'Hadir siswa (%)', 'Alfa', 'Infaq lunas (%)']);
+    baris.push([], ['Kelas', 'Hadir siswa (%)', 'Alfa', 'Infaq lunas (%)', 'Siswa melanggar per bulan (%)']);
     KELAS_LIST.forEach(function (k) {
       var s = t.cur.sis.kelas[k], i = t.cur.inf && t.cur.inf.kelas[k];
-      baris.push([k, s ? n1(pct(s.H, s.H + s.S + s.I + s.A)) : '', s ? s.A : '', i ? n1(pct(i.lunas, i.pembagi)) : '']);
+      var kk = t.cur.sik && t.cur.sik.kelas[k];
+      baris.push([k, s ? n1(pct(s.H, s.H + s.S + s.I + s.A)) : '', s ? s.A : '', i ? n1(pct(i.lunas, i.pembagi)) : '', kk ? n1(pct(kk.n, kk.d)) : '']);
     });
     if (t.rincian) {
-      baris.push([], ['Bulan', 'Hadir siswa (%)', 'Infaq lunas (%)', 'Jurnal terisi (%)', 'Jurnal hari sama (%)', 'Hadir guru (%)', 'Guru terlambat (%)', 'Tidak absen pulang (%)']);
-      t.rincian.forEach(function (r) { var m = r.m; baris.push([r.b.label, n1(m.pSiswa), n1(m.pInfaq), n1(m.pJur), n1(m.pJurHari), n1(m.pHadirGuru), n1(m.pTelat), n1(m.pTanpaPulang)]); });
+      baris.push([], ['Bulan', 'Hadir siswa (%)', 'Infaq lunas (%)', 'Jurnal terisi (%)', 'Jurnal hari sama (%)', 'Hadir guru (%)', 'Guru terlambat (%)', 'Tidak absen pulang (%)', 'Siswa melanggar (%)']);
+      t.rincian.forEach(function (r) { var m = r.m; baris.push([r.b.label, n1(m.pSiswa), n1(m.pInfaq), n1(m.pJur), n1(m.pJurHari), n1(m.pHadirGuru), n1(m.pTelat), n1(m.pTanpaPulang), n1(m.pSikap)]); });
     }
     var csv = '\ufeff' + baris.map(function (r) { return r.map(q).join(';'); }).join('\r\n');
     unduh(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'kpi-madrasah_' + String(t.per.kode).replace(':', '-') + '.csv');
@@ -1093,22 +1166,22 @@
     if (tab === 'bulan' && t.rincian && t.rincian.length) {
       judul('Rincian per Bulan');
       doc.autoTable({ startY: y, margin: { left: L, right: L }, theme: 'grid', styles: Object.assign({}, gaya, { halign: 'center', fontSize: 8 }), headStyles: kepala, columnStyles: { 0: { halign: 'left' } },
-        head: [['Bulan', 'Hadir siswa', 'Infaq', 'Jurnal', 'Jurnal hari sama', 'Hadir guru', 'Telat', 'Tanpa absen pulang']],
-        body: t.rincian.map(function (r) { var m = r.m; return [r.b.label, f(m.pSiswa), f(m.pInfaq), f(m.pJur), f(m.pJurHari), f(m.pHadirGuru), f(m.pTelat), f(m.pTanpaPulang)]; }),
+        head: [['Bulan', 'Hadir siswa', 'Infaq', 'Jurnal', 'Jurnal hari sama', 'Hadir guru', 'Telat', 'Tanpa absen pulang', 'Siswa melanggar']],
+        body: t.rincian.map(function (r) { var m = r.m; return [r.b.label, f(m.pSiswa), f(m.pInfaq), f(m.pJur), f(m.pJurHari), f(m.pHadirGuru), f(m.pTelat), f(m.pTanpaPulang), f(m.pSikap)]; }),
         didParseCell: function (d) {
           var m = t.rincian[d.row.index] && t.rincian[d.row.index].m; if (!m) return;
-          var peta = { 1: ['pSiswa', 'hadirSiswa', 'min'], 2: ['pInfaq', 'infaq', 'min'], 3: ['pJur', 'jurnal', 'min'], 4: ['pJurHari', 'jurnalHariSama', 'min'], 5: ['pHadirGuru', 'hadirGuru', 'min'], 6: ['pTelat', 'telatGuru', 'max'], 7: ['pTanpaPulang', 'tanpaPulang', 'max'] }[d.column.index];
+          var peta = { 1: ['pSiswa', 'hadirSiswa', 'min'], 2: ['pInfaq', 'infaq', 'min'], 3: ['pJur', 'jurnal', 'min'], 4: ['pJurHari', 'jurnalHariSama', 'min'], 5: ['pHadirGuru', 'hadirGuru', 'min'], 6: ['pTelat', 'telatGuru', 'max'], 7: ['pTanpaPulang', 'tanpaPulang', 'max'], 8: ['pSikap', 'sikap', 'max'] }[d.column.index];
           if (peta) warnaKolom(d, d.column.index, m[peta[0]], peta[1], peta[2]);
         } });
       catat(['Merah = belum tercapai terhadap target. Angka semester/tahun ajaran di tab Ringkasan dihitung dari seluruh hari dan minggu, bukan rata-rata angka bulanan.']);
     } else if (tab === 'kelas') {
-      var rk = KELAS_LIST.map(function (k) { var s0 = t.cur.sis.kelas[k], i0 = t.cur.inf && t.cur.inf.kelas[k]; return { k: k, ps: s0 ? pct(s0.H, s0.H + s0.S + s0.I + s0.A) : null, a: s0 ? s0.A : null, hr: s0 ? Object.keys(s0.hari).length : 0, pi: i0 ? pct(i0.lunas, i0.pembagi) : null, n: i0 ? i0.siswa : null }; });
+      var rk = KELAS_LIST.map(function (k) { var s0 = t.cur.sis.kelas[k], i0 = t.cur.inf && t.cur.inf.kelas[k]; return { k: k, ps: s0 ? pct(s0.H, s0.H + s0.S + s0.I + s0.A) : null, a: s0 ? s0.A : null, hr: s0 ? Object.keys(s0.hari).length : 0, pi: i0 ? pct(i0.lunas, i0.pembagi) : null, n: i0 ? i0.siswa : null, pk: (t.cur.sik && t.cur.sik.kelas[k]) ? pct(t.cur.sik.kelas[k].n, t.cur.sik.kelas[k].d) : null }; });
       judul('Capaian per Kelas');
       doc.autoTable({ startY: y, margin: { left: L, right: L }, theme: 'grid', styles: Object.assign({}, gaya, { halign: 'center' }), headStyles: kepala, columnStyles: { 0: { halign: 'left' } },
-        head: [['Kelas', 'Hadir siswa', 'Alfa (siswa-hari)', 'Hari absensi', 'Infaq lunas', 'Siswa wajib infaq']],
-        body: rk.map(function (r) { return [r.k, f(r.ps), r.a == null ? '-' : String(r.a), String(r.hr), f(r.pi), r.n == null ? '-' : String(r.n)]; }),
-        didParseCell: function (d) { var r = rk[d.row.index]; if (!r) return; warnaKolom(d, 1, r.ps, 'hadirSiswa', 'min'); warnaKolom(d, 4, r.pi, 'infaq', 'min'); } });
-      catat(['Target: kehadiran siswa minimal ' + KPI_TARGET.hadirSiswa + '%, infaq lunas minimal ' + KPI_TARGET.infaq + '%. Merah = belum tercapai. Siswa non aktif tidak dihitung.']);
+        head: [['Kelas', 'Hadir siswa', 'Alfa (siswa-hari)', 'Hari absensi', 'Infaq lunas', 'Siswa wajib infaq', 'Siswa melanggar']],
+        body: rk.map(function (r) { return [r.k, f(r.ps), r.a == null ? '-' : String(r.a), String(r.hr), f(r.pi), r.n == null ? '-' : String(r.n), f(r.pk)]; }),
+        didParseCell: function (d) { var r = rk[d.row.index]; if (!r) return; warnaKolom(d, 1, r.ps, 'hadirSiswa', 'min'); warnaKolom(d, 4, r.pi, 'infaq', 'min'); warnaKolom(d, 6, r.pk, 'sikap', 'max'); } });
+      catat(['Target: kehadiran siswa minimal ' + KPI_TARGET.hadirSiswa + '%, infaq lunas minimal ' + KPI_TARGET.infaq + '%, siswa melanggar per bulan maksimal ' + KPI_TARGET.sikap + '%. Merah = belum tercapai. Siswa non aktif tidak dihitung.']);
     } else if (tab === 'jurnal') {
       var jg = t.jg || [];
       judul('Jurnal Terisi per Guru (terendah di atas)');
@@ -1206,8 +1279,8 @@
         styles: { fontSize: 7.5, cellPadding: 1.1, lineColor: [150, 150, 150], lineWidth: 0.15, textColor: 20, halign: 'center' },
         headStyles: { fillColor: gelap, textColor: 255, halign: 'center' },
         columnStyles: { 0: { halign: 'left' } },
-        head: [['Bulan', 'Hadir siswa', 'Infaq', 'Jurnal', 'Jurnal hari sama', 'Hadir guru', 'Telat', 'Tanpa absen pulang']],
-        body: t.rincian.map(function (r) { var m = r.m; return [r.b.label, f(m.pSiswa), f(m.pInfaq), f(m.pJur), f(m.pJurHari), f(m.pHadirGuru), f(m.pTelat), f(m.pTanpaPulang)]; })
+        head: [['Bulan', 'Hadir siswa', 'Infaq', 'Jurnal', 'Jurnal hari sama', 'Hadir guru', 'Telat', 'Tanpa absen pulang', 'Siswa melanggar']],
+        body: t.rincian.map(function (r) { var m = r.m; return [r.b.label, f(m.pSiswa), f(m.pInfaq), f(m.pJur), f(m.pJurHari), f(m.pHadirGuru), f(m.pTelat), f(m.pTanpaPulang), f(m.pSikap)]; })
       });
       y = doc.lastAutoTable.finalY + 5;
     }

@@ -138,6 +138,7 @@
         toast('✅ Catatan sikap tersimpan!'); addLog('catat_sikap', `${siswaNama} - ${kategori}`);
         const data = { key: ref.key, siswaKey, siswaNama, kelas, jenis, kategori, poin, keterangan, tanggal, tahunAjaran: currentTahunAjaran, inputBy: currentUser.name, inputAt: new Date().toISOString() };
         allKedisiplinan.push(data);
+        try { if (jenis === 'pelanggaran' && typeof window.SIMambaNotifPembinaan === 'function') window.SIMambaNotifPembinaan(); } catch (e) { console.warn('[SI MAMBA] notif pembinaan gagal:', e); }   // cek ambang pembinaan segera (js/notif-pembinaan.js)
         document.getElementById('sikapKeterangan').value = '';
         renderSikapRiwayat(siswaKey);
         renderSikapRekap();
@@ -397,3 +398,34 @@
         renderBukuRiwayat(siswaKey);
       });
     }
+
+
+// ============================================================
+// v4: tab halaman Sikap Siswa (Catat | Rekap Kelas | Per Siswa | Kategori [Admin]).
+// Tab Kategori hanya muncul bila kartu Kategori ditampilkan (diatur setupSikapPage lewat style.display, hanya untuk Admin).
+// ============================================================
+(function () {
+  'use strict';
+  var pg = document.getElementById('page-sikap-siswa');
+  if (!pg) return;
+  window.sikapTab = function (t) {
+    var bk = pg.querySelector('[data-stab-btn="kategori"]');
+    if (t === 'kategori' && (!bk || bk.style.display === 'none')) t = 'catat';
+    if (['catat', 'kelas', 'siswa', 'kategori'].indexOf(t) < 0) t = 'catat';
+    pg.setAttribute('data-stab', t);
+    Array.prototype.forEach.call(pg.querySelectorAll('[data-stab-btn]'), function (b) {
+      var on = b.getAttribute('data-stab-btn') === t;
+      b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  };
+  function sinkron() {
+    var c = document.getElementById('sikapKategoriAdminCard'), b = pg.querySelector('[data-stab-btn="kategori"]');
+    if (!c || !b) return;
+    var tampil = c.style.display !== 'none';
+    b.style.display = tampil ? '' : 'none';
+    if (!tampil && pg.getAttribute('data-stab') === 'kategori') window.sikapTab('catat');
+  }
+  var kc = document.getElementById('sikapKategoriAdminCard');
+  if (kc && window.MutationObserver) new MutationObserver(sinkron).observe(kc, { attributes: true, attributeFilter: ['style'] });
+  sinkron();
+})();

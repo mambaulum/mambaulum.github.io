@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/cek-data.js  (v3)
+   SI MAMBA - js/cek-data.js  (v4)
    Menu Admin "Cek Data": mendeteksi dan memperbaiki data guru/jadwal yang tidak konsisten.
    - Guru ganda (nama sama, key berbeda)
    - Baris Jadwal tanpa guruKey (data lama) dan guruKey yatim (guru sudah tidak ada)
@@ -7,6 +7,7 @@
    untuk satu bulan: baris honor terbelah/hantu, jurnal pending yang ikut terhitung, jurnal ganda, jam_ke tak dikenal.
    v3: panel "Diagnosa Input Nilai" -- pilih guru + kelas, lihat baris Jadwal yang dihitung/tidak dihitung untuk daftar mapel di Input Nilai
    (mis. kenapa Seni dan Budaya tidak muncul). Hanya membaca, tidak menulis apa pun.
+   v4: tampilan dibagi tab bergaya hub-tabs (Guru & Jadwal | Honor | Diagnosa Nilai) dengan penanda jumlah temuan; logika analisis & perbaikan tidak berubah.
    Perbaikan hanya menulis field guruKey (node jadwal, journal, event_attendance, ujian_attendance, ekskul_pic_honor_v4).
    Data guru TIDAK dihapus; hapus manual setelah yakin. Setiap perbaikan: unduh cadangan JSON dulu, minta konfirmasi, catat ke log.
    Dimuat SESUDAH app.js dan jadwal.js. Halaman: page-cek-data (navigateTo memanggil setupCekDataPage).
@@ -15,6 +16,7 @@
   'use strict';
 
   var _hasil = null; // hasil analisis terakhir (dipakai tombol aksi)
+  var _tab = 'guru'; // tab aktif Cek Data
   var _honor = null; // hasil analisis honor terakhir (+ _sumber: rekaman yang dianalisis)
 
   function norm(x) { return String(x || '').toLowerCase().replace(/[\s.,]+/g, ''); }
@@ -218,14 +220,35 @@
       '<p class="text-muted" style="font-size:12px;">Jadwal ini menunjuk guru yang sudah tidak ada. Ubah gurunya lewat menu Jadwal (tidak diperbaiki otomatis).</p>' +
       tabel(['Guru', 'Kelas', 'Hari', 'Jam'], h.yatim.slice(0, 50).map(function (r) { return [esc(r.guru), esc(r.kelas), esc(r.hari), esc(r.jam)]; })));
 
-    box.innerHTML = '<p class="text-muted" style="font-size:12px;">Diperiksa: ' + h.total.guru + ' guru, ' + h.total.jadwal + ' baris jadwal.</p>' + out + renderDampakHonor() + renderDiagnosaNilai();
+    box.innerHTML = out;
+    var info = el('cdInfo'); if (info) info.textContent = 'Diperiksa: ' + h.total.guru + ' guru, ' + h.total.jadwal + ' baris jadwal.';
+    var ph = el('cdHonorIsi'); if (ph) ph.innerHTML = renderDampakHonor();
+    var pn = el('cdPanNilai'); if (pn) pn.innerHTML = renderDiagnosaNilai();
+    var T = _honor && _honor.T, nG = h.kembar.length + h.unik.length + h.nol.length + h.ambigu.length + h.yatim.length;
+    var nH = T ? T.pending.length + T.namaBeda.length + T.hantu.length + T.yatim.length + T.namaKembar.length + T.kembar.length + T.ganda.length + T.jamAsing.length + T.tipeKosong.length : 0;
+    badge('guru', nG); badge('honor', nH);
+  }
+  function badge(tab, n) {
+    var b = document.querySelector('[data-cdtab="' + tab + '"] .cd-bdg'); if (!b) return;
+    b.textContent = n > 0 ? String(n) : '✓';
+    b.style.cssText = 'display:inline-block;margin-left:6px;min-width:18px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:700;line-height:18px;text-align:center;' +
+      (n > 0 ? 'background:#fee2e2;color:#b91c1c;' : 'background:#d1fae5;color:#047857;');
+  }
+  function pilihTab(t) {
+    _tab = t;
+    ['guru', 'honor', 'nilai'].forEach(function (k) {
+      var pan = k === 'guru' ? el('cekDataHasil') : el(k === 'honor' ? 'cdPanHonor' : 'cdPanNilai');
+      if (pan) pan.hidden = (k !== t);
+      var bt = document.querySelector('[data-cdtab="' + k + '"]');
+      if (bt) { bt.classList.toggle('active', k === t); bt.setAttribute('aria-selected', k === t ? 'true' : 'false'); }
+    });
   }
 
   // ---------- Tampilan: Dampak ke honor ----------
   function renderDampakHonor() {
     var d = _honor; if (!d) return '';
     var T = d.T, tot = d.total, n = tot.jurnal + tot.event + tot.ujian + tot.ekskul, out = '';
-    out += '<div style="margin-top:22px;padding-top:12px;border-top:2px solid #e5e7eb;"><div style="font-weight:800;font-size:15px;">💰 Dampak ke honor — ' + esc(d.ym) + '</div>' +
+    out += '<div style=""><div style="font-weight:800;font-size:15px;">💰 Dampak ke honor — ' + esc(d.ym) + '</div>' +
       '<p class="text-muted" style="font-size:12px;">Dibaca dari data yang dimuat di aplikasi (tahun ajaran aktif), sama dengan rekap Honor: ' + tot.jurnal + ' jurnal, ' + tot.event + ' lembur/rapat, ' + tot.ujian + ' ujian, ' + tot.ekskul + ' PIC ekskul. Nominal hanya perkiraan dari tarif saat ini.</p></div>';
     if (!n) return out + '<p class="text-muted">Tidak ada data honor di bulan ini (atau data belum termuat — buka halaman Jurnal/Honor dulu lalu periksa lagi).</p>';
 
@@ -303,7 +326,7 @@
     var kl = Object.keys(kls).sort();
     var optG = gl.map(function (g) { return '<option value="' + esc(g.key) + '">' + esc(g.name || g.key) + '</option>'; }).join('');
     var optK = kl.map(function (k) { return '<option value="' + esc(k) + '"' + (k === 'Kelas 3' ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('');
-    return '<div style="margin-top:22px;padding-top:12px;border-top:2px solid #e5e7eb;"><div style="font-weight:800;font-size:15px;">🔎 Diagnosa Input Nilai</div>' +
+    return '<div style=""><div style="font-weight:800;font-size:15px;">🔎 Diagnosa Input Nilai</div>' +
       '<p class="text-muted" style="font-size:12px;">Pilih guru dan kelas untuk melihat mapel apa yang akan muncul di halaman Nilai, dan alasannya bila ada mapel yang tidak muncul.</p>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><select id="cdDiagGuru" class="field" style="max-width:260px;">' + optG + '</select>' +
       '<select id="cdDiagKelas" class="field" style="max-width:140px;">' + optK + '</select>' +
@@ -346,7 +369,7 @@
   // ---------- Pemeriksaan ----------
   function jalankan(btn) {
     if (typeof isAdmin === 'function' && !isAdmin()) return toast('Hanya Admin!', true);
-    var box = el('cekDataHasil'); if (box) box.innerHTML = '<p class="text-muted">Membaca data terbaru…</p>';
+    var box = el('cekDataHasil'), inf = el('cdInfo'); if (inf) inf.textContent = 'Membaca data terbaru…';
     Promise.all([bacaNode('guru'), bacaNode('jadwal')]).then(function (r) {
       _hasil = cekDataAnalisis(r[0], r[1], (typeof allJournals !== 'undefined') ? allJournals : []);
       _hasil._guru = r[0]; _hasil._jadwal = r[1];
@@ -483,10 +506,18 @@
     if (!body.dataset.siap) {
       body.dataset.siap = '1';
       var tgl = (typeof tglLokal === 'function') ? tglLokal() : new Date().toISOString().slice(0, 10);
-      body.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><button class="btn btn-primary" data-aksi="periksa">🔍 Periksa data</button>' +
-        '<label style="font-size:13px;">Bulan honor: <input type="month" id="cekDataBulan" value="' + String(tgl).slice(0, 7) + '" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:8px;"></label></div><div id="cekDataHasil" style="margin-top:8px;"></div>';
+      body.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><button class="btn btn-primary" data-aksi="periksa">🔍 Periksa data</button><span id="cdInfo" class="text-muted" style="font-size:12px;"></span></div>' +
+        '<div class="hub-tabs show kg-top" role="tablist" aria-label="Bagian Cek Data" style="margin-top:12px;">' +
+        '<button type="button" role="tab" class="hub-tab" data-cdtab="guru">👩‍🏫 Guru &amp; Jadwal<span class="cd-bdg"></span></button>' +
+        '<button type="button" role="tab" class="hub-tab" data-cdtab="honor">💰 Honor<span class="cd-bdg"></span></button>' +
+        '<button type="button" role="tab" class="hub-tab" data-cdtab="nilai">🔎 Diagnosa Nilai</button></div>' +
+        '<div id="cekDataHasil" style="margin-top:4px;"></div>' +
+        '<div id="cdPanHonor" hidden><div style="margin-top:12px;"><label style="font-size:13px;">Bulan honor: <input type="month" id="cekDataBulan" value="' + String(tgl).slice(0, 7) + '" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:8px;"></label></div><div id="cdHonorIsi"></div></div>' +
+        '<div id="cdPanNilai" hidden></div>';
+      pilihTab(_tab);
       body.addEventListener('change', function (ev) { if (ev.target && ev.target.id === 'cekDataBulan') jalankan(); });
       body.addEventListener('click', function (ev) {
+        var tb = ev.target.closest('button[data-cdtab]'); if (tb) { pilihTab(tb.dataset.cdtab); return; }
         var b = ev.target.closest('button[data-aksi]'); if (!b) return;
         var a = b.dataset.aksi;
         if (a === 'periksa') jalankan(b);

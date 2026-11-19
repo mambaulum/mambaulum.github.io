@@ -50,6 +50,11 @@
      diisi di menu Data Guru -- app.js v171) dan digabung dengan Wali Kelas & isian manual, tanpa duplikat; (3) SK semua guru: baris Kepala
      Madrasah otomatis bertugas "Kepala Madrasah". Daftar pilihan dibagi bersama app.js lewat window.SIMAMBA_TUGAS_TAMBAHAN.
 
+   - [v11] Surat siswa jenis baru "Panggilan Orang Tua (Pembinaan)" (kode klasifikasi KS.00, seri nomor sendiri: counter
+     nomor_surat/<tahun>/MI-MU_SP, tidak mengganggu urutan SKet). Ada isian Tanggal Menghadap + Pukul (bawaan: 3 hari lagi, bukan Minggu).
+     Total poin & ambang dibaca dari window.SIMambaSikapRingkas (js/dashboard-sikap.js v3; tanpa query Firebase baru). Tombol
+     "Surat panggilan" di daftar Perlu pembinaan memanggil window.SIMambaSuratPanggilan(siswaKey, nama).
+
    KETERGANTUNGAN (app.js): currentUser, allGuru, allJadwal, jamSettings, MADRASAH,
    currentTahunAjaran, currentSemesterAktif, db, toast, escapeHtml, tglLokal, addLog,
    selectedSiswaSurat, isWaliKelas, isWaliKelasAssigned, buatIsiSuratPlain, loadSuratRiwayat,
@@ -98,7 +103,7 @@
     { kode: 'KS.02', label: 'Kesiswaan — kehadiran (ijin, sakit)' },
     { kode: 'KS.00', label: 'Kesiswaan — umum' }
   ];
-  var KLAS_BAWAAN_SISWA = { aktif: 'KS.01', pindah: 'KS.01', ijin: 'KS.02', sakit: 'KS.02' };
+  var KLAS_BAWAAN_SISWA = { aktif: 'KS.01', pindah: 'KS.01', ijin: 'KS.02', sakit: 'KS.02', panggilan: 'KS.00' };
   Object.keys(KLAS_BAWAAN_SISWA).forEach(function (k) { KLAS[k] = KLAS_BAWAAN_SISWA[k]; });
   // Surat KELUAR umum (undangan, pemberitahuan, dll; dipakai Agenda Surat). Seri nomor sendiri (kategori 'B').
   var KLAS_UMUM = [{ kode: 'UM.01', label: 'Umum — surat dinas, undangan, pemberitahuan' }]
@@ -230,6 +235,7 @@
     var baris = sel.parentElement.parentElement;            // baris kontrol surat siswa
     baris.id = baris.id || 'suratSiswaBaris';
     pasangKlasSiswa(baris);
+    pasangPanggilanUI(baris);
 
     // Tab Siswa | Guru
     var tab = el('div', null, 'display:none;gap:8px;margin-bottom:12px;flex-wrap:wrap;'); tab.id = 'suratTab';
@@ -827,7 +833,7 @@
   // ---------- Penomoran otomatis ----------
   var nomorToken = 0;
   function kodeJabatan(jenis) { return jenis === 'sk-pengangkatan' ? KODE.yayasan : KODE.kepala; }
-  function kategoriNomor(jenis) { if (jenis === 'surat-keluar') return 'B'; return (jenis === 'sk-pengangkatan' || jenis === 'sk-jadwal' || jenis === 'sk-tugas' || jenis === 'sk-tugas-semua') ? 'SK' : (jenis === 'surat-tugas' ? 'ST' : 'SKET'); }
+  function kategoriNomor(jenis) { if (jenis === 'surat-keluar') return 'B'; if (jenis === 'panggilan') return 'SP'; return (jenis === 'sk-pengangkatan' || jenis === 'sk-jadwal' || jenis === 'sk-tugas' || jenis === 'sk-tugas-semua') ? 'SK' : (jenis === 'surat-tugas' ? 'ST' : 'SKET'); }
   function bagianTanggal(d) { var iso = d.tanggal || tglLokal(); return { yy: iso.slice(0, 4), mm: iso.slice(5, 7) }; }
   function kunciCounter(jenis, yy) { return 'nomor_surat/' + yy + '/' + (kodeJabatan(jenis) + '_' + kategoriNomor(jenis)).replace(/[^A-Za-z0-9_-]/g, '_'); }
   function susunNomor(jenis, n, d) {
@@ -1418,6 +1424,83 @@
     return sProses[k];
   }
 
+  // ---- Surat Panggilan Orang Tua (pembinaan) ----
+  function tglIsoTambah(n) {                                 // hari ini + n hari, lewati hari Minggu (madrasah libur)
+    var p = tglLokal().split('-'), d = new Date(+p[0], +p[1] - 1, +p[2] + n);
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function aturPanggilanBox() {
+    var box = $('suratPanggilanBox'), js = $('suratJenisSelect');
+    if (box) box.style.display = (js && js.value === 'panggilan') ? 'flex' : 'none';
+  }
+  function siapkanPanggilan() {                              // tampilkan isian & isi nilai bawaan bila masih kosong
+    aturPanggilanBox();
+    var t = $('suratPanggilanTgl'), j = $('suratPanggilanJam');
+    if (t && !t.value) t.value = tglIsoTambah(3);
+    if (j && !j.value) j.value = '08:00';
+  }
+  function cekPanggilan() {                                  // dipakai Download PDF & Simpan (Preview boleh tanggal apa pun)
+    siapkanPanggilan();
+    var t = $('suratPanggilanTgl');
+    if (!(t && t.value)) { toast('Isi tanggal menghadap terlebih dahulu!', true); return false; }
+    if (t.value < tglLokal()) { toast('Tanggal menghadap sudah lewat. Pilih tanggal hari ini atau sesudahnya.', true); return false; }
+    return true;
+  }
+  function pasangPanggilanUI(baris) {
+    var js = $('suratJenisSelect');
+    if (!js) return;
+    if (!js.querySelector('option[value="panggilan"]')) {
+      var o = el('option'); o.value = 'panggilan'; o.textContent = '📋 Panggilan Orang Tua (Pembinaan)'; js.appendChild(o);
+    }
+    if ($('suratPanggilanBox')) return;
+    var box = el('div', null, 'flex:2;min-width:220px;display:none;gap:8px;flex-wrap:wrap;'); box.id = 'suratPanggilanBox';
+    box.innerHTML = '<div style="flex:1;min-width:130px;"><label class="label" for="suratPanggilanTgl">Tanggal Menghadap</label><input id="suratPanggilanTgl" type="date" class="field"></div>' +
+      '<div style="flex:1;min-width:90px;"><label class="label" for="suratPanggilanJam">Pukul (WIB)</label><input id="suratPanggilanJam" type="time" class="field" value="08:00"></div>';
+    baris.insertBefore(box, baris.lastElementChild);         // sebelum tombol Preview/Download/Simpan
+    js.addEventListener('change', siapkanPanggilan);
+    var segarkan = function () { try { if (js.value === 'panggilan' && typeof selectedSiswaSurat !== 'undefined' && selectedSiswaSurat) window.previewSurat(); } catch (e) {} };
+    $('suratPanggilanTgl').addEventListener('change', segarkan);
+    $('suratPanggilanJam').addEventListener('change', segarkan);
+  }
+  function panggilanTeks(siswa) {                            // satu sumber isi untuk preview HTML dan PDF
+    var t = $('suratPanggilanTgl') ? $('suratPanggilanTgl').value : '', jam = ($('suratPanggilanJam') && $('suratPanggilanJam').value) || '08:00';
+    var hari = t ? new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : TITIK;
+    var ring = null;
+    try { ring = (typeof window.SIMambaSikapRingkas === 'function') ? window.SIMambaSikapRingkas(siswa.key) : null; } catch (e) { ring = null; }
+    var info = '';
+    if (ring && ring.poin > 0) {
+      info = ' Pada tahun ajaran ' + currentTahunAjaran + ', ananda tercatat memiliki ' + ring.poin + ' poin pelanggaran tata tertib' +
+        (ring.ambang > 0 && ring.poin >= ring.ambang ? ', yang telah mencapai batas pembinaan madrasah (' + ring.ambang + ' poin)' : '') + '.';
+    }
+    return {
+      pembuka: 'Yth. Bapak/Ibu Orang Tua/Wali Murid,\n\nDengan hormat, berdasarkan catatan sikap dan kedisiplinan di ' + MADRASAH.nama + ', putra/putri Bapak/Ibu:',
+      identitas: ['Nama : ' + siswa.name, 'Kelas : ' + siswa.kelas],
+      isi: 'Ananda tersebut memerlukan pembinaan bersama antara madrasah dan orang tua/wali.' + info +
+        ' Untuk itu, kami mengundang Bapak/Ibu hadir di madrasah pada ' + hari + ', pukul ' + jam.replace(':', '.') +
+        ' WIB, untuk berdiskusi dengan Wali Kelas dan/atau Kepala Madrasah mengenai langkah pembinaan terbaik bagi ananda.',
+      penutup: 'Mengingat pentingnya pembinaan ini, kami mohon Bapak/Ibu dapat hadir tepat waktu. Apabila berhalangan, mohon menghubungi Wali Kelas. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.'
+    };
+  }
+  function isiSuratPlain(jenis, siswa, tanggal) { return jenis === 'panggilan' ? panggilanTeks(siswa) : buatIsiSuratPlain(jenis, siswa, tanggal); }
+  // Dari tombol "Surat panggilan" di daftar Perlu pembinaan (Dashboard): buka Surat & Ijin dengan siswa & jenis terpilih.
+  window.SIMambaSuratPanggilan = function (siswaKey, nama) {
+    if (typeof navigateTo !== 'function') return;
+    navigateTo('surat');
+    var coba = 0;
+    (function tunggu() {
+      var page = $('page-surat'), sel = $('suratSiswaSelect'), js = $('suratJenisSelect');
+      var siap = page && !page.classList.contains('hidden') && sel && sel.options.length > 1 && js && $('suratPanggilanBox');
+      if (!siap) { if (++coba < 16) return setTimeout(tunggu, 250); toast('Halaman Surat & Ijin belum siap. Buka manual: pilih siswa, jenis "Panggilan Orang Tua".', true, 4500); return; }
+      var opt = null, kecil = String(nama || '').toLowerCase().trim();
+      Array.prototype.forEach.call(sel.options, function (o) { if (!opt && o.value && o.value === String(siswaKey)) opt = o; });
+      if (!opt && kecil) Array.prototype.forEach.call(sel.options, function (o) { if (!opt && o.value && o.textContent.toLowerCase().indexOf(kecil) >= 0) opt = o; });
+      if (opt) { sel.value = opt.value; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      js.value = 'panggilan'; js.dispatchEvent(new Event('change', { bubbles: true }));
+      toast(opt ? 'Surat panggilan untuk ' + (nama || 'siswa') + ' siap. Periksa tanggal menghadap, lalu Download/Simpan.' : 'Siswa belum terpilih otomatis. Pilih siswa di kolom "Pilih Siswa".', !opt, 4500);
+    })();
+  };
+
   // ---- Disalin dari js/app.js (previewSurat / downloadSuratPDF / simpanSurat); perubahan hanya di bagian nomor ----
     function previewSurat() {
       const siswa = selectedSiswaSurat;
@@ -1426,6 +1509,7 @@
       const perluTanggalIjin = (jenis === 'ijin' || jenis === 'sakit');
       const tanggalIjinRaw = document.getElementById('suratTanggalIjin') ? document.getElementById('suratTanggalIjin').value : '';
       if (perluTanggalIjin && !tanggalIjinRaw) { toast('Pilih tanggal ijin/sakit terlebih dahulu!', true); return; }
+      if (jenis === 'panggilan') siapkanPanggilan();
       const tanggal = perluTanggalIjin
         ? new Date(tanggalIjinRaw + 'T00:00:00').toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })
         : new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
@@ -1442,6 +1526,12 @@
         case 'ijin': judul = 'SURAT IJIN TIDAK MASUK SEKOLAH';
           isi = `Yang bertanda tangan di bawah ini, orang tua/wali dari:<br><br>Nama : <strong>${namaAman}</strong><br>Kelas : ${kelasAman}<br><br>Dengan ini mengijinkan anak kami untuk tidak masuk sekolah pada tanggal ${tanggal} dikarenakan keperluan keluarga / kesehatan.<br><br>Demikian surat ijin ini kami buat untuk digunakan sebagaimana mestinya.`;
           penutup = `Mengetahui,<br>Orang Tua/Wali`; break;
+        case 'panggilan': {
+          const k = panggilanTeks(siswa), h = x => esc(x).replace(/\n\n/g, '<br><br>');
+          judul = 'SURAT PANGGILAN ORANG TUA/WALI';
+          isi = h(k.pembuka) + '<br><br>Nama : <strong>' + namaAman + '</strong><br>Kelas : ' + kelasAman + '<br><br>' + h(k.isi);
+          penutup = h(k.penutup); break;
+        }
         case 'sakit': judul = 'SURAT KETERANGAN SAKIT';
           isi = `Yang bertanda tangan di bawah ini, orang tua/wali dari:<br><br>Nama : <strong>${namaAman}</strong><br>Kelas : ${kelasAman}<br><br>Menerangkan bahwa anak kami tidak dapat mengikuti kegiatan belajar mengajar pada tanggal ${tanggal} karena sedang sakit.<br><br>Demikian surat keterangan ini dibuat dengan sebenarnya.`;
           penutup = `Mengetahui,<br>Orang Tua/Wali`; break;
@@ -1482,10 +1572,11 @@
       const siswa = selectedSiswaSurat;
       if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
       const jenis = document.getElementById('suratJenisSelect').value;
-      const namaJenis = { 'aktif':'Keterangan_Aktif','pindah':'Keterangan_Pindah','ijin':'Surat_Ijin','sakit':'Surat_Sakit' }[jenis] || 'Surat';
+      const namaJenis = { 'aktif':'Keterangan_Aktif','pindah':'Keterangan_Pindah','ijin':'Surat_Ijin','sakit':'Surat_Sakit','panggilan':'Panggilan_Orang_Tua' }[jenis] || 'Surat';
       const perluTanggalIjin = (jenis === 'ijin' || jenis === 'sakit');
       const tanggalIjinRaw = document.getElementById('suratTanggalIjin') ? document.getElementById('suratTanggalIjin').value : '';
       if (perluTanggalIjin && !tanggalIjinRaw) { toast('Pilih tanggal ijin/sakit terlebih dahulu!', true); return; }
+      if (jenis === 'panggilan' && !cekPanggilan()) return;
       const tanggal = perluTanggalIjin && tanggalIjinRaw
         ? new Date(tanggalIjinRaw + 'T00:00:00').toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })
         : new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
@@ -1510,7 +1601,8 @@
         'aktif': 'SURAT KETERANGAN AKTIF',
         'pindah': 'SURAT KETERANGAN PINDAH',
         'ijin': 'SURAT IJIN TIDAK MASUK SEKOLAH',
-        'sakit': 'SURAT KETERANGAN SAKIT'
+        'sakit': 'SURAT KETERANGAN SAKIT',
+        'panggilan': 'SURAT PANGGILAN ORANG TUA/WALI'
       };
       doc.setFont(undefined, 'bold'); doc.setFontSize(13);
       doc.text(judulMap[jenis] || 'SURAT KETERANGAN', pageWidth/2, 52 + offsetY1, { align: 'center' });
@@ -1538,7 +1630,7 @@
           if (idx < paragraf.length - 1) y += 3; // jarak antar paragraf
         });
       };
-      const konten = buatIsiSuratPlain(jenis, siswa, tanggal);
+      const konten = isiSuratPlain(jenis, siswa, tanggal);
       cetakParagraf(konten.pembuka);
       y += 3;
       konten.identitas.forEach(baris => { if (y > 272) { doc.addPage(); y = 20; } doc.text(baris, marginKiri + 4, y); y += 6.5; });
@@ -1588,7 +1680,8 @@
       const siswa = selectedSiswaSurat;
       if (!siswa) { toast('Pilih siswa terlebih dahulu!', true); return; }
       const jenis = document.getElementById('suratJenisSelect').value;
-      const namaJenis = { 'aktif':'Keterangan Aktif','pindah':'Keterangan Pindah','ijin':'Surat Ijin','sakit':'Surat Sakit' }[jenis] || 'Surat';
+      const namaJenis = { 'aktif':'Keterangan Aktif','pindah':'Keterangan Pindah','ijin':'Surat Ijin','sakit':'Surat Sakit','panggilan':'Panggilan Orang Tua' }[jenis] || 'Surat';
+      if (jenis === 'panggilan' && !cekPanggilan()) return;
       if (jenis === 'ijin' || jenis === 'sakit') { const te = document.getElementById('suratTanggalIjin'); if (!(te && te.value)) { toast('Pilih tanggal ijin/sakit terlebih dahulu!', true); return; } }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return toast('Perangkat sedang offline; surat belum bisa disimpan.', true);
       if (isBusy('simpanSurat')) return toast('Sedang menyimpan...', false, 1500);

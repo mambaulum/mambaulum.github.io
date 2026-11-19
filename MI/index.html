@@ -130,12 +130,12 @@
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=6"></script>
   <!-- Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/sikap-buku.js?v=2"></script>
+  <script defer src="js/sikap-buku.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 2 (Materi & Tugas, Kelola Absen Guru + Koreksi Honor Sholat, Jadwal Pelajaran, Rekap/Laporan PDF). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/materi-tugas.js?v=1"></script>
   <script defer src="js/kelola-absen-guru.js?v=7"></script>
   <script defer src="js/jadwal.js?v=6"></script>
-  <script defer src="js/cek-data.js?v=3"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey, dampak ke honor; sesudah app.js & jadwal.js -->
+  <script defer src="js/cek-data.js?v=4"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey, dampak ke honor; sesudah app.js & jadwal.js -->
   <script defer src="js/laporan-rekap.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/honor-guru.js?v=27"></script>
@@ -155,7 +155,7 @@
   <!-- Angket Keunggulan Madrasah (tab ke-3 pada halaman Angket + kartu Portal Ortu). WAJIB sesudah angket.js (membungkus setupAngketPage). -->
   <script defer src="js/angket-keunggulan.js?v=11"></script>
   <!-- KPI Madrasah (halaman Admin & Kepala, hanya membaca data). WAJIB sesudah app.js dan infaq.js. -->
-  <script defer src="js/kpi.js?v=27"></script>
+  <script defer src="js/kpi.js?v=29"></script>
   <!-- Catatan Nilai Harian: rata-rata penilaian harian mengisi NH1/NH2/NH3 di halaman Nilai. WAJIB sesudah app.js. -->
   <script defer src="js/nilai-harian.js?v=7"></script>
   <!-- Riwayat Login Orang Tua (kartu di halaman Admin). WAJIB sesudah app.js. -->
@@ -179,7 +179,9 @@
   <!-- Rekap Jurnal Mengajar (menu Pembelajaran, Admin & Kepsek). WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rekap-jurnal.js?v=1"></script>
   <!-- Kartu Sikap & Kedisiplinan di Dashboard (donat SVG; hanya membaca allKedisiplinan). WAJIB sesudah app.js. -->
-  <script defer src="js/dashboard-sikap.js?v=2"></script>
+  <script defer src="js/dashboard-sikap.js?v=6"></script>
+  <!-- Notifikasi lonceng "Siswa perlu pembinaan" untuk Wali Kelas. Dimuat SESUDAH app.js, v4-pengaturan-notif-rapor.js, dashboard-sikap.js. -->
+  <script defer src="js/notif-pembinaan.js?v=2"></script>
   <!-- Menu Rapat (daftar hadir guru, pimpinan pengganti, notulen, cetak). Halaman dibuat sendiri oleh JS; WAJIB sesudah app.js & menu-hub.js. -->
   <script defer src="js/rapat.js?v=7"></script>
   <!-- PKG Guru (Penilaian Kinerja Guru MI, Juknis Kepdirjen Pendis 1843/2021). Halaman & item menu dibuat sendiri oleh JS.
@@ -241,7 +243,7 @@
   <!-- Peran ganda: guru yang juga Kepala Madrasah beralih Guru/Kepala tanpa logout. Dimuat SESUDAH app.js, kredensial.js, login-kode.js. -->
   <script defer src="js/peran-ganda.js?v=4"></script>
   <script defer src="js/absen-manual-gps.js?v=5"></script>   <!-- konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (sesudah app.js) -->
-  <script defer src="js/surat-guru.js?v=48"></script>
+  <script defer src="js/surat-guru.js?v=49"></script>
   <script defer src="js/ijin-ortu.js?v=7"></script>   <!-- Ijin/Sakit Anak: form Portal Ortu + persetujuan Wali Kelas (sesudah app.js & portal-ortu.js) -->
   <script defer src="js/agenda-surat.js?v=5"></script>
   <!-- Undangan Rapat bernomor (tab di Surat & Ijin). WAJIB sesudah surat-guru.js dan agenda-surat.js. -->
@@ -910,8 +912,14 @@
       <!-- ============================================================
            PAGE: SIKAP & KEDISIPLINAN SISWA
       ============================================================ -->
-      <div id="page-sikap-siswa" class="page-content hidden">
-        <div class="card">
+      <div id="page-sikap-siswa" class="page-content hidden" data-stab="catat">
+        <div id="sikapTabs" class="hub-tabs show kg-top" role="tablist" aria-label="Bagian Sikap Siswa">
+          <button type="button" role="tab" aria-selected="true" class="hub-tab active" data-stab-btn="catat" onclick="sikapTab('catat')">✍️ Catat</button>
+          <button type="button" role="tab" aria-selected="false" class="hub-tab" data-stab-btn="kelas" onclick="sikapTab('kelas')">🏫 Rekap Kelas</button>
+          <button type="button" role="tab" aria-selected="false" class="hub-tab" data-stab-btn="siswa" onclick="sikapTab('siswa')">👤 Per Siswa</button>
+          <button type="button" role="tab" aria-selected="false" class="hub-tab" data-stab-btn="kategori" onclick="sikapTab('kategori')" style="display:none;">⚙️ Kategori</button>
+        </div>
+        <div class="card" data-stab-pane="catat">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🌟 Sikap & Kedisiplinan Siswa</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;" id="sikapIntroText">Catat pelanggaran & prestasi siswa. Poin terakumulasi otomatis dan ikut tampil di Raport.</p>
           <div class="grid-3" style="margin-bottom:12px;">
@@ -922,11 +930,11 @@
           <div id="sikapFormArea"></div>
           <div id="sikapRiwayatArea" style="margin-top:16px;"></div>
         </div>
-        <div class="card">
+        <div class="card" data-stab-pane="kelas">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📊 Rekap Sikap per Kelas (tahun ajaran berjalan)</h3>
           <div id="sikapRekapArea"></div>
         </div>
-        <div class="card">
+        <div class="card" data-stab-pane="siswa">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">👤 Rekap Sikap per Siswa (tahun ajaran berjalan)</h3>
           <div class="grid-3" style="margin-bottom:12px;">
             <div><label class="label">Kelas</label><select id="sikapRekapKelas" class="field" onchange="onSikapRekapKelasChange()"><option value="">-- Pilih Kelas --</option></select></div>
@@ -935,7 +943,7 @@
           </div>
           <div id="sikapRekapSiswaArea"></div>
         </div>
-        <div class="card" id="sikapKategoriAdminCard" style="display:none;">
+        <div class="card" id="sikapKategoriAdminCard" data-stab-pane="kategori" style="display:none;">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">⚙️ Kelola Kategori Pelanggaran & Prestasi</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Atur daftar kategori & poin bawaan yang muncul saat mencatat sikap siswa. Hanya Admin yang bisa mengubah ini.</p>
           <div id="sikapKategoriAdminArea"></div>
@@ -2107,6 +2115,8 @@
 /* Tab di dalam halaman Kegiatan Siswa: gaya hub-tabs (sama dengan Buku Induk), tidak menempel agar tidak bertumpuk dengan tab hub di topbar */
 .hub-tabs.kg-top{position:static;margin:0 0 12px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}.hub-tabs.kg-top::-webkit-scrollbar{display:none;}
 .hub-tabs.kg-top .hub-tab{flex:0 0 auto;white-space:nowrap;}.hub-tab.tdk{opacity:.5;text-decoration:line-through;}
+/* v8.507: halaman Sikap Siswa dibagi tab (Catat | Rekap Kelas | Per Siswa | Kategori). !important agar menang atas style inline kartu Kategori (diatur js). */
+#page-sikap-siswa[data-stab="catat"]>[data-stab-pane]:not([data-stab-pane="catat"]),#page-sikap-siswa[data-stab="kelas"]>[data-stab-pane]:not([data-stab-pane="kelas"]),#page-sikap-siswa[data-stab="siswa"]>[data-stab-pane]:not([data-stab-pane="siswa"]),#page-sikap-siswa[data-stab="kategori"]>[data-stab-pane]:not([data-stab-pane="kategori"]){display:none !important;}
 /* Tab tingkat halaman yang berdiri sendiri (bukan anggota hub) MENEMPEL di bawah topbar: Amalan Yaumiyah & Bacaan Sholat (KPI: js/kpi.js).
    Tahfidz/Religi/Ekskul/Pramuka tetap static karena sudah ada tab hub yang menempel. Offset diisi skrip di akhir halaman (--kg-stick-top). */
 #v4ActHalTabs.hub-tabs,#page-bacaan-shalat .hub-tabs.kg-top{position:sticky;top:var(--kg-stick-top,0px);z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);}
