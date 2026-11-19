@@ -26,7 +26,7 @@
   var WARNA_RKT = { belum: '#6b7280', berjalan: '#2563eb', tercapai: '#059669', tidak: '#dc2626' };
   var KEL_LAIN = DD.KELOMPOK.length;   // indeks kelompok "Lainnya" (dokumen tambahan)
 
-  var S = { tab: 'dokumen', filter: 'semua', ta: null, bidang: 'semua', D: null, galat: null, muat: false, coba: false, kerTa: {} };
+  var S = { tab: 'dokumen', filter: 'semua', ta: null, bidang: 'semua', D: null, galat: null, muat: false, coba: false, kerTa: {}, angket: {}, kerPkg: {}, pkgPer: null, pkgMuat: false, pkgGalat: null, pkgCtx: null };
 
   // ---------- util ----------
   function el(id) { return document.getElementById(id); }
@@ -181,7 +181,7 @@
   function targetTeks(it) { return (it.mode === 'max' ? '≤ ' : '≥ ') + it.target + '%'; }
 
   // ---------- render utama ----------
-  var TABS = [['dokumen', 'Daftar Dokumen'], ['rkt', 'Pemantau RKT'], ['kerangka', 'Kerangka Dokumen']];
+  var TABS = [['dokumen', 'Daftar Dokumen'], ['rkt', 'Pemantau RKT'], ['kerangka', 'Kerangka Dokumen'], ['audit', 'Audit']];
   function render() {
     var p = el('page-dokumen-kepala'); if (!p) return;
     pasangCss();
@@ -193,6 +193,7 @@
     else if (S.galat) h += '<div class="dk-warn">Data belum bisa dibaca (' + esc(S.galat) + '). Pastikan Rules <b>' + NODE + '</b> sudah dipasang di Firebase. Tab Kerangka Dokumen tetap bisa dipakai.</div>';
     if (S.tab === 'dokumen') h += S.D ? htmlDokumen() : '';
     else if (S.tab === 'rkt') h += S.D ? htmlRkt() : '';
+    else if (S.tab === 'audit') h += window.DKAudit ? (S.D ? window.DKAudit.html() : '') : '<p class="text-muted">Modul audit (js/dokumen-kepala-audit.js) belum dimuat.</p>';
     else h += htmlKerangka();
     p.innerHTML = h + '</div>';
   }
@@ -253,6 +254,11 @@
     if (d.kustom) h += '<div style="text-align:right;"><button type="button" class="btn btn-soft dk-del" data-hapusdok="' + esc(d.kid) + '">Hapus dokumen ini</button></div>';
     return h + '</div>';
   }
+  // Riwayat perubahan (jejak audit): satu entri per penyimpanan yang mengubah status/tanggal/tautan. Tidak pernah diubah atau dihapus dari aplikasi.
+  function catatRiwayat(id, nama, ubah) {
+    if (!Object.keys(ubah).length || typeof db === 'undefined') return;
+    try { var key = db.ref(NODE + '/riwayat').push().key; tulis('riwayat/' + key, { dok: id, nama: String(nama).slice(0, 120), t: Date.now(), oleh: namaPengguna(), ubah: ubah }, function () {}); } catch (x) {}
+  }
   function simpanDok(id, patch, cb) {
     var def = semuaDefinisi().filter(function (d) { return d.id === id; })[0]; if (!def) return;
     var r = {}, lama = rekam(def); Object.keys(lama).forEach(function (k) { r[k] = lama[k]; });
@@ -263,8 +269,9 @@
     if (st !== 'disahkan') delete r.tglSah;
     r.status = st; r.upd = Date.now(); r.oleh = namaPengguna();
     Object.keys(r).forEach(function (k) { if (r[k] === '' || r[k] == null) delete r[k]; });
+    var ubah = {}; ['status', 'tgl', 'tglSah', 'link'].forEach(function (f) { var a = lama[f] || '', b = r[f] || ''; if (a !== b) ubah[f] = [String(a).slice(0, 200), String(b).slice(0, 200)]; });
     tulis('dokumen/' + id, r, function (e) {
-      if (e) { galatTulis(e); } else { try { if (typeof addLog === 'function') addLog('dokumen_kepala_ubah', def.nama + ' -> ' + st); } catch (x) {} }
+      if (e) { galatTulis(e); } else { try { if (typeof addLog === 'function') addLog('dokumen_kepala_ubah', def.nama + ' -> ' + st); } catch (x) {} catatRiwayat(id, def.nama, ubah); }
       segar();
     });
   }
@@ -396,9 +403,11 @@
   // ---------- TAB 3: kerangka dokumen ----------
   function htmlKerangka() {
     var snap = kpiSnap(), y = taAktif();
-    var h = '<p class="text-muted" style="font-size:13px;margin:6px 0 10px;">Unduh kerangka sebagai berkas Word (.docx), lalu isi dan sesuaikan. Identitas madrasah dan kepala terisi dari data aplikasi' + (isAdminDk() || bolehLihat() ? '; tabel program RKT dan nilai KPI terisi dari tab Pemantau RKT dan halaman KPI.' : '.') + ' Teks abu-abu miring adalah petunjuk pengisian, hapus setelah diisi.</p>';
-    ['rkjm', 'rkt', 'laporan_rkt'].forEach(function (kode) {
+    var h = '<p class="text-muted" style="font-size:13px;margin:6px 0 10px;">Unduh kerangka sebagai berkas Word (.docx), lalu isi dan sesuaikan. Identitas madrasah dan kepala terisi dari data aplikasi; tabel program RKT, nilai KPI, daftar guru, wali kelas, jadwal, jumlah siswa, dan kalender terisi dari data yang sedang dimuat aplikasi (kondisi saat diunduh).' + ' Teks abu-abu miring adalah petunjuk pengisian, hapus setelah diisi.</p>';
+    h += htmlProfil();
+    Object.keys(DD.KERANGKA).forEach(function (kode) {
       var K = DD.KERANGKA[kode], isPeriode = K.jenisTa === 'periode';
+      if (K.pkg) { h += htmlKerPkg(kode, K); return; }
       var pil = S.kerTa[kode] || taLabel(y);
       var bab = K.bangun(ctxDokumen(kode, pil, true)).filter(function (b) { return b.t === 'h1'; }).map(function (b) { return b.x; });
       var opsi = (isPeriode ? [y - 1, y, y + 1] : [y - 1, y, y + 1]).map(taLabel);
@@ -406,26 +415,236 @@
         '<ol>' + bab.map(function (b) { return '<li>' + esc(b.replace(/^BAB [IVX]+\s+/, '')) + '</li>'; }).join('') + '</ol>' +
         '<div class="dk-ctl"><label>' + (isPeriode ? 'Periode mulai tahun ajaran' : 'Tahun ajaran') + '<select class="dk-in" data-kerta="' + kode + '">' + opsi.map(function (t) { return '<option value="' + t + '"' + (t === pil ? ' selected' : '') + '>' + t + (isPeriode ? ' (4 tahun)' : '') + '</option>'; }).join('') + '</select></label>' +
         '<button type="button" class="btn btn-primary" data-unduhker="' + kode + '">Unduh Word (.docx)</button></div>' +
-        (kode !== 'rkjm' ? '<div class="text-muted" style="font-size:12px;margin-top:6px;">Terisi otomatis: ' + (daftarProgram(pil).length ? daftarProgram(pil).length + ' program dari Pemantau RKT' : 'belum ada program RKT untuk TA ini (tabel dikosongkan)') + '; ' + (snap ? 'nilai KPI periode ' + esc(snap.periode) : 'nilai KPI belum dimuat (buka halaman KPI sekali)') + '.</div>' : '') + '</div>';
+        (K.oto ? '<div class="text-muted" style="font-size:12px;margin-top:6px;">Terisi otomatis: ' + esc(K.oto(ctxDokumen(kode, pil, false))) + '.</div>' : '') + (kode === 'rkt' || kode === 'laporan_rkt' ? '<div class="text-muted" style="font-size:12px;margin-top:6px;">Terisi otomatis: ' + (daftarProgram(pil).length ? daftarProgram(pil).length + ' program dari Pemantau RKT' : 'belum ada program RKT untuk TA ini (tabel dikosongkan)') + '; ' + (snap ? 'nilai KPI periode ' + esc(snap.periode) : 'nilai KPI belum dimuat (buka halaman KPI sekali)') + '.</div>' : '') + '</div>';
     });
     return h;
+  }
+
+  // ---------- data sekolah dari aplikasi (hanya dibaca; Admin & Kepala memuat data penuh) ----------
+  var HARI_DK = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Ahad'];
+  function dataSekolahKosong() { return { guru: [], waliKelas: [], jadwal: [], beban: [], kelasJadwal: [], kalender: [], siswaKelas: [], siswaTotal: 0 }; }
+  function arr(v) { return Array.isArray(v) ? v : []; }
+  function normNm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+  function kelasUrut(a, b) { return String(a).localeCompare(String(b), 'id', { numeric: true }); }
+  function dataSekolah(y) {
+    var X = dataSekolahKosong(), guru = arr(typeof allGuru !== 'undefined' ? allGuru : null), jadwal = arr(typeof allJadwal !== 'undefined' ? allJadwal : null), siswa = arr(typeof allSiswa !== 'undefined' ? allSiswa : null), kal = arr(typeof allKalenderAkademik !== 'undefined' ? allKalenderAkademik : null);
+    var jam = (typeof jamSettings !== 'undefined' && jamSettings) ? jamSettings : {};
+    var cnt = {}; siswa.forEach(function (s) { if (s && s.kelas) cnt[s.kelas] = (cnt[s.kelas] || 0) + 1; X.siswaTotal++; });
+    guru = guru.filter(function (g) { return g && g.name && !/^(admin|kepala)/i.test(String(g.role || '')); }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'id'); });
+    X.jadwal = jadwal.filter(function (j) { return j && j.kelas && j.mapel; });
+    guru.forEach(function (g) {
+      var mine = X.jadwal.filter(function (j) { return j.guruKey ? j.guruKey === g.key : normNm(j.guru) === normNm(g.name); });
+      var mp = [], kl = [];
+      mine.forEach(function (j) { if (mp.indexOf(j.mapel) < 0) mp.push(j.mapel); if (kl.indexOf(j.kelas) < 0) kl.push(j.kelas); });
+      var tb = g.tugasTambahan, ta = (Array.isArray(tb) ? tb : String(tb || '').split('\n')).map(function (t) { return String(t == null ? '' : t).trim(); }).filter(Boolean);
+      X.guru.push({ nama: g.name, key: g.key, wali: g.waliKelasOf || '', mapel: mp, kelas: kl.sort(kelasUrut), jam: mine.length, tambahan: ta });
+      if (g.waliKelasOf) X.waliKelas.push({ kelas: g.waliKelasOf, nama: g.name, siswa: cnt[g.waliKelasOf] == null ? null : cnt[g.waliKelasOf] });
+      var pm = {}; mine.forEach(function (j) { var k = j.mapel + '|' + j.kelas; pm[k] = pm[k] || { guru: g.name, mapel: j.mapel, kelas: j.kelas, jam: 0 }; pm[k].jam++; });
+      Object.keys(pm).forEach(function (k) { X.beban.push(pm[k]); });
+    });
+    X.waliKelas.sort(function (a, b) { return kelasUrut(a.kelas, b.kelas); });
+    var wm = {}; X.waliKelas.forEach(function (w) { wm[w.kelas] = w.nama; });
+    Object.keys(cnt).sort(kelasUrut).forEach(function (k) { X.siswaKelas.push({ kelas: k, n: cnt[k], wali: wm[k] || '' }); });
+    // jadwal per kelas
+    var perKelas = {};
+    X.jadwal.forEach(function (j) { (perKelas[j.kelas] = perKelas[j.kelas] || []).push(j); });
+    Object.keys(perKelas).sort(kelasUrut).forEach(function (k) {
+      var rows = perKelas[k], hr = HARI_DK.filter(function (h) { return rows.some(function (j) { return j.hari === h; }); }), nos = [];
+      rows.forEach(function (j) { var n = +j.jam; if (n && nos.indexOf(n) < 0) nos.push(n); });
+      nos.sort(function (a, b) { return a - b; });
+      X.kelasJadwal.push({ kelas: k, hari: hr, jam: nos.map(function (n) {
+        var sel = {}; hr.forEach(function (h) { var j = rows.filter(function (r) { return r.hari === h && +r.jam === n; })[0]; if (j) sel[h] = j.mapel + (j.guru ? ' (' + j.guru + ')' : ''); });
+        var w = jam[n]; return { no: n, waktu: w ? (w.mulai + '–' + w.selesai) : '', sel: sel };
+      }) });
+    });
+    // kalender akademik untuk tahun ajaran terpilih
+    var awal = y + '-07-01', akhir = (y + 1) + '-06-30', lbl = taLabel(y);
+    X.kalender = kal.filter(function (k) { return k && (k.tanggalMulai || k.tanggalSelesai) && (k.tahunAjaran ? (k.tahunAjaran === lbl) : ((k.tanggalMulai || k.tanggalSelesai) >= awal && (k.tanggalMulai || k.tanggalSelesai) <= akhir)); })
+      .map(function (k) { return { judul: k.judul || '', jenis: k.jenis || '', mulai: k.tanggalMulai || k.tanggalSelesai, selesai: k.tanggalSelesai || '', ket: k.keterangan || '' }; })
+      .sort(function (a, b) { return String(a.mulai).localeCompare(String(b.mulai)); });
+    return X;
+  }
+
+
+  // ---------- profil: visi, misi, tujuan (dokumen_kepala_v1/profil) ----------
+  function barisTeks(t, maks) {
+    return String(t || '').split(/\r?\n/).map(function (x) { return x.replace(/^\s*(?:\d+[.)]|[-•*])\s*/, '').trim(); }).filter(Boolean).slice(0, maks || 12);
+  }
+  function profilDariData() {
+    var P = (S.D && S.D.profil) || {};
+    return { visi: String(P.visi || '').trim(), misi: barisTeks(P.misi, 12), tujuan: barisTeks(P.tujuan, 12) };
+  }
+  function htmlProfil() {
+    var P = (S.D && S.D.profil) || {}, dis = (S.D && !S.galat) ? '' : ' disabled';
+    return '<div class="dk-ker"><h3>Visi, Misi, dan Tujuan Madrasah</h3><div class="text-muted" style="font-size:12px;">Tulis sekali di sini. Teks ini ikut terisi otomatis di dokumen Visi, Misi, dan Tujuan, RKJM, dan Data Pendukung EDM.</div>' +
+      (dis ? '<div class="dk-warn">Data belum bisa dibaca/disimpan. Pastikan Rules ' + NODE + ' sudah dipasang di Firebase.</div>' : '') +
+      '<label style="display:block;font-size:12.5px;font-weight:600;margin-top:8px">Visi</label><textarea id="dkVisi" class="dk-in" rows="2" maxlength="600" style="width:100%"' + dis + '>' + esc(P.visi || '') + '</textarea>' +
+      '<label style="display:block;font-size:12.5px;font-weight:600;margin-top:8px">Misi (satu butir per baris)</label><textarea id="dkMisi" class="dk-in" rows="5" maxlength="2500" style="width:100%"' + dis + '>' + esc(P.misi || '') + '</textarea>' +
+      '<label style="display:block;font-size:12.5px;font-weight:600;margin-top:8px">Tujuan (satu butir per baris)</label><textarea id="dkTujuan" class="dk-in" rows="5" maxlength="2500" style="width:100%"' + dis + '>' + esc(P.tujuan || '') + '</textarea>' +
+      '<div class="dk-ctl"><button type="button" class="btn btn-primary" id="dkSimpanProfil"' + dis + '>Simpan</button></div></div>';
+  }
+  function simpanProfil() {
+    if (!S.D || S.galat) { pesan('Data belum bisa disimpan. Periksa Rules ' + NODE + '.', true); return; }
+    var v = (el('dkVisi') || {}).value || '', m = (el('dkMisi') || {}).value || '', t = (el('dkTujuan') || {}).value || '';
+    v = v.trim(); m = barisTeks(m, 12).join('\n'); t = barisTeks(t, 12).join('\n');
+    if (v.length > 600 || m.length > 2500 || t.length > 2500) { pesan('Teks terlalu panjang.', true); return; }
+    tulis('profil', { visi: v, misi: m, tujuan: t, upd: Date.now(), oleh: namaPengguna() }, function (err) {
+      if (err) { galatTulis(err); return; }
+      pesan('Visi, misi, dan tujuan tersimpan.'); segar();
+    });
+  }
+
+  // ---------- angket: Kurikulum, Profil Lulusan, Keunggulan (dibaca saat unduh; hanya dibaca) ----------
+  var ANG_BAG = { A: 'Visi, misi, dan arah kurikulum', B: 'Pembelajaran mendalam', C: 'Nilai-nilai cinta', D: 'Ekosistem pendukung', E: 'Asesmen' };
+  var ANG_KEPALA = { K1: 'A', K2: 'A', K3: 'A', K4: 'B', K5: 'B', K6: 'B', K7: 'C', K8: 'C', K9: 'D', K10: 'D', K11: 'D', K12: 'D', K13: 'E', K14: 'E', K15: 'E', K16: 'E' };
+  var ANG_ORTU = { O1: 'A', O2: 'A', O3: 'B', O4: 'B', O5: 'C', O6: 'C', O7: 'C', O8: 'C', O9: 'C', O10: 'D', O11: 'D', O12: 'D', O13: 'D', O14: 'E', O15: 'D' };
+  var ANG_SISWA = { S1: 'B', S2: 'B', S3: 'B', S4: 'B', S5: 'B', S6: 'B', S7: 'B', S8: 'C', S9: 'C', S10: 'C', S11: 'C', S12: 'C', S13: 'E', S14: 'E', S15: 'E' };
+  var ANG_BALIK = { E9: 1, K16: 1 };
+  var ANG_DIM = ['Keimanan & Ketakwaan', 'Kewargaan', 'Penalaran Kritis', 'Kreativitas', 'Kolaborasi', 'Kemandirian', 'Kesehatan', 'Komunikasi'];
+  var ANG_BID = { tahfidz: 'Tahfidz', bahasa: 'Bahasa', seni: 'Seni & Olahraga', sains: 'Sains & Riset', wirausaha: 'Kewirausahaan & Literasi Digital' };
+  function angRata(a) { var v = a.filter(function (x) { return x != null && !isNaN(x); }); return v.length ? v.reduce(function (p, q) { return p + q; }, 0) / v.length : null; }
+  function angBagianDari(jenis, kode) { if (jenis === 'guru') return /^[A-E]\d+$/.test(kode) ? kode.charAt(0) : (/^C\d+$/.test(kode) ? 'C' : null); return (jenis === 'kepala' ? ANG_KEPALA : jenis === 'ortu' ? ANG_ORTU : ANG_SISWA)[kode] || null; }
+  function angKurikulum(daftar) {   // daftar: [{jenis:{kunci:{jawaban}}}, ...] untuk dua semester
+    var out = {};
+    ['guru', 'kepala', 'ortu', 'siswa'].forEach(function (j) {
+      var resp = [];
+      daftar.forEach(function (per) { var o = (per && per[j]) || {}; Object.keys(o).forEach(function (k) { if (o[k] && o[k].jawaban) resp.push(o[k].jawaban); }); });
+      var bag = {}, item = {};
+      resp.forEach(function (jw) {
+        var perBag = {};
+        Object.keys(jw).forEach(function (kd) {
+          var v = +jw[kd]; if (!(v >= 1 && v <= 4)) return; if (ANG_BALIK[kd]) v = 5 - v;
+          var b = angBagianDari(j, kd); if (!b) return;
+          (perBag[b] = perBag[b] || []).push(v); (item[kd] = item[kd] || []).push(v);
+        });
+        Object.keys(perBag).forEach(function (b) { (bag[b] = bag[b] || []).push(angRata(perBag[b])); });
+      });
+      var B = {}, I = {}; Object.keys(bag).forEach(function (b) { B[b] = angRata(bag[b]); }); Object.keys(item).forEach(function (k) { I[k] = angRata(item[k]); });
+      out[j] = { n: resp.length, bagian: B, item: I };
+    });
+    return out;
+  }
+  function angProfil(snap, ta, totalSiswa) {
+    var rec = [], sem = {};
+    snap.forEach(function (c) { var v = c.val() || {}; if (v.tahunAjaran === ta && Array.isArray(v.jawaban)) { rec.push(v); sem[v.semester] = (sem[v.semester] || 0) + 1; } });
+    var semPilih = Object.keys(sem).sort(function (a, b) { return sem[b] - sem[a]; })[0] || '';
+    rec = rec.filter(function (v) { return v.semester === semPilih; });
+    var dim = ANG_DIM.map(function (_, d) { return angRata(rec.map(function (v) { return angRata([0, 1, 2].map(function (b) { var x = +v.jawaban[d * 3 + b]; return x >= 1 && x <= 4 ? x : null; })); })); });
+    return { n: rec.length, total: totalSiswa, sem: semPilih, dim: dim, nama: ANG_DIM };
+  }
+  function angKeunggulan(daftar) {
+    var jenisN = {}, per = {}, pil = {};
+    Object.keys(ANG_BID).forEach(function (b) { per[b] = { minat: {}, sdm: {}, sarana: {}, potensi: {} }; pil[b] = 0; });
+    daftar.forEach(function (pr) {
+      ['guru', 'kepala', 'ortu', 'siswa'].forEach(function (j) {
+        var o = (pr && pr[j]) || {};
+        Object.keys(o).forEach(function (k) {
+          var r = o[k] || {}, jw = r.jawaban || {}; jenisN[j] = (jenisN[j] || 0) + 1;
+          var acc = {};
+          Object.keys(jw).forEach(function (kd) { var m = /^(tahfidz|bahasa|seni|sains|wirausaha)_(minat|sdm|sarana|potensi)\d*$/.exec(kd), v = +jw[kd]; if (!m || !(v >= 1 && v <= 4)) return; ((acc[m[1]] = acc[m[1]] || {})[m[2]] = acc[m[1]][m[2]] || []).push(v); });
+          Object.keys(acc).forEach(function (b) { Object.keys(acc[b]).forEach(function (sd) { ((per[b][sd][j] = per[b][sd][j] || [])).push(angRata(acc[b][sd])); }); });
+          var pr1 = r.prioritas || {}; [pr1.p1, pr1.p2].forEach(function (b) { if (pil[b] != null) pil[b]++; });
+        });
+      });
+    });
+    var bid = Object.keys(ANG_BID).map(function (b) {
+      var sisi = {}, tot = 0, ada = 0;
+      ['minat', 'sdm', 'sarana', 'potensi'].forEach(function (sd) {
+        var jm = Object.keys(per[b][sd]).map(function (j) { return angRata(per[b][sd][j]); });   // rata antarresponden per jenis
+        sisi[sd] = angRata(jm); if (sisi[sd] != null) { tot += sisi[sd]; ada++; }
+      });
+      return { id: b, nama: ANG_BID[b], sisi: sisi, skor: ada ? tot : null, lengkap: ada === 4, pilih: pil[b] };
+    }).sort(function (a, b) { return (b.skor || 0) - (a.skor || 0); });
+    return { n: jenisN, bidang: bid };
+  }
+  function bacaAngket(ta) {
+    var y = +String(ta).slice(0, 4) || taAktif(), p1 = y + '-1', p2 = (y + 1) + '-2', res = { ta: ta, ok: {}, galat: {} };
+    function ambil(path, kunci, olah) {
+      return db.ref(path).once('value').then(function (sn) { res.ok[kunci] = true; return olah(sn); }, function (e) { res.galat[kunci] = (e && e.message) || 'ditolak'; return null; });
+    }
+    var totSiswa = arr(typeof allSiswa !== 'undefined' ? allSiswa : null).length;
+    return Promise.all([
+      ambil('angket_kurikulum/' + p1, 'kur1', function (sn) { return sn.val() || {}; }), ambil('angket_kurikulum/' + p2, 'kur2', function (sn) { return sn.val() || {}; }),
+      ambil('angket_profil', 'pro', function (sn) { return angProfil(sn, ta, totSiswa); }),
+      ambil('angket_keunggulan/' + p1, 'keu1', function (sn) { return sn.val() || {}; }), ambil('angket_keunggulan/' + p2, 'keu2', function (sn) { return sn.val() || {}; })
+    ]).then(function (r) {
+      res.kur = (r[0] || r[1]) ? angKurikulum([r[0], r[1]]) : null;
+      res.pro = r[2]; res.keu = (r[3] || r[4]) ? angKeunggulan([r[3], r[4]]) : null; res.periode = p1 + ' dan ' + p2;
+      return res;
+    });
+  }
+  // ---------- kerangka dari data PKG (pkg_v4_*) ----------
+  function muatPkgPeriode() {
+    if (S.pkgMuat || S.pkgPer || typeof db === 'undefined') return;
+    S.pkgMuat = true;
+    try {
+      db.ref('pkg_v4_periode').once('value').then(function (sn) { S.pkgPer = sn.val() || {}; S.pkgMuat = false; S.pkgGalat = null; segar(); },
+        function (e) { S.pkgPer = {}; S.pkgMuat = false; S.pkgGalat = (e && e.message) || 'ditolak'; segar(); });
+    } catch (e) { S.pkgPer = {}; S.pkgMuat = false; S.pkgGalat = 'gagal'; }
+  }
+  function htmlKerPkg(kode, K) {
+    muatPkgPeriode();
+    var h = '<div class="dk-ker"><h3>' + esc(K.judul) + '</h3><div class="text-muted" style="font-size:12px;">' + esc(K.ringkas) + '</div>';
+    if (!S.pkgPer) return h + '<div class="text-muted" style="font-size:12px;margin-top:6px;">Memuat daftar periode PKG...</div></div>';
+    if (S.pkgGalat) return h + '<div class="dk-warn">Data PKG tidak terbaca (' + esc(S.pkgGalat) + '). Pastikan Admin/Kepala boleh membaca node pkg_v4_periode di Firebase Rules.</div></div>';
+    var ids = Object.keys(S.pkgPer).sort(function (a, b) { return String(S.pkgPer[b].mulai || '').localeCompare(String(S.pkgPer[a].mulai || '')); });
+    if (!ids.length) return h + '<div class="text-muted" style="font-size:12px;margin-top:6px;">Belum ada periode PKG. Buat periode di menu PKG Guru lebih dulu.</div></div>';
+    var pil = S.kerPkg && S.kerPkg[kode] && S.pkgPer[S.kerPkg[kode]] ? S.kerPkg[kode] : ids[0];
+    return h + '<div class="dk-ctl"><label>Periode PKG<select class="dk-in" data-kerpkg="' + kode + '">' + ids.map(function (id) { return '<option value="' + esc(id) + '"' + (id === pil ? ' selected' : '') + '>' + esc(S.pkgPer[id].nama || id) + '</option>'; }).join('') + '</select></label>' +
+      '<button type="button" class="btn btn-primary" data-unduhker="' + kode + '">Unduh Word (.docx)</button></div>' +
+      '<div class="text-muted" style="font-size:12px;margin-top:6px;">Data guru, penilai, jadwal, nilai, dan tindak lanjut dibaca dari Firebase saat tombol diklik.</div></div>';
+  }
+  function bacaPkg(pid) {
+    var per = S.pkgPer && S.pkgPer[pid] || {}, rd = function (n) { return db.ref(n + '/' + pid).once('value').then(function (sn) { return sn.val() || {}; }); };
+    return Promise.all([rd('pkg_v4_tugas'), rd('pkg_v4_nilai'), rd('pkg_v4_supervisi'), rd('pkg_v4_rtl'), db.ref('pkg_v4_kendali/' + pid).once('value').then(function (sn) { return sn.val() || {}; })]).then(function (r) {
+      var tg = r[0], nl = r[1], sv = r[2], rt = r[3], kd = r[4], nm = {};
+      arr(typeof allGuru !== 'undefined' ? allGuru : null).forEach(function (g) { nm[g.key || g.name] = g.name; });
+      var keys = Object.keys(tg).sort(function (a, b) { return String(nm[a] || a).localeCompare(String(nm[b] || b), 'id'); });
+      return { periode: { nama: per.nama || '', mulai: per.mulai || '', selesai: per.selesai || '' }, kendali: { temuan: kd.temuan || '', tindak: kd.tindak || '' },
+        guru: keys.map(function (k) {
+          var t = tg[k] || {}, n = nl[k] || {}, v = sv[k] || {}, t1 = v.t1 || {}, t3 = v.t3 || {}, x = rt[k] || {};
+          return { nama: nm[k] || k, penilai: t.penilaiNama || '', jadwal: /^\d{4}-\d{2}-\d{2}$/.test(String(t.jadwal || '')) ? t.jadwal : '', fokus: t1.fokus || '', perangkat: t1.perangkat || '', waktu: t1.waktu || '',
+            status: n.status || 'belum', hasil: n.hasil || null, baik: t3.baik || x.kekuatan || '', perbaikan: t3.perbaikan || x.perbaikan || '', tindak: t3.tindak || '', rtl: x.tindakLanjut || '' };
+        }) };
+    });
   }
   // Konteks isian dokumen. ringan = true: tanpa data berat (pratinjau daftar bab).
   function ctxDokumen(kode, taLbl, ringan) {
     var M = (typeof MADRASAH !== 'undefined' && MADRASAH) ? MADRASAH : {}, y = +String(taLbl).slice(0, 4) || taAktif();
     var thn = [0, 1, 2, 3].map(function (i) { return taLabel(y + i); });
     var snap = ringan ? null : kpiSnap(), kpi = [];
-    if (snap && snap.items) DD.KPI_LINK.forEach(function (k) { var it = snap.items[k[0]]; if (it) kpi.push({ nama: k[1], nilai: it.nilai, targetTeks: targetTeks(it), statusTeks: it.status || '' }); });
+    if (snap && snap.items) DD.KPI_LINK.forEach(function (k) { var it = snap.items[k[0]]; if (it) kpi.push({ nama: k[1], nilai: it.nilai, target: it.target, mode: it.mode, targetTeks: targetTeks(it), statusTeks: it.status || '' }); });
     var prog = ringan ? [] : daftarProgram(taLbl).map(function (p) { return { bidang: p.bidang, program: p.program, indikator: p.indikator, target: p.target, pj: p.pj, tenggat: p.tenggat, status: WARNA_RKT[p.status] ? p.status : 'belum', progres: p.progres, catatan: p.catatan }; });
-    return { nama: M.nama || '', alamat: M.alamat || '', npsn: M.npsn || '', nsm: M.nsm || '', kota: M.kota || M.kabupaten || '', kepala: M.kepala_sekolah || '', nip: M.nip_kepala_sekolah || '',
-      ta: taLbl, tahun: kode === 'rkjm' ? (y + '–' + (y + 3)) : (y + '/' + (y + 1)), periode: { label: thn[0] + ' – ' + thn[3], thn: thn }, bidang: DD.BIDANG, program: prog, kpi: kpi, kpiPeriode: snap ? snap.periode : '', tglCetak: DD.tglId(hariIni()) };
+    var X = ringan ? dataSekolahKosong() : dataSekolah(y);
+    return { angket: (S.angket && S.angket[taLbl]) || null, profil: profilDariData(), pkg: S.pkgCtx || { periode: {}, guru: [], kendali: {} }, guru: X.guru, waliKelas: X.waliKelas, jadwal: X.jadwal, beban: X.beban, kelasJadwal: X.kelasJadwal, kalender: X.kalender, siswaKelas: X.siswaKelas, siswaTotal: X.siswaTotal,
+      nama: M.nama || '', alamat: M.alamat || '', npsn: M.npsn || '', nsm: M.nsm || '', kota: M.kota || M.kabupaten || '', kepala: M.kepala_sekolah || '', nip: M.nip_kepala_sekolah || '',
+      ta: taLbl, tahun: kode === 'rkjm' ? (y + '–' + (y + 3)) : (y + '/' + (y + 1)), periode: { label: thn[0] + ' – ' + thn[3], thn: thn }, bidang: DD.BIDANG, program: prog, kpi: kpi, kpiPeriode: snap ? snap.periode : '', tglCetak: DD.tglId(hariIni()), hariIni: hariIni() };
   }
   function unduhKerangka(kode) {
     if (!window.DocxMini) { pesan('Pembuat Word (docx-mini.js) belum dimuat. Muat ulang halaman.', true); return; }
     var K = DD.KERANGKA[kode], pil = S.kerTa[kode] || taLabel(taAktif());
+    if (K.angket && !S.angket[pil]) {
+      pesan('Mengambil data angket...');
+      bacaAngket(pil).then(function (d) { S.angket[pil] = d; unduhKerangka(kode); }, function (e) { S.angket[pil] = { ta: pil, ok: {}, galat: { semua: (e && e.message) || 'gagal' } }; unduhKerangka(kode); });
+      return;
+    }
+    if (K.pkg) {
+      var pid = S.kerPkg && S.kerPkg[kode] && S.pkgPer && S.pkgPer[S.kerPkg[kode]] ? S.kerPkg[kode] : Object.keys(S.pkgPer || {}).sort(function (a, b) { return String(S.pkgPer[b].mulai || '').localeCompare(String(S.pkgPer[a].mulai || '')); })[0];
+      if (!pid) { pesan('Belum ada periode PKG.', true); return; }
+      pesan('Mengambil data PKG...');
+      bacaPkg(pid).then(function (P) {
+        S.pkgCtx = P;
+        try {
+          var c = ctxDokumen(kode, taLabel(taAktif()), false), blk = K.bangun(c);
+          unduh(window.DocxMini.blob(blk, { judul: K.judul + ' ' + (c.nama || '') }), K.berkas + '_' + slug(c.nama) + '_' + slug(P.periode.nama || pid) + '.docx');
+          try { if (typeof addLog === 'function') addLog('dokumen_kepala_unduh', K.judul + ' ' + pid); } catch (x) {}
+        } catch (e) { pesan('Gagal membuat berkas: ' + ((e && e.message) || e), true); } finally { S.pkgCtx = null; }
+      }, function (e) { pesan('Data PKG tidak bisa dibaca: ' + ((e && e.message) || 'ditolak') + '. Periksa Firebase Rules node pkg_v4_*.', true); });
+      return;
+    }
     try {
       var c = ctxDokumen(kode, pil, false), blk = K.bangun(c), y = +pil.slice(0, 4);
-      var nama = { rkjm: 'RKJM', rkt: 'RKT', laporan_rkt: 'Laporan-RKT' }[kode] + '_' + slug(c.nama) + '_' + (kode === 'rkjm' ? y + '-' + (y + 3) : y + '-' + (y + 1)) + '.docx';
+      var nama = (K.berkas || { rkjm: 'RKJM', rkt: 'RKT', laporan_rkt: 'Laporan-RKT' }[kode] || kode) + '_' + slug(c.nama) + '_' + (kode === 'rkjm' ? y + '-' + (y + 3) : y + '-' + (y + 1)) + '.docx';
       unduh(window.DocxMini.blob(blk, { judul: K.judul + ' ' + (c.nama || '') }), nama);
       try { if (typeof addLog === 'function') addLog('dokumen_kepala_unduh', K.judul + ' ' + pil); } catch (x) {}
     } catch (e) { pesan('Gagal membuat berkas: ' + ((e && e.message) || e), true); try { console.error('[dokumen-kepala]', e); } catch (x) {} }
@@ -453,6 +672,7 @@
       if ((b = t.closest('[data-fil]'))) { S.filter = b.getAttribute('data-fil'); segar(); return; }
       if (t.closest('#dkTambahDok')) { bukaTambahDok(); return; }
       if (t.closest('#dkCsv')) { unduhCsv(); return; }
+      if (t.closest('#dkSimpanProfil')) { simpanProfil(); return; }
       if ((b = t.closest('[data-revisi]'))) {
         if (typeof confirm === 'function' && !confirm('Tandai dokumen ini sudah direvisi? Tanggal penyusunan menjadi hari ini dan status kembali ke Draf.')) return;
         simpanDok(b.getAttribute('data-revisi'), { status: 'draf', tgl: hariIni(), tglSah: '' }); return;
@@ -481,6 +701,7 @@
       if (t.id === 'dkTa') { S.ta = t.value; segar(); return; }
       if (t.id === 'dkBid') { S.bidang = t.value; segar(); return; }
       var kt = t.getAttribute('data-kerta'); if (kt) { S.kerTa[kt] = t.value; segar(); }
+      var kp = t.getAttribute && t.getAttribute('data-kerpkg'); if (kp) { S.kerPkg = S.kerPkg || {}; S.kerPkg[kp] = t.value; segar(); }
     });
   }
 
@@ -497,7 +718,7 @@
       var tampil = !pg.classList.contains('hidden');
       if (tampil && !tampilSebelumnya) {
         var t = el('pageTitle'); if (t) t.textContent = NAMA_HAL;
-        S.coba = false; S.muat = false;   // baca ulang dari Firebase setiap halaman dibuka
+        S.coba = false; S.muat = false; S.pkgPer = null; S.pkgGalat = null; S.angket = {};   // baca ulang dari Firebase setiap halaman dibuka
         try { render(); } catch (e) { pg.innerHTML = '<div class="card"><p class="text-muted">Halaman gagal dimuat: ' + esc(e && e.message ? e.message : e) + '</p></div>'; try { console.error('[dokumen-kepala]', e); } catch (e2) {} }
       }
       if (!tampil) tutupModal();
@@ -512,5 +733,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasang); else pasang();
 
-  window.DokumenKepala = { pengingat: pengingat, tambahBulan: tambahBulan, kpiProgres: kpiProgres, ctxDokumen: ctxDokumen };
+  window.DokumenKepala = { pengingat: pengingat, tambahBulan: tambahBulan, kpiProgres: kpiProgres, ctxDokumen: ctxDokumen,
+    _i: { S: S, DD: DD, esc: esc, pesan: pesan, unduh: unduh, tulis: tulis, segar: segar, hariIni: hariIni, taAktif: taAktif, taLabel: taLabel, semuaDefinisi: semuaDefinisi, rekam: rekam,
+      pengingat: pengingat, daftarProgram: daftarProgram, terlambat: terlambat, kpiSnap: kpiSnap, kpiProgres: kpiProgres, dataSekolah: dataSekolah, namaPengguna: namaPengguna, galatTulis: galatTulis, tglId: tglId } };
 })();
