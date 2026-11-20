@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.532",
-  "disimpan": "2026-11-20T02:52:38.340Z",
+  "appVersion": "v8.538",
+  "disimpan": "2026-11-20T13:58:35.842Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -55,16 +55,16 @@
       "hash": "3f0afd882d3dd7aaaa3eac8049d2e28e63a7e4de"
     },
     "js/administrasi-ujian.js": {
-      "v": "v=13",
-      "hash": "408dfbd71b49710c318b4d533a1359c6abfea5af"
+      "v": "v=18",
+      "hash": "e373fb41f5bebe604de5da614aaab5d10072e461"
     },
     "js/app.js": {
       "v": "v=175",
       "hash": "5133a7b0c7a8645f88b554b0489ef6848aebdaa3"
     },
     "js/portal-ortu.js": {
-      "v": "v=42",
-      "hash": "cfb851edc7340c730fb27a32be8ae44ba7b91a38"
+      "v": "v=43",
+      "hash": "0fbb269aa734e2a61c96c0d2809e6a5d36c4139c"
     },
     "js/mode-ortu.js": {
       "v": "v=7",
@@ -187,8 +187,8 @@
       "hash": "a7f25ffddc2f88e36c10cfec36dfae3e3094a71f"
     },
     "js/portal-tab.js": {
-      "v": "v=15",
-      "hash": "a541684a20f7872fea8f99b016925825a81dfd3d"
+      "v": "v=16",
+      "hash": "a4b5153c6a554e6ac6e3f4fd5460c0e0fc710044"
     },
     "js/kredensial.js": {
       "v": "v=8",
