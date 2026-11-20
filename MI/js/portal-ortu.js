@@ -686,7 +686,10 @@
       const hariIni = ORTU_HARI_URUT.concat(['Minggu'])[(new Date().getDay() + 6) % 7];
       const items = []; if (jadwalSnap) jadwalSnap.forEach(c => { const j = c.val(); if (j && j.hari && j.mapel) items.push(j); });
       if (!items.length) return '';
-      const baris = ORTU_HARI_URUT.filter(h => items.some(j => j.hari === h)).map(h => {
+      const hariAda = ORTU_HARI_URUT.filter(h => items.some(j => j.hari === h));
+      const hariPilih = hariAda.indexOf(hariIni) >= 0 ? hariIni : hariAda[0];   // hari ini bila ada pelajaran; kalau libur (mis. Minggu) tampilkan hari pertama
+      const chip = h => `<button type="button" class="po-jd-chip${h === hariPilih ? ' on' : ''}" data-hari="${h}" onclick="poJadwalHari(this,'${h}')">${h}${h === hariIni ? '<i class="po-jd-dot"></i>' : ''}</button>`;
+      const blok = h => {
         const rows = items.filter(j => j.hari === h).sort((a, b) => (a.jam || 0) - (b.jam || 0)).map(j => {
           const w = jam[j.jam] && jam[j.jam].mulai ? jam[j.jam].mulai + '–' + jam[j.jam].selesai : '';
           const [bg, fg] = typeof warnaMapel === 'function' ? warnaMapel(j.mapel) : ['#e5e7eb', '#111827'];
@@ -694,10 +697,20 @@
             <div style="min-width:64px;"><strong>Jam ${escapeHtml(j.jam || '-')}</strong>${w ? `<div class="text-muted" style="font-size:10px;">${escapeHtml(w)}</div>` : ''}</div>
             <div style="flex:1;min-width:0;"><span style="display:inline-block;padding:2px 8px;border-radius:7px;font-weight:600;background:${bg};color:${fg};">${escapeHtml(j.mapel)}</span><div class="text-muted" style="font-size:11px;margin-top:2px;">${escapeHtml(j.guru || '-')}</div></div></div>`;
         }).join('');
-        return `<p style="font-weight:700;margin:10px 0 2px;">${h}${h === hariIni ? ' ' + poBadge('Hari ini', 'ok') : ''}</p>${rows}`;
-      }).join('');
-      return poAcc('📅 Jadwal Pelajaran', poBadge(items.length + ' jam/minggu'), baris, false, 'poAccJadwal');
+        return `<div class="po-jd-hari" data-hari="${h}"${h === hariPilih ? '' : ' style="display:none"'}>${h === hariIni ? '<p class="text-muted" style="font-size:11px;margin:6px 0 0;">Hari ini</p>' : ''}${rows}</div>`;
+      };
+      const catLibur = hariAda.indexOf(hariIni) < 0 ? `<p class="text-muted" style="font-size:11px;margin:8px 0 0;">Hari ini (${hariIni}) tidak ada jadwal pelajaran.</p>` : '';
+      const nHariIni = items.filter(j => j.hari === hariIni).length;
+      const isi = `<style>.po-jd-chips{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}.po-jd-chip{position:relative;flex:1 0 auto;min-width:52px;padding:5px 8px;border:1px solid #d5e6dc;border-radius:999px;background:#fff;color:#475569;font:inherit;font-size:12px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-jd-chip.on{background:#0b6b4f;border-color:#0b6b4f;color:#fff}.po-jd-dot{position:absolute;top:3px;right:6px;width:6px;height:6px;border-radius:50%;background:#f59e0b}</style><div class="po-jd-wrap"><div class="po-jd-chips">${hariAda.map(chip).join('')}</div>${hariAda.map(blok).join('')}${catLibur}</div>`;
+      return poAcc('📅 Jadwal Pelajaran', nHariIni ? poBadge('Hari ini ' + nHariIni + ' jam', 'ok') : poBadge(items.length + ' jam/minggu'), isi, true, 'poAccJadwal');
     }
+    // Pilih hari pada kartu Jadwal Pelajaran (dipanggil dari tombol hari).
+    function poJadwalHari(btn, h) {
+      const w = btn && btn.closest ? btn.closest('.po-jd-wrap') : null; if (!w) return;
+      w.querySelectorAll('.po-jd-chip').forEach(c => c.classList.toggle('on', c.getAttribute('data-hari') === h));
+      w.querySelectorAll('.po-jd-hari').forEach(d => { d.style.display = d.getAttribute('data-hari') === h ? '' : 'none'; });
+    }
+    window.poJadwalHari = poJadwalHari;
     let _poGerbangToken = 0;
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');

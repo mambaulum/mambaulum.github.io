@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/portal-tab.js (v13)
+   SI MAMBA - js/portal-tab.js (v14)
    Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Angket | Lainnya.
    Tidak mengubah isi/kartu: setiap anak langsung #portalOrtuContent diberi data-ptab, lalu CSS menyembunyikan yang bukan tab aktif.
    Tab Angket menampung tiga angket (Kurikulum, Profil Lulusan, Keunggulan); titik merah muncul bila ada angket yang dibuka dan belum diisi.
@@ -125,6 +125,7 @@
     if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda' || id === 'persetujuanOrtuSlot' || id === 'ijinOrtuSlot') return 'home';   // v8.432: kartu persetujuan (belum mengisi/tarik) tampil di Beranda; baris kecil 'persetujuanOrtuBawah' sengaja ikut tab Lainnya
     if (id === 'bsOrtuBox' || id === 'portalOrtuSholatCard' || id === 'bsLp_sikap') return 'amalan';   // bsLp_sikap = kartu Sikap & Kedisiplinan bergaya Mode Anak
     if (id === 'poAccNilai') return 'belajar';
+    if (id === 'poAccJadwal') return 'home';   // v14: jadwal pelajaran/ujian hari ini tampil di Beranda
     if (id === 'poAngketKosong' || ID_ANGKET.indexOf(id) >= 0) return 'angket';
     if (c.tagName === 'DETAILS') {
       var sm = c.querySelector('summary'), t = sm ? (sm.textContent || '').slice(0, 60) : '';
