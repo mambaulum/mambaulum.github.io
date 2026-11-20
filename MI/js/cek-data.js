@@ -10,6 +10,7 @@
    v4: tampilan dibagi tab bergaya hub-tabs (Guru & Jadwal | Honor | Diagnosa Nilai) dengan penanda jumlah temuan; logika analisis & perbaikan tidak berubah.
    Perbaikan hanya menulis field guruKey (node jadwal, journal, event_attendance, ujian_attendance, ekskul_pic_honor_v4).
    Data guru TIDAK dihapus; hapus manual setelah yakin. Setiap perbaikan: unduh cadangan JSON dulu, minta konfirmasi, catat ke log.
+   v5: bagian Honor memeriksa honor ujian/lembur/rapat yang jamnya bertumpuk (honorCariBentrok di honor-guru.js) dan kecocokan jadwal ujian - Daftar Hadir - check-in - susulan (window.cekDataHonorUjian, administrasi-ujian.js). Hanya membaca.
    Dimuat SESUDAH app.js dan jadwal.js. Halaman: page-cek-data (navigateTo memanggil setupCekDataPage).
    ============================================================ */
 (function () {
@@ -229,7 +230,7 @@
     var ph = el('cdHonorIsi'); if (ph) ph.innerHTML = renderDampakHonor();
     var pn = el('cdPanNilai'); if (pn) pn.innerHTML = renderDiagnosaNilai();
     var T = _honor && _honor.T, nG = h.kembar.length + h.unik.length + h.nol.length + h.ambigu.length + h.yatim.length;
-    var nH = T ? T.pending.length + T.namaBeda.length + T.hantu.length + T.yatim.length + T.namaKembar.length + T.kembar.length + T.ganda.length + T.jamAsing.length + T.tipeKosong.length : 0;
+    var nH = T ? T.pending.length + T.namaBeda.length + T.hantu.length + T.yatim.length + T.namaKembar.length + T.kembar.length + T.ganda.length + T.jamAsing.length + T.tipeKosong.length + ((_honor && _honor.bentrok) ? _honor.bentrok.total : 0) : 0;
     badge('guru', nG); badge('honor', nH);
   }
   function badge(tab, n) {
@@ -320,6 +321,27 @@
     if (T.tipeKosong.length) out += bagian('Jurnal tanpa tipe Reguler/Non-Reguler (' + T.tipeKosong.length + ')', false,
       '<p class="text-muted" style="font-size:12px;">Dihitung sebagai Reguler. Periksa apakah seharusnya Non-Reguler (mewakili).</p>' +
       tabel(['Guru', 'Tanggal', 'Jam', 'Tipe'], T.tipeKosong.slice(0, 20).map(function (r) { return [esc(r.guru), esc(r.tanggal), esc(r.jam), esc(r.tipe)]; })));
+    // 9. Honor bertumpuk jam (ujian x ujian, ujian x lembur/rapat)
+    var B = d.bentrok;
+    if (!B) out += bagian('Honor bertumpuk jam', true, '<p class="text-muted">Pemeriksaan jam bertumpuk tidak tersedia (honor-guru.js belum termuat).</p>');
+    else if (!B.total) out += bagian('Honor bertumpuk jam', true, '<p class="text-muted">Tidak ada guru dengan honor ujian/lembur/rapat yang jamnya bertumpuk di bulan ini.</p>');
+    else out += bagian('Honor bertumpuk jam (' + B.total + ' pasangan)', false,
+      '<p class="text-muted" style="font-size:12px;">Dua kegiatan ber-honor milik satu guru pada hari yang sama jamnya beririsan, sehingga bisa terbayar dua kali. Rekap Honor hanya menandai (⚠️) dan tidak mengubah angka: putuskan mana yang berhak, lalu hapus check-in yang tidak berhak di halaman Honor Ujian atau Lembur &amp; Rapat.</p>' +
+      tabel(['Guru', 'Tanggal', 'Kegiatan 1', 'Kegiatan 2', 'Honor'], B.daftar.slice(0, 30).map(function (p) { return [esc(p.nama), esc(p.tanggal), esc(p.a.label + ' ' + p.a.jamMulai + '–' + p.a.jamSelesai), esc(p.b.label + ' ' + p.b.jamMulai + '–' + p.b.jamSelesai), rp(p.a.honor) + ' + ' + rp(p.b.honor)]; })) +
+      (B.total > 30 ? '<p class="text-muted">…dan ' + (B.total - 30) + ' lainnya.</p>' : ''));
+    // 10. Honor pengawas ujian: jadwal - Daftar Hadir - check-in - susulan (seluruh tahun ajaran aktif; dari administrasi-ujian.js)
+    if (typeof window.cekDataHonorUjian === 'function') {
+      if (typeof allAdmUjian === 'undefined' || !allAdmUjian.length) out += bagian('Honor pengawas ujian (jadwal ↔ check-in)', true, '<p class="text-muted">Data jadwal ujian belum dimuat. Buka menu Administrasi Ujian sekali, lalu periksa lagi di sini.</p>');
+      else {
+        var U = []; try { U = window.cekDataHonorUjian().filter(function (x) { return x.jenis !== 'bentrok'; }); } catch (e) { U = []; }
+        var uPenting = U.filter(function (x) { return x.tingkat !== 'info'; });
+        if (!uPenting.length) out += bagian('Honor pengawas ujian (jadwal ↔ check-in)', true, '<p class="text-muted">Jadwal, Daftar Hadir, check-in, dan susulan cocok' + (U.length ? ' (' + U.length + ' catatan info, lihat 🔎 Periksa Honor di Administrasi Ujian)' : '') + '.</p>');
+        else out += bagian('Honor pengawas ujian: tidak cocok (' + uPenting.length + ')', false,
+          '<p class="text-muted" style="font-size:12px;">Seluruh tahun ajaran aktif. Tidak ada yang diubah otomatis; perbaiki di Administrasi Ujian atau Honor Ujian.</p>' +
+          tabel(['Tingkat', 'Temuan'], uPenting.slice(0, 30).map(function (x) { return [x.tingkat === 'salah' ? '⛔ Perbaiki' : '⚠️ Cek', esc(x.teks)]; })) +
+          (uPenting.length > 30 ? '<p class="text-muted">…dan ' + (uPenting.length - 30) + ' lainnya.</p>' : ''));
+      }
+    }
     if (d.kosongStatus) out += '<p class="text-muted" style="font-size:12px;margin-top:10px;">ℹ️ ' + d.kosongStatus + ' jurnal tanpa status (data lama) tetap dihitung honor.</p>';
     return out;
   }
@@ -416,6 +438,7 @@
         } catch (e) { return 0; }
       } };
     var h = cekHonorAnalisis(o);
+    try { h.bentrok = (typeof honorCariBentrok === 'function') ? honorCariBentrok(o.ujian, o.event) : null; } catch (e) { h.bentrok = null; console.warn('[Cek Data] cek bentrok honor gagal:', e); }
     h._sumber = [{ path: 'journal', arr: o.jurnal }, { path: 'event_attendance', arr: o.event.filter(function (e) { return e.guruKey !== 'kepsek'; }) },
       { path: 'ujian_attendance', arr: o.ujian }, { path: 'ekskul_pic_honor_v4', arr: o.ekskul }];
     return h;

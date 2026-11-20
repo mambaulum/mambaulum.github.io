@@ -116,7 +116,7 @@
 
   <!-- Menu Administrasi Ujian (Daftar Hadir, Tata Tertib, Denah, Berita Acara) -- juga dimuat SEBELUM app.js
        supaya setupAdministrasiUjianPage() & aujCanOpenMenu() sudah ada saat app.js berjalan. -->
-  <script defer src="js/administrasi-ujian.js?v=4"></script>
+  <script defer src="js/administrasi-ujian.js?v=7"></script>
 
   <!-- Logic utama aplikasi -- defer juga (bukan lagi ditaruh di akhir <body>) supaya urutan
        eksekusinya konsisten dengan script defer lain di atas (semua defer dijamin browser
@@ -135,13 +135,13 @@
   <script defer src="js/materi-tugas.js?v=1"></script>
   <script defer src="js/kelola-absen-guru.js?v=7"></script>
   <script defer src="js/jadwal.js?v=6"></script>
-  <script defer src="js/cek-data.js?v=5"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey, dampak ke honor; sesudah app.js & jadwal.js -->
+  <script defer src="js/cek-data.js?v=6"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey, dampak ke honor; sesudah app.js & jadwal.js -->
   <script defer src="js/laporan-rekap.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/honor-guru.js?v=27"></script>
+  <script defer src="js/honor-guru.js?v=28"></script>
   <script defer src="js/honor-kebersihan.js?v=3"></script>
   <!-- Hasil pecahan app.js tahap 4 (Event & Ujian; Absen Guru Admin + Pengingat). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/event-ujian.js?v=1"></script>
+  <script defer src="js/event-ujian.js?v=3"></script>
   <script defer src="js/pengingat-absen-guru.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=7"></script>
@@ -1326,6 +1326,12 @@
           <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">📝 Sesi Ujian Hari Ini</h3>
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Check-in tugas ujian hari ini pakai kamera sebagai bukti kehadiran.</p>
           <div id="ujianTodayList"><p style="color:#6b7280;font-size:13px;">Memuat...</p></div>
+        </div>
+
+        <div class="card" id="ujianSusulanCard" style="display:none;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">🕓 Susulan Check-in Pengawas</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Lupa check-in? Ajukan susulan beserta alasannya; honor baru dihitung setelah Admin menyetujui.</p>
+          <div id="ujianSusulanList"></div>
         </div>
 
         <div id="ujianCameraCard" class="card" style="display:none;">

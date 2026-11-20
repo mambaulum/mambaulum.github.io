@@ -10,6 +10,22 @@
     // ============================================================
     // LEMBUR & RAPAT (acara di luar jam pelajaran, ada honornya)
     // ============================================================
+    // Jendela waktu check-in (acara & ujian). Ubah dua angka ini sesuai kebijakan madrasah.
+    const CHECKIN_SEBELUM_MENIT = 30;   // boleh check-in mulai N menit sebelum jam mulai
+    const CHECKIN_SESUDAH_MENIT = 0;    // dan sampai N menit setelah jam selesai
+    // Catatan: ini memakai jam perangkat, jadi hanya pagar untuk pemakaian normal. Pagar sungguhan harus
+    // di Firebase Rules (validasi waktu & honor) -- lihat catatan audit.
+    function cekJendelaCheckin(item) {
+      if (!item) return { ok: true };
+      if (item.tanggal && item.tanggal !== tglLokal()) return { ok: false, pesan: 'Check-in hanya bisa pada hari pelaksanaan (' + item.tanggal + ').' };
+      const hm = x => { const m = /^(\d{1,2}):(\d{2})/.exec(x || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+      const a = hm(item.jamMulai), b = hm(item.jamSelesai);
+      if (a == null || b == null) return { ok: true };
+      const n = (typeof menitWIB === 'function') ? menitWIB() : (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();   // WIB, sama seperti tglLokal()
+      if (n < a - CHECKIN_SEBELUM_MENIT) return { ok: false, pesan: 'Check-in baru dibuka ' + CHECKIN_SEBELUM_MENIT + ' menit sebelum jam mulai (' + item.jamMulai + ').' };
+      if (n > b + CHECKIN_SESUDAH_MENIT) return { ok: false, pesan: 'Waktu check-in sudah lewat (selesai ' + item.jamSelesai + ').' };
+      return { ok: true };
+    }
     function renderEventAdminForm() {
       const card = document.getElementById('eventAdminFormCard');
       if (!card) return;
@@ -30,6 +46,7 @@
       const editKey = document.getElementById('eventEditKey').value;
       if (!nama || !tanggal || !jamMulai || !jamSelesai) return toast('Lengkapi semua data!', true);
       if (honor <= 0) return toast('Honor harus lebih dari 0!', true);
+      if (jamMulai >= jamSelesai) return toast('Jam selesai harus setelah jam mulai!', true);
       const data = { nama, jenis, tanggal, jamMulai, jamSelesai, honor, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };
       const ref = editKey ? db.ref('events/' + editKey) : db.ref('events').push();
       if (!editKey) { data.createdBy = currentUser.name; data.guruKey = currentUser.key || null; data.createdAt = new Date().toISOString(); }
@@ -55,6 +72,7 @@
       if (!confirm('Hapus acara ini? Catatan check-in yang sudah ada tidak akan terhapus.')) return;
       db.ref('events/' + key).remove(err => {
         if (err) return toast('Gagal: ' + err.message, true);
+        { const ek = document.getElementById('eventEditKey'); if (ek && ek.value === key) ek.value = ''; }
         toast('🗑️ Acara dihapus.'); addLog('hapus_event', key); reloadDataset('events');
       });
     }
@@ -63,13 +81,14 @@
     // dibuka untuk Admin & Kepsek (sama seperti akses rekap lain), bukan cuma Admin.
     function tampilkanPesertaCheckin(daftar, judul) {
       if (!isAdmin() && !isKepsek()) return toast('Hanya Admin & Kepsek!', true);
+      const lama = document.getElementById('pesertaCheckinOverlay'); if (lama) lama.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pesertaCheckinOverlay';
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px;';
       const sorted = [...daftar].sort((a,b) => waktuMs(a.waktu) - waktuMs(b.waktu));
       const rows = sorted.length
         ? sorted.map(a => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e5e7eb;">
-            ${a.foto ? `<img src="${a.foto}" alt="Foto" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="lihatFotoBesar(this.src)">` : `<div style="width:44px;height:44px;border-radius:8px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:18px;">👤</div>`}
+            ${a.foto ? `<img src="${escapeHtml(a.foto)}" alt="Foto" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="lihatFotoBesar(this.src)">` : `<div style="width:44px;height:44px;border-radius:8px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:18px;">👤</div>`}
             <div style="flex:1;">
               <div style="font-weight:600;font-size:13px;">${escapeHtml(a.guru || '-')}</div>
               <div class="text-muted" style="font-size:12px;">${a.waktu ? new Date(a.waktu).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '-'}</div>
@@ -126,7 +145,7 @@
             <span><strong>${icon} ${escapeHtml(ev.nama)}</strong></span>
             <span>${tombolAdmin}</span>
           </div>
-          <div class="text-muted" style="margin-top:2px;">${escapeHtml(ev.tanggal)} | ${escapeHtml(ev.jamMulai)}-${escapeHtml(ev.jamSelesai)} | Rp ${(ev.honor||0).toLocaleString()} | ${(isAdmin()||isKepsek()) ? `<span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="lihatPesertaEvent('${ev.key}')">👥 ${jumlahHadir} hadir</span>` : `👥 ${jumlahHadir} hadir`}</div>
+          <div class="text-muted" style="margin-top:2px;">${escapeHtml(ev.tanggal)} | ${escapeHtml(ev.jamMulai)}-${escapeHtml(ev.jamSelesai)} | Rp ${(ev.honor||0).toLocaleString('id-ID')} | ${(isAdmin()||isKepsek()) ? `<span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="lihatPesertaEvent('${ev.key}')">👥 ${jumlahHadir} hadir</span>` : `👥 ${jumlahHadir} hadir`}</div>
         </div>`;
       });
       list.innerHTML = html;
@@ -145,7 +164,7 @@
           ? `<span style="color:#065f46;font-weight:600;">✅ Sudah Check-in ${sudahCheckin.waktu ? new Date(sudahCheckin.waktu).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : ''}</span>`
           : `<button class="btn btn-success" style="padding:4px 14px;font-size:12px;" onclick="openEventCheckin('${ev.key}')">📸 Check-in</button>`;
         html += `<div style="padding:10px 12px;background:#eff6ff;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-          <span><strong>${icon} ${escapeHtml(ev.nama)}</strong><br><span class="text-muted" style="font-size:12px;">${escapeHtml(ev.jamMulai)}-${escapeHtml(ev.jamSelesai)} · Rp ${(ev.honor||0).toLocaleString()}</span></span>
+          <span><strong>${icon} ${escapeHtml(ev.nama)}</strong><br><span class="text-muted" style="font-size:12px;">${escapeHtml(ev.jamMulai)}-${escapeHtml(ev.jamSelesai)} · Rp ${(ev.honor||0).toLocaleString('id-ID')}</span></span>
           ${tombol}
         </div>`;
       });
@@ -165,11 +184,12 @@
       document.getElementById('eventCameraCard').style.display = 'none';
     }
     function startEventCamera() {
+      if (eventCameraStream) stopEventCamera();
       const video = document.getElementById('eventVideo'), container = document.getElementById('eventVideoContainer');
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('⚠️ Browser tidak support kamera!', true);
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }, audio: false })
         .then(stream => {
-          eventCameraStream = stream; video.srcObject = stream; container.style.display = 'block'; video.style.display = 'block'; video.play();
+          eventCameraStream = stream; video.srcObject = stream; container.style.display = 'block'; video.style.display = 'block'; { const pp = video.play(); if (pp && pp.catch) pp.catch(() => {}); }
           document.getElementById('eventFaceStatus').innerHTML = '✅ Kamera aktif. Klik "Ambil Foto & Check-in"';
           document.getElementById('eventFaceStatus').style.background = '#dcfce7'; document.getElementById('eventFaceStatus').style.color = '#065f46';
         })
@@ -185,17 +205,20 @@
       if (!activeEventKey) return;
       const ev = allEvents.find(e => e.key === activeEventKey);
       if (!ev) return toast('Acara tidak ditemukan.', true);
+      const jw = cekJendelaCheckin(ev); if (!jw.ok) return toast('⏰ ' + jw.pesan, true);
       const sudahCheckin = allEventAttendance.find(a => a.eventKey === activeEventKey && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
       if (sudahCheckin) return toast('Anda sudah check-in acara ini!', true);
       if (!eventCameraStream) return toast('⚠️ Aktifkan kamera terlebih dahulu!', true);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Check-in butuh koneksi internet — coba lagi setelah online.', true);
+      const vSiap = document.getElementById('eventVideo');
+      if (!vSiap || vSiap.readyState < 2 || !vSiap.videoWidth) return toast('⏳ Kamera belum siap, tunggu sebentar lalu coba lagi.', true);
       const btn = document.getElementById('btnEventCheckin');
       btn.disabled = true; btn.textContent = '⏳ Memproses...';
       const video = document.getElementById('eventVideo'), canvas = document.getElementById('eventSnapshotCanvas');
       let fotoDataUrl = null;
       try {
-        // Foto diperkecil dulu (maks 480px sisi terpanjang) lalu disimpan LANGSUNG sebagai data URL
-        // di field `foto` pada record event_attendance (bukan diunggah ke Storage, yang butuh plan
-        // berbayar Blaze -- project ini di plan gratis Spark).
+        // Foto diperkecil dulu (maks 480px sisi terpanjang) lalu dikirim sebagai data URL ke
+        // simpanFotoTerpisah() (bukan diunggah ke Storage, yang butuh plan Blaze -- project ini di plan gratis Spark).
         const maxSisi = 480;
         const skala = Math.min(1, maxSisi / Math.max(video.videoWidth || 320, video.videoHeight || 240));
         canvas.width = Math.round((video.videoWidth || 320) * skala);
@@ -209,17 +232,17 @@
       // browser (yang bisa race kalau dibuka di 2 device/tab hampir bersamaan).
       const guruKeyAman = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g,'_');
       const dbRef = db.ref(`event_attendance/${activeEventKey}_${guruKeyAman}`);
-      const dataBaru = { eventKey: activeEventKey, eventNama: ev.nama, jenis: ev.jenis, guru: currentUser.name, guruKey: currentUser.key, tanggal: today, waktu: new Date().toISOString(), honor: ev.honor, tahunAjaran: currentTahunAjaran, hasFoto: !!fotoDataUrl }; // foto disimpan terpisah (lihat simpanFotoTerpisah)
-      dbRef.transaction(existing => existing !== null ? undefined : dataBaru, (err, committed, snapshot) => {
+      const dataBaru = { eventKey: activeEventKey, eventNama: ev.nama, jenis: ev.jenis, guru: currentUser.name, guruKey: currentUser.key || null, tanggal: today, waktu: firebase.database.ServerValue.TIMESTAMP, honor: ev.honor, tahunAjaran: currentTahunAjaran, hasFoto: !!fotoDataUrl }; // foto disimpan terpisah (lihat simpanFotoTerpisah)
+      guruSesiSiap().then(() => dbRef.transaction(existing => existing !== null ? undefined : dataBaru, (err, committed, snapshot) => {
         btn.disabled = false; btn.textContent = '✅ Ambil Foto & Check-in';
         if (err) return toast('Gagal: ' + err.message, true);
         if (!committed) { toast('⚠️ Anda sudah check-in acara ini (tercatat dari sesi lain).', true); reloadDataset(['events','eventAttendance'], () => { renderEventsToday(); renderEventList(); }); return; }
         toast('✅ Check-in berhasil!'); addLog('checkin_event', ev.nama);
         simpanFotoTerpisah('event_attendance', snapshot.key, fotoDataUrl);
-        allEventAttendance.push({ ...dataBaru, key: snapshot.key });
+        allEventAttendance.push({ ...dataBaru, waktu: (snapshot.val() && snapshot.val().waktu) || Date.now(), key: snapshot.key });
         renderEventsToday(); renderEventList();
         cancelEventCheckin();
-      });
+      }));
     }
 
     // ============================================================
@@ -245,7 +268,9 @@
       const editKey = document.getElementById('ujianEditKey').value;
       if (!nama || !tanggal || !jamMulai || !jamSelesai) return toast('Lengkapi semua data!', true);
       if (honor <= 0) return toast('Honor harus lebih dari 0!', true);
-      const data = { nama, jenis, tanggal, jamMulai, jamSelesai, honor, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };
+      if (jamMulai >= jamSelesai) return toast('Jam selesai harus setelah jam mulai!', true);
+      if (editKey && editKey.indexOf('adm_') === 0) return toast('Sesi ini dibuat dari Jadwal Ujian. Ubah pengawas/jam lewat menu Administrasi Ujian.', true);
+      const data = { nama, jenis, tanggal, jamMulai, jamSelesai, honor, terbuka: true, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };   // sesi manual = terbuka untuk semua guru yang login (Koreksi / Pembuat Soal)
       const ref = editKey ? db.ref('ujian/' + editKey) : db.ref('ujian').push();
       if (!editKey) { data.createdBy = currentUser.name; data.guruKey = currentUser.key || null; data.createdAt = new Date().toISOString(); }
       const btnSubmitUjian = document.getElementById('btnSubmitUjian');
@@ -260,6 +285,7 @@
       });
     }
     function editUjian(key) {
+      if (String(key).indexOf('adm_') === 0) return toast('Sesi ini dibuat dari Jadwal Ujian. Ubah pengawas/jam lewat menu Administrasi Ujian.', true);
       const u = allUjian.find(e => e.key === key);
       if (!u) return;
       document.getElementById('ujianNama').value = u.nama; document.getElementById('ujianJenis').value = u.jenis; document.getElementById('ujianTanggal').value = u.tanggal; document.getElementById('ujianJamMulai').value = u.jamMulai; document.getElementById('ujianJamSelesai').value = u.jamSelesai; document.getElementById('ujianHonor').value = u.honor; document.getElementById('ujianEditKey').value = key;
@@ -270,6 +296,7 @@
       if (!confirm('Hapus sesi ujian ini? Catatan check-in yang sudah ada tidak akan terhapus.')) return;
       db.ref('ujian/' + key).remove(err => {
         if (err) return toast('Gagal: ' + err.message, true);
+        { const ek = document.getElementById('ujianEditKey'); if (ek && ek.value === key) ek.value = ''; }
         toast('🗑️ Sesi ujian dihapus.'); addLog('hapus_ujian', key); reloadDataset('ujian');
       });
     }
@@ -288,16 +315,24 @@
             <span><strong>${icon} ${escapeHtml(u.nama)}</strong> <span style="font-size:11px;color:#7c3aed;">(${escapeHtml(u.jenis)})</span></span>
             <span>${tombolAdmin}</span>
           </div>
-          <div class="text-muted" style="margin-top:2px;">${escapeHtml(u.tanggal)} | ${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} | Rp ${(u.honor||0).toLocaleString()} | ${(isAdmin()||isKepsek()) ? `<span style="color:#7c3aed;cursor:pointer;text-decoration:underline;" onclick="lihatPesertaUjian('${u.key}')">👥 ${jumlahHadir} hadir</span>` : `👥 ${jumlahHadir} hadir`}</div>
+          <div class="text-muted" style="margin-top:2px;">${escapeHtml(u.tanggal)} | ${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} | Rp ${(u.honor||0).toLocaleString('id-ID')} | ${(isAdmin()||isKepsek()) ? `<span style="color:#7c3aed;cursor:pointer;text-decoration:underline;" onclick="lihatPesertaUjian('${u.key}')">👥 ${jumlahHadir} hadir</span>` : `👥 ${jumlahHadir} hadir`}</div>
         </div>`;
       });
       list.innerHTML = html;
     }
+    // Siapa boleh check-in: guru yang tercantum di `pengawas` sesi (sesi dari Jadwal Ujian), atau sesi `terbuka` (dibuat manual
+    // oleh Admin, mis. Koreksi / Pembuat Soal). Aturan yang sama dipasang di Firebase Rules (ujian_attendance).
+    function ujianBolehCheckin(u) {
+      if (!u || !currentUser) return false;
+      if (u.terbuka === true) return true;
+      return !!(u.pengawas && currentUser.key && u.pengawas[currentUser.key] === true);
+    }
     function renderUjianToday() {
       const list = document.getElementById('ujianTodayList');
       if (!list || !currentUser) return;
+      muatUjianSusulan();   // kartu susulan dimuat/digambar sendiri (tidak mengganggu daftar di bawah)
       const today = tglLokal();
-      const ujianToday = allUjian.filter(u => u.tanggal === today);
+      const ujianToday = allUjian.filter(u => u.tanggal === today && (isAdmin() || ujianBolehCheckin(u)));
       if (ujianToday.length === 0) { list.innerHTML = '<p class="text-muted" style="font-size:13px;">Tidak ada sesi ujian hari ini.</p>'; return; }
       let html = '';
       ujianToday.forEach(u => {
@@ -307,7 +342,7 @@
           ? `<span style="color:#065f46;font-weight:600;">✅ Sudah Check-in ${sudahCheckin.waktu ? new Date(sudahCheckin.waktu).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : ''}</span>`
           : `<button class="btn btn-success" style="padding:4px 14px;font-size:12px;" onclick="openUjianCheckin('${u.key}')">📸 Check-in</button>`;
         html += `<div style="padding:10px 12px;background:#f3e8ff;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-          <span><strong>${icon} ${escapeHtml(u.nama)}</strong> <span style="font-size:11px;color:#7c3aed;">(${escapeHtml(u.jenis)})</span><br><span class="text-muted" style="font-size:12px;">${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} · Rp ${(u.honor||0).toLocaleString()}</span></span>
+          <span><strong>${icon} ${escapeHtml(u.nama)}</strong> <span style="font-size:11px;color:#7c3aed;">(${escapeHtml(u.jenis)})</span><br><span class="text-muted" style="font-size:12px;">${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} · Rp ${(u.honor||0).toLocaleString('id-ID')}</span></span>
           ${tombol}
         </div>`;
       });
@@ -327,11 +362,12 @@
       document.getElementById('ujianCameraCard').style.display = 'none';
     }
     function startUjianCamera() {
+      if (ujianCameraStream) stopUjianCamera();
       const video = document.getElementById('ujianVideo'), container = document.getElementById('ujianVideoContainer');
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('⚠️ Browser tidak support kamera!', true);
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }, audio: false })
         .then(stream => {
-          ujianCameraStream = stream; video.srcObject = stream; container.style.display = 'block'; video.style.display = 'block'; video.play();
+          ujianCameraStream = stream; video.srcObject = stream; container.style.display = 'block'; video.style.display = 'block'; { const pp = video.play(); if (pp && pp.catch) pp.catch(() => {}); }
           document.getElementById('ujianFaceStatus').innerHTML = '✅ Kamera aktif. Klik "Ambil Foto & Check-in"';
           document.getElementById('ujianFaceStatus').style.background = '#dcfce7'; document.getElementById('ujianFaceStatus').style.color = '#065f46';
         })
@@ -347,9 +383,14 @@
       if (!activeUjianKey) return;
       const u = allUjian.find(e => e.key === activeUjianKey);
       if (!u) return toast('Sesi ujian tidak ditemukan.', true);
+      if (!ujianBolehCheckin(u)) return toast('⛔ Anda tidak tercantum sebagai pengawas sesi ini. Hubungi Admin bila seharusnya iya.', true);
+      const jw = cekJendelaCheckin(u); if (!jw.ok) return toast('⏰ ' + jw.pesan, true);
       const sudahCheckin = allUjianAttendance.find(a => a.ujianKey === activeUjianKey && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
       if (sudahCheckin) return toast('Anda sudah check-in sesi ujian ini!', true);
       if (!ujianCameraStream) return toast('⚠️ Aktifkan kamera terlebih dahulu!', true);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Check-in butuh koneksi internet — coba lagi setelah online.', true);
+      const vSiap = document.getElementById('ujianVideo');
+      if (!vSiap || vSiap.readyState < 2 || !vSiap.videoWidth) return toast('⏳ Kamera belum siap, tunggu sebentar lalu coba lagi.', true);
       const btn = document.getElementById('btnUjianCheckin');
       btn.disabled = true; btn.textContent = '⏳ Memproses...';
       const video = document.getElementById('ujianVideo'), canvas = document.getElementById('ujianSnapshotCanvas');
@@ -367,16 +408,109 @@
       const today = tglLokal();
       const guruKeyAman = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g,'_');
       const dbRef = db.ref(`ujian_attendance/${activeUjianKey}_${guruKeyAman}`);
-      const dataBaru = { ujianKey: activeUjianKey, ujianNama: u.nama, jenis: u.jenis, guru: currentUser.name, guruKey: currentUser.key, tanggal: today, waktu: new Date().toISOString(), honor: u.honor, tahunAjaran: currentTahunAjaran, hasFoto: !!fotoDataUrl }; // foto disimpan terpisah (lihat simpanFotoTerpisah)
-      dbRef.transaction(existing => existing !== null ? undefined : dataBaru, (err, committed, snapshot) => {
+      const dataBaru = { ujianKey: activeUjianKey, ujianNama: u.nama, jenis: u.jenis, guru: currentUser.name, guruKey: currentUser.key || null, tanggal: today, waktu: firebase.database.ServerValue.TIMESTAMP, honor: u.honor, tahunAjaran: currentTahunAjaran, hasFoto: !!fotoDataUrl }; // foto disimpan terpisah (lihat simpanFotoTerpisah)
+      guruSesiSiap().then(() => dbRef.transaction(existing => existing !== null ? undefined : dataBaru, (err, committed, snapshot) => {
         btn.disabled = false; btn.textContent = '✅ Ambil Foto & Check-in';
         if (err) return toast('Gagal: ' + err.message, true);
         if (!committed) { toast('⚠️ Anda sudah check-in sesi ujian ini (tercatat dari sesi lain).', true); reloadDataset(['ujian','ujianAttendance'], () => { renderUjianToday(); renderUjianList(); }); return; }
         toast('✅ Check-in berhasil!'); addLog('checkin_ujian', u.nama);
         simpanFotoTerpisah('ujian_attendance', snapshot.key, fotoDataUrl);
-        allUjianAttendance.push({ ...dataBaru, key: snapshot.key });
+        allUjianAttendance.push({ ...dataBaru, waktu: (snapshot.val() && snapshot.val().waktu) || Date.now(), key: snapshot.key });
         renderUjianToday(); renderUjianList();
         cancelUjianCheckin();
-      });
+      }));
     }
 
+    // ============================================================
+    // SUSULAN CHECK-IN PENGAWAS -- guru mengajukan, Admin menyetujui/menolak
+    // ============================================================
+    // Pengajuan disimpan di node `ujian_susulan/<ujianKey>_<guruKey>` (satu pengajuan per guru per sesi). Saat Admin menyetujui,
+    // check-in resmi dibuat di `ujian_attendance` dengan tanda susulan:true, sehingga honor otomatis ikut terhitung seperti check-in biasa.
+    // Rules: guru hanya boleh MEMBUAT pengajuan (status 'menunggu') untuk sesi yang menugaskannya, sesudah sesi dimulai dan selama belum ada check-in.
+    let allUjianSusulan = [], _ujSusTs = 0;
+    function muatUjianSusulan(paksa) {
+      if (!db || !currentUser) return Promise.resolve();
+      if (!paksa && Date.now() - _ujSusTs < 15000) { renderUjianSusulan(); return Promise.resolve(); }
+      return new Promise(res => {
+        db.ref('ujian_susulan').orderByChild('tahunAjaran').equalTo(currentTahunAjaran).once('value', snap => {
+          _ujSusTs = Date.now(); allUjianSusulan = [];
+          snap.forEach(c => { const v = c.val(); v.key = c.key; allUjianSusulan.push(v); });
+          renderUjianSusulan(); res();
+        }, err => { console.warn('[SI MAMBA] ujian_susulan gagal dimuat (Rules belum dipasang?):', err && err.message ? err.message : err); res(); });
+      });
+    }
+    function _ujSusBadge(s) {
+      const w = { menunggu: ['#b45309', '#fef3c7', '⏳ Menunggu persetujuan'], disetujui: ['#065f46', '#d1fae5', '✅ Disetujui'], ditolak: ['#991b1b', '#fee2e2', '❌ Ditolak'] }[s.status] || ['#374151', '#f3f4f6', escapeHtml(s.status || '')];
+      return `<span style="font-size:11px;font-weight:600;color:${w[0]};background:${w[1]};padding:2px 8px;border-radius:10px;">${w[2]}</span>`;
+    }
+    function renderUjianSusulan() {
+      const card = document.getElementById('ujianSusulanCard'), box = document.getElementById('ujianSusulanList');
+      if (!card || !box || !currentUser) return;
+      const baris = (judul, sub, kanan) => `<div style="padding:10px 12px;background:#fff7ed;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span>${judul}<br><span class="text-muted" style="font-size:12px;">${sub}</span></span><span style="display:flex;gap:6px;flex-wrap:wrap;">${kanan}</span></div>`;
+      let html = '';
+      if (isAdmin()) {
+        const menunggu = allUjianSusulan.filter(s => s.status === 'menunggu').sort((a, b) => (a.diajukanAt || 0) - (b.diajukanAt || 0));
+        html = menunggu.map(s => baris(`<strong>${escapeHtml(s.guru || '-')}</strong> — ${escapeHtml(s.ujianNama || '-')}`,
+          `${escapeHtml(s.tanggal || '')} · Rp ${(s.honor || 0).toLocaleString('id-ID')} · Alasan: ${escapeHtml(s.alasan || '-')}`,
+          `<button class="btn btn-success" style="padding:3px 12px;font-size:12px;" onclick="putusUjianSusulan('${escapeJs(s.key)}', true)">✅ Setujui</button><button class="btn btn-danger" style="padding:3px 12px;font-size:12px;" onclick="putusUjianSusulan('${escapeJs(s.key)}', false)">❌ Tolak</button>`)).join('');
+        if (html) html = `<p style="font-size:12px;color:#92400e;margin-bottom:8px;">${menunggu.length} pengajuan menunggu keputusan Anda.</p>` + html;
+      } else if (currentUser.key && !isKepsek()) {
+        const me = currentUser.key;
+        const kandidat = (allUjian || []).filter(u => u.pengawas && u.pengawas[me] === true && u.selesaiMs && Date.now() > u.selesaiMs
+          && !(allUjianAttendance || []).some(a => a.ujianKey === u.key && a.guruKey === me)
+          && !allUjianSusulan.some(s => s.ujianKey === u.key && s.guruKey === me)).sort((a, b) => b.selesaiMs - a.selesaiMs).slice(0, 15);
+        html += kandidat.map(u => baris(`<strong>${escapeHtml(u.nama)}</strong>`, `${escapeHtml(u.tanggal)} · ${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} · belum check-in`,
+          `<button class="btn btn-soft" style="padding:3px 12px;font-size:12px;" onclick="ajukanSusulanUjian('${escapeJs(u.key)}')">📝 Ajukan Susulan</button>`)).join('');
+        const saya = allUjianSusulan.filter(s => s.guruKey === me).sort((a, b) => (b.diajukanAt || 0) - (a.diajukanAt || 0)).slice(0, 10);
+        html += saya.map(s => baris(`<strong>${escapeHtml(s.ujianNama || '-')}</strong> ${_ujSusBadge(s)}`,
+          `${escapeHtml(s.tanggal || '')}${s.status === 'ditolak' && s.catatanAdmin ? ' · Catatan Admin: ' + escapeHtml(s.catatanAdmin) : ''}`, '')).join('');
+      }
+      card.style.display = html ? 'block' : 'none'; box.innerHTML = html;
+    }
+    function ajukanSusulanUjian(ujianKey) {
+      const u = allUjian.find(e => e.key === ujianKey);
+      if (!u || !currentUser || !currentUser.key || !u.pengawas || u.pengawas[currentUser.key] !== true) return toast('⛔ Anda tidak tercantum sebagai pengawas sesi ini.', true);
+      if ((allUjianAttendance || []).some(a => a.ujianKey === ujianKey && a.guruKey === currentUser.key)) return toast('Anda sudah check-in sesi ini.', true);
+      if (isBusy('ujSusulan')) return toast('Sedang menyimpan...', false, 1500);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Pengajuan butuh koneksi internet.', true);
+      const masuk = prompt(`Susulan check-in: ${u.nama} (${u.tanggal})\n\nTulis alasan lupa check-in (minimal 5 huruf):`, '');
+      if (masuk === null) return;
+      const alasan = masuk.trim();
+      if (alasan.length < 5) return toast('Alasan terlalu singkat (minimal 5 huruf).', true);
+      const id = u.key + '_' + currentUser.key;
+      const data = { ujianKey: u.key, ujianNama: u.nama, jenis: u.jenis, guru: currentUser.name, guruKey: currentUser.key, tanggal: u.tanggal, honor: u.honor,
+        tahunAjaran: currentTahunAjaran, alasan: alasan.slice(0, 300), status: 'menunggu', diajukanAt: firebase.database.ServerValue.TIMESTAMP };
+      setBusy('ujSusulan');
+      guruSesiSiap().then(() => db.ref('ujian_susulan/' + id).set(data, err => {
+        clearBusy('ujSusulan');
+        if (err) return toast('Gagal mengajukan: ' + (err.message || err), true);
+        toast('✅ Pengajuan dikirim. Menunggu persetujuan Admin.'); addLog('ajukan_susulan_ujian', u.nama);
+        allUjianSusulan.push(Object.assign({}, data, { key: id, diajukanAt: Date.now() })); renderUjianSusulan();
+      }));
+    }
+    function putusUjianSusulan(key, setuju) {
+      if (!isAdmin()) return toast('Hanya Admin!', true);
+      const s = allUjianSusulan.find(x => x.key === key); if (!s || s.status !== 'menunggu') return toast('Pengajuan tidak ditemukan / sudah diproses.', true);
+      if (isBusy('ujPutus')) return toast('Sedang menyimpan...', false, 1500);
+      if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+      if (setuju && (allUjianAttendance || []).some(a => a.ujianKey === s.ujianKey && a.guruKey === s.guruKey)) return toast('Guru ini sudah punya check-in untuk sesi tersebut; pengajuan tidak perlu disetujui.', true);
+      const masuk = prompt(setuju ? `Setujui susulan ${s.guru} — ${s.ujianNama}?\n\nAlasan guru: ${s.alasan}\n\nCatatan (boleh dikosongkan):` : `Tolak susulan ${s.guru} — ${s.ujianNama}?\n\nAlasan guru: ${s.alasan}\n\nTulis alasan penolakan:`, '');
+      if (masuk === null) return;
+      const catatan = masuk.trim();
+      if (!setuju && catatan.length < 3) return toast('Isi alasan penolakan.', true);
+      const base = 'ujian_susulan/' + key + '/', up = {};
+      up[base + 'status'] = setuju ? 'disetujui' : 'ditolak';
+      up[base + 'diputuskanOleh'] = currentUser.name; up[base + 'diputuskanAt'] = firebase.database.ServerValue.TIMESTAMP;
+      if (catatan) up[base + 'catatanAdmin'] = catatan.slice(0, 200);
+      if (setuju) up['ujian_attendance/' + key] = { ujianKey: s.ujianKey, ujianNama: s.ujianNama, jenis: s.jenis, guru: s.guru, guruKey: s.guruKey, tanggal: s.tanggal,
+        waktu: firebase.database.ServerValue.TIMESTAMP, honor: s.honor, tahunAjaran: s.tahunAjaran, hasFoto: false, susulan: true, disetujuiOleh: currentUser.name };
+      setBusy('ujPutus');
+      db.ref().update(up, err => {   // satu tulisan atomik: status + check-in resmi masuk bersamaan
+        clearBusy('ujPutus');
+        if (err) return toast('Gagal: ' + (err.message || err), true);
+        s.status = setuju ? 'disetujui' : 'ditolak'; if (catatan) s.catatanAdmin = catatan;
+        if (setuju) allUjianAttendance.push({ ujianKey: s.ujianKey, ujianNama: s.ujianNama, jenis: s.jenis, guru: s.guru, guruKey: s.guruKey, tanggal: s.tanggal, waktu: Date.now(), honor: s.honor, tahunAjaran: s.tahunAjaran, susulan: true, key });
+        toast(setuju ? '✅ Susulan disetujui; honor ikut terhitung.' : '❌ Pengajuan ditolak.'); addLog(setuju ? 'setujui_susulan_ujian' : 'tolak_susulan_ujian', s.guru + ' — ' + s.ujianNama);
+        renderUjianSusulan(); if (typeof renderUjianList === 'function') renderUjianList();
+      });
+    }

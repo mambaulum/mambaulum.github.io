@@ -679,6 +679,52 @@
       return reguler*rates.reguler + nonReguler*rates.nonReguler + ekstraHonor + dluha*rates.dluha + dzuhur*rates.dzuhur + eventHonor + ujianHonor + tunjangan + transport;
     }
 
+    // ---- PENGAMAN BENTROK JAM ----
+    // Check-in ujian dan lembur/rapat tidak membawa jam; jamnya ada di sesinya (allUjian / allEvents). Dua check-in milik satu guru pada
+    // tanggal yang sama yang jamnya bertumpuk (jam selesai = jam mulai kegiatan lain TIDAK dihitung bertumpuk) berarti orang yang sama
+    // dibayar dua kali untuk jam yang sama. Ini HANYA PENANDA: angka honor tidak diubah, Admin yang memutuskan mana yang berhak.
+    // ujian / events = rekaman check-in yang SUDAH disaring bulan & tahun ajaran (sama seperti yang dijumlahkan rekap). Dinas Luar Kepala ('kepsek') dilewati.
+    // Hasil: { total, perGuru: { guruKey: [pasangan] }, daftar: [ { gk, nama, tanggal, a, b } ] }, a/b = { label, jamMulai, jamSelesai, honor }.
+    function honorJamKeMenit(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+    function honorCariBentrok(ujian, events) {
+      const resolveGk = honorBuatResolver(), iv = [];
+      const sesiU = Object.create(null), sesiE = Object.create(null);
+      (typeof allUjian !== 'undefined' ? allUjian : []).forEach(s => { if (s && s.key) sesiU[s.key] = s; });
+      (typeof allEvents !== 'undefined' ? allEvents : []).forEach(s => { if (s && s.key) sesiE[s.key] = s; });
+      const tambah = (a, s, jenis) => {
+        if (!s) return;
+        const m1 = honorJamKeMenit(s.jamMulai), m2 = honorJamKeMenit(s.jamSelesai), tgl = a.tanggal || s.tanggal;
+        if (m1 == null || m2 == null || !tgl) return;
+        iv.push({ gk: resolveGk(a.guruKey, a.guru), nama: a.guru || '', tanggal: tgl, m1, m2, label: jenis + ' "' + (s.nama || '-') + '"', jamMulai: s.jamMulai, jamSelesai: s.jamSelesai, honor: a.honor || 0 });
+      };
+      (ujian || []).forEach(a => tambah(a, sesiU[a.ujianKey], 'Ujian'));
+      (events || []).forEach(a => { if (a.guruKey === 'kepsek') return; tambah(a, sesiE[a.eventKey], 'Lembur/Rapat'); });
+      const grup = Object.create(null), perGuru = {}, daftar = [];
+      iv.forEach(i => { (grup[i.gk + '|' + i.tanggal] = grup[i.gk + '|' + i.tanggal] || []).push(i); });
+      Object.keys(grup).forEach(k => {
+        const g = grup[k];
+        for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+          if (!(g[i].m1 < g[j].m2 && g[j].m1 < g[i].m2)) continue;
+          const p = { gk: g[i].gk, nama: g[i].nama || g[j].nama, tanggal: g[i].tanggal,
+            a: { label: g[i].label, jamMulai: g[i].jamMulai, jamSelesai: g[i].jamSelesai, honor: g[i].honor }, b: { label: g[j].label, jamMulai: g[j].jamMulai, jamSelesai: g[j].jamSelesai, honor: g[j].honor } };
+          daftar.push(p); (perGuru[p.gk] = perGuru[p.gk] || []).push(p);
+        }
+      });
+      daftar.sort((p, q) => String(p.tanggal).localeCompare(q.tanggal) || String(p.nama).localeCompare(q.nama));
+      return { total: daftar.length, perGuru, daftar };
+    }
+    function honorBentrokBannerHtml(b) {
+      if (!b || !b.total) return '';
+      const tg = t => { const p = String(t || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : t; };
+      return `<div style="margin-bottom:10px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;font-size:13px;color:#991b1b;">
+        <strong>⚠️ ${b.total} honor bertumpuk jam</strong> — satu guru dihitung honor untuk dua kegiatan yang jamnya beririsan, sehingga bisa terbayar dua kali. Angka di bawah belum dikoreksi; putuskan mana yang berhak, lalu hapus check-in yang tidak berhak (halaman Honor Ujian / Lembur &amp; Rapat). Rincian lengkap ada di Cek Data &rarr; Honor.
+        <ul style="margin:6px 0 0 18px;">${b.daftar.slice(0, 8).map(p => `<li><strong>${escapeHtml(p.nama)}</strong> (${escapeHtml(tg(p.tanggal))}): ${escapeHtml(p.a.label)} ${escapeHtml(p.a.jamMulai)}–${escapeHtml(p.a.jamSelesai)} ⇄ ${escapeHtml(p.b.label)} ${escapeHtml(p.b.jamMulai)}–${escapeHtml(p.b.jamSelesai)}</li>`).join('')}${b.daftar.length > 8 ? `<li>…dan ${b.daftar.length - 8} lainnya</li>` : ''}</ul></div>`;
+    }
+    function honorBentrokSlipHtml(b) {
+      if (!b || !b.total) return '';
+      return `<div style="margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;">⚠️ Ada ${b.total} kegiatan ber-honor yang jamnya bertumpuk (${b.daftar.slice(0, 3).map(p => escapeHtml(p.tanggal) + ': ' + escapeHtml(p.a.label) + ' &amp; ' + escapeHtml(p.b.label)).join('; ')}). Admin akan memeriksa honor ini sebelum dibayarkan.</div>`;
+    }
+
     // ---- Pengelompokan & agregasi honor per guru: SATU sumber untuk renderHonor, renderHonorSlip, honorPdfBuat dan
     // generateHonorReport (js/laporan-rekap.js). Dulu kunci guru, penjumlahan, dan rumus honor di-copy-paste di tiap tempat. ----
     // sumber = { journals, events, ujian, ekskulPic, religiPerGuru } -- semuanya SUDAH disaring periode & tahun ajaran (& guru, untuk slip).
@@ -787,6 +833,7 @@
       // guruKey kalau ada, kalau
       // tidak coba cari guruKey lewat nama via allGuru (guru itu sendiri PASTI unik by key),
       // baru fallback ke nama mentah kalau memang tidak ketemu guru manapun dgn nama itu.
+      const bentrokJam = honorCariBentrok(filteredUjian, filteredEvents);   // penanda saja; tidak mengubah angka honor
       const grup = honorKelompokkan({ journals: filteredJournals, events: filteredEvents, ujian: filteredUjian, ekskulPic: filteredEkskulPic, religiPerGuru: hs.hasil.perGuru });   // religi: { gk: { nama, dluha, dzuhur } } sudah lolos check-in/jam/kelengkapan
       const { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, dlKepala } = grup;
       const rates = v4GetHonorRates(), HONOR_KEPSEK = rates.kepsek, HONOR_KETUA_YAYASAN = rates.yayasan;   // diatur Admin di Tarif Honor Terpusat
@@ -821,7 +868,7 @@
       let totalPanjar = 0; tableData.forEach(it => { totalPanjar += panjarDari(it); });
       let htmlKas = '', htmlRincian = '';
       const panjarBanner = panjarOk ? '' : `<div style="margin-bottom:10px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:13px;color:#92400e;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><span>${panjarPesan} Kolom Panjar dan Sisa Dibayar belum dapat dihitung (tanda ⚠️ ?).</span><button class="btn btn-soft" onclick="honorPanjarInvalidate();renderHonor()">🔄 Muat ulang panjar</button></div>`;
-      let html = panjarBanner + `<div style="overflow-x:auto;"><table class="honor-rekap-tbl"><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
+      let html = panjarBanner + honorBentrokBannerHtml(bentrokJam) + `<div style="overflow-x:auto;"><table class="honor-rekap-tbl"><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
       let no = start + 1;
       for (const item of pageItems) {
         const isBonus = item.isBonus || false, bgStyle = isBonus ? 'style="background:#fef3c7;font-weight:600;"' : '';
@@ -836,7 +883,7 @@
         if (!panjarTakTahu && item.gkey && pj > item.honor) panjarCell += ' ⚠️';
         if (!panjarTakTahu && item.gkey && isAdmin()) panjarCell += ` <button class="btn btn-soft" style="padding:1px 7px;font-size:11px;" title="Catat panjar" onclick="honorPanjarTambah('${escapeJs(item.gkey)}')">➕</button>`;
         const sisaCell = panjarTakTahu ? PANJAR_TAK_TAHU : 'Rp ' + (item.gkey ? Math.max(0, item.honor - pj) : item.honor).toLocaleString();
-        html += `<tr ${bgStyle}><td>${no++}</td><td>${escapeHtml(item.guru)}</td><td>${item.reguler}</td><td>${item.nonReguler}</td><td>${ekstraCell}</td><td>${item.dluha}</td><td>${item.dzuhur}</td><td>${eventCell}</td><td>${ujianCell}</td><td>${tunjanganCell}</td><td>${transportCell}</td><td>Rp ${item.honor.toLocaleString()}</td><td>${panjarCell}</td><td>${sisaCell}</td></tr>`;
+        html += `<tr ${bgStyle}><td>${no++}</td><td>${escapeHtml(item.guru)}${(item.gkey && bentrokJam.perGuru[item.gkey]) ? ` <span title="Honor bertumpuk jam (${bentrokJam.perGuru[item.gkey].length}) — periksa sebelum dibayar" style="color:#b91c1c;cursor:help;">⚠️</span>` : ''}</td><td>${item.reguler}</td><td>${item.nonReguler}</td><td>${ekstraCell}</td><td>${item.dluha}</td><td>${item.dzuhur}</td><td>${eventCell}</td><td>${ujianCell}</td><td>${tunjanganCell}</td><td>${transportCell}</td><td>Rp ${item.honor.toLocaleString()}</td><td>${panjarCell}</td><td>${sisaCell}</td></tr>`;
       }
       html += `</tbody><tfoot><tr style="background:#f3f4f6;font-weight:700;"><th colspan="2" style="text-align:right;">TOTAL</th><th>${totalReguler}</th><th>${totalNonReguler}</th><th>${totalEkstra}x (Rp ${totalEkstraHonor.toLocaleString()})</th><th>${totalDluha}</th><th>${totalDzuhur}</th><th>${totalEventJumlah}x (Rp ${totalEventHonor.toLocaleString()})</th><th>${totalUjianJumlah}x (Rp ${totalUjianHonor.toLocaleString()})</th><th>Rp ${totalTunjangan.toLocaleString()}</th><th>Rp ${totalTransport.toLocaleString()}</th><th style="color:#059669;">Rp ${totalHonor.toLocaleString()}</th><th>${panjarOk ? 'Rp ' + totalPanjar.toLocaleString() : PANJAR_TAK_TAHU}</th><th>${panjarOk ? 'Rp ' + (totalHonor - totalPanjar).toLocaleString() : PANJAR_TAK_TAHU}</th></tr></tfoot></table></div>`;
       html += (typeof hkRekapHtml === 'function') ? hkRekapHtml(kbr, year + '-' + month, totalHonor) : '';   // fix_44: honor kebersihan tampil juga di tab Rekap Honor
@@ -1258,7 +1305,7 @@
             <div style="font-weight:800;font-size:16px;">🧾 SLIP HONOR</div>
             <div class="text-muted" style="font-size:12px;">${escapeHtml(namaSaya)} • ${namaBulan} ${year}</div>
           </div>
-          <table style="width:100%;font-size:13px;border-collapse:collapse;"><tr><th style="text-align:left;">Rincian</th><th style="text-align:center;">Jumlah</th><th style="text-align:right;">Honor</th></tr>${rows}</table>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;"><tr><th style="text-align:left;">Rincian</th><th style="text-align:center;">Jumlah</th><th style="text-align:right;">Honor</th></tr>${rows}</table>${honorBentrokSlipHtml(honorCariBentrok(fUjian, fEvents))}
           ${mewakiliHtml}${ditolakHtml}
           <div style="border-top:2px dashed #94a3b8;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:800;font-size:15px;">
             <span>TOTAL</span><span style="color:#059669;">Rp ${total.toLocaleString()}</span>
