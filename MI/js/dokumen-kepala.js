@@ -255,14 +255,32 @@
     return h + '</div>';
   }
   // Riwayat perubahan (jejak audit): satu entri per penyimpanan yang mengubah status/tanggal/tautan. Tidak pernah diubah atau dihapus dari aplikasi.
+  // Beda dua rekaman pada kolom tertentu -> { kolom: [lama, baru] } (teks maks. 200 huruf). Kosong bila tidak ada yang berubah.
+  function bedaFld(lama, baru, daftar) {
+    var u = {};
+    daftar.forEach(function (f) {
+      var a = lama && lama[f] != null ? lama[f] : '', b = baru && baru[f] != null ? baru[f] : '';
+      if (String(a) !== String(b)) u[f] = [String(a).slice(0, 200), String(b).slice(0, 200)];
+    });
+    return u;
+  }
+  var riwayatGagalT = 0;
   function catatRiwayat(id, nama, ubah) {
-    if (!Object.keys(ubah).length || typeof db === 'undefined') return;
-    try { var key = db.ref(NODE + '/riwayat').push().key; tulis('riwayat/' + key, { dok: id, nama: String(nama).slice(0, 120), t: Date.now(), oleh: namaPengguna(), ubah: ubah }, function () {}); } catch (x) {}
+    if (!ubah || !Object.keys(ubah).length || typeof db === 'undefined') return;
+    // Jejak audit tidak boleh gagal diam-diam: bila Rules menolak, beri tahu (maks. sekali per 8 detik).
+    var gagal = function (e) {
+      if (Date.now() - riwayatGagalT < 8000) return; riwayatGagalT = Date.now();
+      pesan('Perubahan sudah tersimpan, tetapi riwayatnya GAGAL dicatat' + (e && e.message ? ' (' + e.message + ')' : '') + '. Periksa Rules "riwayat" di ' + NODE + '.', true);
+    };
+    try { var key = db.ref(NODE + '/riwayat').push().key; tulis('riwayat/' + key, { dok: String(id).slice(0, 60), nama: String(nama).slice(0, 120), t: Date.now(), oleh: namaPengguna(), ubah: ubah }, function (e) { if (e) gagal(e); }); } catch (x) { gagal(x); }
   }
   // Dipakai tab Audit untuk menjadikan sub kegiatan prioritas EDM sebagai program RKT (hanya memakai kolom RKT yang sudah ada).
   function tambahProgramRkt(label, rec, cb) {
     var key = db.ref(NODE + '/rkt/' + taKey(label)).push().key; rec.upd = Date.now();
-    tulis('rkt/' + taKey(label) + '/' + key, rec, cb);
+    tulis('rkt/' + taKey(label) + '/' + key, rec, function (e) {
+      if (!e) catatRiwayat('rkt-' + taKey(label), 'RKT ' + label + ': ' + String(rec.program || ''), { program: ['(baru, dari prioritas EDM)', String(rec.program || '').slice(0, 200)] });
+      if (cb) cb(e);
+    });
   }
   function simpanDok(id, patch, cb) {
     var def = semuaDefinisi().filter(function (d) { return d.id === id; })[0]; if (!def) return;
@@ -274,7 +292,7 @@
     if (st !== 'disahkan') delete r.tglSah;
     r.status = st; r.upd = Date.now(); r.oleh = namaPengguna();
     Object.keys(r).forEach(function (k) { if (r[k] === '' || r[k] == null) delete r[k]; });
-    var ubah = {}; ['status', 'tgl', 'tglSah', 'link'].forEach(function (f) { var a = lama[f] || '', b = r[f] || ''; if (a !== b) ubah[f] = [String(a).slice(0, 200), String(b).slice(0, 200)]; });
+    var ubah = {}; ['status', 'tgl', 'tglSah', 'link', 'catatan'].forEach(function (f) { var a = lama[f] || '', b = r[f] || ''; if (a !== b) ubah[f] = [String(a).slice(0, 200), String(b).slice(0, 200)]; });
     tulis('dokumen/' + id, r, function (e) {
       if (e) { galatTulis(e); } else { try { if (typeof addLog === 'function') addLog('dokumen_kepala_ubah', def.nama + ' -> ' + st); } catch (x) {} catatRiwayat(id, def.nama, ubah); }
       segar();
@@ -380,13 +398,14 @@
       var key = id || db.ref(NODE + '/rkt/' + taKey(label)).push().key;
       tulis('rkt/' + taKey(label) + '/' + key, rec, function (e) {
         if (e) { galatTulis(e); return; }
+        try { catatRiwayat('rkt-' + taKey(label), 'RKT ' + label + ': ' + prog, id ? bedaFld(p, rec, ['program', 'bidang', 'status', 'progres', 'pj', 'target', 'tenggat', 'indikator', 'catatan']) : { program: ['(baru)', prog.slice(0, 200)] }); } catch (x) {}
         try { if (typeof addLog === 'function') addLog('rkt_program_simpan', prog); } catch (x) {}
         tutupModal(); segar();
       });
     };
     if (id) el('dkpDel').onclick = function () {
       if (typeof confirm === 'function' && !confirm('Hapus program "' + (p.program || '') + '"?')) return;
-      tulis('rkt/' + taKey(label) + '/' + id, null, function (e) { if (e) galatTulis(e); else { tutupModal(); segar(); } });
+      tulis('rkt/' + taKey(label) + '/' + id, null, function (e) { if (e) galatTulis(e); else { catatRiwayat('rkt-' + taKey(label), 'RKT ' + label + ': ' + (p.program || ''), { program: [String(p.program || '').slice(0, 200), '(dihapus)'] }); tutupModal(); segar(); } });
     };
   }
   function salinDariLalu() {
@@ -396,13 +415,14 @@
       ['indikator', 'target', 'pj', 'kpi'].forEach(function (f) { if (p[f]) r[f] = p[f]; });
       o[k] = r;
     });
-    tulisBanyak('rkt/' + taKey(label), o, function (e) { if (e) galatTulis(e); else { pesan(lalu.length + ' program disalin.'); segar(); } });
+    tulisBanyak('rkt/' + taKey(label), o, function (e) { if (e) galatTulis(e); else { catatRiwayat('rkt-' + taKey(label), 'RKT ' + label, { program: ['(salin)', lalu.length + ' program disalin dari RKT sebelumnya'] }); pesan(lalu.length + ' program disalin.'); segar(); } });
   }
   function ubahProgramCepat(id, patch) {
     var label = taTerpilih(), p = dataRkt(label)[id]; if (!p) return;
     var r = {}; Object.keys(p).forEach(function (k) { r[k] = p[k]; }); delete r.id;
     Object.keys(patch).forEach(function (k) { r[k] = patch[k]; }); r.upd = Date.now();
-    tulis('rkt/' + taKey(label) + '/' + id, r, function (e) { if (e) galatTulis(e); segar(); });
+    var ubFld = bedaFld(p, r, Object.keys(patch).filter(function (k) { return k !== 'upd'; }));
+    tulis('rkt/' + taKey(label) + '/' + id, r, function (e) { if (e) galatTulis(e); else catatRiwayat('rkt-' + taKey(label), 'RKT ' + label + ': ' + (p.program || ''), ubFld); segar(); });
   }
 
   // ---------- TAB 3: kerangka dokumen ----------
@@ -493,8 +513,11 @@
     var v = (el('dkVisi') || {}).value || '', m = (el('dkMisi') || {}).value || '', t = (el('dkTujuan') || {}).value || '';
     v = v.trim(); m = barisTeks(m, 12).join('\n'); t = barisTeks(t, 12).join('\n');
     if (v.length > 600 || m.length > 2500 || t.length > 2500) { pesan('Teks terlalu panjang.', true); return; }
+    var lamaP = (S.D || {}).profil || {}, ubP = {};
+    [['visi', v], ['misi', m], ['tujuan', t]].forEach(function (x) { if (String(lamaP[x[0]] || '') !== x[1]) ubP[x[0]] = [String(lamaP[x[0]] || '').length + ' huruf', x[1].length + ' huruf']; });
     tulis('profil', { visi: v, misi: m, tujuan: t, upd: Date.now(), oleh: namaPengguna() }, function (err) {
       if (err) { galatTulis(err); return; }
+      catatRiwayat('profil', 'Visi, misi, dan tujuan', ubP);
       pesan('Visi, misi, dan tujuan tersimpan.'); segar();
     });
   }
@@ -759,5 +782,5 @@
 
   window.DokumenKepala = { pengingat: pengingat, tambahBulan: tambahBulan, kpiProgres: kpiProgres, ctxDokumen: ctxDokumen,
     _i: { S: S, DD: DD, esc: esc, pesan: pesan, unduh: unduh, tulis: tulis, segar: segar, hariIni: hariIni, taAktif: taAktif, taLabel: taLabel, semuaDefinisi: semuaDefinisi, rekam: rekam,
-      pengingat: pengingat, daftarProgram: daftarProgram, terlambat: terlambat, kpiSnap: kpiSnap, kpiProgres: kpiProgres, dataSekolah: dataSekolah, namaPengguna: namaPengguna, galatTulis: galatTulis, tglId: tglId, tambahProgramRkt: tambahProgramRkt } };
+      pengingat: pengingat, daftarProgram: daftarProgram, terlambat: terlambat, kpiSnap: kpiSnap, kpiProgres: kpiProgres, dataSekolah: dataSekolah, namaPengguna: namaPengguna, galatTulis: galatTulis, tglId: tglId, tambahProgramRkt: tambahProgramRkt, catatRiwayat: catatRiwayat, bedaFld: bedaFld } };
 })();

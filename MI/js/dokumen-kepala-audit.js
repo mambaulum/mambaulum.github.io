@@ -289,20 +289,32 @@
     }
     return out;
   }
-  var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
-  function muatPdfJs() {
-    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/', PDFV = '3.11.174', PDFLOKAL = 'vendor/';
+  function muatSkrip(src, batas) {
     return new Promise(function (ok, gagal) {
-      var sc = document.createElement('script'); sc.src = PDFJS + 'pdf.min.js'; sc.async = true;
-      var t = setTimeout(function () { sc.remove(); gagal(new Error('Waktu habis memuat pembaca PDF.')); }, 45000);
-      sc.onload = function () { clearTimeout(t); if (window.pdfjsLib) ok(window.pdfjsLib); else gagal(new Error('Pembaca PDF tidak siap.')); };
+      var sc = document.createElement('script'); sc.src = src; sc.async = true;
+      var t = setTimeout(function () { sc.remove(); gagal(new Error('Waktu habis memuat pembaca PDF.')); }, batas);
+      sc.onload = function () { clearTimeout(t); if (window.pdfjsLib) ok(window.pdfjsLib); else { sc.remove(); gagal(new Error('Pembaca PDF tidak siap.')); } };
       sc.onerror = function () { clearTimeout(t); sc.remove(); gagal(new Error('Gagal memuat pembaca PDF. Periksa koneksi internet.')); };
       document.head.appendChild(sc);
-    }).then(function (lib) {   // worker dari CDN lain-origin tidak boleh dibuat langsung: ambil sebagai blob
-      return fetch(PDFJS + 'pdf.worker.min.js').then(function (r) { if (!r.ok) throw new Error('worker'); return r.blob(); })
-        .then(function (b) { lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(b); return lib; })
-        .catch(function () { lib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; return lib; });
     });
+  }
+  // Ambil berkas worker dari alamat pertama yang berhasil (bukan halaman HTML pengganti); jadikan blob agar lolos aturan lintas-origin.
+  function ambilWorker(daftar) {
+    return daftar.reduce(function (p, u) {
+      return p.catch(function () {
+        return fetch(u).then(function (x) { if (!x.ok || /text\/html/i.test(x.headers.get('content-type') || '')) throw new Error('worker'); return x.blob(); });
+      });
+    }, Promise.reject(new Error('mulai'))).then(function (b) { return URL.createObjectURL(b); }, function () { return daftar[daftar.length - 1]; });
+  }
+  // Urutan: salinan sendiri di vendor/ (tanpa CDN, bisa offline) -> CDN cdnjs bila salinan sendiri belum ada.
+  function muatPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    var wLokal = PDFLOKAL + 'pdf.worker.min.js?v=' + PDFV, wCdn = PDFJS + 'pdf.worker.min.js';
+    return muatSkrip(PDFLOKAL + 'pdf.min.js?v=' + PDFV, 15000).then(
+      function (lib) { return [lib, [wLokal, wCdn]]; },
+      function () { return muatSkrip(PDFJS + 'pdf.min.js', 45000).then(function (lib) { return [lib, [wCdn]]; }); }
+    ).then(function (r) { return ambilWorker(r[1]).then(function (u) { r[0].GlobalWorkerOptions.workerSrc = u; return r[0]; }); });
   }
   function bacaPdf(file) {
     return Promise.all([muatPdfJs(), file.arrayBuffer()]).then(function (r) { return r[0].getDocument({ data: r[1] }).promise; }).then(function (doc) {
@@ -318,12 +330,14 @@
     var y = +I.hariIni().slice(0, 4); thn = thn || String(y);
     var rec = (S.D.edm || {})[thn] || {}, jw = rec.jawaban || {}, H = hitung(jw);
     var h = '<div class="dk-h">Hasil EDM / SKPM <small>dicatat manual dari rangkuman EDM</small></div><div class="dk-ker">' +
-      '<div class="dk-ctl"><label>Tahun EDM<select id="dkAudThn" class="dk-in">' + [y - 1, y].map(function (t) { return '<option value="' + t + '"' + (String(t) === thn ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></label></div>';
+      '<div class="dk-ctl"><label>Tahun EDM<select id="dkAudThn" class="dk-in">' + [y - 2, y - 1, y].map(function (t) { return '<option value="' + t + '"' + (String(t) === thn ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></label></div>';
     if (H.terisi) {
       h += '<table style="width:100%;font-size:13px;margin-top:8px;border-collapse:collapse;"><tbody>' + H.aspek.map(function (a) { return '<tr><td style="padding:2px 0;">' + a.k + '. ' + esc(a.n) + '</td><td style="text-align:right;">' + f1(a.skor) + '</td><td style="text-align:right;padding-left:10px;">' + a.kat + '</td></tr>'; }).join('') +
         '<tr><td style="padding-top:6px;"><b>Nilai SKPM</b></td><td style="text-align:right;padding-top:6px;"><b>' + f1(H.total) + '</b></td><td style="text-align:right;padding-left:10px;padding-top:6px;"><b>' + kategori(H.total) + '</b></td></tr></tbody></table>';
     } else h += '<p class="text-muted" style="font-size:12px;">Belum ada jawaban untuk tahun ini.</p>';
-    h += '<details style="margin-top:8px;"' + (H.terisi ? '' : ' open') + '><summary>Isi atau ubah jawaban (' + JML_IND + ' indikator, tingkat 1–4)</summary>';
+    h += '<div class="dk-ctl" style="margin-top:8px;"><label class="btn btn-primary" style="cursor:pointer;">Impor dari PDF rangkuman EDM<input type="file" id="dkAudPdf" accept="application/pdf,.pdf" style="display:none;"></label>' +
+      '<button type="button" class="btn btn-primary" id="dkAudSimpan">Simpan hasil EDM</button>' + (thn === '2026' ? '<button type="button" class="btn btn-soft" id="dkAudIsi2026">Isi dari rangkuman EDM 2026 (PDF)</button>' : '') + '</div><div class="dk-ket" id="dkAudPdfInfo"></div>';  // selalu tampak (tidak di dalam <details>)
+    h += '<details id="dkAudDet" style="margin-top:8px;"' + (H.terisi ? '' : ' open') + '><summary>Isi atau ubah jawaban (' + JML_IND + ' indikator, tingkat 1–4)</summary>';
     ASPEK.forEach(function (a) {
       h += '<div style="font-size:12px;font-weight:700;margin:8px 0 2px;">' + a.k + '. ' + esc(a.n) + '</div><div class="dk-2">' + a.ind.map(function (x, i) {
         var c = kode(a, i), v = +jw[c] || 0;
@@ -332,8 +346,7 @@
     });
     h += '<div class="dk-2" style="margin-top:8px;"><label class="dk-f">Status persetujuan EDM<select id="dkAudStatus" class="dk-in"><option value="belum"' + (rec.status !== 'disetujui' ? ' selected' : '') + '>Belum disetujui</option><option value="disetujui"' + (rec.status === 'disetujui' ? ' selected' : '') + '>Disetujui</option></select></label>' +
       '<label class="dk-f">Nilai SKPM resmi (opsional, untuk verifikasi)<input id="dkAudSkpm" type="number" step="0.1" min="0" max="100" class="dk-in" value="' + (rec.skpm != null ? esc(rec.skpm) : '') + '"></label></div>' +
-      '<div class="dk-ctl"><label class="btn btn-soft" style="cursor:pointer;">Impor dari PDF rangkuman EDM<input type="file" id="dkAudPdf" accept="application/pdf,.pdf" style="display:none;"></label></div><div class="dk-ket" id="dkAudPdfInfo"></div>' +
-      '<div class="dk-ctl"><button type="button" class="btn btn-primary" id="dkAudSimpan">Simpan hasil EDM</button>' + (thn === '2026' ? '<button type="button" class="btn btn-soft" id="dkAudIsi2026">Isi dari rangkuman EDM 2026 (PDF)</button>' : '') + '</div></details></div>';
+      '</details></div>';
     return h;
   }
   function htmlPrioritas() {
@@ -350,16 +363,22 @@
     });
     return h + '<div class="dk-ctl"><button type="button" class="btn btn-soft" id="dkAudPrioSemua">' + (semuaPrio ? 'Tampilkan 15 teratas' : 'Tampilkan semua (' + pri.length + ')') + '</button></div>';
   }
+  var rwF = '', rwN = 25;   // filter dokumen dan jumlah entri riwayat yang tampil
   function htmlRiwayat() {
-    var R = S.D.riwayat || {}, a = Object.keys(R).map(function (k) { return R[k]; }).filter(function (x) { return x && x.t; }).sort(function (p, q) { return q.t - p.t; }).slice(0, 25);
-    var NM = { status: 'status', tgl: 'tgl. penyusunan', tglSah: 'tgl. pengesahan', link: 'tautan' };
-    var h = '<div class="dk-h">Riwayat perubahan dokumen <small>25 terbaru</small></div>';
-    if (!a.length) return h + '<p class="text-muted" style="font-size:12px;">Belum ada riwayat. Perubahan status, tanggal, dan tautan dokumen mulai dicatat sejak versi ini.</p>';
-    return h + a.map(function (x) {
-      var d = new Date(x.t), ts = I.hariIni && d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+    var R = S.D.riwayat || {}, semua = Object.keys(R).map(function (k) { return R[k]; }).filter(function (x) { return x && x.t; }).sort(function (p, q) { return q.t - p.t; });
+    var NM = { status: 'status', tgl: 'tgl. penyusunan', tglSah: 'tgl. pengesahan', link: 'tautan', catatan: 'catatan', jawaban: 'jawaban EDM', skpm: 'SKPM resmi', program: 'program', bidang: 'bidang', progres: 'progres', pj: 'penanggung jawab', target: 'target', tenggat: 'tenggat', indikator: 'indikator', visi: 'visi', misi: 'misi', tujuan: 'tujuan' };
+    var dok = {}; semua.forEach(function (x) { dok[x.dok] = x.nama || x.dok; });
+    var a = rwF ? semua.filter(function (x) { return x.dok === rwF; }) : semua, tampak = a.slice(0, rwN);
+    var h = '<div class="dk-h">Riwayat perubahan <small>' + tampak.length + ' dari ' + a.length + '</small></div>';
+    if (!semua.length) return h + '<p class="text-muted" style="font-size:12px;">Belum ada riwayat. Perubahan dokumen, RKT, EDM, dan profil dicatat di sini.</p>';
+    h += '<div class="dk-ctl"><label>Dokumen<select id="dkAudRwF" class="dk-in"><option value="">Semua</option>' + Object.keys(dok).sort(function (p, q) { return String(dok[p]).localeCompare(String(dok[q]), 'id'); }).map(function (k) { return '<option value="' + esc(k) + '"' + (k === rwF ? ' selected' : '') + '>' + esc(dok[k]) + '</option>'; }).join('') + '</select></label></div>';
+    h += tampak.map(function (x) {
+      var d = new Date(x.t), ts = d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
       var ub = Object.keys(x.ubah || {}).map(function (f) { var v = x.ubah[f] || []; return (NM[f] || f) + ': ' + (v[0] || '(kosong)') + ' → ' + (v[1] || '(kosong)'); }).join('; ');
       return '<div class="dk-row" style="padding:6px 10px;"><b style="font-size:13px;">' + esc(x.nama || x.dok) + '</b><div class="dk-ket" style="margin:0;">' + esc(ts) + ' oleh ' + esc(x.oleh || '-') + '</div><div style="font-size:12px;">' + esc(ub) + '</div></div>';
     }).join('');
+    if (a.length > tampak.length) h += '<div class="dk-ctl"><button type="button" class="btn btn-soft" id="dkAudRwMore">Tampilkan 25 lagi</button></div>';
+    return h;
   }
   function html() {
     var T = jalankan(), n = { kritis: 0, perhatian: 0, saran: 0 };
@@ -384,8 +403,15 @@
     var rec = { jawaban: jw, status: document.getElementById('dkAudStatus').value === 'disetujui' ? 'disetujui' : 'belum', upd: Date.now(), oleh: I.namaPengguna() };
     a = parseFloat(document.getElementById('dkAudSkpm').value); if (isFinite(a)) rec.skpm = a;
     if (impor && impor.tahun === thn && impor.prioritas.length) rec.prioritas = impor.prioritas.map(function (x) { return x[0] + '|' + x[1]; });
+    var lama = (S.D.edm || {})[thn] || {}, lamaJw = lama.jawaban || {}, ub = {}, beda = 0;
+    Object.keys(jw).forEach(function (k) { if (lamaJw[k] !== jw[k]) beda++; });
+    Object.keys(lamaJw).forEach(function (k) { if (!(k in jw)) beda++; });
+    if (beda) ub.jawaban = [Object.keys(lamaJw).length + ' indikator', Object.keys(jw).length + ' indikator, ' + beda + ' diubah'];
+    if (String(lama.status || 'belum') !== rec.status) ub.status = [String(lama.status || 'belum'), rec.status];
+    if (String(lama.skpm == null ? '' : lama.skpm) !== String(rec.skpm == null ? '' : rec.skpm)) ub.skpm = [String(lama.skpm == null ? '' : lama.skpm), String(rec.skpm == null ? '' : rec.skpm)];
     I.tulis('edm/' + thn, rec, function (e) {
       if (e) { I.galatTulis(e); return; }
+      try { if (I.catatRiwayat) I.catatRiwayat('edm-' + thn, 'EDM ' + thn, ub); } catch (x) {}
       try { if (typeof addLog === 'function') addLog('dokumen_kepala_ubah', 'EDM ' + thn + ' dicatat (' + ada + ' indikator)'); } catch (x) {}
       impor = null; I.pesan('Hasil EDM disimpan.'); I.segar();
     });
@@ -411,10 +437,12 @@
         isiForm(o.jawaban, o.skpm, o.belumDisetujui);
         var H = hitung(o.jawaban);
         msg.push('Terbaca ' + n + ' dari ' + JML_IND + ' indikator dan ' + o.prioritas.length + ' sub kegiatan prioritas.');
+        if (n < JML_IND) msg.push('PERINGATAN: hanya ' + n + ' dari ' + JML_IND + ' indikator terbaca, format PDF mungkin berbeda dari rangkuman EDM 2026. Lengkapi dan periksa isian secara manual sebelum menyimpan.');
         if (H.total != null && o.skpm != null) msg.push(Math.abs(H.total - o.skpm) <= 0.1 ? 'SKPM hasil hitungan ' + f1(H.total) + ' cocok dengan yang tertulis di PDF (' + f1(o.skpm) + ').' : 'PERHATIAN: SKPM hitungan ' + f1(H.total) + ' tidak sama dengan yang tertulis di PDF (' + f1(o.skpm) + '). Periksa jawaban sebelum menyimpan.');
         if (o.belumDisetujui) msg.push('PDF bertanda "Belum Disetujui".'); else msg.push('Status persetujuan tidak terbaca; periksa isian status.');
         o.peringatan.forEach(function (x) { msg.push(x); });
         impor = { tahun: thn, prioritas: o.prioritas };
+        var det = document.getElementById('dkAudDet'); if (det) det.open = true;   // tampilkan isian yang baru terisi
         msg.push('Periksa isiannya, lalu tekan Simpan hasil EDM.');
       }
       var inf = document.getElementById('dkAudPdfInfo'); if (inf) inf.textContent = msg.join(' ');
@@ -450,10 +478,12 @@
       if ((b = t.closest('[data-audprio]'))) { tambahPrio([b.getAttribute('data-audprio')]); return; }
       if ((b = t.closest('#dkAudPrioBatch'))) { tambahPrio(b.getAttribute('data-kode').split(',')); return; }
       if (t.closest('#dkAudPrioSemua')) { semuaPrio = !semuaPrio; I.segar(); return; }
+      if (t.closest('#dkAudRwMore')) { rwN += 25; I.segar(); return; }
     });
     pg.addEventListener('change', function (ev) {
       var t = ev.target; if (!t) return;
       if (t.id === 'dkAudThn') { thn = t.value; impor = null; I.segar(); }
+      else if (t.id === 'dkAudRwF') { rwF = t.value; rwN = 25; I.segar(); }
       else if (t.id === 'dkAudPdf' && t.files && t.files[0]) { imporPdf(t.files[0]); t.value = ''; }
     });
   }

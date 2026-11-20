@@ -6,7 +6,8 @@
 //   2) layar login (isian)     -> kembali ke pilihan peran
 //   3) sidebar / modal terbuka -> tutup
 //   4) bukan Dashboard         -> halaman sebelumnya (atau Dashboard)
-//   5) Dashboard / layar awal  -> kotak konfirmasi "Keluar dari aplikasi?" (Kembali sekali lagi = tetap di sini)
+//   (sebelum 3-4: bila ada isian yang diketik tapi belum disimpan, tampil konfirmasi "Tinggalkan halaman ini?")
+//   5) Dashboard / layar awal  -> pesan "Tekan Kembali sekali lagi untuk keluar"; tekanan kedua (2,5 detik) keluar secara native
 // Tidak mengubah app.js. Halaman yang dikunjungi dibaca dari kelas .page-content (tidak membungkus navigateTo).
 // Entri penjaga baru dipasang sesudah sentuhan pertama, karena Chrome melewati entri riwayat yang dibuat tanpa interaksi pengguna.
 // ============================================================
@@ -15,7 +16,7 @@
   if (window.SimambaKembali) return;
 
   var MAKS = 30, OPEN = '.modal-overlay.show, .v4-modal-backdrop.show';
-  var armed = false, riw = [], cur = 'dashboard', dialog = null;
+  var armed = false, riw = [], cur = 'dashboard', kotor = false;
   var lebarDasar = 0, tinggiDasar = 0;
 
   function el(id) { return document.getElementById(id); }
@@ -28,10 +29,10 @@
   // ---------- halaman yang sedang tampil ----------
   function halamanSekarang() { var p = document.querySelector('.page-content:not(.hidden)'); return p && p.id ? String(p.id).replace(/^page-/, '') : null; }
   function catat() {
-    if (layarLogin()) { riw = []; cur = 'dashboard'; return; }   // logout/login baru: mulai dari awal
+    if (layarLogin()) { riw = []; cur = 'dashboard'; kotor = false; return; }   // logout/login baru: mulai dari awal
     var p = halamanSekarang(); if (!p || p === cur) return;
     riw.push(cur); if (riw.length > MAKS) riw.shift();
-    cur = p;
+    cur = p; kotor = false;
   }
 
   // ---------- keyboard ----------
@@ -83,31 +84,16 @@
       armed = true;
     } catch (e) {}
   }
-  function info(msg) { try { if (typeof toast === 'function') toast(msg, false, 4000); } catch (e) {} }
-  // Kotak konfirmasi keluar. Kembali saat kotak terbuka = menutupnya (tetap di aplikasi).
-  function tutupDialog() { if (dialog) { try { dialog.remove(); } catch (e) {} dialog = null; } }
-  function keluar() {
-    tutupDialog(); armed = false;
-    try { if (history.length > 2) { history.go(-2); return; } } catch (e) {}   // ada halaman sebelum aplikasi: kembali ke sana (melewati entri base dan guard)
-    try { window.close(); } catch (e2) {}
-    try { history.back(); } catch (e3) {}
-    info('Tekan tombol Kembali sistem sekali lagi untuk menutup aplikasi.');   // aplikasi terpasang (PWA) tidak bisa menutup diri lewat kode
-  }
-  function tampilDialog() {
-    if (dialog) return;
-    var gelap = !!(document.body && document.body.classList && document.body.classList.contains('dark-mode'));
-    var o = document.createElement('div');
-    o.setAttribute('style', 'position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;');
-    o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true');
-    o.innerHTML = '<div style="max-width:340px;width:100%;border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.3);background:' + (gelap ? '#1e293b' : '#fff') + ';color:' + (gelap ? '#e5e7eb' : '#1f2937') + ';">' +
-      '<div style="font-size:16px;font-weight:700;margin-bottom:6px;">Keluar dari aplikasi?</div>' +
-      '<div style="font-size:13px;opacity:.8;margin-bottom:14px;">Isian yang belum disimpan akan hilang.</div>' +
-      '<div style="display:flex;gap:8px;justify-content:flex-end;"><button type="button" class="btn btn-soft" data-k="tetap">Tetap di sini</button><button type="button" class="btn btn-primary" data-k="keluar">Keluar</button></div></div>';
-    o.querySelector('[data-k="tetap"]').onclick = tutupDialog;
-    o.querySelector('[data-k="keluar"]').onclick = keluar;
-    o.addEventListener('mousedown', function (ev) { if (ev.target === o) tutupDialog(); });
-    document.body.appendChild(o); dialog = o;
-    try { o.querySelector('[data-k="tetap"]').focus(); } catch (e) {}
+  function info(msg) { try { if (typeof toast === 'function') toast(msg, false, 2500); } catch (e) {} }
+  // Keluar dengan pola "tekan Kembali dua kali". Aplikasi terpasang (PWA) tidak bisa menutup diri lewat kode, jadi:
+  // Kembali pertama di Dashboard -> pesan + penjaga TIDAK dipasang ulang (browser sudah di entri awal);
+  // Kembali kedua (dalam 2,5 detik) -> keluar secara native. Bila tidak ada tekanan kedua, penjaga dipasang lagi.
+  var keluarSiap = false, timerKeluar = null;
+  function mintaKeluar() {
+    keluarSiap = true;
+    info('Tekan Kembali sekali lagi untuk keluar');
+    clearTimeout(timerKeluar);
+    timerKeluar = setTimeout(function () { keluarSiap = false; if ((history.state || {}).sm === 'base') pasangGuard(); }, 2500);
   }
 
   // Dipanggil setiap tombol Kembali ditekan dan browser mendarat di entri "base" (entri penjaga terlepas).
@@ -116,16 +102,36 @@
     var st = history.state || {};
     if (st.sm !== 'base') return;
     ev.stopImmediatePropagation();
-    if (dialog) { tutupDialog(); pasangGuard(); return; }                     // Kembali saat kotak keluar terbuka = tetap di aplikasi
     var a = document.activeElement, tujuan;
     if (medanKetik(a)) { var kb = keyboardTampak(); try { a.blur(); } catch (e) {} if (kb) { pasangGuard(); return; } }
     if (tampil(el('loginPage')) && typeof window.kembaliKeChooser === 'function') { pasangGuard(); window.kembaliKeChooser(); return; }
-    if (tutupSidebar() || tutupOverlay()) { pasangGuard(); return; }
+    if (tutupSidebar()) { pasangGuard(); return; }
+    // Ada isian yang diketik tetapi belum disimpan dan Kembali akan meninggalkan halaman/jendela: minta konfirmasi.
+    var akanPindah = !!document.querySelector(OPEN) || (!layarLogin() && (riw.length > 0 || cur !== 'dashboard'));
+    if (kotor && akanPindah) { var lanjut = true; try { lanjut = window.confirm('Ada isian yang belum disimpan. Tinggalkan halaman ini?'); } catch (e3) {} if (!lanjut) { pasangGuard(); return; } }
+    kotor = false;
+    if (tutupOverlay()) { pasangGuard(); return; }
     if (!layarLogin()) {
       tujuan = riw.length ? riw.pop() : (cur !== 'dashboard' ? 'dashboard' : null);
       if (tujuan) { pasangGuard(); cur = tujuan; try { window.navigateTo(tujuan); } catch (e2) {} return; }
     }
-    pasangGuard(); tampilDialog();                                           // titik keluar: minta konfirmasi
+    mintaKeluar();                                                           // titik keluar: tekan Kembali sekali lagi
+  }, true);
+
+  // ---------- isian belum disimpan ----------
+  // Dianggap "kotor" bila pengguna mengetik di kolom teks (bukan kolom cari/filter) di dalam halaman atau jendela. Dibersihkan saat pindah
+  // halaman atau menekan tombol bertuliskan simpan/kirim/tambah/batal dst. Hanya dipakai untuk tombol Kembali, bukan menu samping.
+  var ABAI = /cari|search|filter|saring|kata.?kunci/i, TOMBOL = /simpan|kirim|tambah|catat|submit|terapkan|unggah|impor|selesai|setuju|hapus|batal|tutup/i;
+  document.addEventListener('input', function (ev) {
+    var t = ev.target; if (!t || !t.tagName || layarLogin() || t.readOnly || t.type === 'search') return;
+    if (t.tagName !== 'TEXTAREA' && !(t.tagName === 'INPUT' && /^(text|number|tel|email|url|date|time|datetime-local|month|password)$/i.test(t.type || 'text'))) return;
+    if (ABAI.test((t.id || '') + ' ' + (t.name || '') + ' ' + (t.placeholder || '') + ' ' + (t.getAttribute('aria-label') || ''))) return;
+    if (!(t.closest && t.closest('.page-content, ' + OPEN))) return;
+    kotor = true;
+  }, true);
+  document.addEventListener('click', function (ev) {
+    var b = ev.target && ev.target.closest && ev.target.closest('button, .btn, [role="button"]');
+    if (b && TOMBOL.test(b.textContent || '')) kotor = false;
   }, true);
 
   function mulai() {
@@ -137,6 +143,6 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mulai); else mulai();
 
-  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && dialog) tutupDialog(); });
+  document.addEventListener('pointerup', function () { if (armed && !keluarSiap && (history.state || {}).sm === 'base') pasangGuard(); }, true);   // penjaga hilang (mis. setelah halaman dipulihkan): pasang lagi
   window.SimambaKembali = { keyboardTampak: keyboardTampak };
 })();

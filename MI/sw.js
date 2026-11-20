@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.520';
+const APP_VERSION = 'v8.523';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -108,9 +108,8 @@ const PRECACHE_URLS = [
   './js/kpi.js?v=30',
   './js/docx-mini.js?v=1',                 // pembuat berkas Word tanpa pustaka luar (dimuat SEBELUM dokumen-kepala.js)
   './js/dokumen-kepala-data.js?v=6',       // daftar dokumen, bidang RKT, kerangka RKJM/RKT/Laporan RKT + SK tugas, jadwal, struktur, kalender, EDM
-  './js/dokumen-kepala.js?v=11',            // Dokumen Kepala Madrasah + Pemantau RKT + Kerangka Dokumen (SESUDAH app.js & kpi.js)
-  './js/dokumen-kepala-audit.js?v=3',      // tab Audit: pemeriksaan otomatis, hasil EDM/SKPM, riwayat perubahan (SESUDAH dokumen-kepala.js)
-  './js/tombol-kembali.js?v=2',            // tombol Kembali HP: tutup keyboard/modal, halaman sebelumnya, kotak konfirmasi keluar (SESUDAH app.js & dokumen-kepala.js)
+  './js/dokumen-kepala.js?v=12',            // Dokumen Kepala Madrasah + Pemantau RKT + Kerangka Dokumen (SESUDAH app.js & kpi.js)
+  './js/dokumen-kepala-audit.js?v=5',      // tab Audit: pemeriksaan otomatis, hasil EDM/SKPM, riwayat perubahan (SESUDAH dokumen-kepala.js)
   './js/nilai-harian.js?v=7',               // Catatan Nilai Harian -> NH1/NH2/NH3 (dimuat SESUDAH app.js)                        // KPI Madrasah: dashboard Admin & Kepala (dimuat SESUDAH app.js & infaq.js)
   './js/ortu-akun-admin.js?v=6',            // Akun Portal Ortu sisi Admin + Reset PIN (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/link-ortu.js?v=6',                  // Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js)
@@ -168,7 +167,7 @@ const PRECACHE_URLS = [
   './js/monitor-petugas.js?v=9',
   './js/dashboard-ringkas.js?v=3',          // Dashboard ringkas: lipat + donat status + donat bulanan + grafik SVG (gabungan 4 berkas lama)
   './js/rujukan.js?v=5',                   // catatan rujukan regulasi per menu/tab
-  './js/tombol-kembali.js?v=3',            // tombol kembali HP/PWA tersambung ke navigasi aplikasi
+  './js/tombol-kembali.js?v=6',            // tombol Kembali HP/PWA: tutup keyboard/modal, halaman sebelumnya, konfirmasi keluar (SESUDAH app.js & dokumen-kepala.js)
   './js/tab-halaman.js?v=2',               // tab per bagian untuk halaman panjang di HP
   './js/orang-tua-menu.js?v=5',            // menu sidebar Orang Tua (akun portal + riwayat login; dimuat PALING AKHIR)
   // Library inti (self-hosted, lihat download-vendor.bat) -- samakan ?v= dengan index.html
