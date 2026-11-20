@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.523",
-  "disimpan": "2026-11-20T01:19:11.519Z",
+  "appVersion": "v8.526",
+  "disimpan": "2026-11-20T02:06:56.067Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -55,8 +55,8 @@
       "hash": "3f0afd882d3dd7aaaa3eac8049d2e28e63a7e4de"
     },
     "js/administrasi-ujian.js": {
-      "v": "v=4",
-      "hash": "cb4527ef5036089095df5a4abeede1237ac3fbf1"
+      "v": "v=7",
+      "hash": "8cb75778b17e0885b0b1499954833f7cade6c34b"
     },
     "js/app.js": {
       "v": "v=175",
@@ -91,24 +91,24 @@
       "hash": "9d87a4d45671acfce1e63649dac3cd7c2b14714c"
     },
     "js/cek-data.js": {
-      "v": "v=5",
-      "hash": "cd09999e130b9234945c9e89401bd0f8169954a8"
+      "v": "v=6",
+      "hash": "436150b24c40f0dd79f1e6a967c0bba30cf20b1a"
     },
     "js/laporan-rekap.js": {
       "v": "v=4",
       "hash": "f9c46bde31fa3ad9d85d371013bebe9b12ec7a1f"
     },
     "js/honor-guru.js": {
-      "v": "v=27",
-      "hash": "6a95edff1460c68e9642d09deeb6ed5ec399612b"
+      "v": "v=28",
+      "hash": "46f98ef98e951a24cb6237e253f05b970674e44d"
     },
     "js/honor-kebersihan.js": {
       "v": "v=3",
       "hash": "830f74012e65391fb5dfe4ed4377815b35ba30f2"
     },
     "js/event-ujian.js": {
-      "v": "v=1",
-      "hash": "4c777afa2466bbc300634e13168f9556e0350d6d"
+      "v": "v=3",
+      "hash": "b1b0fe029764b06302e5109aaa84ab0c928d5cb1"
     },
     "js/pengingat-absen-guru.js": {
       "v": "v=4",
