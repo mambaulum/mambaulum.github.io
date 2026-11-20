@@ -1,5 +1,5 @@
 /* ============================================================
-   SI MAMBA - js/portal-tab.js (v12)
+   SI MAMBA - js/portal-tab.js (v13)
    Tab di Portal Orang Tua (khusus layar HP < 760px): Beranda | Amalan | Belajar | Angket | Lainnya.
    Tidak mengubah isi/kartu: setiap anak langsung #portalOrtuContent diberi data-ptab, lalu CSS menyembunyikan yang bukan tab aktif.
    Tab Angket menampung tiga angket (Kurikulum, Profil Lulusan, Keunggulan); titik merah muncul bila ada angket yang dibuka dan belum diisi.
@@ -239,7 +239,8 @@
     if (cc && arah !== 0) { cc.style.setProperty('--pt-dx', (arah > 0 ? '18px' : '-18px')); cc.setAttribute('data-anim', '1'); setTimeout(function () { cc.removeAttribute('data-anim'); }, 320); }
     aktif = k; try { sessionStorage.setItem(KUNCI, k); } catch (e) { /* abaikan */ }
     terapkan();
-    var b = el('poTabBar'); if (b && b.scrollIntoView && b.getBoundingClientRect().top < 0) { try { b.scrollIntoView({ block: 'start' }); } catch (e) { /* abaikan */ } }
+    // v13: tab ada di bawah layar (seperti tombol bawah guru), jadi ganti tab = kembali ke atas halaman.
+    try { window.scrollTo(0, 0); } catch (e) { /* abaikan */ }
   };
   // Buka tab tempat elemen berada (dipakai kotak Ringkasan sebelum menggulir ke rincian).
   window.ptTampilkanDi = function (node) {
@@ -365,6 +366,23 @@
     + '#portalOrtuContent .po-acc:has(>summary .po-badge.warn){box-shadow:inset 4px 0 0 #f59e0b,0 1px 3px rgba(0,0,0,.06)!important}'
     + '#poPengingatBeranda,#bsOrtuPengingat{box-shadow:inset 4px 0 0 #f59e0b,0 1px 3px rgba(0,0,0,.06)!important}'
     + '@media(max-width:759px){.po-ub-j{font-size:10.5px!important}}';
+  // v13: tab dipindah ke BAWAH layar, gayanya meniru .bottom-nav milik guru (putih, sudut atas membulat, penanda hijau di tepi atas tab aktif).
+  // Hanya HP (< 760px). Menimpa gaya "pil sticky di atas" di atas lewat selektor yang lebih spesifik.
+  css.textContent += '@media(max-width:759px){'
+    + '#portalOrtuDashboard{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}'
+    + '#portalOrtuDashboard #poTabBar{position:fixed!important;left:0;right:0;bottom:0;top:auto;z-index:var(--z-bottom-nav-mobile,100000);gap:0;margin:0!important;padding:0!important;'
+    + 'background:#fff!important;border:0!important;border-radius:20px 20px 0 0!important;box-shadow:0 -6px 24px rgba(15,59,44,.10)!important;'
+    + 'height:calc(64px + env(safe-area-inset-bottom,0px))}'
+    + '#portalOrtuDashboard #poTabBar button{flex:1;min-width:0;height:100%;justify-content:flex-end;gap:3px;padding:0 2px calc(9px + env(safe-area-inset-bottom,0px))!important;border-radius:0!important;background:none!important;color:#64748b!important;touch-action:manipulation}'
+    + '#portalOrtuDashboard #poTabBar .pt-i .po-ik{width:24px;height:24px}'
+    + '#portalOrtuDashboard #poTabBar .pt-l{font-size:11px;line-height:13px;font-weight:500}'
+    + '#portalOrtuDashboard #poTabBar button .po-ik{color:#64748b!important}'
+    + '#portalOrtuDashboard #poTabBar button.on,#portalOrtuDashboard #poTabBar button.on .pt-l,#portalOrtuDashboard #poTabBar button.on .po-ik{color:var(--po-hijau,#0b6b4f)!important;background:none!important}'
+    + '#portalOrtuDashboard #poTabBar button.on .pt-l{font-weight:700}'
+    + '#portalOrtuDashboard #poTabBar button.on::before{content:"";position:absolute;top:0;left:50%;width:26px;height:3px;transform:translateX(-50%);border-radius:0 0 3px 3px;background:var(--po-hijau,#0b6b4f)}'
+    + '#portalOrtuDashboard #poTabBar button:active .po-ik{transform:scale(.88)}'
+    + '#portalOrtuDashboard #poTabBar .pt-dot{top:8px;left:calc(50% + 8px)}'
+    + '}';
   document.head.appendChild(css);
   if (!pasang()) document.addEventListener('DOMContentLoaded', pasang);
 })();

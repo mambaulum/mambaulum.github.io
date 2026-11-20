@@ -184,7 +184,7 @@
     // Tidak menyimpan PIN. Gagal menulis TIDAK mengganggu login (semua dibungkus try/catch).
     // Nomor build aplikasi Portal Ortu. Ditulis ke tiap catatan login (field versi) supaya Admin bisa memantau wali yang sudah
     // memakai versi terbaru (kartu Riwayat Login Orang Tua > Pembaruan Aplikasi Wali). NAIKKAN angka ini tiap rilis berikutnya.
-    const ORTU_BUILD = 378, ORTU_VERSI = 'v8.' + ORTU_BUILD;
+    const ORTU_BUILD = 379, ORTU_VERSI = 'v8.' + ORTU_BUILD;
     function ortuPerangkatRingkas() {
       const ua = navigator.userAgent || '';
       if (/Android/i.test(ua)) return 'Android';
@@ -654,6 +654,50 @@
     // v8.430: GERBANG PERSETUJUAN. Kalau orang tua memilih "Tidak setuju" (status 'tidak' di persetujuan_ortu/<siswa>),
     // dashboard TIDAK dimuat: layar hanya berisi kartu persetujuan (js/persetujuan-ortu.js -> persetujuanOrtuGerbang).
     // Gagal baca / Rules belum dipasang => gerbang terbuka (sama seperti kartu persetujuan yang disembunyikan).
+    // ---------- Jadwal Pelajaran & Jadwal Ujian (kartu di dashboard ortu) ----------
+    // Muncul OTOMATIS begitu kelas anak punya jadwal; kalau belum ada, kartunya tidak ditampilkan.
+    // Jadwal pelajaran : node `jadwal` (query kelas), waktu dari `jam_settings`.
+    // Jadwal ujian     : node ringkas `portal_jadwal_ujian/<kelas>` yang diisi otomatis dari Administrasi Ujian
+    //                    (js/administrasi-ujian.js -> aujSinkronPortal). Node `administrasi_ujian` TIDAK dibuka untuk ortu.
+    const ORTU_HARI_URUT = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    function ortuKelasKey(kelas) { return String(kelas || '').replace(/[.#$\[\]\/]/g, '_').trim(); }
+    function ortuTglIndo(iso) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); if (!m) return escapeHtml(iso || '-');
+      const d = new Date(+m[1], +m[2] - 1, +m[3]);
+      return ORTU_HARI_URUT.concat(['Minggu'])[(d.getDay() + 6) % 7] + ', ' + (+m[3]) + ' ' + ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][+m[2] - 1] + ' ' + m[1];
+    }
+    // SATU kartu "Jadwal": selama masa ujian (mulai H-ORTU_UJIAN_H_MIN sebelum sesi pertama sampai sesi terakhir selesai) isinya jadwal
+    // ujian; di luar masa itu isinya jadwal pelajaran biasa. Tidak ada jadwal sama sekali -> kartu tidak ditampilkan.
+    const ORTU_UJIAN_H_MIN = 7;
+    function ortuJadwalKartuHtml(jadwalSnap, jamSnap, jujianSnap) {
+      const jam = (jamSnap && jamSnap.val && jamSnap.val()) || {};
+      const hariIniIso = tglLokal();
+      const batas = new Date(); batas.setDate(batas.getDate() + ORTU_UJIAN_H_MIN);
+      const batasIso = batas.getFullYear() + '-' + String(batas.getMonth() + 1).padStart(2, '0') + '-' + String(batas.getDate()).padStart(2, '0');
+      const ujian = []; if (jujianSnap) jujianSnap.forEach(c => { const u = c.val(); if (u && u.tanggal && u.tanggal >= hariIniIso) ujian.push(u); });
+      // Mode ujian: ada sesi yang jatuh dalam ORTU_UJIAN_H_MIN hari ke depan (atau hari ini). Sesi yang masih jauh tidak mengganti jadwal biasa.
+      if (ujian.some(u => u.tanggal <= batasIso)) {
+        ujian.sort((a, b) => (a.tanggal + (a.jamMulai || '')).localeCompare(b.tanggal + (b.jamMulai || '')));
+        const rows = ujian.map(u => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
+          <strong>${escapeHtml(u.mapel || u.nama || 'Ujian')}</strong>${u.mapel && u.nama ? ` <span class="text-muted" style="font-size:11px;">— ${escapeHtml(u.nama)}</span>` : ''}
+          <div class="text-muted" style="font-size:12px;margin-top:2px;">🗓️ ${ortuTglIndo(u.tanggal)}${u.jamMulai ? ' · 🕒 ' + escapeHtml(u.jamMulai) + (u.jamSelesai ? '–' + escapeHtml(u.jamSelesai) : '') : ''}${u.ruang ? ' · 🚪 ' + escapeHtml(u.ruang) : ''}</div></div>`).join('');
+        return poAcc('📝 Jadwal Ujian', poBadge(ujian.length + ' sesi', 'warn'), rows, true, 'poAccJadwal');
+      }
+      const hariIni = ORTU_HARI_URUT.concat(['Minggu'])[(new Date().getDay() + 6) % 7];
+      const items = []; if (jadwalSnap) jadwalSnap.forEach(c => { const j = c.val(); if (j && j.hari && j.mapel) items.push(j); });
+      if (!items.length) return '';
+      const baris = ORTU_HARI_URUT.filter(h => items.some(j => j.hari === h)).map(h => {
+        const rows = items.filter(j => j.hari === h).sort((a, b) => (a.jam || 0) - (b.jam || 0)).map(j => {
+          const w = jam[j.jam] && jam[j.jam].mulai ? jam[j.jam].mulai + '–' + jam[j.jam].selesai : '';
+          const [bg, fg] = typeof warnaMapel === 'function' ? warnaMapel(j.mapel) : ['#e5e7eb', '#111827'];
+          return `<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
+            <div style="min-width:64px;"><strong>Jam ${escapeHtml(j.jam || '-')}</strong>${w ? `<div class="text-muted" style="font-size:10px;">${escapeHtml(w)}</div>` : ''}</div>
+            <div style="flex:1;min-width:0;"><span style="display:inline-block;padding:2px 8px;border-radius:7px;font-weight:600;background:${bg};color:${fg};">${escapeHtml(j.mapel)}</span><div class="text-muted" style="font-size:11px;margin-top:2px;">${escapeHtml(j.guru || '-')}</div></div></div>`;
+        }).join('');
+        return `<p style="font-weight:700;margin:10px 0 2px;">${h}${h === hariIni ? ' ' + poBadge('Hari ini', 'ok') : ''}</p>${rows}`;
+      }).join('');
+      return poAcc('📅 Jadwal Pelajaran', poBadge(items.length + ' jam/minggu'), baris, false, 'poAccJadwal');
+    }
     let _poGerbangToken = 0;
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');
@@ -698,8 +742,13 @@
         ortuBacaBersama('kalender', db.ref('kalender_akademik'), 'kalender_akademik', gagalMuat),
         ortuBacaBersama('events|' + tglLokal(), db.ref('events').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'events', gagalMuat),
         ortuBacaBersama('ujian|' + tglLokal(), db.ref('ujian').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'ujian', gagalMuat),
-        bukaP
-      ]).then(([gradesSnap, sikapSnap, iuranSnap, bukuSnap, absenSnap, materiSnap, tugasSnap, submissionSnap, journalSnap, kalenderSnap, eventsSnap, ujianSnap, nilaiBuka]) => {
+        bukaP,
+        // Jadwal pelajaran & jadwal ujian kelas anak. Dibaca dengan penampung galat terpisah: sebelum Rules-nya dipasang kartunya
+        // cukup tidak muncul, tanpa spanduk "sebagian data belum termuat".
+        ortuBacaBersama('jpel|' + siswa.kelas, db.ref('jadwal').orderByChild('kelas').equalTo(siswa.kelas), 'jadwal', []),
+        ortuBacaBersama('jam_settings', db.ref('jam_settings'), 'jam_settings', []),
+        ortuBacaBersama('jujian|' + siswa.kelas, db.ref('portal_jadwal_ujian/' + ortuKelasKey(siswa.kelas)), 'portal_jadwal_ujian', [])
+      ]).then(([gradesSnap, sikapSnap, iuranSnap, bukuSnap, absenSnap, materiSnap, tugasSnap, submissionSnap, journalSnap, kalenderSnap, eventsSnap, ujianSnap, nilaiBuka, jadwalSnap, jamSnap, jujianSnap]) => {
         // Semua query di atas cuma bisa orderByChild SATU field di Firebase RTDB (siswaKey/kelas),
         // jadi filter tahunAjaran-nya WAJIB ditambahkan manual di sini -- tanpa ini, portal ortu
         // menampilkan data dari SEMUA tahun ajaran tergabung jadi satu (nilai rapor tahun lalu
@@ -740,10 +789,11 @@
         let agendaList = [];
         kalenderSnap.forEach(c => { const k = c.val(); const mulai = k.tanggalMulai, selesai = k.tanggalSelesai || k.tanggalMulai; if (selesai >= todayStr0) agendaList.push({ jenis: k.jenis, judul: k.judul, tanggal: mulai, keterangan: k.keterangan }); });
         eventsSnap.forEach(c => { const e = c.val(); if (e.tanggal >= todayStr0) agendaList.push({ jenis: 'acara', judul: e.nama, tanggal: e.tanggal, keterangan: e.jenis }); });
-        ujianSnap.forEach(c => { const u = c.val(); if (u.tanggal >= todayStr0) agendaList.push({ jenis: 'ujian', judul: u.nama, tanggal: u.tanggal, keterangan: u.jenis }); });
+        ujianSnap.forEach(c => { const u = c.val(); if (u && u.jenis !== 'Pengawas' && u.tanggal >= todayStr0) agendaList.push({ jenis: 'ujian', judul: u.nama, tanggal: u.tanggal, keterangan: u.jenis }); });
         agendaList.sort((a,b) => COLLATOR_ID.compare((a.tanggal||''), b.tanggal||''));
         agendaList = agendaList.slice(0, 8);
         const agendaRows = agendaList.map(a => `<div style="padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">${iconJenisAgenda[a.jenis]||'📌'} <strong>${escapeHtml(a.judul)}</strong> <span class="text-muted" style="font-size:11px;">— ${escapeHtml(a.tanggal)}${a.keterangan ? ' — ' + escapeHtml(a.keterangan) : ''}</span></div>`).join('') || '<p class="text-muted" style="font-size:13px;">Belum ada agenda mendatang.</p>';
+        const jadwalKartu = ortuJadwalKartuHtml(jadwalSnap, jamSnap, jujianSnap);
         const rekapAbsen = {}; rekapAbsen[monthStr] = { H: 0, S: 0, I: 0, A: 0 }; rekapAbsen[prevMonthStr] = { H: 0, S: 0, I: 0, A: 0 };
         absenSnap.forEach(c => {
           const rec = c.val();
@@ -864,6 +914,7 @@
           ${ringkasHtml}
           ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
           ${nilaiBuka ? poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false, 'poAccNilai') : poAcc('📝 Nilai Terakhir', poBadge('Belum dibuka'), '<p class="text-muted" style="font-size:13px;">Nilai raport belum dibuka oleh madrasah. Silakan menunggu informasi dari wali kelas.</p>', false, 'poAccNilai')}
+          ${jadwalKartu}
           ${poAcc('📆 Agenda Terdekat', agendaList.length ? poBadge(agendaList.length + ' agenda') : poBadge('Kosong'), agendaRows, false)}
           ${poAcc('📘 Hasil Belajar Hari Ini', journalHariIni.length ? poBadge(journalHariIni.length + ' jam') : poBadge('Kosong'), journalRows, false)}
           ${poAcc('📚 Materi Belajar Terbaru', materi.length ? poBadge(Math.min(materi.length, 5) + ' materi') : poBadge('Kosong'), materiRows, false)}
