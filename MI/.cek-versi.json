@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.514",
-  "disimpan": "2026-11-19T12:08:28.756Z",
+  "appVersion": "v8.523",
+  "disimpan": "2026-11-20T01:19:11.519Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -155,12 +155,12 @@
       "hash": "1fe0b827b81233d0351184812d7a66e1a6063e41"
     },
     "js/dokumen-kepala.js": {
-      "v": "v=7",
-      "hash": "83d68bca63c3acf0b16ea0e72a781fe20da2649a"
+      "v": "v=12",
+      "hash": "25b75c973e60a7ade1b13e3d074053934c59718f"
     },
     "js/dokumen-kepala-audit.js": {
-      "v": "v=1",
-      "hash": "d15277548b0ae4b041f4f8b7c38df2d3d5e7466b"
+      "v": "v=5",
+      "hash": "092539a5469084556b715b1a46e689ca935fc33f"
     },
     "js/nilai-harian.js": {
       "v": "v=7",
@@ -399,8 +399,8 @@
       "hash": "09bf28c8ca21c3b0c8a49b0fb5c49aad2078a6cc"
     },
     "js/tombol-kembali.js": {
-      "v": "v=3",
-      "hash": "439142c0f9755df0ab733c9cdf0e397e5a48f3db"
+      "v": "v=6",
+      "hash": "95d96bacd42d605b0b22c860765502973e1b56e2"
     },
     "js/tab-halaman.js": {
       "v": "v=2",
