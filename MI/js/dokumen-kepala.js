@@ -259,6 +259,11 @@
     if (!Object.keys(ubah).length || typeof db === 'undefined') return;
     try { var key = db.ref(NODE + '/riwayat').push().key; tulis('riwayat/' + key, { dok: id, nama: String(nama).slice(0, 120), t: Date.now(), oleh: namaPengguna(), ubah: ubah }, function () {}); } catch (x) {}
   }
+  // Dipakai tab Audit untuk menjadikan sub kegiatan prioritas EDM sebagai program RKT (hanya memakai kolom RKT yang sudah ada).
+  function tambahProgramRkt(label, rec, cb) {
+    var key = db.ref(NODE + '/rkt/' + taKey(label)).push().key; rec.upd = Date.now();
+    tulis('rkt/' + taKey(label) + '/' + key, rec, cb);
+  }
   function simpanDok(id, patch, cb) {
     var def = semuaDefinisi().filter(function (d) { return d.id === id; })[0]; if (!def) return;
     var r = {}, lama = rekam(def); Object.keys(lama).forEach(function (k) { r[k] = lama[k]; });
@@ -754,5 +759,5 @@
 
   window.DokumenKepala = { pengingat: pengingat, tambahBulan: tambahBulan, kpiProgres: kpiProgres, ctxDokumen: ctxDokumen,
     _i: { S: S, DD: DD, esc: esc, pesan: pesan, unduh: unduh, tulis: tulis, segar: segar, hariIni: hariIni, taAktif: taAktif, taLabel: taLabel, semuaDefinisi: semuaDefinisi, rekam: rekam,
-      pengingat: pengingat, daftarProgram: daftarProgram, terlambat: terlambat, kpiSnap: kpiSnap, kpiProgres: kpiProgres, dataSekolah: dataSekolah, namaPengguna: namaPengguna, galatTulis: galatTulis, tglId: tglId } };
+      pengingat: pengingat, daftarProgram: daftarProgram, terlambat: terlambat, kpiSnap: kpiSnap, kpiProgres: kpiProgres, dataSekolah: dataSekolah, namaPengguna: namaPengguna, galatTulis: galatTulis, tglId: tglId, tambahProgramRkt: tambahProgramRkt } };
 })();

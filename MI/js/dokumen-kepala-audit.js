@@ -25,6 +25,105 @@
   var JML_IND = 26;
   // Jawaban EDM 2026 MIS Mambaul Ulum dari berkas "rangkuman-edm-111235090251-2026.pdf" (urutan A1..A7, B1..B4, C1..C7, D1..D5, E1..E3).
   var EDM2026 = [4, 3, 4, 3, 1, 4, 4, 3, 1, 1, 1, 4, 3, 3, 2, 1, 3, 2, 3, 2, 3, 4, 3, 4, 1, 3];
+  // 71 sub kegiatan prioritas EDM 2026 (urutan = prioritas 1..71) dari lampiran "Usulan Prioritas Sub Kegiatan" pada rangkuman EDM.
+  var PRIO2026 = [
+    ['3.2.9', 'Pemanfaatan TIK untuk kegiatan pembelajaran'],
+    ['3.2.1', 'Pelaksanaan Kegiatan Belajar Mengajar'],
+    ['5.2.1', 'Penguatan Kapasitas Bagi Guru'],
+    ['6.2.58', 'Penyediaan Media dan sumber pembelajaran'],
+    ['4.3.1', 'Analisis Hasil Penilaian UH, Formatif, Sumatif, PAS, PAT'],
+    ['3.2.2', 'Pelaksanaan Kegiatan Belajar Mengajar Digital Madrasah'],
+    ['6.2.57', 'Penyediaan sarana prasarana digital madrasah'],
+    ['2.1.1', 'Penyusunan Program Semester'],
+    ['2.2.13', 'Penyusunan Modul Ajar'],
+    ['5.1.2', 'Penguatan Kapasitas Bagi Kepala Madrasah'],
+    ['5.1.3', 'Kegiatan KKG/MGMP'],
+    ['5.3.2', 'Penguatan Kapasitas Bagi Tenaga Administrasi'],
+    ['6.2.3', 'Penyediaan Sarana dan Prasarana Perpustakaan termasuk perpustakaan digital'],
+    ['6.2.56', 'Penyediaan Media Pendidikan'],
+    ['6.3.40', 'Penambahan daya internet'],
+    ['6.3.43', 'Pengembangan dan Pemeliharaan Website'],
+    ['6.3.44', 'Penambahan fasilitas elektronik untuk ketatausahaan'],
+    ['7.1.11', 'Pengelolaan Madrasah Berbasis ICT/TIK'],
+    ['7.1.6', 'Pelaksanaan Rapat Kerja madrasah'],
+    ['7.4.7', 'Penyediaan sarana publikasi madrasah'],
+    ['1.1.1', 'Pengembangan Kompetensi Beriman, Bertakwa pada Tuhan YME, dan Penguatan Moderasi Beragama'],
+    ['1.1.2', 'Pengembangan Kompetensi berkarakter, jujur, dan peduli'],
+    ['1.1.4', 'Pengembangan Kompetensi pembelajar sejati sepanjang hayat'],
+    ['1.1.6', 'Pelaksanaan Tes Pengembangan Mutu Dimensi Sikap'],
+    ['1.1.7', 'Pengembangan Kompetensi Dimensi Sikap Melalui Perlombaan dan Pertandingan'],
+    ['2.1.12', 'Penyusunan Perangkat Pembelajaran'],
+    ['2.1.2', 'Penyusunan Program Tahunan'],
+    ['2.1.8', 'Penyusunan Program Pengelolaan Multimedia'],
+    ['2.2.2', 'Penyusunan Dokumen 1 dan 2 serta review RPP semua mata pelajaran'],
+    ['3.1.4', 'Penerimaan Peserta Didik Baru (PPDB)'],
+    ['3.1.5', 'Masa Taaruf Siswa Madrasah'],
+    ['3.2.11', 'Pelaksanaan Kegiatan Ekstrakurikuler'],
+    ['3.2.5', 'Workshop Media Pembelajaran'],
+    ['4.1.4', 'Penginputan data nilai siswa'],
+    ['4.3.2', 'Perencanaan dan Pelaksanaan Tindak Lanjut Hasil Penilaian'],
+    ['4.5.1', 'Pelaksanaan Penilaian/Ulangan Harian'],
+    ['4.5.2', 'Pelaksanaan Penilaian/Ujian Tengah Semester'],
+    ['4.5.3', 'Pelaksanaan Penilaian/Ujian Akhir Semester'],
+    ['4.5.4', 'Pelaksanaan Penilaian/Ujian Kenaikan Kelas'],
+    ['4.5.5', 'Pelaksanaan Ujian Madrasah'],
+    ['4.5.6', 'Pelaksanaan Asesmen Nasional atau Sejenisnya'],
+    ['5.2.2', 'Kegiatan KKKM/MKKM'],
+    ['5.6.2', 'Penguatan Kapasitas Bagi Tenaga Kependidikan Lainnya'],
+    ['6.2.17', 'Pemeliharaan perabot / meubelair'],
+    ['6.2.2', 'Pembangunan Ruang Perpustakaan'],
+    ['6.2.4', 'Pembangunan Ruang Media'],
+    ['6.2.5', 'Pembangunan Toilet dan Sarana Sanitasi Air Bersih Madrasah'],
+    ['6.2.54', 'Pembelian Alat dan Bahan Praktikum'],
+    ['6.2.55', 'Pembelian Peralatan Madrasah Berkebutuhan Khusus'],
+    ['6.2.6', 'Pembangunan Ruang Kepala madrasah/Guru/Tata Usaha/BP/BK'],
+    ['6.2.8', 'Pemasangan/Pembuatan instalasi air baru dan/atau sumur'],
+    ['6.3.15', 'Pemeliharaan taman, lapangan dan fasilitas olahraga'],
+    ['6.3.19', 'Pemeliharaan Pagar'],
+    ['6.3.33', 'Pemeliharaan dan Perbaikan Instalasi listrik (termasuk penggantian lampu)'],
+    ['6.3.35', 'Pemeliharaan dan Perbaikan Fasilitas Internet'],
+    ['6.3.6', 'Pembangunan Pos satpam'],
+    ['7.1.12', 'Pengembangan Sistem Informasi Manajemen madrasah (SIM)'],
+    ['7.1.7', 'Pembuatan Program Kerja madrasah'],
+    ['7.1.8', 'Penyusunan Program RKJM/RPS/RKT/RAPBS/RKAM'],
+    ['7.2.2', 'Pengadaan Sarana Administrasi Perkantoran'],
+    ['7.2.4', 'Pengelolaan Inventaris Barang'],
+    ['7.3.1', 'Penyusunan Program Supervisi, Monitoring dan Evaluasi'],
+    ['7.3.7', 'Supervisi Administrasi Tata Usaha'],
+    ['7.4.1', 'Sosialisasi Kebijakan-Kebijakan'],
+    ['7.4.8', 'Pemutakhiran data EMIS Madrasah dan data madrasah lainnya'],
+    ['8.2.1', 'Penyediaan Beban Operasional Madrasah (ATK, listrik, telp, air, keamanan, kebersihan, dll)'],
+    ['8.2.2', 'Penyediaan Sarana dan Prasarana Operasional'],
+    ['8.3.2', 'Penyusunan Laporan Biaya Operasional madrasah'],
+    ['8.3.4', 'Penyusunan RKAM Madrasah'],
+    ['8.3.5', 'Penyusunan Laporan Pertanggungjawaban dan Keuangan Madrasah'],
+    ['8.3.7', 'Sosialisasi keuangan madrasah']
+  ];
+  // Daftar prioritas: hasil impor PDF yang tersimpan (edm/{tahun}/prioritas = ["kode|nama", ...]); jika belum ada, bawaan 2026.
+  function prioritas(t) {
+    var r = S.D && S.D.edm && S.D.edm[t], a = r && r.prioritas;
+    if (a) {
+      var l = (Array.isArray(a) ? a : Object.keys(a).map(function (k) { return a[k]; })).map(function (x) { x = String(x); var i = x.indexOf('|'); return [x.slice(0, i), x.slice(i + 1)]; }).filter(function (x) { return x[0] && x[1]; });
+      if (l.length) return l;
+    }
+    return String(t) === '2026' ? PRIO2026 : [];
+  }
+  // Digit pertama kode = nomor standar (1 SKL, 2 SI, 3 Proses, 4 Penilaian, 5 PTK, 6 Sarana, 7 Pengelolaan, 8 Pembiayaan) -> bidang RKT.
+  function bidangUntuk(k) {
+    if (k === '1.1.1') return 'Keagamaan & Budaya Madrasah';
+    if (/^(3\.1\.4|3\.1\.5|3\.2\.11)$/.test(k)) return 'Kesiswaan';
+    if (/^(7\.4\.1|7\.4\.7)$/.test(k)) return 'Humas & Kemitraan';
+    return { '1': 'Kesiswaan', '2': 'Kurikulum & Pembelajaran', '3': 'Kurikulum & Pembelajaran', '4': 'Kurikulum & Pembelajaran', '5': 'Ketenagaan (guru & tendik)', '6': 'Sarana & Prasarana', '7': 'Tata Usaha & Administrasi', '8': 'Keuangan & Pembiayaan' }[k.charAt(0)];
+  }
+  function norm(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+  // Tercakup bila ada program RKT yang ditandai [EDM kode] (dibuat dari kartu ini) atau namanya sama/memuat nama sub kegiatan.
+  function tercakup(x, prog) {
+    return prog.some(function (p) {
+      if (p.catatan && String(p.catatan).indexOf('[EDM ' + x[0] + ']') >= 0) return true;
+      var a = norm(p.program), b = norm(x[1]); return !!a && !!b && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0);
+    });
+  }
+  var semuaPrio = false;
   var RANK = { belum: 0, draf: 1, final: 2, disahkan: 3 };
   var LV = { kritis: ['Kritis', '#dc2626', 0], perhatian: ['Perlu perhatian', '#d97706', 1], saran: ['Saran', '#6b7280', 2] };
 
@@ -132,9 +231,86 @@
       if (lv('E1') >= 4 && rank('rkam') < 3) add('perhatian', 'EDM vs data', 'EDM E.1 menyatakan RKAM disahkan kepala madrasah, tetapi RKAM belum berstatus Disahkan di daftar dokumen.');
       if (lv('E3') >= 3 && rank('lap_keu') < 2) add('perhatian', 'EDM vs data', 'EDM E.3 menyatakan laporan keuangan telah dibuat, tetapi laporan realisasi anggaran belum Final/Disahkan di daftar dokumen.');
     }
+    var pri = prioritas(t0);
+    if (pri.length && rec) {
+      var blm = pri.slice(0, 10).filter(function (x) { return !tercakup(x, prog); });
+      if (blm.length) add('saran', 'EDM vs RKT', blm.length + ' dari 10 sub kegiatan prioritas teratas EDM belum ada di RKT ' + label + ': ' + ringkas(blm, function (x) { return '“' + x[1] + '”'; }) + '.', 'audit');
+    }
     T.sort(function (a, b) { return LV[a.lv][2] - LV[b.lv][2]; });
     return T;
   }
+
+  // ---------- impor PDF rangkuman EDM ----------
+  // parseEdm menerima teks per halaman (hasil pdf.js getTextContent). Jawaban tiap indikator tidak dibaca dari kolomnya, melainkan dihitung dari
+  // pasangan "bobot skor" di ujung baris: skor = tingkat x bobot, dan bobot harus sama dengan bobot yang diharapkan indikator itu.
+  var RX_IND = /^[A-E]\.\d$/, RX_KODE = /^\d\.\d\.\d{1,2}$/, RX_INT = /^\d{1,3}$/;
+  function cariUrut(T, kata, dari) {
+    for (var i = dari || 0; i + kata.length <= T.length; i++) { var ok = true; for (var j = 0; j < kata.length; j++) if (T[i + j] !== kata[j]) { ok = false; break; } if (ok) return i; }
+    return -1;
+  }
+  function parseEdm(halaman) {
+    var T = [], out = { jawaban: {}, prioritas: [], peringatan: [] };
+    halaman.forEach(function (h) { h.forEach(function (x) { String(x).split(/\s+/).forEach(function (w) { if (w) T.push(w); }); }); });
+    var teks = T.join(' '), m = /Skor Kinerja Pencapaian Mutu (\d{4})/.exec(teks);
+    out.tahun = m ? m[1] : null;
+    m = /Nilai SKPM\s*:?\s*(\d+(?:[.,]\d+)?)/.exec(teks); out.skpm = m ? parseFloat(m[1].replace(',', '.')) : null;
+    out.belumDisetujui = /Belum Disetujui/.test(teks);
+    var iDet = cariUrut(T, ['Lampiran', 'Detil', 'Indikator:']), iUs = cariUrut(T, ['Lampiran', 'Usulan', 'Prioritas'], iDet < 0 ? 0 : iDet);
+    if (iDet < 0) { out.peringatan.push('Bagian "Lampiran Detil Indikator" tidak ditemukan; PDF ini mungkin bukan rangkuman EDM.'); return out; }
+    // --- indikator ---
+    var D = T.slice(iDet, iUs < 0 ? T.length : iUs), bobot = {};
+    ASPEK.forEach(function (a) { a.ind.forEach(function (x, i) { bobot[a.k + '.' + (i + 1)] = [kode(a, i), x[1]]; }); });
+    var pos = []; D.forEach(function (w, i) { if (RX_IND.test(w) && bobot[w]) pos.push(i); });
+    pos.forEach(function (at, n) {
+      var kd = D[at], blok = D.slice(at + 1, n + 1 < pos.length ? pos[n + 1] : D.length), b = bobot[kd][1], j = 0;
+      for (var p = blok.length - 2; p >= 0 && !j; p--) {
+        if (RX_INT.test(blok[p]) && RX_INT.test(blok[p + 1]) && +blok[p] === b) { var sk = +blok[p + 1]; if (sk % b === 0 && sk / b >= 1 && sk / b <= 4) j = sk / b; }
+      }
+      if (j) out.jawaban[bobot[kd][0]] = j; else out.peringatan.push('Indikator ' + kd + ' tidak terbaca.');
+    });
+    // --- prioritas sub kegiatan ---
+    if (iUs >= 0) {
+      var P = [], U = T.slice(iUs), HDR = ['Prioritas', 'Kode', 'Sub', 'Kegiatan', 'Nama', 'Sub', 'Kegiatan', 'SNP'];
+      for (var i = 0; i < U.length; i++) {
+        if (U[i] === 'Belum' && U[i + 1] === 'Disetujui') { i++; continue; }
+        if (U[i] === 'Prioritas' && cariUrut(U.slice(i, i + 8), HDR) === 0) { i += 7; continue; }
+        P.push(U[i]);
+      }
+      var k0 = 0; while (k0 < P.length && !(P[k0] === '1' && RX_KODE.test(P[k0 + 1] || ''))) k0++;
+      var nn = 1, q = k0;
+      while (q < P.length && P[q] === String(nn) && RX_KODE.test(P[q + 1] || '')) {
+        var kd2 = P[q + 1], r = q + 2, nama = [];
+        while (r < P.length && P[r] !== 'PENGEMBANGAN') { nama.push(P[r]); r++; }
+        var z = r; while (z < P.length && !(P[z] === String(nn + 1) && RX_KODE.test(P[z + 1] || ''))) z++;
+        if (nama.length) out.prioritas.push([kd2, nama.join(' ').replace(/(\S)([\/-])\s+/g, '$1$2')]);   // "KKG/ MGMP" -> "KKG/MGMP", "Kebijakan- Kebijakan" -> "Kebijakan-Kebijakan" (pemisah kata di PDF)
+        nn++; q = z;
+      }
+      if (!out.prioritas.length) out.peringatan.push('Daftar prioritas sub kegiatan tidak terbaca.');
+    }
+    return out;
+  }
+  var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  function muatPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    return new Promise(function (ok, gagal) {
+      var sc = document.createElement('script'); sc.src = PDFJS + 'pdf.min.js'; sc.async = true;
+      var t = setTimeout(function () { sc.remove(); gagal(new Error('Waktu habis memuat pembaca PDF.')); }, 45000);
+      sc.onload = function () { clearTimeout(t); if (window.pdfjsLib) ok(window.pdfjsLib); else gagal(new Error('Pembaca PDF tidak siap.')); };
+      sc.onerror = function () { clearTimeout(t); sc.remove(); gagal(new Error('Gagal memuat pembaca PDF. Periksa koneksi internet.')); };
+      document.head.appendChild(sc);
+    }).then(function (lib) {   // worker dari CDN lain-origin tidak boleh dibuat langsung: ambil sebagai blob
+      return fetch(PDFJS + 'pdf.worker.min.js').then(function (r) { if (!r.ok) throw new Error('worker'); return r.blob(); })
+        .then(function (b) { lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(b); return lib; })
+        .catch(function () { lib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; return lib; });
+    });
+  }
+  function bacaPdf(file) {
+    return Promise.all([muatPdfJs(), file.arrayBuffer()]).then(function (r) { return r[0].getDocument({ data: r[1] }).promise; }).then(function (doc) {
+      var ps = []; for (var i = 1; i <= doc.numPages; i++) ps.push(doc.getPage(i).then(function (pg) { return pg.getTextContent(); }).then(function (c) { return c.items.map(function (x) { return x.str; }); }));
+      return Promise.all(ps);
+    });
+  }
+  var impor = null;   // hasil impor PDF yang belum disimpan: { tahun, prioritas }
 
   // ---------- tampilan ----------
   function chip(lv) { return '<span class="dk-chip" style="background:' + LV[lv][1] + ';">' + LV[lv][0] + '</span>'; }
@@ -156,8 +332,23 @@
     });
     h += '<div class="dk-2" style="margin-top:8px;"><label class="dk-f">Status persetujuan EDM<select id="dkAudStatus" class="dk-in"><option value="belum"' + (rec.status !== 'disetujui' ? ' selected' : '') + '>Belum disetujui</option><option value="disetujui"' + (rec.status === 'disetujui' ? ' selected' : '') + '>Disetujui</option></select></label>' +
       '<label class="dk-f">Nilai SKPM resmi (opsional, untuk verifikasi)<input id="dkAudSkpm" type="number" step="0.1" min="0" max="100" class="dk-in" value="' + (rec.skpm != null ? esc(rec.skpm) : '') + '"></label></div>' +
+      '<div class="dk-ctl"><label class="btn btn-soft" style="cursor:pointer;">Impor dari PDF rangkuman EDM<input type="file" id="dkAudPdf" accept="application/pdf,.pdf" style="display:none;"></label></div><div class="dk-ket" id="dkAudPdfInfo"></div>' +
       '<div class="dk-ctl"><button type="button" class="btn btn-primary" id="dkAudSimpan">Simpan hasil EDM</button>' + (thn === '2026' ? '<button type="button" class="btn btn-soft" id="dkAudIsi2026">Isi dari rangkuman EDM 2026 (PDF)</button>' : '') + '</div></details></div>';
     return h;
+  }
+  function htmlPrioritas() {
+    var pri = prioritas(thn), h = '<div class="dk-h">Prioritas sub kegiatan EDM <small>untuk RKT / RKAM</small></div>';
+    if (!pri.length) return h + '<p class="text-muted" style="font-size:12px;">Belum ada daftar prioritas untuk EDM ' + esc(thn) + '. Impor PDF rangkuman EDM tahun ini (di bagian Hasil EDM) untuk mengisinya.</p>';
+    var prog = I.daftarProgram(I.taLabel(I.taAktif())), blm = [], n = 0;
+    pri.forEach(function (x, i) { var ok = tercakup(x, prog); if (ok) n++; else if (i < 10) blm.push(x[0]); });
+    h += '<div class="dk-ket">' + n + ' dari ' + pri.length + ' sub kegiatan sudah tercakup di RKT ' + esc(I.taLabel(I.taAktif())) + '. Pencocokan memakai nama program (atau penanda [EDM kode] pada catatan).</div>';
+    if (blm.length) h += '<div class="dk-ctl"><button type="button" class="btn btn-primary" id="dkAudPrioBatch" data-kode="' + blm.join(',') + '">Tambahkan ' + blm.length + ' prioritas teratas yang belum tercakup</button></div>';
+    (semuaPrio ? pri : pri.slice(0, 15)).forEach(function (x) {
+      var no = pri.indexOf(x) + 1, ok = tercakup(x, prog);
+      h += '<div class="dk-row" style="padding:6px 10px;"><div style="font-size:13px;"><b>' + no + '.</b> ' + esc(x[1]) + '</div><div class="dk-ket" style="margin:0;">' + esc(x[0]) + ' · bidang ' + esc(bidangUntuk(x[0])) + '</div><div style="margin-top:4px;">' +
+        (ok ? '<span class="dk-chip" style="background:#059669;">Sudah di RKT</span>' : '<button type="button" class="btn btn-soft" data-audprio="' + esc(x[0]) + '">Jadikan program RKT</button>') + '</div></div>';
+    });
+    return h + '<div class="dk-ctl"><button type="button" class="btn btn-soft" id="dkAudPrioSemua">' + (semuaPrio ? 'Tampilkan 15 teratas' : 'Tampilkan semua (' + pri.length + ')') + '</button></div>';
   }
   function htmlRiwayat() {
     var R = S.D.riwayat || {}, a = Object.keys(R).map(function (k) { return R[k]; }).filter(function (x) { return x && x.t; }).sort(function (p, q) { return q.t - p.t; }).slice(0, 25);
@@ -182,7 +373,7 @@
       h += '<div class="dk-row"><div class="dk-top">' + chip(x.lv) + '<span class="dk-chip s">' + esc(x.grup) + '</span></div><div style="font-size:13px;margin-top:4px;">' + esc(x.t) + '</div>' +
         (x.tab !== 'audit' ? '<div style="margin-top:4px;"><button type="button" class="btn btn-soft" data-audtab="' + x.tab + '">Buka ' + (x.tab === 'rkt' ? 'Pemantau RKT' : 'Daftar Dokumen') + '</button></div>' : '') + '</div>';
     });
-    return h + htmlEdm() + htmlRiwayat();
+    return h + htmlEdm() + htmlPrioritas() + htmlRiwayat();
   }
 
   // ---------- aksi ----------
@@ -192,10 +383,11 @@
     if (!ada) { I.pesan('Isi minimal satu jawaban.', true); return; }
     var rec = { jawaban: jw, status: document.getElementById('dkAudStatus').value === 'disetujui' ? 'disetujui' : 'belum', upd: Date.now(), oleh: I.namaPengguna() };
     a = parseFloat(document.getElementById('dkAudSkpm').value); if (isFinite(a)) rec.skpm = a;
+    if (impor && impor.tahun === thn && impor.prioritas.length) rec.prioritas = impor.prioritas.map(function (x) { return x[0] + '|' + x[1]; });
     I.tulis('edm/' + thn, rec, function (e) {
       if (e) { I.galatTulis(e); return; }
       try { if (typeof addLog === 'function') addLog('dokumen_kepala_ubah', 'EDM ' + thn + ' dicatat (' + ada + ' indikator)'); } catch (x) {}
-      I.pesan('Hasil EDM disimpan.'); I.segar();
+      impor = null; I.pesan('Hasil EDM disimpan.'); I.segar();
     });
   }
   function isi() {
@@ -204,6 +396,43 @@
     var k = document.getElementById('dkAudSkpm'); if (k) k.value = '65.6';
     var st = document.getElementById('dkAudStatus'); if (st) st.value = 'belum';
     I.pesan('Terisi dari rangkuman EDM 2026. Periksa, lalu tekan Simpan.');
+  }
+  function isiForm(jw, skpm, belum) {
+    Object.keys(jw).forEach(function (c) { var el = document.querySelector('[data-aj="' + c + '"]'); if (el) el.value = String(jw[c]); });
+    var k = document.getElementById('dkAudSkpm'); if (k && skpm != null) k.value = String(skpm);
+    var st = document.getElementById('dkAudStatus'); if (st && belum) st.value = 'belum';
+  }
+  function imporPdf(file) {
+    var info = document.getElementById('dkAudPdfInfo'); if (info) info.textContent = 'Membaca PDF…';
+    bacaPdf(file).then(function (hal) {
+      var o = parseEdm(hal), n = Object.keys(o.jawaban).length, msg = [];
+      if (o.tahun && o.tahun !== thn) { msg.push('PDF ini EDM ' + o.tahun + ', sedangkan tahun yang dibuka ' + thn + '. Pilih tahun ' + o.tahun + ' dulu, lalu impor lagi.'); }
+      else {
+        isiForm(o.jawaban, o.skpm, o.belumDisetujui);
+        var H = hitung(o.jawaban);
+        msg.push('Terbaca ' + n + ' dari ' + JML_IND + ' indikator dan ' + o.prioritas.length + ' sub kegiatan prioritas.');
+        if (H.total != null && o.skpm != null) msg.push(Math.abs(H.total - o.skpm) <= 0.1 ? 'SKPM hasil hitungan ' + f1(H.total) + ' cocok dengan yang tertulis di PDF (' + f1(o.skpm) + ').' : 'PERHATIAN: SKPM hitungan ' + f1(H.total) + ' tidak sama dengan yang tertulis di PDF (' + f1(o.skpm) + '). Periksa jawaban sebelum menyimpan.');
+        if (o.belumDisetujui) msg.push('PDF bertanda "Belum Disetujui".'); else msg.push('Status persetujuan tidak terbaca; periksa isian status.');
+        o.peringatan.forEach(function (x) { msg.push(x); });
+        impor = { tahun: thn, prioritas: o.prioritas };
+        msg.push('Periksa isiannya, lalu tekan Simpan hasil EDM.');
+      }
+      var inf = document.getElementById('dkAudPdfInfo'); if (inf) inf.textContent = msg.join(' ');
+    }).catch(function (e) {
+      var inf = document.getElementById('dkAudPdfInfo'); if (inf) inf.textContent = 'Gagal membaca PDF: ' + (e && e.message ? e.message : e) + ' Gunakan isian manual.';
+    });
+  }
+  function tambahPrio(daftar) {
+    var label = I.taLabel(I.taAktif()), pri = prioritas(thn), n = 0, gagal = false;
+    var ada = daftar.filter(function (kd) { return pri.some(function (x) { return x[0] === kd; }); }), sisa = ada.length;
+    ada.forEach(function (kd) {
+      var i = -1; pri.forEach(function (x, j) { if (x[0] === kd) i = j; });
+      var x = pri[i];
+      I.tambahProgramRkt(label, { bidang: bidangUntuk(x[0]), program: x[1].slice(0, 120), status: 'belum', progres: 0, catatan: ('[EDM ' + x[0] + '] Prioritas EDM ' + thn + ' no. ' + (i + 1)).slice(0, 500) }, function (e) {
+        if (e) { if (!gagal) { gagal = true; I.galatTulis(e); } } else n++;
+        if (--sisa === 0 && !gagal) { I.pesan(n + ' program ditambahkan ke RKT ' + label + '. Lengkapi penanggung jawab, target, dan tenggatnya di Pemantau RKT.'); I.segar(); }
+      });
+    });
   }
   function unduhCsv() {
     var q = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
@@ -218,10 +447,17 @@
       if (t.closest('#dkAudCsv')) { unduhCsv(); return; }
       if (t.closest('#dkAudSimpan')) { simpanEdm(); return; }
       if (t.closest('#dkAudIsi2026')) { isi(); return; }
+      if ((b = t.closest('[data-audprio]'))) { tambahPrio([b.getAttribute('data-audprio')]); return; }
+      if ((b = t.closest('#dkAudPrioBatch'))) { tambahPrio(b.getAttribute('data-kode').split(',')); return; }
+      if (t.closest('#dkAudPrioSemua')) { semuaPrio = !semuaPrio; I.segar(); return; }
     });
-    pg.addEventListener('change', function (ev) { if (ev.target && ev.target.id === 'dkAudThn') { thn = ev.target.value; I.segar(); } });
+    pg.addEventListener('change', function (ev) {
+      var t = ev.target; if (!t) return;
+      if (t.id === 'dkAudThn') { thn = t.value; impor = null; I.segar(); }
+      else if (t.id === 'dkAudPdf' && t.files && t.files[0]) { imporPdf(t.files[0]); t.value = ''; }
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasang); else pasang();
 
-  window.DKAudit = { html: html, jalankan: jalankan, hitung: hitung, EDM2026: EDM2026 };
+  window.DKAudit = { html: html, jalankan: jalankan, hitung: hitung, EDM2026: EDM2026, tambahPrio: tambahPrio, parseEdm: parseEdm, PRIO2026: PRIO2026 };
 })();
