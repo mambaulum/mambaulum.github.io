@@ -9,7 +9,7 @@
 ============================================================ */
 (function () {
   'use strict';
-  var TABS = [['home', 'home', 'Beranda'], ['amalan', 'moon', 'Amalan'], ['belajar', 'buku', 'Belajar'], ['angket', 'angket', 'Angket'], ['lain', 'lain', 'Lainnya']];
+  var TABS = [['home', 'home', 'Beranda'], ['amalan', 'moon', 'Amalan'], ['belajar', 'buku', 'Belajar'], ['jadwal', 'agenda', 'Jadwal'], ['lain', 'lain', 'Lainnya']];
   var KUNCI = 'mamba_po_tab';
   var aktif = 'home';
   try { var s = sessionStorage.getItem(KUNCI); if (s && TABS.some(function (t) { return t[0] === s; })) aktif = s; } catch (e) { /* storage tidak ada */ }
@@ -122,14 +122,15 @@
   var ID_ANGKET = ['angketOrtuSlot', 'angketSiswaSlot', 'angketKeunggulanOrtuSlot', 'angketKeunggulanSiswaSlot', 'p8OrtuBox'];
   function tabUntuk(c) {
     var id = c.id || '';
-    if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda' || id === 'persetujuanOrtuSlot' || id === 'ijinOrtuSlot') return 'home';   // v8.432: kartu persetujuan (belum mengisi/tarik) tampil di Beranda; baris kecil 'persetujuanOrtuBawah' sengaja ikut tab Lainnya
+    if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda' || id === 'persetujuanOrtuSlot' || id === 'ijinOrtuSlot' || id === 'poJadwalRingkas') return 'home';   // v8.432: kartu persetujuan (belum mengisi/tarik) tampil di Beranda; baris kecil 'persetujuanOrtuBawah' sengaja ikut tab Lainnya
     if (id === 'bsOrtuBox' || id === 'portalOrtuSholatCard' || id === 'bsLp_sikap') return 'amalan';   // bsLp_sikap = kartu Sikap & Kedisiplinan bergaya Mode Anak
     if (id === 'poAccNilai') return 'belajar';
-    if (id === 'poAccJadwal' || id === 'poAccUjian') return 'home';   // v14: jadwal pelajaran hari ini tampil di Beranda; v18: Jadwal Ujian kartu terpisah (poAccUjian), tampil di atas Jadwal Pelajaran
-    if (id === 'poAngketKosong' || ID_ANGKET.indexOf(id) >= 0) return 'angket';
+    if (id === 'poAccJadwal' || id === 'poAccUjian') return 'jadwal';   // v14: jadwal pelajaran hari ini tampil di Beranda; v18: Jadwal Ujian kartu terpisah (poAccUjian), tampil di atas Jadwal Pelajaran
+    if (id === 'poAngketKosong' || ID_ANGKET.indexOf(id) >= 0) return 'lain';   // v8.549: angket pindah ke tab Lainnya (tab Angket diganti Jadwal)
     if (c.tagName === 'DETAILS') {
       var sm = c.querySelector('summary'), t = sm ? (sm.textContent || '').slice(0, 60) : '';
-      if (/Tugas|Agenda|Infaq/.test(t)) return 'home';
+      if (/Agenda/.test(t)) return 'jadwal';
+      if (/Tugas|Infaq/.test(t)) return 'home';
       if (/Sikap/.test(t)) return 'amalan';
       if (/Nilai|Hasil Belajar|Materi|Buku Penghubung/.test(t)) return 'belajar';
     }
@@ -162,11 +163,11 @@
     }
     m.setAttribute('data-k', kunci); m.textContent = '';
     var j = document.createElement('p'); j.style.cssText = 'font-weight:700;font-size:13px;'; j.innerHTML = window.poIkon('bell', 16) + ' Amalan di rumah belum diisi'; m.appendChild(j);
-    var t = document.createElement('p'); t.style.cssText = 'font-size:12px;margin:2px 0 6px;'; t.textContent = teks; m.appendChild(t);
+    var t = document.createElement('p'); t.style.cssText = 'font-size:13px;margin:2px 0 6px;'; t.textContent = teks; m.appendChild(t);
     var baris = document.createElement('div'); baris.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-    var b1 = document.createElement('button'); b1.type = 'button'; b1.className = 'btn btn-primary'; b1.style.cssText = 'padding:3px 12px;font-size:12px;min-height:32px;'; b1.textContent = labelIsi;
+    var b1 = document.createElement('button'); b1.type = 'button'; b1.className = 'btn btn-primary'; b1.style.cssText = 'padding:6px 14px;font-size:13px;min-height:40px;'; b1.textContent = labelIsi;
     b1.onclick = function () { window.ptPilih('amalan'); var a = el('bsOrtuPengingat'), x = a && a.querySelector('button.btn-primary'); if (x) x.click(); };
-    var b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn btn-soft'; b2.style.cssText = 'padding:3px 12px;font-size:12px;min-height:32px;'; b2.textContent = 'Nanti';
+    var b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn btn-soft'; b2.style.cssText = 'padding:6px 14px;font-size:13px;min-height:40px;'; b2.textContent = 'Nanti';
     b2.onclick = function () { var a = el('bsOrtuPengingat'), x = a && a.querySelector('button.btn-soft'); if (x) x.click(); };
     baris.appendChild(b1); baris.appendChild(b2); m.appendChild(baris);
   }
@@ -186,7 +187,7 @@
   window.ptBukaAngket = function () {
     var content = el('portalOrtuContent'); if (!content) return;
     var k = kartuAngketBelum(content)[0]; if (!k) return;
-    if (window.innerWidth < 760) window.ptPilih('angket');
+    if (window.innerWidth < 760) window.ptPilih('lain');
     var d = k.tagName === 'DETAILS' ? k : k.querySelector('details'); if (d) d.open = true;
     try { k.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { k.scrollIntoView(); }
   };
@@ -204,6 +205,7 @@
   }
   // Isi kosong di tab Angket (semua angket ditutup / belum termuat): tampilkan keterangan singkat supaya tab tidak terlihat rusak.
   function sinkronAngketKosong(content) {
+    var m0 = el('poAngketKosong'); if (m0) m0.remove(); return;   // v8.549: angket di tab Lainnya, tanpa kartu kosong
     var ada = ID_ANGKET.some(function (id) { var k = el(id); return k && k.parentNode === content && (k.textContent || '').replace(/\s+/g, '') !== ''; });
     var m = el('poAngketKosong');
     if (ada) { if (m) m.remove(); return; }
@@ -213,6 +215,38 @@
     m.textContent = 'Belum ada angket yang perlu diisi. Bila madrasah membuka angket, kartunya akan muncul di sini.';
     content.appendChild(m);
   }
+  // ---------- Baris ringkas jadwal di Beranda (kartu aslinya ada di tab Jadwal; diketuk = buka tab Jadwal) ----------
+  function teksBadge(k) { var b = k && k.querySelector('summary .po-badge'); return b ? (b.textContent || '').trim() : ''; }
+  function sinkronRingkasJadwal(content) {
+    var kp = el('poAccJadwal'), ku = el('poAccUjian');
+    if (kp && kp.parentNode !== content) kp = null;
+    if (ku && ku.parentNode !== content) ku = null;
+    var m = el('poJadwalRingkas');
+    if (!kp && !ku) { if (m) m.remove(); return; }
+    var baris = [];
+    if (ku) {
+      var su = ku.querySelector('.po-jd-row.po-jd-now .po-jd-uj-mp');
+      baris.push(['nilai', 'Jadwal Ujian', su ? 'Berlangsung: ' + (su.textContent || '').trim() : teksBadge(ku), 'warn']);
+    }
+    if (kp) {
+      var rn = kp.querySelector('.po-jd-hari:not([hidden]) .po-jd-row.po-jd-now');
+      var jj = rn && rn.querySelector('.po-jd-jam b'), mp = rn && rn.querySelector('.po-jd-mp');
+      baris.push(['agenda', 'Jadwal Pelajaran', (rn && jj && mp) ? 'Sekarang: ' + (jj.textContent || '').trim() + ' \u00b7 ' + (mp.textContent || '').trim() : teksBadge(kp), '']);
+    }
+    var kunci = JSON.stringify(baris);
+    if (m && m.getAttribute('data-k') === kunci && m.parentNode === content) return;
+    if (!m) { m = document.createElement('div'); m.id = 'poJadwalRingkas'; m.className = 'card'; m.setAttribute('data-ptab', 'home'); }
+    m.setAttribute('data-k', kunci); m.textContent = '';
+    baris.forEach(function (b) {
+      var t = document.createElement('button'); t.type = 'button'; t.className = 'po-jr';
+      t.onclick = function () { window.ptPilih('jadwal'); };
+      t.innerHTML = '<span class="po-jr-i">' + window.poIkon(b[0], 20) + '</span><span class="po-jr-t"><b></b><span></span></span><span class="po-jr-go" aria-hidden="true">&rsaquo;</span>';
+      t.querySelector('b').textContent = b[1];
+      var d = t.querySelector('.po-jr-t span'); d.textContent = b[2]; if (b[3]) d.className = b[3];
+      m.appendChild(t);
+    });
+    content.insertBefore(m, ku || kp);
+  }
   function terapkan() {
     var content = el('portalOrtuContent'); if (!content) return;
     var b = bar(); if (!b) return;
@@ -220,7 +254,7 @@
     b.style.display = siap ? '' : 'none';
     if (!siap) { content.removeAttribute('data-pt'); return; }
     sinkronPengingat(content);
-    samakanLencana(content); sinkronAngketKosong(content); sinkronUbinAngket(content);
+    samakanLencana(content); sinkronAngketKosong(content); sinkronUbinAngket(content); sinkronRingkasJadwal(content);
     try { ikonkan(content); } catch (e) { console.warn('[SI MAMBA] Ikon Portal Ortu:', e); }
     Array.prototype.forEach.call(content.children, function (c) {
       var t = tabUntuk(c); if (c.getAttribute('data-ptab') !== t) c.setAttribute('data-ptab', t);
@@ -231,10 +265,11 @@
     });
     // Titik merah di tab Amalan bila ada pengingat "Amalan di rumah belum diisi" (kartu itu ada di dalam kotak Amalan).
     var dot = b.querySelector('button[data-tab="amalan"] .pt-dot'); if (dot) dot.hidden = !el('bsOrtuPengingat');
-    // Titik merah di tab Angket bila ada angket yang sedang dibuka dan belum diisi (lencana kartu "Mohon diisi" / "Belum diisi" / "Belum selesai").
-    var dotA = b.querySelector('button[data-tab="angket"] .pt-dot'); if (dotA) dotA.hidden = !adaAngketBelumDiisi(content);
+    // Titik merah di tab Lainnya (tempat angket) bila ada angket yang sedang dibuka dan belum diisi (lencana kartu "Mohon diisi" / "Belum diisi" / "Belum selesai").
+    var dotA = b.querySelector('button[data-tab="lain"] .pt-dot'); if (dotA) dotA.hidden = !adaAngketBelumDiisi(content);
   }
   window.ptPilih = function (k) {
+    if (k === 'angket') k = 'lain';   // alias lama: angket kini ada di tab Lainnya
     var arah = TABS.map(function (t) { return t[0]; }).indexOf(k) - TABS.map(function (t) { return t[0]; }).indexOf(aktif);
     var cc = el('portalOrtuContent');
     if (cc && arah !== 0) { cc.style.setProperty('--pt-dx', (arah > 0 ? '18px' : '-18px')); cc.setAttribute('data-anim', '1'); setTimeout(function () { cc.removeAttribute('data-anim'); }, 320); }
@@ -327,7 +362,9 @@
   function pasang() {
     var content = el('portalOrtuContent'); if (!content) return false;
     new MutationObserver(function () { try { terapkan(); } catch (e) { console.warn('[SI MAMBA] Tab Portal Ortu:', e); } }).observe(content, { childList: true, subtree: true });
-    pasangGeser(content); terapkan(); return true;
+    pasangGeser(content); terapkan();
+    setInterval(function () { var c = el('portalOrtuContent'); if (c && c.querySelector('#poKopKehadiran')) { try { sinkronRingkasJadwal(c); } catch (e) { /* abaikan */ } } }, 30000);
+    return true;
   }
   var css = document.createElement('style');
   css.textContent = '.po-ik{flex:none;vertical-align:-3px}.po-eik{display:inline-flex;vertical-align:middle;line-height:1}.po-eik .po-ik{width:1.1em;height:1.1em;vertical-align:0;color:inherit}#bsOrtuBox .po-eik{color:#0f766e}.po-ub-j{display:flex;align-items:center;gap:4px}.po-ub-j .po-ik,.po-acc>summary .po-ik,#poRingkas>p .po-ik,#poKopKehadiran .po-ik,#poTabBar .po-ik{color:#0f766e}#poTabBar button.on .po-ik{color:#00543f}#bsOrtuPengingat .po-ik,#poPengingatBeranda .po-ik{color:#b45309}.po-acc>summary>span:first-child .po-ik{margin-right:4px}#poTabBar{display:none}@media(min-width:760px){#poPengingatBeranda{display:none}}'
@@ -342,8 +379,8 @@
     + '#poTabBar .pt-i{display:flex;line-height:1}#poTabBar .pt-l{font-size:10.5px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.1px}'
     + '#poTabBar button.on{background:#d1fae5;color:#00543f}#poTabBar button.on .pt-l{font-weight:800}'
     + '#poTabBar .pt-dot{position:absolute;top:2px;left:calc(50% + 6px);width:8px;height:8px;border-radius:50%;background:#dc2626}#poTabBar .pt-dot[hidden]{display:none}'
-    + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="angket"]>:not([data-ptab="angket"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
-    + '#portalOrtuContent[data-pt="angket"]{display:flex;flex-direction:column}#angketOrtuSlot{order:1}#angketSiswaSlot{order:2}#angketKeunggulanOrtuSlot{order:3}#angketKeunggulanSiswaSlot{order:4}#p8OrtuBox{order:5}#poAngketKosong{order:0}'
+    + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="jadwal"]>:not([data-ptab="jadwal"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
+    + '#portalOrtuContent[data-pt="lain"]{display:flex;flex-direction:column}#angketOrtuSlot{order:-5}#angketSiswaSlot{order:-4}#angketKeunggulanOrtuSlot{order:-3}#angketKeunggulanSiswaSlot{order:-2}#p8OrtuBox{order:-1}'
     + '#portalOrtuContent[data-pt="amalan"]{display:flex;flex-direction:column}#portalOrtuContent[data-pt="amalan"]>#bsLp_sikap{order:-1}'
     + '}';
   document.head.appendChild(css);

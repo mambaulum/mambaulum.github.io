@@ -275,7 +275,7 @@
       html += `</tbody></table></div>`;
 
       if (filterGuru) {
-        html += `<p class="text-muted" style="font-size:12px;margin-top:8px;">📌 Menampilkan jadwal untuk guru: <strong>${filterGuru}</strong></p>`;
+        html += `<p class="text-muted" style="font-size:12px;margin-top:8px;">📌 Menampilkan jadwal untuk guru: <strong>${escapeHtml(filterGuru)}</strong></p>`;
       }
 
       container.innerHTML = html;
@@ -433,3 +433,46 @@ window.addEventListener('load', function () {
     if (typeof simambaBungkusExportLazy === 'function') simambaBungkusExportLazy([['exportJadwalPDF', 'pdf', 'PDF']]);
   } catch (e) { console.warn('[SI MAMBA] pasang exportJadwalPDF gagal:', e); }
 });
+
+// ============================================================
+// PERINGATAN JAM PELAJARAN TUMPANG TINDIH (Admin)
+// Pengaturan jam pelajaran dibaca dari jamSettings (diatur di app.js). Bila dua jam saling tumpang tindih
+// (mis. Jam 1 selesai 08:45 padahal Jam 2 mulai 08:30) atau jam selesai <= jam mulai, tampil kotak peringatan
+// di atas tabel jadwal. Hanya dibaca: tidak mengubah data apa pun.
+// ============================================================
+function jadwalJamTumpang() {
+  const mnt = s => { const m = /^(\d{1,2})[:.](\d{2})/.exec(String(s || '').trim()); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+  const set = (typeof jamSettings !== 'undefined' && jamSettings) || {};
+  const daftar = Object.keys(set).map(k => {
+    const v = set[k] || {};
+    return { k: parseInt(k, 10), a: mnt(v.mulai), b: mnt(v.selesai), mulai: String(v.mulai || ''), selesai: String(v.selesai || '') };
+  }).filter(x => x.k > 0 && x.a != null && x.b != null).sort((x, y) => x.k - y.k);
+  const hasil = [];
+  daftar.forEach(x => { if (x.b <= x.a) hasil.push('Jam ' + x.k + ' (' + x.mulai + '–' + x.selesai + '): jam selesai tidak lebih akhir dari jam mulai.'); });
+  for (let i = 0; i < daftar.length; i++) {
+    for (let j = i + 1; j < daftar.length; j++) {
+      const p = daftar[i], q = daftar[j];
+      if (p.b > p.a && q.b > q.a && p.a < q.b && q.a < p.b) hasil.push('Jam ' + p.k + ' (' + p.mulai + '–' + p.selesai + ') dan Jam ' + q.k + ' (' + q.mulai + '–' + q.selesai + ') saling tumpang tindih.');
+    }
+  }
+  return hasil;
+}
+function jadwalPeringatanJam() {
+  const wrap = document.getElementById('jadwalTableWrapper');
+  if (!wrap || !wrap.parentNode) return;
+  let box = document.getElementById('jadwalPeringatanJam');
+  const h = (typeof isAdmin === 'function' && isAdmin()) ? jadwalJamTumpang() : [];
+  if (!h.length) { if (box) box.style.display = 'none'; return; }
+  if (!box) {
+    box = document.createElement('div'); box.id = 'jadwalPeringatanJam'; box.setAttribute('role', 'alert');
+    box.style.cssText = 'margin:0 0 10px;padding:10px 12px;border-radius:10px;border-left:4px solid #d97706;background:#fffbeb;color:#92400e;font-size:13px;line-height:1.45;';
+    wrap.parentNode.insertBefore(box, wrap);
+  }
+  box.innerHTML = '<b>⚠️ Pengaturan jam pelajaran perlu diperbaiki</b><br>' + h.map(t => escapeHtml(t)).join('<br>') +
+    '<br>Jadwal di Portal Orang Tua dan penanda “Berlangsung” memakai jam ini, jadi perbaiki di pengaturan jam pelajaran.';
+  box.style.display = '';
+}
+if (typeof renderJadwal === 'function') {
+  const _renderJadwalAsli = renderJadwal;
+  renderJadwal = function () { const r = _renderJadwalAsli.apply(this, arguments); try { jadwalPeringatanJam(); } catch (e) { /* abaikan */ } return r; };
+}

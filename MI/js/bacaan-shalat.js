@@ -1804,7 +1804,7 @@ function bsRingkasKePortal(game, o, h) {
   const ada = !!o.amalan[h], it = bsItemsEfektif(o, h), uz = (o.uzur || {})[h] === true, sk = (o.sakit || {})[h] === true, hh = bsHitungHari(it, uz), n = hh.lamaC, tot = hh.lamaN;
   const ik = nm => typeof poIkon === 'function' ? poIkon(nm, 12) + ' ' : '';
   poIsiUbin('poRingkasAmalan', n + ' / ' + tot, !ada ? '#6b7280' : n === tot ? '#059669' : '#d97706',
-    uz ? ik('daun') + 'Berhalangan sholat' : sk ? ik('termo') + 'Sakit (tidak dihitung)' : !ada ? 'Belum diisi hari ini' : (game.rentetanLimaWaktu >= 2 ? ik('api') + game.rentetanLimaWaktu + ' hari sholat lengkap' : bsKebJumlah(it) + ' dari ' + BS_KEB7.length + ' kebiasaan'));
+    uz ? ik('daun') + 'Berhalangan sholat' : sk ? ik('termo') + 'Sakit (tidak dihitung)' : !ada ? 'Belum diisi' : (game.rentetanLimaWaktu >= 2 ? ik('api') + game.rentetanLimaWaktu + ' hari sholat lengkap' : bsKebJumlah(it) + ' dari ' + BS_KEB7.length + ' kebiasaan'));
   if (!o.targets.length) { poIsiUbin('poRingkasHafalan', 'Belum ada target', '#6b7280', 'Guru belum membuat target bacaan', ''); return; }
   const persen = game.nTarget ? Math.round(game.lulus / game.nTarget * 100) : 0, berikut = bsOrtuTargetBerikut();
   poIsiUbin('poRingkasHafalan', game.lulus + ' dari ' + game.nTarget + ' lulus', persen >= 100 ? '#059669' : '#2563eb',

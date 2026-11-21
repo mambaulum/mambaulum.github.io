@@ -1,4 +1,4 @@
-/* Portal Orang Tua - tampilan ramah pengguna (v8.544).
+/* Portal Orang Tua - tampilan ramah pengguna (v8.550).
    SATU lembar gaya: menggantikan blok tema "v10" & "v13" dan aturan pemadat (tombol 30px, huruf 10.5px) yang dulu ada di portal-tab.js.
    Prinsip: huruf cukup besar untuk orang tua, target sentuh >= 44px, satu palet hijau, satu elemen "bintang" (kartu anak),
    dark mode untuk semua bagian. Dimuat SESUDAH portal-tab.js. Semua selektor di bawah #portalOrtuContent supaya menang atas <style> kartu
@@ -76,6 +76,19 @@ body.dark-mode #portalOrtuDashboard,body.dark-mode #portalOrtuLogin{--po-g:#4cc7
 body.dark-mode #portalOrtuContent .card{background:var(--po-card)!important;border-color:var(--po-line)!important}
 body.dark-mode #portalOrtuContent .po-hero{background:linear-gradient(150deg,var(--po-h1),var(--po-h2))!important;border:0!important}
 
+/* Jadwal Pelajaran: baris lebih rapat; nama guru sejajar dengan mapel bila muat, turun ke bawahnya bila tidak */
+#portalOrtuContent .po-jd-chip{min-height:40px;padding:6px 14px}
+#portalOrtuContent .po-jd-judul{margin:8px 0 2px}
+#portalOrtuContent .po-jd-row{padding:7px 6px;gap:10px}
+#portalOrtuContent .po-jd-jam{min-width:0}
+#portalOrtuContent .po-jd-jam b{line-height:1.25}
+#portalOrtuContent .po-jd-wkt{font-size:13px;line-height:1.25}
+#portalOrtuContent .po-jd-row:not(.po-jd-uj) .po-jd-isi{flex-direction:row;flex-wrap:wrap;align-items:center;gap:3px 8px}
+#portalOrtuContent .po-jd-mp{line-height:1.3;max-width:100%}
+#portalOrtuContent .po-jd-guru{font-size:13px;line-height:1.3}
+#portalOrtuContent .po-jd-stamp{margin-top:6px}
+#portalOrtuContent :is(.po-jd-tag,.po-jd-pill,.po-jd-stamp,.po-jd-cat){font-size:13px}
+
 /* Layar masuk */
 #portalOrtuLogin .label{font-size:14px!important;font-weight:700;color:var(--po-ink)}
 #portalOrtuLogin .field{min-height:52px!important;font-size:17px!important;border-radius:12px}
@@ -99,10 +112,57 @@ body.dark-mode #portalOrtuContent .po-hero{background:linear-gradient(150deg,var
 #bsOrtuBox [style*="min-height:48px"],#bsOrtuBox [style*="min-height:44px"]{min-height:44px!important;font-size:14px!important;border-radius:12px!important}
 #bsOrtuBox [style*="font-size:20px"]{font-size:18px!important}
 }
+@media(max-width:480px){.po-hero-sapa{margin-bottom:10px}.po-hero-sapa span{display:none}}
+/* Beranda HP: Ijin/Sakit Anak dan Tugas berdampingan selama keduanya tertutup. Bila salah satu dibuka, keduanya kembali selebar layar.
+   Tanpa dukungan :has() aturan ini diabaikan dan kartu tetap bertumpuk seperti biasa. */
+@media(max-width:759px){
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open])){display:grid;grid-template-columns:1fr 1fr;column-gap:8px}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open]))>*{grid-column:1/-1}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open]))>:is(#ijinOrtuSlot,#poAccTugas){grid-column:auto}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open]))>#ijinOrtuSlot{display:flex;flex-direction:column}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open])) :is(#ijinOrtuSlot>details,#poAccTugas){flex:1;margin-bottom:12px!important;min-width:0}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open])) :is(#ijinOrtuSlot>details,#poAccTugas)>summary{flex-wrap:wrap;align-content:center;gap:4px 6px;min-height:44px;font-size:14px}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open])) :is(#ijinOrtuSlot>details,#poAccTugas)>summary>span:first-child{order:1;flex:1 1 calc(100% - 26px)}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open])) :is(#ijinOrtuSlot>details,#poAccTugas)>summary::after{order:2}
+#portalOrtuContent[data-pt="home"]:has(#ijinOrtuSlot>details:not([open])):has(#poAccTugas:not([open])) :is(#ijinOrtuSlot>details,#poAccTugas)>summary>.po-badge{order:3;flex:none}
+}
+
+/* Beranda HP: baris ringkas jadwal (kartu lengkapnya ada di tab Jadwal) */
+#portalOrtuContent #poJadwalRingkas{padding:2px 12px!important}
+.po-jr{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:6px 0;border:0;background:none;color:var(--po-ink);font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.po-jr+.po-jr{border-top:1px solid var(--po-line)}
+.po-jr-i{flex:none;display:flex;color:var(--po-g)}
+.po-jr-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.po-jr-t b{font-size:15px}
+.po-jr-t span{font-size:13px;color:var(--po-mut)}
+.po-jr-t span.warn{color:var(--po-warn);font-weight:700}
+.po-jr-go{flex:none;font-size:22px;line-height:1;color:var(--po-mut)}
+@media(min-width:760px){#portalOrtuContent #poJadwalRingkas{display:none!important}}
+
+/* Versi aplikasi di paling bawah dashboard */
+#poVersi{margin:6px 0 4px;text-align:center;font-size:13px;color:var(--po-mut);opacity:.85}
+
 @media(prefers-reduced-motion:reduce){#portalOrtuDashboard *{animation:none!important;transition:none!important}}
 `;
   var st = document.createElement('style');
   st.id = 'poUiTema';
   st.textContent = css;
   document.head.appendChild(st);
+
+  /* Versi aplikasi (dari service worker yang sedang aktif) di paling bawah dashboard, semua tab. */
+  function pasangVersi() {
+    var d = document.getElementById('portalOrtuDashboard');
+    if (!d) return;
+    var p = document.getElementById('poVersi');
+    if (!p) { p = document.createElement('p'); p.id = 'poVersi'; p.textContent = 'SI MAMBA'; d.appendChild(p); }
+    try {
+      var sw = navigator.serviceWorker;
+      if (sw && sw.controller) {
+        var ch = new MessageChannel();
+        ch.port1.onmessage = function (e) { if (e.data && e.data.version) p.textContent = 'SI MAMBA \u00b7 ' + e.data.version; };
+        sw.controller.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
+      }
+    } catch (e) { /* tanpa service worker: cukup tulisan SI MAMBA */ }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasangVersi); else pasangVersi();
 })();

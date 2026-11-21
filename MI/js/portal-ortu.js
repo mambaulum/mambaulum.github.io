@@ -574,7 +574,7 @@
           ${poUbin('poRingkasHadir', 'poKopKehadiran', '📅 Kehadiran', persen === null ? '-' : persen + '%', wHadir, persen === null ? 'Belum ada absensi' : o.hadir + ' dari ' + o.totalAbsen + ' hari')}
           ${o.nilaiTutup ? poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', '🔒', '#6b7280', 'Belum dibuka') : poUbin('poRingkasNilai', 'poAccNilai', '📝 Nilai', rata === null ? '-' : fmt(rata), wNilai, rata === null ? 'Belum ada nilai' : (o.nilaiSementara ? 'sementara' : o.nMapel + ' mapel'))}
           ${poUbin('poRingkasInfaq', 'poAccInfaq', '💵 Infaq', inf.utama, inf.warna, inf.sub)}
-          ${poUbin('poRingkasAmalan', 'bsLp_amalan', '🏡 Amalan hari ini', '⏳', '#6b7280', 'Memuat...')}
+          ${poUbin('poRingkasAmalan', 'bsLp_amalan', '🏡 Amalan', '⏳', '#6b7280', 'Memuat...')}
           ${poUbin('poRingkasHafalan', 'bsLp_setoran', '📿 Hafalan bacaan sholat', '⏳', '#6b7280', 'Memuat...', true)}
           ${poUbinSikap(o.sikap || { n: 0, pr: 0, pl: 0, net: 0, baru: 0 })}
         </div></div>`;
@@ -725,6 +725,7 @@
       if (!items.length) return '';
       const hariIni = poNamaHari(w), idxIni = PO_HARI_SEMUA.indexOf(hariIni), hariBesok = PO_HARI_SEMUA[(idxIni + 1) % 7], now = w.getHours() * 60 + w.getMinutes();
       const hariAda = ORTU_HARI_URUT.filter(h => items.some(j => j.hari === h));
+      if (!hariAda.length) return '';   // semua baris jadwal berhari di luar Senin-Sabtu: jangan tampilkan kartu kosong
       const menitJam = j => { const s = jam[j.jam]; const a = s ? poMenit(s.mulai) : null, b = s ? poMenit(s.selesai) : null; return a != null && b != null && b > a ? [a, b] : null; };
       let akhirHariIni = null;
       items.filter(j => j.hari === hariIni).forEach(j => { const m = menitJam(j); if (m && (akhirHariIni == null || m[1] > akhirHariIni)) akhirHariIni = m[1]; });
@@ -745,8 +746,7 @@
           const [bg, fg] = typeof warnaMapel === 'function' ? warnaMapel(j.mapel) : ['#e5e7eb', '#111827'];
           return `<li class="po-jd-row${st === 'now' ? ' po-jd-now' : ''}"${attr}${st === 'now' ? ' aria-current="time"' : ''}>
             <div class="po-jd-jam"><b>Jam ${escapeHtml(j.jam || '-')}</b>${wkt ? `<span class="po-jd-wkt">${wkt}</span>` : ''}</div>
-            <div class="po-jd-isi"><span class="po-jd-mp" style="background:${bg};color:${fg};">${escapeHtml(j.mapel)}</span><span class="po-jd-guru">${escapeHtml(j.guru || '-')}</span></div>
-            <span class="po-jd-tag po-jd-tag-now"${st === 'now' ? '' : ' hidden'}>Berlangsung</span></li>`;
+            <div class="po-jd-isi"><span class="po-jd-mp" style="background:${bg};color:${fg};">${escapeHtml(j.mapel)}</span><span class="po-jd-guru">${escapeHtml(j.guru || '-')}</span><span class="po-jd-tag po-jd-tag-now"${st === 'now' ? '' : ' hidden'}>Berlangsung</span></div></li>`;
         }).join('');
         const pill = h === hariIni ? '<span class="po-jd-pill">Hari ini</span>' : (h === hariBesok ? '<span class="po-jd-pill besok">Besok</span>' : '');
         return `<div class="po-jd-hari" role="tabpanel" id="poJdPanel-${h}" aria-labelledby="poJdTab-${h}" data-hari="${h}"${h === hariPilih ? '' : ' hidden'}><p class="po-jd-judul"><strong>${h}</strong>${pill}</p><ul class="po-jd-list">${rows}</ul></div>`;
@@ -1030,11 +1030,11 @@
               ${catatanAbsen ? `<p class="po-hero-cat">${catatanAbsen}</p>` : ''}
             </div>
           </div>
-          ${gagalMuat.length ? '<div class="card" style="margin-bottom:8px;border-left:4px solid #d97706;font-size:12px;">⚠️ Sebagian data belum bisa dimuat. Tarik ke bawah untuk muat ulang, atau hubungi Admin bila berulang.</div>' : ''}
+          ${gagalMuat.length ? '<div class="card" style="margin-bottom:8px;border-left:4px solid #d97706;font-size:13px;">⚠️ Sebagian data belum bisa dimuat. Tarik ke bawah untuk muat ulang, atau hubungi Admin bila berulang.</div>' : ''}
           <div id="persetujuanOrtuSlot"></div>
-          <div id="ijinOrtuSlot"></div>
           ${ringkasHtml}
-          ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0)}
+          <div id="ijinOrtuSlot"></div>
+          ${poAcc('📝 Tugas', belumTugas ? poBadge(belumTugas + ' belum', 'warn') : (tugasList.length ? poBadge('Selesai', 'ok') : poBadge('Kosong')), tugasRows, belumTugas > 0, 'poAccTugas')}
           ${nilaiBuka ? poAcc('📝 Nilai Terakhir', grades.length ? poBadge(grades.length + ' mapel' + (nSementara ? ' · ' + nSementara + ' sementara' : '')) : poBadge('Kosong'), nilaiTabelHtml, false, 'poAccNilai') : poAcc('📝 Nilai Terakhir', poBadge('Belum dibuka'), '<p class="text-muted" style="font-size:13px;">Nilai raport belum dibuka oleh madrasah. Silakan menunggu informasi dari wali kelas.</p>', false, 'poAccNilai')}
           ${jadwalKartu}
           ${poAcc('📆 Agenda Terdekat', agendaList.length ? poBadge(agendaList.length + ' agenda') : poBadge('Kosong'), agendaRows, false)}
@@ -1067,7 +1067,7 @@
         try { angketOrtuMuat(siswa); angketSiswaMuat(siswa); } catch (e) { console.warn('[SI MAMBA] Angket Kurikulum (Portal Ortu) gagal dimuat:', e); }
         try { angketKeunggulanMuat('ortu', siswa); angketKeunggulanMuat('siswa', siswa); } catch (e) { console.warn('[SI MAMBA] Angket Keunggulan (Portal Ortu) gagal dimuat:', e); }
         try { if (typeof persetujuanOrtuMuat === 'function') persetujuanOrtuMuat(siswa); } catch (e) { console.warn('[SI MAMBA] Persetujuan (Portal Ortu) gagal dimuat:', e); }
-      }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${err.message}</p>`; });
+      }).catch(err => { content.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Gagal memuat data: ${escapeHtml((err && err.message) || String(err))}</p>`; });
     }
     // ---------- Angket Kurikulum untuk orang tua (modul: js/angket.js) ----------
     // Kartu hanya muncul kalau Admin/Kepala sudah MEMBUKA angket (tombol ON). Satu isian per orang tua
