@@ -1,4 +1,4 @@
-/* Portal Orang Tua - tampilan ramah pengguna (v8.541).
+/* Portal Orang Tua - tampilan ramah pengguna (v8.544).
    SATU lembar gaya: menggantikan blok tema "v10" & "v13" dan aturan pemadat (tombol 30px, huruf 10.5px) yang dulu ada di portal-tab.js.
    Prinsip: huruf cukup besar untuk orang tua, target sentuh >= 44px, satu palet hijau, satu elemen "bintang" (kartu anak),
    dark mode untuk semua bagian. Dimuat SESUDAH portal-tab.js. Semua selektor di bawah #portalOrtuContent supaya menang atas <style> kartu
@@ -24,7 +24,7 @@ body.dark-mode #portalOrtuDashboard,body.dark-mode #portalOrtuLogin{--po-g:#4cc7
 #portalOrtuAnakSelect,#portalOrtuGantiPin .field{min-height:48px!important;font-size:16px}
 
 /* Kartu dan isi */
-#portalOrtuContent .card{background:var(--po-card);color:var(--po-ink);border:1px solid var(--po-line);border-radius:16px!important;box-shadow:var(--po-sh);padding:14px!important}
+#portalOrtuContent .card{background:var(--po-card);color:var(--po-ink);border:1px solid var(--po-line);border-radius:16px!important;box-shadow:var(--po-sh);padding:12px!important}
 #portalOrtuContent .text-muted{color:var(--po-mut)}
 #portalOrtuContent .btn{min-height:40px;font-size:14px!important;border-radius:12px!important}
 #portalOrtuContent .po-acc:has(>summary .po-badge.bad){box-shadow:inset 4px 0 0 var(--po-bad),var(--po-sh)}
@@ -33,7 +33,7 @@ body.dark-mode #portalOrtuDashboard,body.dark-mode #portalOrtuLogin{--po-g:#4cc7
 #portalOrtuContent .po-acc>summary{min-height:48px;font-size:15px;padding:2px 0}
 #portalOrtuContent .po-acc>summary::after{font-size:18px;color:var(--po-mut)}
 #portalOrtuContent .po-acc-body{margin-top:10px}
-#portalOrtuContent .po-badge{font-size:12.5px;font-weight:700;padding:3px 10px;background:var(--po-ok-bg);color:var(--po-ink)}
+#portalOrtuContent .po-badge{font-size:13px;font-weight:700;padding:3px 10px;background:var(--po-ok-bg);color:var(--po-ink)}
 #portalOrtuContent .po-badge.ok{background:var(--po-ok-bg);color:var(--po-g)}
 #portalOrtuContent .po-badge.warn{background:var(--po-warn-bg);color:var(--po-warn)}
 #portalOrtuContent .po-badge.bad{background:var(--po-bad-bg);color:var(--po-bad)}
@@ -42,11 +42,11 @@ body.dark-mode #portalOrtuDashboard,body.dark-mode #portalOrtuLogin{--po-g:#4cc7
 
 /* Ringkasan: ubin besar dan terbaca */
 #portalOrtuContent .po-rk-grid{gap:8px}
-#portalOrtuContent .po-ub{min-height:80px;padding:10px 12px;gap:2px;border:1px solid var(--po-line);border-radius:14px;background:var(--po-card);color:var(--po-ink)}
+#portalOrtuContent .po-ub{min-height:64px;padding:6px 12px;gap:0;line-height:1.15;border:1px solid var(--po-line);border-radius:14px;background:var(--po-card);color:var(--po-ink)}
 #portalOrtuContent .po-ub:active{background:var(--po-ok-bg)}
 #portalOrtuContent .po-ub-j{font-size:13px;font-weight:700;color:var(--po-mut)}
-#portalOrtuContent .po-ub-u{font-size:22px}
-#portalOrtuContent .po-ub-s{font-size:12.5px;color:var(--po-mut)}
+#portalOrtuContent .po-ub-u{font-size:20px}
+#portalOrtuContent .po-ub-s{font-size:13px;color:var(--po-mut)}
 
 /* Kartu anak = elemen bintang di Beranda */
 #portalOrtuContent .po-hero{background:linear-gradient(150deg,var(--po-h1),var(--po-h2));color:#fff;border:0;border-radius:20px!important;box-shadow:0 6px 18px rgba(8,82,61,.22);margin-bottom:12px;padding:16px!important}
@@ -54,16 +54,16 @@ body.dark-mode #portalOrtuDashboard,body.dark-mode #portalOrtuLogin{--po-g:#4cc7
 .po-hero-sapa{font-size:14px;font-weight:600;margin:0 0 12px;color:#d6f0e3}
 .po-hero-sapa span{font-weight:400;opacity:.9}
 .po-hero-id{display:flex;align-items:center;gap:12px}
-.po-hero-logo{width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:4px;object-fit:contain}
-.po-hero-mad{margin:0;font-size:12.5px;opacity:.85}
-.po-hero-nama{margin:0;font-size:22px;font-weight:800;line-height:1.2}
+.po-hero-logo{width:40px;height:40px;flex:none;border-radius:14px;background:#fff;padding:4px;object-fit:contain}
+.po-hero-mad{margin:0;font-size:13px;opacity:.85}
+.po-hero-nama{margin:0;font-size:20px;font-weight:800;line-height:1.2}
 .po-hero-kelas{margin:2px 0 0;font-size:14px;opacity:.92}
 .po-hero-hadir{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.24)}
 .po-hero-jdl{margin:0 0 8px;font-size:14px;font-weight:700}
 .po-hero-jdl span{font-weight:400;opacity:.9}
 .po-hd{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .po-hd-i{padding:8px 2px 7px;border-radius:14px;background:rgba(255,255,255,.14);text-align:center;line-height:1.15}
-.po-hd-i b{display:block;font-size:24px;font-weight:800}
+.po-hd-i b{display:block;font-size:20px;font-weight:800}
 .po-hd-i span{display:inline-flex;align-items:center;gap:5px;font-size:13px}
 .po-hd-i span::before{content:"";width:8px;height:8px;border-radius:50%;background:#6ee7b7}
 .po-hd-i[data-k="s"] span::before{background:#fcd34d}
@@ -85,11 +85,11 @@ body.dark-mode #portalOrtuContent .po-hero{background:linear-gradient(150deg,var
 
 /* HP: tab bawah (menggantikan v13), kotak Amalan tetap ringkas tapi >= 44px */
 @media(max-width:759px){
-#portalOrtuDashboard{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))!important}
-#portalOrtuDashboard #poTabBar{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:var(--z-bottom-nav-mobile,100000);gap:0;margin:0;padding:0;background:var(--po-card);border:0;border-top:1px solid var(--po-line);border-radius:20px 20px 0 0;box-shadow:0 -6px 24px rgba(8,82,61,.12);height:calc(68px + env(safe-area-inset-bottom,0px))}
-#portalOrtuDashboard #poTabBar button{flex:1;min-width:0;height:100%;justify-content:flex-end;gap:3px;padding:0 2px calc(10px + env(safe-area-inset-bottom,0px));border-radius:0;background:none;color:var(--po-mut);touch-action:manipulation}
+#portalOrtuDashboard{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
+#portalOrtuDashboard #poTabBar{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:var(--z-bottom-nav-mobile,100000);gap:0;margin:0;padding:0;background:var(--po-card);border:0;border-top:1px solid var(--po-line);border-radius:20px 20px 0 0;box-shadow:0 -6px 24px rgba(8,82,61,.12);height:calc(64px + env(safe-area-inset-bottom,0px))}
+#portalOrtuDashboard #poTabBar button{flex:1;min-width:0;height:100%;justify-content:flex-end;gap:3px;padding:0 2px calc(8px + env(safe-area-inset-bottom,0px));border-radius:0;background:none;color:var(--po-mut);touch-action:manipulation}
 #portalOrtuDashboard #poTabBar .pt-i .po-ik{width:26px;height:26px}
-#portalOrtuDashboard #poTabBar .pt-l{font-size:12px;line-height:14px;font-weight:600;letter-spacing:0}
+#portalOrtuDashboard #poTabBar .pt-l{font-size:13px;line-height:14px;font-weight:600;letter-spacing:0}
 #portalOrtuDashboard #poTabBar button .po-ik{color:var(--po-mut)}
 #portalOrtuDashboard #poTabBar button.on,#portalOrtuDashboard #poTabBar button.on .pt-l,#portalOrtuDashboard #poTabBar button.on .po-ik{color:var(--po-g);background:none}
 #portalOrtuDashboard #poTabBar button.on .pt-l{font-weight:800}
