@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.543",
-  "disimpan": "2026-11-21T00:54:17.251Z",
+  "appVersion": "v8.544",
+  "disimpan": "2026-11-21T01:15:33.669Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -191,8 +191,8 @@
       "hash": "3efa9ca4f82a6228042eeb164376c862566e2973"
     },
     "js/portal-ortu-ui.js": {
-      "v": "v=3",
-      "hash": "3bd71bc692ae76486e9d67d67625dc6aa7f88a85"
+      "v": "v=4",
+      "hash": "1abe2c504ea1006b9fdc9020348fcb0819f9f354"
     },
     "js/kredensial.js": {
       "v": "v=8",
