@@ -125,7 +125,7 @@
        bukan langsung di top-level saat script pertama kali dieksekusi. -->
   <script defer src="js/app.js?v=175"></script>
   <!-- Portal Orang Tua (dipecah dari app.js). WAJIB tepat SESUDAH app.js dan sebelum skrip lain. -->
-  <script defer src="js/portal-ortu.js?v=50"></script>
+  <script defer src="js/portal-ortu.js?v=51"></script>
   <script defer src="js/mode-ortu.js?v=7"></script>
   <!-- Infaq/Iuran Mingguan (dipecah dari app.js). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/infaq.js?v=6"></script>
@@ -134,7 +134,7 @@
   <!-- Hasil pecahan app.js tahap 2 (Materi & Tugas, Kelola Absen Guru + Koreksi Honor Sholat, Jadwal Pelajaran, Rekap/Laporan PDF). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/materi-tugas.js?v=1"></script>
   <script defer src="js/kelola-absen-guru.js?v=7"></script>
-  <script defer src="js/jadwal.js?v=7"></script>
+  <script defer src="js/jadwal.js?v=8"></script>
   <script defer src="js/cek-data.js?v=6"></script>   <!-- Cek Data (Admin): guru ganda, jadwal tanpa guruKey, dampak ke honor; sesudah app.js & jadwal.js -->
   <script defer src="js/laporan-rekap.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 3 (Honor Guru + PDF Rekap Honor). WAJIB sesudah app.js, sebelum skrip lain. -->
@@ -251,7 +251,7 @@
   <script defer src="js/peran-ganda.js?v=4"></script>
   <script defer src="js/absen-manual-gps.js?v=5"></script>   <!-- konfirmasi manual Admin untuk absen QR guru yang GPS-nya bermasalah (sesudah app.js) -->
   <script defer src="js/surat-guru.js?v=49"></script>
-  <script defer src="js/ijin-ortu.js?v=7"></script>   <!-- Ijin/Sakit Anak: form Portal Ortu + persetujuan Wali Kelas (sesudah app.js & portal-ortu.js) -->
+  <script defer src="js/ijin-ortu.js?v=8"></script>   <!-- Ijin/Sakit Anak: form Portal Ortu + persetujuan Wali Kelas (sesudah app.js & portal-ortu.js) -->
   <script defer src="js/agenda-surat.js?v=5"></script>
   <!-- Undangan Rapat bernomor (tab di Surat & Ijin). WAJIB sesudah surat-guru.js dan agenda-surat.js. -->
   <script defer src="js/undangan-rapat.js?v=5"></script>
@@ -1799,6 +1799,7 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn-soft" onclick="setJadwalView('harian')" id="btnViewHarian" style="padding:6px 12px;font-size:12px;background:#2563eb;color:white;">🔄 Harian</button>
               <button class="btn btn-soft" onclick="setJadwalView('mingguan')" id="btnViewMingguan" style="padding:6px 12px;font-size:12px;">📅 Mingguan</button>
+              <button class="btn btn-soft" onclick="setJadwalView('permapel')" id="btnViewPerMapel" style="padding:6px 12px;font-size:12px;">📚 Per Mapel</button>
               <button class="btn btn-primary" onclick="showTambahJadwal()" id="btnTambahJadwal" style="display:none;">➕ Tambah</button>
               <button class="btn btn-success" onclick="exportJadwalPDF()">📥 Export PDF</button>
             </div>

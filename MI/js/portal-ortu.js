@@ -830,6 +830,10 @@
       persetujuanOrtuGerbang(siswa).then(blok => {
         if (token !== _poGerbangToken) return;   // sudah pindah anak / render ulang
         if (!blok) renderPortalOrtuDashboardIsi(siswa);
+      }).catch(e => {
+        // Gerbang gagal (jaringan/Rules): sama seperti "gagal baca => gerbang terbuka", jangan biarkan layar macet di "Memuat data...".
+        console.warn('[SI MAMBA] Gerbang persetujuan gagal, dashboard tetap dibuka:', e);
+        if (token === _poGerbangToken) renderPortalOrtuDashboardIsi(siswa);
       });
     }
     function renderPortalOrtuDashboardIsi(siswa) {

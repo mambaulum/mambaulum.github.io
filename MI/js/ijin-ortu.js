@@ -269,7 +269,7 @@
     el.innerHTML = '<p class="text-muted" style="font-size:12px;">⏳ Memuat foto...</p>';
     db.ref(NODE_FOTO + '/' + key).once('value').then(function (s) {
       var v = s.val();
-      el.innerHTML = (typeof v === 'string' && v.indexOf('data:image/') === 0) ? '<img src="' + v + '" alt="Foto surat" style="max-width:100%;border-radius:8px;margin-top:8px;">' : '<p class="text-muted" style="font-size:12px;">Foto tidak ditemukan.</p>';
+      el.innerHTML = (typeof v === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v)) ? '<img src="' + esc(v) + '" alt="Foto surat" style="max-width:100%;border-radius:8px;margin-top:8px;">' : '<p class="text-muted" style="font-size:12px;">Foto tidak ditemukan.</p>';
     }).catch(function () { el.innerHTML = '<p style="color:#dc2626;font-size:12px;">Gagal memuat foto.</p>'; });
   };
 
@@ -601,7 +601,8 @@
     ref.set({ siswaKey: sw.key, siswaNama: sw.name, kelas: kelas, tahunAjaran: currentTahunAjaran, tglMulai: mulai, tglSelesai: selesai, jenis: jenis, keterangan: ket, hasFoto: false, waktuKirim: new Date().toISOString(), status: 'menunggu', dikirimOleh: String(currentUser.name || '').slice(0, 100) }, function (err) {
       clearBusy('ijinInput', btn);
       if (err) return warn('❌ Gagal menyimpan: ' + esc(err.message));
-      _filterStatus = 'menunggu'; _filterKelas = '';
+      // Tanggal > BASI_HARI hari lalu masuk tab "Lama" (disaring dari antrean biasa): pilih tab itu supaya pengajuan yang baru dibuat ikut terdaftar dan bisa langsung disetujui.
+      _filterStatus = (selesai < geser(t, -BASI_HARI)) ? 'lama' : 'menunggu'; _filterKelas = '';
       ijinOrtuTab('antrean');
       setTimeout(function () { ijinOrtuMuatDaftar().then(function () { ijinOrtuSetujui(ref.key); }); }, 50);
     });
