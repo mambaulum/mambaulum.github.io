@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.539';
+const APP_VERSION = 'v8.543';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -84,7 +84,7 @@ const PRECACHE_URLS = [
   './js/administrasi-ujian.js?v=18',
   './js/app.js?v=175',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
-  './js/portal-ortu.js?v=44',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/portal-ortu.js?v=46',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/infaq.js?v=6',                      // Infaq/Iuran Mingguan (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/sikap-buku.js?v=4',                 // Sikap, Buku Penghubung, Info ke Ortu (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -115,7 +115,8 @@ const PRECACHE_URLS = [
   './js/link-ortu.js?v=6',                  // Link masuk Portal Ortu lewat WhatsApp tanpa PIN (dimuat SESUDAH app.js & portal-ortu.js)
   './js/amalan-kegiatan.js?v=47',          // menu Amalan Yaumiyah (dimuat SESUDAH app.js)
   './js/bacaan-shalat.js?v=42',            // menu Bacaan Shalat + checklist amalan Portal Ortu + Mode Anak (dimuat SESUDAH app.js)
-  './js/portal-tab.js?v=17',                // Tab Portal Ortu di HP: Beranda/Amalan/Belajar/Angket/Lainnya (dimuat SESUDAH portal-ortu.js)
+  './js/portal-tab.js?v=19',                // Tab Portal Ortu di HP: Beranda/Amalan/Belajar/Angket/Lainnya (dimuat SESUDAH portal-ortu.js)
+  './js/portal-ortu-ui.js?v=3',               // Tampilan ramah pengguna Portal Ortu: satu lembar gaya (dimuat SESUDAH portal-tab.js)
   './js/kredensial.js?v=8',               // verifikasi PIN guru + panel Keamanan Login (dimuat sesudah app.js)
   './js/ttd-digital.js?v=10',              // tanda tangan QR/gambar + halaman verifikasi publik (dimuat SESUDAH app.js)
   './js/menu-hub.js?v=17',

@@ -500,7 +500,7 @@
       return `<details class="card po-acc"${id ? ' id="' + id + '"' : ''} style="margin-bottom:12px;"${buka ? ' open' : ''}><summary><span>${poID(judul)}</span>${badge || ''}</summary><div class="po-acc-body">${isi}</div></details>`;
     }
     const poBadge = (teks, kelas) => `<span class="po-badge${kelas ? ' ' + kelas : ''}">${teks}</span>`;
-    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:span 2}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:19px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}#bsOrtuBox summary::-webkit-details-marker{display:none}@media(max-width:759px){#portalOrtuContent .card{padding:10px 12px!important;margin-bottom:8px!important}.po-ub{padding:7px 8px}.po-ub-j{font-size:11px}.po-ub-u{font-size:17px}.po-ub-s{font-size:10.5px}}#portalOrtuAnakWrap,#portalOrtuGantiPin{max-width:600px}@media(min-width:760px){#portalOrtuContent{column-count:2;column-gap:12px}#portalOrtuContent .card,#portalOrtuContent details{break-inside:avoid;-webkit-column-break-inside:avoid}#portalOrtuContent #poKopKehadiran,#portalOrtuContent #poRingkas{column-span:all}}.po-ub-sikap{grid-column:1/-1;flex-direction:row!important;align-items:center!important;gap:12px!important;padding:10px 12px!important}.po-sk-donat{position:relative;width:66px;height:66px;flex:none}.po-sk-donat svg{width:100%;height:100%;display:block}.po-sk-bg{stroke:#e5e7eb}.po-sk-tot{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;pointer-events:none}.po-sk-tot b{font-size:17px;font-weight:800;color:#111827}.po-sk-tot i{font-style:normal;font-size:9px;color:#6b7280;margin-top:2px}.po-sk-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}.po-sk-leg{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;font-size:10.5px;color:#475569}.po-sk-leg span{display:inline-flex;align-items:center;gap:4px}.po-sk-leg em{width:8px;height:8px;border-radius:50%;display:inline-block}.po-sk-baru{align-self:flex-start;margin-top:4px;font-size:10.5px;font-weight:700;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:2px 8px}.po-sk-go{flex:none;color:#94a3b8;font-size:20px;line-height:1}.po-sk-rinci{display:flex;align-items:center;gap:12px;margin-bottom:8px}.po-sk-donat-b{width:78px;height:78px}.po-sk-ket{flex:1;min-width:0}</style>`;
+    const PO_ACC_CSS = `<style>.po-acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;-webkit-tap-highlight-color:transparent}.po-acc>summary::-webkit-details-marker{display:none}.po-acc>summary>span:first-child{flex:1;min-width:0}.po-acc>summary::after{content:"▾";color:#6b7280;transition:transform .15s}.po-acc[open]>summary::after{transform:rotate(180deg)}.po-acc-body{margin-top:8px}.po-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}.po-badge.warn{background:#fef3c7;color:#b45309}.po-badge.ok{background:#d1fae5;color:#047857}.po-badge.bad{background:#fee2e2;color:#b91c1c}.po-nilai{width:100%;table-layout:fixed}.po-nilai th,.po-nilai td{white-space:normal;word-break:break-word;font-size:13px;padding:6px 4px;vertical-align:top}.po-rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.po-ub{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-ub:active{background:#f1f5f9}.po-ub-penuh{grid-column:span 2}.po-ub-j{font-size:12px;font-weight:600;color:#475569}.po-ub-u{font-size:19px;font-weight:800;line-height:1.15}.po-ub-s{font-size:11px;color:#6b7280}.po-ub-x{width:100%}#bsOrtuBox summary::-webkit-details-marker{display:none}#portalOrtuAnakWrap,#portalOrtuGantiPin{max-width:600px}@media(min-width:760px){#portalOrtuContent{column-count:2;column-gap:12px}#portalOrtuContent .card,#portalOrtuContent details{break-inside:avoid;-webkit-column-break-inside:avoid}#portalOrtuContent #poKopKehadiran,#portalOrtuContent #poRingkas{column-span:all}}.po-ub-sikap{grid-column:1/-1;flex-direction:row!important;align-items:center!important;gap:12px!important;padding:10px 12px!important}.po-sk-donat{position:relative;width:66px;height:66px;flex:none}.po-sk-donat svg{width:100%;height:100%;display:block}.po-sk-bg{stroke:#e5e7eb}.po-sk-tot{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;pointer-events:none}.po-sk-tot b{font-size:17px;font-weight:800;color:#111827}.po-sk-tot i{font-style:normal;font-size:9px;color:#6b7280;margin-top:2px}.po-sk-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}.po-sk-leg{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;font-size:10.5px;color:#475569}.po-sk-leg span{display:inline-flex;align-items:center;gap:4px}.po-sk-leg em{width:8px;height:8px;border-radius:50%;display:inline-block}.po-sk-baru{align-self:flex-start;margin-top:4px;font-size:10.5px;font-weight:700;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:2px 8px}.po-sk-go{flex:none;color:#94a3b8;font-size:20px;line-height:1}.po-sk-rinci{display:flex;align-items:center;gap:12px;margin-bottom:8px}.po-sk-donat-b{width:78px;height:78px}.po-sk-ket{flex:1;min-width:0}</style>`;
     // ---------- Ringkasan satu layar (kartu #poRingkas, tepat di bawah kop anak) ----------
     // Kotak Kehadiran, Nilai, Infaq dihitung di sini. Kotak Amalan & Hafalan diisi js/bacaan-shalat.js lewat poIsiUbin()
     // begitu datanya selesai dimuat. Mengetuk kotak membuka bagian rinciannya dan menggulir ke sana.
@@ -666,51 +666,160 @@
       const d = new Date(+m[1], +m[2] - 1, +m[3]);
       return ORTU_HARI_URUT.concat(['Minggu'])[(d.getDay() + 6) % 7] + ', ' + (+m[3]) + ' ' + ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][+m[2] - 1] + ' ' + m[1];
     }
-    // SATU kartu "Jadwal": selama masa ujian (mulai H-ORTU_UJIAN_H_MIN sebelum sesi pertama sampai sesi terakhir selesai) isinya jadwal
-    // ujian; di luar masa itu isinya jadwal pelajaran biasa. Tidak ada jadwal sama sekali -> kartu tidak ditampilkan.
+    // v45: DUA kartu terpisah di dashboard ortu --
+    //   "Jadwal Ujian"     : muncul mulai H-ORTU_UJIAN_H_MIN sebelum sesi terdekat sampai sesi terakhir lewat (id poAccUjian).
+    //   "Jadwal Pelajaran" : selalu ada bila kelas punya jadwal (id poAccJadwal). Hari bawaan = HARI INI selama masih ada pelajaran;
+    //                        bila hari ini libur atau pelajaran terakhir sudah selesai (jam_settings; bawaan 15.00) -> HARI BERIKUTNYA.
+    // Penanda "Berlangsung" (pelajaran & sesi ujian) dan "Selesai" (sesi ujian) dihitung menurut WIB dan disegarkan tiap 30 detik.
+    // Pilih hari: ketuk chip, geser kiri/kanan pada daftar (di ujung tetap meneruskan geser antar-tab), atau tombol panah/Home/End.
+    // ARIA: chip = role=tab dalam tablist, daftar hari = tabpanel; hari ini ditandai aria-current="date", baris aktif aria-current="time".
     const ORTU_UJIAN_H_MIN = 7;
-    function ortuJadwalKartuHtml(jadwalSnap, jamSnap, jujianSnap) {
-      const jam = (jamSnap && jamSnap.val && jamSnap.val()) || {};
-      const hariIniIso = tglLokal();
-      const batas = new Date(); batas.setDate(batas.getDate() + ORTU_UJIAN_H_MIN);
-      const batasIso = batas.getFullYear() + '-' + String(batas.getMonth() + 1).padStart(2, '0') + '-' + String(batas.getDate()).padStart(2, '0');
+    const PO_JD_PULANG_BAWAAN = 15 * 60;   // menit; dipakai bila jam_settings tidak punya jam selesai
+    const PO_HARI_SEMUA = ORTU_HARI_URUT.concat(['Minggu']);
+    function poWib() { const d = new Date(); return new Date(d.getTime() + (d.getTimezoneOffset() + 420) * 60000); }   // jam dinding WIB di getHours()/getDate()
+    function poIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function poMenit(s) { const m = /(\d{1,2})\s*[:.]\s*(\d{2})/.exec(String(s == null ? '' : s)); if (!m) return null; const h = +m[1], mn = +m[2]; return h < 24 && mn < 60 ? h * 60 + mn : null; }
+    function poNamaHari(d) { return PO_HARI_SEMUA[(d.getDay() + 6) % 7]; }
+    function poJdSt(hariIniCocok, a, b, now) { return !hariIniCocok || a == null || b == null ? '' : (now >= a && now < b ? 'now' : (now >= b ? 'done' : '')); }
+    function poJdWkt(s) { return s ? escapeHtml(String(s)) : ''; }
+    function poJdStamp(w) {
+      const jam = String(w.getHours()).padStart(2, '0') + '.' + String(w.getMinutes()).padStart(2, '0');
+      return `<p class="po-jd-stamp">Diperbarui <time datetime="${poIso(w)}T${jam.replace('.', ':')}+07:00">${jam} WIB</time></p>`;
+    }
+    const PO_JD_CSS = `<style>.po-jd-chips{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 6px;scrollbar-width:none}.po-jd-chips::-webkit-scrollbar{display:none}.po-jd-chip{position:relative;flex:1 0 auto;min-width:64px;min-height:44px;padding:8px 14px;border:1px solid #cbd9d0;border-radius:999px;background:#fff;color:#334155;font:inherit;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}.po-jd-chip.on{background:#0b6b4f;border-color:#0b6b4f;color:#fff}.po-jd-chip:focus-visible,.po-jd-hari:focus-visible{outline:3px solid #2563eb;outline-offset:2px}.po-jd-dot{position:absolute;top:6px;right:9px;width:8px;height:8px;border-radius:50%;background:#f59e0b}.po-jd-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.po-jd-cat{font-size:12.5px;margin:6px 0 0;padding:8px 10px;border-radius:10px;background:#fffbeb;color:#92400e}.po-jd-judul{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;margin:10px 0 2px}.po-jd-pill{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid #0b6b4f;color:#0b6b4f}.po-jd-pill.besok{border-color:#b45309;color:#92400e}.po-jd-list{list-style:none;margin:0;padding:0}.po-jd-row{display:flex;gap:12px;align-items:center;padding:10px 8px;border-bottom:1px solid #e2e8f0;border-left:4px solid transparent;border-radius:6px}.po-jd-row:last-child{border-bottom:0}.po-jd-row.po-jd-now{background:#ecfdf5;border-left-color:#047857}.po-jd-jam{min-width:84px;flex:none}.po-jd-jam b{display:block;font-size:15px}.po-jd-wkt{display:block;font-size:12.5px;color:#475569}.po-jd-isi{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px}.po-jd-mp{display:inline-block;padding:3px 10px;border-radius:8px;font-size:14px;font-weight:700}.po-jd-guru,.po-jd-uj-nama{font-size:12.5px;color:#475569}.po-jd-uj-mp{font-size:15px;font-weight:700}.po-jd-uj-wkt{font-size:14px;font-weight:600}.po-jd-tag{flex:none;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#047857;color:#fff;white-space:nowrap}.po-jd-tag[hidden]{display:none}.po-jd-tag-done{background:#e2e8f0;color:#334155}.po-jd-stamp{font-size:11.5px;color:#64748b;margin:8px 0 0;text-align:right}body.dark-mode .po-jd-chip{background:#1e293b;border-color:#475569;color:#e2e8f0}body.dark-mode .po-jd-chip.on{background:#10b981;border-color:#10b981;color:#052e22}body.dark-mode .po-jd-chip:focus-visible,body.dark-mode .po-jd-hari:focus-visible{outline-color:#93c5fd}body.dark-mode .po-jd-cat{background:#422006;color:#fde68a}body.dark-mode .po-jd-pill{border-color:#34d399;color:#6ee7b7}body.dark-mode .po-jd-pill.besok{border-color:#fbbf24;color:#fcd34d}body.dark-mode .po-jd-row{border-bottom-color:#334155}body.dark-mode .po-jd-row.po-jd-now{background:#064e3b;border-left-color:#34d399}body.dark-mode .po-jd-wkt,body.dark-mode .po-jd-guru,body.dark-mode .po-jd-uj-nama{color:#cbd5e1}body.dark-mode .po-jd-tag{background:#34d399;color:#022c22}body.dark-mode .po-jd-tag-done{background:#334155;color:#e2e8f0}body.dark-mode .po-jd-stamp{color:#94a3b8}</style>`;
+
+    function ortuUjianKartuHtml(jujianSnap, w, css) {
+      const hariIniIso = poIso(w), now = w.getHours() * 60 + w.getMinutes();
+      const batas = new Date(w.getTime()); batas.setDate(batas.getDate() + ORTU_UJIAN_H_MIN);
+      const besok = new Date(w.getTime()); besok.setDate(besok.getDate() + 1);
+      const batasIso = poIso(batas), besokIso = poIso(besok);
       const ujian = []; if (jujianSnap) jujianSnap.forEach(c => { const u = c.val(); if (u && u.tanggal && u.tanggal >= hariIniIso) ujian.push(u); });
-      // Mode ujian: ada sesi yang jatuh dalam ORTU_UJIAN_H_MIN hari ke depan (atau hari ini). Sesi yang masih jauh tidak mengganti jadwal biasa.
-      if (ujian.some(u => u.tanggal <= batasIso)) {
-        ujian.sort((a, b) => (a.tanggal + (a.jamMulai || '')).localeCompare(b.tanggal + (b.jamMulai || '')));
-        const rows = ujian.map(u => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
-          <strong>${escapeHtml(u.mapel || u.nama || 'Ujian')}</strong>${u.mapel && u.nama ? ` <span class="text-muted" style="font-size:11px;">— ${escapeHtml(u.nama)}</span>` : ''}
-          <div class="text-muted" style="font-size:12px;margin-top:2px;">🗓️ ${ortuTglIndo(u.tanggal)}${u.jamMulai ? ' · 🕒 ' + escapeHtml(u.jamMulai) + (u.jamSelesai ? '–' + escapeHtml(u.jamSelesai) : '') : ''}${u.ruang ? ' · 🚪 ' + escapeHtml(u.ruang) : ''}</div></div>`).join('');
-        return poAcc('📝 Jadwal Ujian', poBadge(ujian.length + ' sesi', 'warn'), rows, true, 'poAccJadwal');
-      }
-      const hariIni = ORTU_HARI_URUT.concat(['Minggu'])[(new Date().getDay() + 6) % 7];
+      if (!ujian.some(u => u.tanggal <= batasIso)) return '';   // sesi masih jauh: kartu belum perlu tampil
+      ujian.sort((a, b) => (a.tanggal + (a.jamMulai || '')).localeCompare(b.tanggal + (b.jamMulai || '')));
+      let html = '', tglAktif = '', nHariIni = 0;
+      ujian.forEach(u => {
+        if (u.tanggal !== tglAktif) {
+          if (tglAktif) html += '</ul>';
+          tglAktif = u.tanggal;
+          const pill = u.tanggal === hariIniIso ? '<span class="po-jd-pill">Hari ini</span>' : (u.tanggal === besokIso ? '<span class="po-jd-pill besok">Besok</span>' : '');
+          html += `<p class="po-jd-judul"><strong>${ortuTglIndo(u.tanggal)}</strong>${pill}</p><ul class="po-jd-list">`;
+        }
+        if (u.tanggal === hariIniIso) nHariIni++;
+        const a = poMenit(u.jamMulai); let b = poMenit(u.jamSelesai); if (b == null && a != null) b = a + 120;   // tanpa jam selesai: anggap 2 jam
+        const st = poJdSt(u.tanggal === hariIniIso, a, b, now);
+        const attr = a != null && b != null ? ` data-tgl="${escapeHtml(u.tanggal)}" data-mulai="${a}" data-selesai="${b}"` : '';
+        const wkt = u.jamMulai ? 'Pukul ' + poJdWkt(u.jamMulai) + (u.jamSelesai ? '–' + poJdWkt(u.jamSelesai) : '') : '';
+        const ruang = u.ruang ? (wkt ? ' · ' : '') + 'Ruang ' + poJdWkt(u.ruang) : '';
+        html += `<li class="po-jd-row po-jd-uj${st === 'now' ? ' po-jd-now' : ''}"${attr}${st === 'now' ? ' aria-current="time"' : ''}>
+          <div class="po-jd-isi"><span class="po-jd-uj-mp">${escapeHtml(u.mapel || u.nama || 'Ujian')}</span>${u.mapel && u.nama ? `<span class="po-jd-uj-nama">${escapeHtml(u.nama)}</span>` : ''}<span class="po-jd-uj-wkt">${wkt}${ruang}</span></div>
+          <span class="po-jd-tag po-jd-tag-now"${st === 'now' ? '' : ' hidden'}>Berlangsung</span><span class="po-jd-tag po-jd-tag-done"${st === 'done' ? '' : ' hidden'}>Selesai</span></li>`;
+      });
+      html += '</ul>';
+      const badge = poBadge((nHariIni ? 'Hari ini · ' + nHariIni + ' sesi' : ujian.length + ' sesi'), 'warn');
+      return poAcc('📝 Jadwal Ujian', badge, (css || '') + html + poJdStamp(w), true, 'poAccUjian');
+    }
+
+    function ortuPelajaranKartuHtml(jadwalSnap, jamSnap, w, css) {
+      const jam = (jamSnap && jamSnap.val && jamSnap.val()) || {};
       const items = []; if (jadwalSnap) jadwalSnap.forEach(c => { const j = c.val(); if (j && j.hari && j.mapel) items.push(j); });
       if (!items.length) return '';
+      const hariIni = poNamaHari(w), idxIni = PO_HARI_SEMUA.indexOf(hariIni), hariBesok = PO_HARI_SEMUA[(idxIni + 1) % 7], now = w.getHours() * 60 + w.getMinutes();
       const hariAda = ORTU_HARI_URUT.filter(h => items.some(j => j.hari === h));
-      const hariPilih = hariAda.indexOf(hariIni) >= 0 ? hariIni : hariAda[0];   // hari ini bila ada pelajaran; kalau libur (mis. Minggu) tampilkan hari pertama
-      const chip = h => `<button type="button" class="po-jd-chip${h === hariPilih ? ' on' : ''}" data-hari="${h}" onclick="poJadwalHari(this,'${h}')">${h}${h === hariIni ? '<i class="po-jd-dot"></i>' : ''}</button>`;
+      const menitJam = j => { const s = jam[j.jam]; const a = s ? poMenit(s.mulai) : null, b = s ? poMenit(s.selesai) : null; return a != null && b != null && b > a ? [a, b] : null; };
+      let akhirHariIni = null;
+      items.filter(j => j.hari === hariIni).forEach(j => { const m = menitJam(j); if (m && (akhirHariIni == null || m[1] > akhirHariIni)) akhirHariIni = m[1]; });
+      const adaHariIni = hariAda.indexOf(hariIni) >= 0;
+      const selesaiHariIni = adaHariIni && now >= (akhirHariIni != null ? akhirHariIni : PO_JD_PULANG_BAWAAN);
+      let hariPilih = hariIni, offset = 0, catatan = '';
+      if (!adaHariIni || selesaiHariIni) {
+        for (let k = 1; k <= 7; k++) { const h = PO_HARI_SEMUA[(idxIni + k) % 7]; if (hariAda.indexOf(h) >= 0) { hariPilih = h; offset = k; break; } }
+        const ket = offset === 1 ? ' (besok)' : (offset === 7 ? ' (pekan depan)' : '');
+        catatan = `<p class="po-jd-cat">${adaHariIni ? 'Pelajaran hari ini sudah selesai' : 'Hari ini (' + hariIni + ') tidak ada jadwal pelajaran'} — menampilkan jadwal ${hariPilih}${ket}.</p>`;
+      }
+      const chip = h => `<button type="button" role="tab" class="po-jd-chip${h === hariPilih ? ' on' : ''}" id="poJdTab-${h}" data-hari="${h}" aria-selected="${h === hariPilih}" aria-controls="poJdPanel-${h}" tabindex="${h === hariPilih ? 0 : -1}"${h === hariIni ? ' aria-current="date"' : ''} onclick="poJadwalHari(this,'${h}')">${h}${h === hariIni ? '<i class="po-jd-dot" aria-hidden="true"></i><span class="po-jd-sr"> (hari ini)</span>' : ''}</button>`;
       const blok = h => {
         const rows = items.filter(j => j.hari === h).sort((a, b) => (a.jam || 0) - (b.jam || 0)).map(j => {
-          const w = jam[j.jam] && jam[j.jam].mulai ? jam[j.jam].mulai + '–' + jam[j.jam].selesai : '';
+          const s = jam[j.jam], wkt = s && s.mulai ? escapeHtml(s.mulai) + '–' + escapeHtml(s.selesai || '') : '';
+          const m = menitJam(j), st = m ? poJdSt(h === hariIni, m[0], m[1], now) : '';
+          const attr = m ? ` data-hari="${h}" data-mulai="${m[0]}" data-selesai="${m[1]}"` : '';
           const [bg, fg] = typeof warnaMapel === 'function' ? warnaMapel(j.mapel) : ['#e5e7eb', '#111827'];
-          return `<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
-            <div style="min-width:64px;"><strong>Jam ${escapeHtml(j.jam || '-')}</strong>${w ? `<div class="text-muted" style="font-size:10px;">${escapeHtml(w)}</div>` : ''}</div>
-            <div style="flex:1;min-width:0;"><span style="display:inline-block;padding:2px 8px;border-radius:7px;font-weight:600;background:${bg};color:${fg};">${escapeHtml(j.mapel)}</span><div class="text-muted" style="font-size:11px;margin-top:2px;">${escapeHtml(j.guru || '-')}</div></div></div>`;
+          return `<li class="po-jd-row${st === 'now' ? ' po-jd-now' : ''}"${attr}${st === 'now' ? ' aria-current="time"' : ''}>
+            <div class="po-jd-jam"><b>Jam ${escapeHtml(j.jam || '-')}</b>${wkt ? `<span class="po-jd-wkt">${wkt}</span>` : ''}</div>
+            <div class="po-jd-isi"><span class="po-jd-mp" style="background:${bg};color:${fg};">${escapeHtml(j.mapel)}</span><span class="po-jd-guru">${escapeHtml(j.guru || '-')}</span></div>
+            <span class="po-jd-tag po-jd-tag-now"${st === 'now' ? '' : ' hidden'}>Berlangsung</span></li>`;
         }).join('');
-        return `<div class="po-jd-hari" data-hari="${h}"${h === hariPilih ? '' : ' style="display:none"'}>${h === hariIni ? '<p class="text-muted" style="font-size:11px;margin:6px 0 0;">Hari ini</p>' : ''}${rows}</div>`;
+        const pill = h === hariIni ? '<span class="po-jd-pill">Hari ini</span>' : (h === hariBesok ? '<span class="po-jd-pill besok">Besok</span>' : '');
+        return `<div class="po-jd-hari" role="tabpanel" id="poJdPanel-${h}" aria-labelledby="poJdTab-${h}" data-hari="${h}"${h === hariPilih ? '' : ' hidden'}><p class="po-jd-judul"><strong>${h}</strong>${pill}</p><ul class="po-jd-list">${rows}</ul></div>`;
       };
-      const catLibur = hariAda.indexOf(hariIni) < 0 ? `<p class="text-muted" style="font-size:11px;margin:8px 0 0;">Hari ini (${hariIni}) tidak ada jadwal pelajaran.</p>` : '';
       const nHariIni = items.filter(j => j.hari === hariIni).length;
-      const isi = `<style>.po-jd-chips{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}.po-jd-chip{position:relative;flex:1 0 auto;min-width:52px;padding:5px 8px;border:1px solid #d5e6dc;border-radius:999px;background:#fff;color:#475569;font:inherit;font-size:12px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}.po-jd-chip.on{background:#0b6b4f;border-color:#0b6b4f;color:#fff}.po-jd-dot{position:absolute;top:3px;right:6px;width:6px;height:6px;border-radius:50%;background:#f59e0b}</style><div class="po-jd-wrap"><div class="po-jd-chips">${hariAda.map(chip).join('')}</div>${hariAda.map(blok).join('')}${catLibur}</div>`;
-      return poAcc('📅 Jadwal Pelajaran', nHariIni ? poBadge('Hari ini ' + nHariIni + ' jam', 'ok') : poBadge(items.length + ' jam/minggu'), isi, true, 'poAccJadwal');
+      const badge = adaHariIni && !selesaiHariIni ? poBadge('Hari ini ' + nHariIni + ' jam', 'ok') : poBadge('Berikutnya: ' + hariPilih);
+      const isi = `${css || ''}<div class="po-jd-wrap"><div class="po-jd-chips" role="tablist" aria-label="Pilih hari jadwal pelajaran">${hariAda.map(chip).join('')}</div>${catatan}<div class="po-jd-panels">${hariAda.map(blok).join('')}</div></div>${poJdStamp(w)}`;
+      return poAcc('📅 Jadwal Pelajaran', badge, isi, true, 'poAccJadwal');
     }
-    // Pilih hari pada kartu Jadwal Pelajaran (dipanggil dari tombol hari).
-    function poJadwalHari(btn, h) {
-      const w = btn && btn.closest ? btn.closest('.po-jd-wrap') : null; if (!w) return;
-      w.querySelectorAll('.po-jd-chip').forEach(c => c.classList.toggle('on', c.getAttribute('data-hari') === h));
-      w.querySelectorAll('.po-jd-hari').forEach(d => { d.style.display = d.getAttribute('data-hari') === h ? '' : 'none'; });
+
+    // Dipanggil dashboard: Jadwal Ujian (bila ada) lalu Jadwal Pelajaran. CSS cukup dimuat sekali, di kartu pertama yang tampil.
+    function ortuJadwalKartuHtml(jadwalSnap, jamSnap, jujianSnap) {
+      const w = poWib();
+      const uj = ortuUjianKartuHtml(jujianSnap, w, PO_JD_CSS);
+      const pl = ortuPelajaranKartuHtml(jadwalSnap, jamSnap, w, uj ? '' : PO_JD_CSS);
+      return uj + pl;
     }
+
+    // ---- Interaksi: pilih hari, penanda "Berlangsung", geser, papan tombol ----
+    function poJdPilih(wrap, h, fokus) {
+      if (!wrap) return;
+      wrap.querySelectorAll('.po-jd-chip').forEach(c => {
+        const on = c.getAttribute('data-hari') === h;
+        c.classList.toggle('on', on); c.setAttribute('aria-selected', on ? 'true' : 'false'); c.tabIndex = on ? 0 : -1;
+        if (on) { if (fokus) c.focus(); try { c.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) { /* abaikan */ } }
+      });
+      wrap.querySelectorAll('.po-jd-hari').forEach(d => { d.hidden = d.getAttribute('data-hari') !== h; });
+    }
+    function poJadwalHari(btn, h) { poJdPilih(btn && btn.closest ? btn.closest('.po-jd-wrap') : null, h, false); }
     window.poJadwalHari = poJadwalHari;
+    function poJdTick() {
+      const rows = document.querySelectorAll('.po-jd-row[data-mulai]'); if (!rows.length) return;
+      const w = poWib(), now = w.getHours() * 60 + w.getMinutes(), tgl = poIso(w), hari = poNamaHari(w);
+      rows.forEach(r => {
+        const tr = r.getAttribute('data-tgl'), cocok = tr ? tr === tgl : r.getAttribute('data-hari') === hari;
+        const st = poJdSt(cocok, +r.getAttribute('data-mulai'), +r.getAttribute('data-selesai'), now);
+        r.classList.toggle('po-jd-now', st === 'now');
+        if (st === 'now') r.setAttribute('aria-current', 'time'); else r.removeAttribute('aria-current');
+        const tn = r.querySelector('.po-jd-tag-now'); if (tn) tn.hidden = st !== 'now';
+        const td = r.querySelector('.po-jd-tag-done'); if (td) td.hidden = st !== 'done';
+      });
+    }
+    if (!window._poJdPasang) {
+      window._poJdPasang = true;
+      setInterval(poJdTick, 30000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) poJdTick(); });
+      document.addEventListener('keydown', e => {
+        const c = e.target && e.target.closest ? e.target.closest('.po-jd-chip') : null; if (!c) return;
+        const list = Array.from(c.parentNode.querySelectorAll('.po-jd-chip')), i = list.indexOf(c);
+        let j = -1;
+        if (e.key === 'ArrowRight') j = (i + 1) % list.length; else if (e.key === 'ArrowLeft') j = (i - 1 + list.length) % list.length;
+        else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = list.length - 1;
+        if (j < 0) return;
+        e.preventDefault(); poJdPilih(c.closest('.po-jd-wrap'), list[j].getAttribute('data-hari'), true);
+      });
+      // Geser kiri/kanan pada daftar pelajaran = pindah hari. Di hari pertama/terakhir geser diteruskan ke pindah-tab (portal-tab.js).
+      let s = null;
+      document.addEventListener('touchstart', e => {
+        const p = e.target && e.target.closest ? e.target.closest('.po-jd-panels') : null;
+        if (!p || e.touches.length !== 1) { s = null; return; }
+        const t = e.touches[0]; s = { p, x: t.clientX, y: t.clientY, t: Date.now(), tepi: t.clientX <= 28 || t.clientX >= window.innerWidth - 28 };
+      }, { passive: true, capture: true });
+      document.addEventListener('touchend', e => {
+        if (!s) return; const a = s; s = null; if (a.tepi) return;   // tepi layar dibiarkan untuk gestur kembali
+        const t = e.changedTouches[0], dx = t.clientX - a.x, dy = t.clientY - a.y;
+        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8 || Date.now() - a.t > 700) return;
+        const wrap = a.p.closest('.po-jd-wrap'); if (!wrap) return;
+        const list = Array.from(wrap.querySelectorAll('.po-jd-chip')), i = list.findIndex(c => c.classList.contains('on')), j = dx < 0 ? i + 1 : i - 1;
+        if (i < 0 || j < 0 || j >= list.length) return;
+        poJdPilih(wrap, list[j].getAttribute('data-hari'), false);
+        e.stopPropagation();   // sudah dipakai pindah hari: jangan ikut pindah tab
+      }, { capture: true });
+    }
     let _poGerbangToken = 0;
     function renderPortalOrtuDashboard(siswa) {
       const content = document.getElementById('portalOrtuContent');
@@ -900,25 +1009,25 @@
           sikap: { n: sikap.length, pr: nSikapPrestasi, pl: nSikapPelanggaran, net: netSikap, baru: nSikapPelanggaranBaru }
         });
         content.innerHTML = `
-          <div class="card" id="poKopKehadiran" style="margin-bottom:8px;">
-            <p id="poSapaan" style="font-size:12px;margin:0 0 6px;color:#0b6b4f;font-weight:600;">Assalamu\'alaikum, Bapak/Ibu <span class="text-muted" style="font-weight:400;">· kabar terbaru Ananda</span></p>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" width="36" height="36" style="width:36px;height:36px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
+          <div class="card po-hero" id="poKopKehadiran">
+            <p id="poSapaan" class="po-hero-sapa">Assalamu\'alaikum, Bapak/Ibu <span>· kabar terbaru Ananda</span></p>
+            <div class="po-hero-id">
+              <img src="logo/logo-lembaga.png" alt="Logo ${escapeHtml(MADRASAH.nama || 'madrasah')}" class="po-hero-logo" width="48" height="48" onerror="this.style.display='none'">
               <div style="min-width:0;">
-                <p class="text-muted" style="font-size:11px;margin:0;">${escapeHtml(MADRASAH.nama || '')}</p>
-                <p style="font-size:17px;font-weight:800;margin:0;line-height:1.2;">${escapeHtml(siswa.name)}</p>
-                <p class="text-muted" style="font-size:12px;margin:0;">${/^kelas\b/i.test(String(siswa.kelas || '')) ? escapeHtml(siswa.kelas) : 'Kelas ' + escapeHtml(siswa.kelas)}</p>
+                <p class="po-hero-mad">${escapeHtml(MADRASAH.nama || '')}</p>
+                <p class="po-hero-nama">${escapeHtml(siswa.name)}</p>
+                <p class="po-hero-kelas">${/^kelas\b/i.test(String(siswa.kelas || '')) ? escapeHtml(siswa.kelas) : 'Kelas ' + escapeHtml(siswa.kelas)}</p>
               </div>
             </div>
-            <div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px;">
-              <p style="font-weight:700;font-size:13px;margin:0 0 6px;">${poID('📅 Kehadiran Bulan Ini')} <span class="text-muted" style="font-weight:400;font-size:11px;">· ${escapeHtml(labelBulan(bulanTampil))}</span></p>
-              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;">
-                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#059669;">${hadir}</div><div class="text-muted" style="font-size:11px;">Hadir</div></div>
-                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#d97706;">${sakit}</div><div class="text-muted" style="font-size:11px;">Sakit</div></div>
-                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#2563eb;">${izin}</div><div class="text-muted" style="font-size:11px;">Izin</div></div>
-                <div><div style="font-size:18px;font-weight:800;line-height:1.2;color:#dc2626;">${alfa}</div><div class="text-muted" style="font-size:11px;">Alfa</div></div>
+            <div class="po-hero-hadir">
+              <p class="po-hero-jdl">${poID('📅 Kehadiran Bulan Ini')} <span>· ${escapeHtml(labelBulan(bulanTampil))}</span></p>
+              <div class="po-hd">
+                <div class="po-hd-i" data-k="h"><b>${hadir}</b><span>Hadir</span></div>
+                <div class="po-hd-i" data-k="s"><b>${sakit}</b><span>Sakit</span></div>
+                <div class="po-hd-i" data-k="i"><b>${izin}</b><span>Izin</span></div>
+                <div class="po-hd-i${alfa > 0 ? ' po-hd-warn' : ''}" data-k="a"><b>${alfa}</b><span>Alfa</span></div>
               </div>
-              ${catatanAbsen ? `<p class="text-muted" style="font-size:11px;font-style:italic;margin:8px 0 0;text-align:center;">${catatanAbsen}</p>` : ''}
+              ${catatanAbsen ? `<p class="po-hero-cat">${catatanAbsen}</p>` : ''}
             </div>
           </div>
           ${gagalMuat.length ? '<div class="card" style="margin-bottom:8px;border-left:4px solid #d97706;font-size:12px;">⚠️ Sebagian data belum bisa dimuat. Tarik ke bawah untuk muat ulang, atau hubungi Admin bila berulang.</div>' : ''}

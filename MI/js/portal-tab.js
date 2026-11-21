@@ -125,7 +125,7 @@
     if (id === 'poKopKehadiran' || id === 'poRingkas' || id === 'poPengingatBeranda' || id === 'persetujuanOrtuSlot' || id === 'ijinOrtuSlot') return 'home';   // v8.432: kartu persetujuan (belum mengisi/tarik) tampil di Beranda; baris kecil 'persetujuanOrtuBawah' sengaja ikut tab Lainnya
     if (id === 'bsOrtuBox' || id === 'portalOrtuSholatCard' || id === 'bsLp_sikap') return 'amalan';   // bsLp_sikap = kartu Sikap & Kedisiplinan bergaya Mode Anak
     if (id === 'poAccNilai') return 'belajar';
-    if (id === 'poAccJadwal') return 'home';   // v14: jadwal pelajaran/ujian hari ini tampil di Beranda
+    if (id === 'poAccJadwal' || id === 'poAccUjian') return 'home';   // v14: jadwal pelajaran hari ini tampil di Beranda; v18: Jadwal Ujian kartu terpisah (poAccUjian), tampil di atas Jadwal Pelajaran
     if (id === 'poAngketKosong' || ID_ANGKET.indexOf(id) >= 0) return 'angket';
     if (c.tagName === 'DETAILS') {
       var sm = c.querySelector('summary'), t = sm ? (sm.textContent || '').slice(0, 60) : '';
@@ -331,16 +331,11 @@
   }
   var css = document.createElement('style');
   css.textContent = '.po-ik{flex:none;vertical-align:-3px}.po-eik{display:inline-flex;vertical-align:middle;line-height:1}.po-eik .po-ik{width:1.1em;height:1.1em;vertical-align:0;color:inherit}#bsOrtuBox .po-eik{color:#0f766e}.po-ub-j{display:flex;align-items:center;gap:4px}.po-ub-j .po-ik,.po-acc>summary .po-ik,#poRingkas>p .po-ik,#poKopKehadiran .po-ik,#poTabBar .po-ik{color:#0f766e}#poTabBar button.on .po-ik{color:#00543f}#bsOrtuPengingat .po-ik,#poPengingatBeranda .po-ik{color:#b45309}.po-acc>summary>span:first-child .po-ik{margin-right:4px}#poTabBar{display:none}@media(min-width:760px){#poPengingatBeranda{display:none}}'
-    + '@media(max-width:759px){#portalOrtuContent .btn,#poPengingatBeranda .btn,#portalOrtuDashboard .btn{min-height:30px!important;padding:2px 10px!important;font-size:12px!important;border-radius:9px!important}'
-    + '#bsOrtuBox button[style*="min-height:48px"],#bsOrtuBox div[style*="min-height:48px"]{min-height:36px!important;padding:3px 8px!important;font-size:12.5px!important;border-width:1.5px!important;border-radius:10px!important;gap:5px!important}'
-    + '#bsOrtuBox button[style*="min-height:44px"]{min-height:34px!important;padding:3px 8px!important;font-size:12.5px!important;border-width:1.5px!important;border-radius:10px!important;margin-top:6px!important}'
-    + '#bsOrtuBox [style*="font-size:20px"]{font-size:16px!important}#bsOrtuBox [style*="font-size:16px"]{font-size:14px!important}'
-    + '#portalOrtuDashboard>div>div:first-child .btn{min-height:28px!important;padding:2px 9px!important;font-size:11px!important}}'
     + '@keyframes ptPutar{to{transform:rotate(360deg)}}'
     + '@keyframes ptMasuk{from{opacity:0;transform:translateX(var(--pt-dx,18px))}to{opacity:1;transform:none}}'
     + '@media(max-width:759px) and (prefers-reduced-motion:no-preference){#portalOrtuContent[data-anim="1"]>[data-ptab]{animation:ptMasuk .22s ease-out}}'
     + '@media(max-width:759px){#portalOrtuDashboard .po-bt{display:none}#portalOrtuDashboard .po-bt-ikon{padding:2px 8px!important;min-width:34px}}'
-    + '@media(max-width:759px){.po-rk-grid{gap:5px!important}.po-ub{padding:6px 8px!important;gap:0!important}.po-ub-u{font-size:16px!important}.po-ub-s{line-height:1.25!important}'
+    + '@media(max-width:759px){'
     + '#poTabBar{display:flex!important;gap:2px;position:sticky;top:0;z-index:20;background:#fff;padding:6px 0;margin:0 0 8px;border-bottom:1px solid #e5e7eb}'
     + '#poTabBar[style*="display: none"]{display:none!important}'
     + '#poTabBar button{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 1px;border:0;border-radius:10px;background:transparent;color:#475569;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}'
@@ -350,39 +345,6 @@
     + '#portalOrtuContent[data-pt="home"]>:not([data-ptab="home"]):not(style),#portalOrtuContent[data-pt="amalan"]>:not([data-ptab="amalan"]):not(style),#portalOrtuContent[data-pt="belajar"]>:not([data-ptab="belajar"]):not(style),#portalOrtuContent[data-pt="angket"]>:not([data-ptab="angket"]):not(style),#portalOrtuContent[data-pt="lain"]>:not([data-ptab="lain"]):not(style){display:none!important}'
     + '#portalOrtuContent[data-pt="angket"]{display:flex;flex-direction:column}#angketOrtuSlot{order:1}#angketSiswaSlot{order:2}#angketKeunggulanOrtuSlot{order:3}#angketKeunggulanSiswaSlot{order:4}#p8OrtuBox{order:5}#poAngketKosong{order:0}'
     + '#portalOrtuContent[data-pt="amalan"]{display:flex;flex-direction:column}#portalOrtuContent[data-pt="amalan"]>#bsLp_sikap{order:-1}'
-    + '}';
-  // Tema hijau (v10): pita header hijau, latar halaman hijau muda, tab aktif hijau penuh. Warna utama ada di satu tempat (--po-hijau) supaya mudah diganti.
-  // Juga memperbaiki ikon yang tadinya turun ke baris sendiri (styles.css membuat svg display:block).
-  css.textContent += '#portalOrtuDashboard{--po-hijau:#0b6b4f;--po-hijau-tua:#08523d;--po-hijau-muda:#e8f3ec;background:var(--po-hijau-muda)!important}'
-    + '.po-ik,.po-eik .po-ik{display:inline-block!important}'
-    + '#portalOrtuDashboard>div>div:first-child{background:linear-gradient(135deg,var(--po-hijau),var(--po-hijau-tua));color:#fff;border-radius:14px;padding:8px 10px;box-shadow:0 2px 8px rgba(8,82,61,.25)}'
-    + '#portalOrtuDashboard>div>div:first-child h2{color:#fff;display:flex;align-items:center;gap:6px}#portalOrtuDashboard>div>div:first-child h2 .po-ik{color:#fff!important}'
-    + '#portalOrtuDashboard>div>div:first-child .btn{background:rgba(255,255,255,.16)!important;color:#fff!important;border:1px solid rgba(255,255,255,.35)!important;box-shadow:none!important}'
-    + '#portalOrtuDashboard>div>div:first-child .btn .po-ik{color:#fff!important}'
-    + '#poTabBar{background:#fff!important;border:1px solid #d5e6dc;border-radius:14px;padding:4px!important;box-shadow:0 2px 8px rgba(8,82,61,.10)}'
-    + '#poTabBar button.on{background:var(--po-hijau)!important;color:#fff!important}#poTabBar button.on .po-ik{color:#fff!important}#poTabBar button.on .pt-l{color:#fff}'
-    + '.po-ub-j .po-ik,.po-acc>summary .po-ik,#poRingkas>p .po-ik,#poKopKehadiran .po-ik,#bsOrtuBox .po-eik{color:var(--po-hijau)!important}'
-    + '#portalOrtuContent .card{border-color:#d5e6dc!important}'
-    + '#portalOrtuContent .po-acc:has(>summary .po-badge.bad){box-shadow:inset 4px 0 0 #dc2626,0 1px 3px rgba(0,0,0,.06)!important}'
-    + '#portalOrtuContent .po-acc:has(>summary .po-badge.warn){box-shadow:inset 4px 0 0 #f59e0b,0 1px 3px rgba(0,0,0,.06)!important}'
-    + '#poPengingatBeranda,#bsOrtuPengingat{box-shadow:inset 4px 0 0 #f59e0b,0 1px 3px rgba(0,0,0,.06)!important}'
-    + '@media(max-width:759px){.po-ub-j{font-size:10.5px!important}}';
-  // v13: tab dipindah ke BAWAH layar, gayanya meniru .bottom-nav milik guru (putih, sudut atas membulat, penanda hijau di tepi atas tab aktif).
-  // Hanya HP (< 760px). Menimpa gaya "pil sticky di atas" di atas lewat selektor yang lebih spesifik.
-  css.textContent += '@media(max-width:759px){'
-    + '#portalOrtuDashboard{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}'
-    + '#portalOrtuDashboard #poTabBar{position:fixed!important;left:0;right:0;bottom:0;top:auto;z-index:var(--z-bottom-nav-mobile,100000);gap:0;margin:0!important;padding:0!important;'
-    + 'background:#fff!important;border:0!important;border-radius:20px 20px 0 0!important;box-shadow:0 -6px 24px rgba(15,59,44,.10)!important;'
-    + 'height:calc(64px + env(safe-area-inset-bottom,0px))}'
-    + '#portalOrtuDashboard #poTabBar button{flex:1;min-width:0;height:100%;justify-content:flex-end;gap:3px;padding:0 2px calc(9px + env(safe-area-inset-bottom,0px))!important;border-radius:0!important;background:none!important;color:#64748b!important;touch-action:manipulation}'
-    + '#portalOrtuDashboard #poTabBar .pt-i .po-ik{width:24px;height:24px}'
-    + '#portalOrtuDashboard #poTabBar .pt-l{font-size:11px;line-height:13px;font-weight:500}'
-    + '#portalOrtuDashboard #poTabBar button .po-ik{color:#64748b!important}'
-    + '#portalOrtuDashboard #poTabBar button.on,#portalOrtuDashboard #poTabBar button.on .pt-l,#portalOrtuDashboard #poTabBar button.on .po-ik{color:var(--po-hijau,#0b6b4f)!important;background:none!important}'
-    + '#portalOrtuDashboard #poTabBar button.on .pt-l{font-weight:700}'
-    + '#portalOrtuDashboard #poTabBar button.on::before{content:"";position:absolute;top:0;left:50%;width:26px;height:3px;transform:translateX(-50%);border-radius:0 0 3px 3px;background:var(--po-hijau,#0b6b4f)}'
-    + '#portalOrtuDashboard #poTabBar button:active .po-ik{transform:scale(.88)}'
-    + '#portalOrtuDashboard #poTabBar .pt-dot{top:8px;left:calc(50% + 8px)}'
     + '}';
   document.head.appendChild(css);
   if (!pasang()) document.addEventListener('DOMContentLoaded', pasang);
