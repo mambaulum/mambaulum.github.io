@@ -862,10 +862,11 @@ const AUJ_KARTU_CSS = `
   .kp-nama { font-weight: 700; text-transform: uppercase; }
   .kp-nama-panjang { font-size: 6.2pt; line-height: 1.1; }   /* nama > 28 karakter: sedikit lebih kecil supaya tidak makan 4 baris */
   .kp-kanan { width: 26mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
-  .kp-foto { width: 16mm; height: 20mm; border: 0.3mm solid #555; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
-  .kp-ttd { font-size: 5.5pt; text-align: center; line-height: 1.15; width: 100%; }
-  .kp-ttd-ruang { height: 10mm; display: flex; align-items: center; justify-content: center; }
-  .kp-ttd b { text-decoration: underline; }
+  .kp-foto { width: 16mm; height: 21mm; border: 0.3mm solid #555; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
+  .kp-ttd { display: flex; align-items: center; gap: 1.5mm; margin-top: 1mm; font-size: 5.8pt; line-height: 1.2; }   /* di bawah baris Waktu */
+  .kp-ttd-ruang { width: 10mm; height: 10mm; flex: none; display: flex; align-items: center; justify-content: center; }
+  .kp-ttd-teks { min-width: 0; }
+  .kp-ttd b { text-decoration: underline; display: block; }
 `;
 const AUJ_KARTU_CSS_CETAK = `
   @page { size: 215mm 330mm; margin: 10mm; }
@@ -987,12 +988,14 @@ function aujKartuHtml(rec, p, kursiTeks, qr) {
         ${baris('Kelas / Ruang', escapeHtml(p.kelas || '-') + ' / ' + escapeHtml(rec.ruang || '-'))}
         ${baris('Kursi', escapeHtml(kursiTeks || '-'))}
         ${baris('Waktu', escapeHtml(aujWaktu(rec)))}
-      </table></div>
+      </table>
+        <div class="kp-ttd">
+          <div class="kp-ttd-ruang">${qr === 'cetak' ? '<span class="kp-qr-tujuan"></span>' : (qr === 'pratinjau' ? '<span style="display:inline-block;width:10mm;height:10mm;border:0.3mm dashed #999;font-size:5pt;line-height:10mm;color:#999;text-align:center;">QR</span>' : '')}</div>
+          <div class="kp-ttd-teks">Kepala Madrasah,<b>${escapeHtml(MADRASAH.kepala_sekolah || '(........................)')}</b></div>
+        </div>
+      </div>
       <div class="kp-kanan">
         <div class="kp-foto">${aujFotoSiswa(p.key) ? `<img src="${escapeHtml(aujFotoSiswa(p.key))}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">` : 'Pas foto'}</div>
-        <div class="kp-ttd">Kepala Madrasah,
-          <div class="kp-ttd-ruang">${qr === 'cetak' ? '<span class="kp-qr-tujuan"></span>' : (qr === 'pratinjau' ? '<span style="display:inline-block;width:10mm;height:10mm;border:0.3mm dashed #999;font-size:5pt;line-height:10mm;color:#999;text-align:center;">QR</span>' : '')}</div>
-          <b>${escapeHtml(MADRASAH.kepala_sekolah || '(........................)')}</b></div>
       </div>
     </div>
   </div>`;
@@ -1269,6 +1272,25 @@ function aujSatuRuang(a, b) {
   if (aujNormNama(a.ruang) !== aujNormNama(b.ruang)) return false;
   return aujTumpang(a, b) || (!!a.jamMulai && a.jamMulai === b.jamMulai);
 }
+// Aturan: kelas-kelas yang satu ruang pada jam yang sama HARUS mengerjakan mapel yang sama (1 sesi = 1 mapel = 1 ruang).
+// Mengembalikan pasangan sesi satu ruang yang mapelnya berbeda. Sesi tanpa mapel diabaikan. wajibSalahSatu: hanya pasangan yang melibatkan sesi dengan _baru.
+function aujMapelBedaSatuRuang(daftar, hanyaBaru) {
+  const out = [], perTgl = {};
+  (daftar || []).forEach(r => { if (r && r.tanggal && r.ruang) (perTgl[r.tanggal] = perTgl[r.tanggal] || []).push(r); });
+  Object.keys(perTgl).sort().forEach(t => {
+    const g = perTgl[t];
+    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+      const a = g[i], b = g[j];
+      if (hanyaBaru && !a._baru && !b._baru) continue;
+      if (!a.mapel || !b.mapel || aujNormNama(a.mapel) === aujNormNama(b.mapel) || !aujSatuRuang(a, b)) continue;
+      out.push({ a, b });
+    }
+  });
+  return out;
+}
+function aujTeksMapelBeda(x) {
+  return `Ruang ${x.a.ruang}, ${aujTglPendek(x.a.tanggal)} ${x.a.jamMulai || ''}: ${x.a.kelas || '-'} = ${x.a.mapel} sedangkan ${x.b.kelas || '-'} = ${x.b.mapel}`;
+}
 // Lipat sesi satu ruang menjadi satu baris (kelas digabung "Kelas 1 + Kelas 2"; pengawas dari anggota pertama yang punya).
 // Dipakai untuk hitungan beban dan jadwal mengawas guru, supaya satu ruang tidak dihitung dobel.
 function aujLipatRuang(daftar) {
@@ -1321,7 +1343,7 @@ function aujLabelSesi(r) {
 // Pesan bentrok untuk satu sesi yang sedang diisi/disimpan (dibandingkan dengan semua sesi tersimpan lainnya).
 function aujPesanBentrokSesi(cand) {
   const lain = allAdmUjian.filter(x => x.key !== (aujBaru ? null : aujAktifKey));
-  const c = { key: '__form__', kelas: cand.kelas, tanggal: cand.tanggal, jamMulai: cand.jamMulai, jamSelesai: cand.jamSelesai, pengawas1: cand.pengawas1, pengawas2: cand.pengawas2, ruang: cand.ruang, nama: cand.nama };
+  const c = { key: '__form__', kelas: cand.kelas, tanggal: cand.tanggal, jamMulai: cand.jamMulai, jamSelesai: cand.jamSelesai, pengawas1: cand.pengawas1, pengawas2: cand.pengawas2, ruang: cand.ruang, nama: cand.nama, mapel: cand.mapel };
   const msgs = [];
   const n1 = aujIdPengawas(c.pengawas1), n2 = aujIdPengawas(c.pengawas2);
   if (n1 && n1 === n2) msgs.push('Pengawas 1 dan Pengawas 2 adalah orang yang sama.');
@@ -1330,12 +1352,13 @@ function aujPesanBentrokSesi(cand) {
     if (c.kelas && x.kelas === c.kelas) msgs.push(`${c.kelas} sudah punya sesi pada jam bertumpuk: ${aujLabelSesi(x)}.`);
     else if (c.ruang && aujNormNama(x.ruang) === aujNormNama(c.ruang) && !aujSatuRuang(c, x)) msgs.push(`Ruang ${x.ruang} sudah dipakai ${aujLabelSesi(x)} pada jam bertumpuk.`);
   });
+  aujMapelBedaSatuRuang(lain.concat([c])).filter(x => x.a === c || x.b === c).forEach(x => msgs.push('Satu ruang harus mapel yang sama — ' + aujTeksMapelBeda(x) + '.'));
   (aujCariBentrok(lain.concat([c])).perKey.__form__ || []).forEach(h => msgs.push(`${h.nama} juga mengawas ${aujLabelSesi(h.lawan)} pada ${aujTglIndo(h.lawan.tanggal, true)}.`));
   return msgs;
 }
 function aujCekBentrokForm() {
   const box = aujEl('aujWarnBentrok'); if (!box) return;
-  const c = { kelas: aujVal('aujKelas'), tanggal: aujVal('aujTanggal'), jamMulai: aujVal('aujJamMulai'), jamSelesai: aujVal('aujJamSelesai'), pengawas1: aujVal('aujPengawas1'), pengawas2: aujVal('aujPengawas2'), ruang: aujVal('aujRuang'), nama: aujVal('aujNama') };
+  const c = { kelas: aujVal('aujKelas'), tanggal: aujVal('aujTanggal'), jamMulai: aujVal('aujJamMulai'), jamSelesai: aujVal('aujJamSelesai'), pengawas1: aujVal('aujPengawas1'), pengawas2: aujVal('aujPengawas2'), ruang: aujVal('aujRuang'), nama: aujVal('aujNama'), mapel: aujVal('aujMapel') };
   const msgs = aujPesanBentrokSesi(c);
   if (msgs.length) {
     box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:8px 12px;font-size:13px;">
@@ -1753,6 +1776,8 @@ function aujPratinjauMassal() {
   if (aujMassalDraft.honorOtomatis && !(aujMassalDraft.honorNominal > 0)) return tampilError('Honor pengawas harus lebih dari 0 (atau hilangkan centang 💰 Langsung buat sesi honor).');
   const ada = b => allAdmUjian.some(x => x.nama === b.nama && x.kelas === b.kelas && x.ruang === b.ruang && x.tanggal === b.tanggal && x.jamMulai === b.jamMulai);
   h.baris.forEach(b => { b.sudahAda = ada(b); });
+  const bedaMapel = aujMapelBedaSatuRuang(allAdmUjian.concat(h.baris.filter(b => !b.sudahAda).map(b => Object.assign({}, b, { _baru: true }))), true);
+  if (bedaMapel.length) return tampilError('Satu ruang harus mengerjakan mapel yang sama pada jam yang sama (1 sesi = 1 mapel = 1 ruang), tetapi: ' + bedaMapel.slice(0, 3).map(aujTeksMapelBeda).join('; ') + (bedaMapel.length > 3 ? '; dan ' + (bedaMapel.length - 3) + ' lainnya' : '') + '. Matikan "Mapel mengikuti fase" (pakai satu daftar mapel), atau pisahkan ruangnya.');
   if (aujMassalDraft.auto) {
     const r = aujBagiPengawas(h.baris, aujPoolOtomatis(), allAdmUjian, aujMassalDraft.jmlPw, aujMassalDraft.nama);
     if (r.error) return tampilError(r.error);
@@ -1976,24 +2001,32 @@ const AUJ_CSS_JADWAL = AUJ_CSS.replace(/@page \{[^}]*\}/, '@page { size: 215mm 3
   table.data.jadwal tr.hari { page-break-after: avoid; }
 `;
 function aujCetakJadwalHtml(daftar) {
-  daftar = aujUrutJadwal(aujLipatRuang(daftar));   // kelas yang satu ruang & jam (ujian bersama) dijadikan satu baris
+  // Dikelompokkan per RUANG; tiap baris = satu sesi, satu mapel, satu ruang. Kelas yang satu ruang, tanggal, jam, dan mapel
+  // yang sama digabung ("Kelas 1 + Kelas 2"); bila mapelnya berbeda, tetap baris terpisah (tidak ditulis "A / B").
+  const kunci = r => [aujNormNama(r.ruang), r.tanggal, r.jamMulai || '', r.jamSelesai || '', aujNormNama(r.mapel || r.nama)].join('|');
+  const peta = {}, urutKunci = [];
+  daftar.forEach(r => {
+    const k = kunci(r);
+    if (!peta[k]) { peta[k] = Object.assign({}, r, { _kelas: [], _pw: [] }); urutKunci.push(k); }
+    const g = peta[k];
+    if (r.kelas && g._kelas.indexOf(r.kelas) < 0) g._kelas.push(r.kelas);
+    [r.pengawas1, r.pengawas2].forEach(n => { if (n && !g._pw.some(x => aujIdPengawas(x) === aujIdPengawas(n))) g._pw.push(n); });
+  });
+  const sesi = urutKunci.map(k => peta[k]).sort((x, y) => String(x.ruang || '').localeCompare(String(y.ruang || ''), 'id', { numeric: true })
+    || (x.tanggal || '').localeCompare(y.tanggal || '') || (x.jamMulai || '').localeCompare(y.jamMulai || '') || 0);
   const grup = [];
-  daftar.forEach(r => { const l = grup[grup.length - 1]; if (l && l.t === r.tanggal) l.r.push(r); else grup.push({ t: r.tanggal, r: [r] }); });
-  const baris = grup.map(g => {
-    const p = aujBagianTgl(g.t);
-    const tgl = p ? p.hari + ', ' + p.d + ' ' + p.bulan + ' ' + p.y : (g.t || '-');
-    return `<tr class="hari"><td colspan="5">${escapeHtml(tgl)}</td></tr>` + g.r.map(r => {
-      const pw = [r.pengawas1, r.pengawas2].filter(Boolean).map(escapeHtml).join(' / ') || '-';
-      return `<tr><td style="white-space:nowrap;width:80px;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + ' - ' + escapeHtml(r.jamSelesai) : '-'}</td>
-        <td>${escapeHtml(r.mapel || r.nama || '-')}</td><td>${escapeHtml(r.kelas || '-')}</td><td>${escapeHtml(r.ruang || '-')}</td><td>${pw}</td></tr>`;
-    }).join('');
-  }).join('');
+  sesi.forEach(r => { const l = grup[grup.length - 1]; if (l && aujNormNama(l.ruang) === aujNormNama(r.ruang)) l.r.push(r); else grup.push({ ruang: r.ruang, r: [r] }); });
+  const baris = grup.map(g => `<tr class="hari"><td colspan="5">Ruang ${escapeHtml(g.ruang || '-')}</td></tr>` + g.r.map(r => {
+    const pw = r._pw.slice(0, 2).map(escapeHtml).join(' / ') || '-';
+    return `<tr><td style="white-space:nowrap;width:78px;">${escapeHtml(aujTglPendek(r.tanggal))}</td><td style="white-space:nowrap;width:78px;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + ' - ' + escapeHtml(r.jamSelesai) : '-'}</td>
+      <td>${escapeHtml(r.mapel || r.nama || '-')}</td><td>${escapeHtml(r._kelas.join(' + ') || '-')}</td><td>${pw}</td></tr>`;
+  }).join('')).join('');
   const judul = aujJdwNama ? 'Jadwal ' + aujJdwNama : 'Jadwal Asesmen Sumatif Akhir Semester (ASAS/ASAT)';
   const tempat = aujTempat();
   return `<div class="halaman">${aujKopHtml()}
     <h1>${escapeHtml(judul)}</h1>
     <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}${aujJdwKelas ? ' — ' + escapeHtml(aujJdwKelas) : ''}</div>
-    <table class="data jadwal"><thead><tr><th>Waktu (WIB)</th><th>Mata Pelajaran</th><th>Kelas</th><th>Ruang</th><th>Pengawas</th></tr></thead><tbody>${baris}</tbody></table>
+    <table class="data jadwal"><thead><tr><th>Tanggal</th><th>Waktu (WIB)</th><th>Mata Pelajaran</th><th>Kelas</th><th>Pengawas</th></tr></thead><tbody>${baris}</tbody></table>
     <div style="text-align:right;margin-top:10px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(tglLokal()))}</div>
     <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdPanitiaHtml()}</tr></table>
   </div>`;
@@ -2237,6 +2270,8 @@ function aujPeriksaHonor() {
     const punya = g.filter(x => auAll.some(u => u.key === AUJ_HONOR_PREFIX + x.key));
     if (punya.length > 1) hasil.push({ tingkat: 'salah', teks: `${aujLabelSesi(r)} · ${aujTglPendek(r.tanggal)}: ruang ini dipakai ${g.length} kelas tetapi punya ${punya.length} sesi honor — pengawas bisa terbayar ganda. Hapus sesi honor yang berlebih di Honor Ujian (honor dibayar sekali per ruang).` });
   });
+  const mb = aujMapelBedaSatuRuang(allAdmUjian);
+  if (mb.length) hasil.push({ tingkat: 'periksa', teks: `${mb.length} ruang dipakai kelas dengan mapel berbeda pada jam yang sama (aturan: 1 sesi = 1 mapel = 1 ruang), mis. ${mb.slice(0, 2).map(aujTeksMapelBeda).join('; ')}.` });
   const beda = allAdmUjian.filter(r => { const d = aujDurMenit(r); return d != null && d !== AUJ_DURASI_MENIT; });
   if (beda.length) hasil.push({ tingkat: 'periksa', teks: `${beda.length} sesi tidak berdurasi ${AUJ_DURASI_MENIT} menit (ketentuan MI), mis. ${beda.slice(0, 3).map(r => aujLabelSesi(r) + ' · ' + aujTglPendek(r.tanggal) + ' = ' + aujDurMenit(r) + ' menit').join('; ')}.` });
   // Honor dua kegiatan pada jam yang bertumpuk (ujian x ujian, ujian x rapat/lembur) berdasarkan check-in yang benar-benar tercatat.
@@ -2979,7 +3014,7 @@ function aujCetakSkHtml(sk) {
   const judulSk = `PEMBENTUKAN PANITIA ${escapeHtml(String(sk.nama || 'ASAS/ASAT').toUpperCase())} TAHUN PELAJARAN ${escapeHtml(currentTahunAjaran || '')}`;
   const periode = rg.mulai ? ` yang dilaksanakan pada ${escapeHtml(aujTglIndo(rg.mulai))}${rg.akhir && rg.akhir !== rg.mulai ? ' sampai dengan ' + escapeHtml(aujTglIndo(rg.akhir)) : ''}` : '';
   const kepalaLamp = `<div style="text-align:right;font-size:10.5pt;line-height:1.35;margin-bottom:8px;">Lampiran %L Keputusan Kepala ${escapeHtml(mad)}<br>Nomor : ${escapeHtml(sk.nomor || '..........')}<br>Tanggal : ${escapeHtml(tgl)}</div>`;
-  const ttdLamp = `<table class="ttd"><tr><td style="width:50%;"></td><td><div>Kepala Madrasah,</div><div class="ruang"></div><div style="font-weight:700;text-decoration:underline;">${escapeHtml(MADRASAH.kepala_sekolah || '(............................)')}</div></td></tr></table>`;
+  const ttdLamp = aujSkTtdHtml(sk, final);   // lampiran memakai blok yang sama dengan SK (QR Kepala identik di ketiga halaman; penanda sama = satu QR)
   const sk1 = `<div class="halaman">${aujKopHtml()}
     <h1>Keputusan Kepala ${escapeHtml(mad)}</h1>
     <div class="sub">Nomor : ${escapeHtml(sk.nomor || '..........')}<br>tentang<br><strong>${judulSk}</strong><br><br><strong>KEPALA ${escapeHtml(mad.toUpperCase())}</strong></div>
