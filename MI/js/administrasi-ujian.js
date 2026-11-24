@@ -1294,24 +1294,17 @@ function aujHtmlJadwal() {
   const uniq = f => [...new Set(allAdmUjian.map(x => x[f]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
   if (aujJdwNama && !uniq('nama').includes(aujJdwNama)) aujJdwNama = '';     // filter yang opsinya sudah tidak ada (sesi dihapus/diurungkan) di-reset
   if (aujJdwKelas && !uniq('kelas').includes(aujJdwKelas)) aujJdwKelas = '';
+  const lain = `${ed ? '<button class="btn btn-soft" onclick="aujToggleSalin()" title="Salin jadwal satu asesmen ke asesmen baru (mis. ASAS ke ASAT)">📑 Salin Jadwal</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujIsiPengawasKosong()" title="Isi slot pengawas yang kosong, dibagi rata (mengikuti filter di bawah)">🤖 Isi Pengawas Kosong</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujTampilPeriksa()" title="Cocokkan jadwal, Daftar Hadir, check-in, dan susulan">🔎 Periksa Honor</button>' : ''}${ed ? '<button class="btn btn-primary" onclick="aujBuatSesiHonor()" title="Buat sesi honor pengawas dari jadwal (mengikuti filter di bawah)">💰 Buat Sesi Honor</button>' : ''}${ed ? aujHtmlTombolUrungkan() : ''}${ed && aujSesiBedaDurasi(aujJadwalTersaring()).length ? `<button class="btn btn-soft" onclick="aujSeragamkanDurasi()" title="Ubah jam selesai semua sesi yang tampil menjadi jam mulai + ${AUJ_DURASI_MENIT} menit">⏱️ Seragamkan ${AUJ_DURASI_MENIT} menit (${aujSesiBedaDurasi(aujJadwalTersaring()).length})</button>` : ''}${ed || aujEsKepsek() ? '<button class="btn btn-soft" onclick="aujToggleBeban()" title="Jumlah sesi & jam mengawas tiap guru (mengikuti filter di bawah)">📊 Rekap Beban</button>' : ''}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujToggleGuru()" title="Jadwal mengawas per guru, bisa dicetak">👤 Jadwal per Guru</button>'}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujUbahKetuaPanitia()" title="Nama Ketua Panitia yang tercetak di tanda tangan Jadwal, Rekap Beban, dan Jadwal Mengawas">✍️ Ketua Panitia</button>'}`.trim();
   const opt = (arr, sel, semua) => `<option value="">${semua}</option>` + arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
   return `
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">📅 Jadwal Ujian — TA ${escapeHtml(currentTahunAjaran || '')}</h4>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         ${ed ? '<button class="btn btn-success" onclick="aujToggleMassal()">🗓️ Jadwal Massal</button>' : ''}
-        ${ed ? '<button class="btn btn-soft" onclick="aujToggleSalin()" title="Salin jadwal satu asesmen ke asesmen baru (mis. ASAS ke ASAT)">📑 Salin Jadwal</button>' : ''}
-        ${ed ? '<button class="btn btn-soft" onclick="aujIsiPengawasKosong()" title="Isi slot pengawas yang kosong, dibagi rata (mengikuti filter di bawah)">🤖 Isi Pengawas Kosong</button>' : ''}
-        ${ed ? '<button class="btn btn-soft" onclick="aujTampilPeriksa()" title="Cocokkan jadwal, Daftar Hadir, check-in, dan susulan">🔎 Periksa Honor</button>' : ''}
-        ${ed ? '<button class="btn btn-primary" onclick="aujBuatSesiHonor()" title="Buat sesi honor pengawas dari jadwal (mengikuti filter di bawah)">💰 Buat Sesi Honor</button>' : ''}
-        ${ed ? aujHtmlTombolUrungkan() : ''}
-        ${ed && aujSesiBedaDurasi(aujJadwalTersaring()).length ? `<button class="btn btn-soft" onclick="aujSeragamkanDurasi()" title="Ubah jam selesai semua sesi yang tampil menjadi jam mulai + ${AUJ_DURASI_MENIT} menit">⏱️ Seragamkan ${AUJ_DURASI_MENIT} menit (${aujSesiBedaDurasi(aujJadwalTersaring()).length})</button>` : ''}
-        ${ed || aujEsKepsek() ? '<button class="btn btn-soft" onclick="aujToggleBeban()" title="Jumlah sesi & jam mengawas tiap guru (mengikuti filter di bawah)">📊 Rekap Beban</button>' : ''}
-        ${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujToggleGuru()" title="Jadwal mengawas per guru, bisa dicetak">👤 Jadwal per Guru</button>'}
-        ${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujUbahKetuaPanitia()" title="Nama Ketua Panitia yang tercetak di tanda tangan Jadwal, Rekap Beban, dan Jadwal Mengawas">✍️ Ketua Panitia</button>'}
         <button class="btn btn-primary" onclick="aujCetakJadwal()" ${allAdmUjian.length ? '' : 'disabled'}>🖨️ Cetak Jadwal</button>
       </div>
     </div>
+    ${lain ? `<details style="margin-bottom:10px;"><summary style="cursor:pointer;font-size:12px;color:#475569;">⚙️ Alat lainnya</summary><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${lain}</div></details>` : ''}
     <div id="aujPeriksaIsi"></div>
     <div id="aujJdwMassal">${ed && aujMassalBuka ? aujHtmlMassal() : ''}</div>
     <div id="aujJdwSalin">${ed && aujSalinBuka ? aujHtmlSalin() : ''}</div>
@@ -1336,28 +1329,28 @@ function aujHtmlJadwalIsi() {
   const urut = bt.pasangan.slice().sort((x, y) => (x.a.tanggal || '').localeCompare(y.a.tanggal || '') || (x.a.jamMulai || '').localeCompare(y.a.jamMulai || ''));
   const banner = urut.length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px;">
       <strong>⚠️ ${urut.length} pengawas bentrok</strong> (mengawas dua sesi yang jamnya bertumpuk):
-      <ul style="margin:4px 0 0 18px;">${urut.slice(0, 8).map(p => `<li><strong>${escapeHtml(p.nama)}</strong> — ${escapeHtml(aujTglIndo(p.a.tanggal, true))}: ${escapeHtml(aujLabelSesi(p.a))} ⇄ ${escapeHtml(aujLabelSesi(p.b))}</li>`).join('')}${urut.length > 8 ? `<li>…dan ${urut.length - 8} lainnya</li>` : ''}</ul></div>` : '';
+      <ul style="margin:4px 0 0 18px;">${urut.slice(0, 3).map(p => `<li><strong>${escapeHtml(p.nama)}</strong> — ${escapeHtml(aujTglIndo(p.a.tanggal, true))}: ${escapeHtml(aujLabelSesi(p.a))} ⇄ ${escapeHtml(aujLabelSesi(p.b))}</li>`).join('')}${urut.length > 3 ? `<li>…dan ${urut.length - 3} lainnya (lihat tanda ⚠️ di daftar)</li>` : ''}</ul></div>` : '';
   if (!daftar.length) return banner + '<p style="color:#6b7280;font-size:13px;">Tidak ada sesi untuk filter ini.</p>';
-  const th = 'padding:6px 8px;border-bottom:2px solid #cbd5e1;text-align:left;white-space:nowrap;';
+  const th = 'padding:4px 8px;border-bottom:1px solid #cbd5e1;text-align:left;white-space:nowrap;font-weight:600;font-size:11px;color:#64748b;';
   let tglLalu = null;
   const baris = daftar.map(r => {
     const baru = r.tanggal !== tglLalu; tglLalu = r.tanggal;
     const bn = (bt.perKey[r.key] || []).map(h => aujIdPengawas(h.nama));
-    const pw = [r.pengawas1, r.pengawas2].filter(Boolean).map(n => bn.includes(aujIdPengawas(n)) ? `<span style="color:#b91c1c;font-weight:600;" title="Bentrok dengan sesi lain pada jam yang sama">⚠️ ${escapeHtml(n)}</span>` : escapeHtml(n)).join('<br>') || '<span style="color:#9ca3af;">—</span>';
-    const td = 'padding:6px 8px;vertical-align:top;' + (baru ? 'border-top:1px solid #cbd5e1;' : 'border-top:1px solid #f1f5f9;');
-    return `<tr style="${bn.length ? 'background:#fef2f2;' : ''}">
-      <td style="${td}white-space:nowrap;font-weight:600;">${baru ? escapeHtml(aujTglPendek(r.tanggal)) : ''}</td>
-      <td style="${td}white-space:nowrap;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + '–' + escapeHtml(r.jamSelesai) : '—'}</td>
-      <td style="${td}">${escapeHtml(r.mapel || r.nama || '-')}${r.mapel ? `<div style="font-size:11px;color:#6b7280;">${escapeHtml(r.nama || '')}</div>` : ''}</td>
-      <td style="${td}white-space:nowrap;">${escapeHtml(r.kelas || '-')}</td>
-      <td style="${td}white-space:nowrap;">${escapeHtml(r.ruang || '-')}</td>
-      <td style="${td}">${pw}${aujSesiHonorDari(r.key) ? '<div style="font-size:11px;color:#065f46;">💰 sesi honor dibuat</div>' : ''}</td>
-      <td style="${td}white-space:nowrap;"><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;" onclick="aujBukaSesi('${escapeJs(r.key)}')">${ed ? '✏️ Buka' : '👁️ Lihat'}</button>${ed ? ` <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;" onclick="aujDuplikat('${escapeJs(r.key)}')" title="Duplikat sesi">📑</button>` : ''}</td>
+    const pwArr = [r.pengawas1, r.pengawas2].filter(Boolean);
+    const pw = pwArr.length ? pwArr.map(n => bn.includes(aujIdPengawas(n)) ? `<span style="color:#b91c1c;font-weight:600;" title="Bentrok dengan sesi lain pada jam yang sama">⚠️ ${escapeHtml(n)}</span>` : escapeHtml(n)).join(' · ') : '<span style="color:#9ca3af;">belum ada pengawas</span>';
+    const kepala = baru ? `<tr><td colspan="5" style="padding:12px 8px 4px;font-weight:700;font-size:13px;color:#0f172a;">${escapeHtml(aujTglIndo(r.tanggal, true))}</td></tr>` : '';
+    const td = 'padding:5px 8px;vertical-align:top;border-top:1px solid #f1f5f9;';
+    return kepala + `<tr style="${bn.length ? 'background:#fef2f2;' : ''}">
+      <td style="${td}white-space:nowrap;color:#475569;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + '–' + escapeHtml(r.jamSelesai) : '—'}</td>
+      <td style="${td}font-weight:600;">${escapeHtml(r.mapel || r.nama || '-')}</td>
+      <td style="${td}white-space:nowrap;">${escapeHtml(r.kelas || '-')} · ${escapeHtml(r.ruang || '-')}</td>
+      <td style="${td}font-size:12px;color:#64748b;">${pw}${aujSesiHonorDari(r.key) ? ' <span title="Sesi honor sudah dibuat">💰</span>' : ''}</td>
+      <td style="${td}white-space:nowrap;text-align:right;"><button class="btn btn-soft" style="padding:2px 8px;font-size:11px;" onclick="aujBukaSesi('${escapeJs(r.key)}')">${ed ? 'Buka' : 'Lihat'}</button>${ed ? ` <button class="btn btn-soft" style="padding:2px 8px;font-size:11px;" onclick="aujDuplikat('${escapeJs(r.key)}')" title="Duplikat sesi">📑</button>` : ''}</td>
     </tr>`;
   }).join('');
-  return banner + `<p style="font-size:12px;color:#6b7280;margin-bottom:6px;">${daftar.length} sesi${daftar.length !== allAdmUjian.length ? ` (dari ${allAdmUjian.length})` : ''}. Cetak Jadwal mengikuti filter di atas.</p>
+  return banner + `<p style="font-size:12px;color:#6b7280;margin-bottom:2px;">${daftar.length} sesi${daftar.length !== allAdmUjian.length ? ` (dari ${allAdmUjian.length})` : ''}</p>
     <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead><tr style="background:#f1f5f9;"><th style="${th}">Tanggal</th><th style="${th}">Waktu</th><th style="${th}">Mata Pelajaran</th><th style="${th}">Kelas</th><th style="${th}">Ruang</th><th style="${th}">Pengawas</th><th style="${th}"></th></tr></thead>
+      <thead><tr><th style="${th}">Jam</th><th style="${th}">Mata Pelajaran</th><th style="${th}">Kelas · Ruang</th><th style="${th}">Pengawas</th><th style="${th}"></th></tr></thead>
       <tbody>${baris}</tbody></table></div>`;
 }
 
@@ -1881,27 +1874,31 @@ function aujSimpanSalin() {
 const AUJ_CSS_JADWAL = AUJ_CSS.replace(/@page \{[^}]*\}/, '@page { size: A4 landscape; margin: 20mm 20mm 25mm 30mm; }') + `
   thead { display: table-header-group; } tr { page-break-inside: avoid; }
   table.jadwal td, table.jadwal th { font-size: 10.5pt; vertical-align: top; }
+  /* Tampilan minimalis: tanpa kotak, hanya garis tipis; tanggal jadi baris penanda */
+  table.data.jadwal th, table.data.jadwal td { border: 0; border-bottom: 0.5pt solid #bbb; padding: 4px 8px; }
+  table.data.jadwal th { background: none; border-bottom: 1.2pt solid #000; text-align: left; }
+  table.data.jadwal tr.hari td { background: #f2f2f2; font-weight: 700; border-bottom: 0.5pt solid #bbb; padding-top: 6px; }
+  table.data.jadwal tr.hari { page-break-after: avoid; }
 `;
 function aujCetakJadwalHtml(daftar) {
   const grup = [];
   daftar.forEach(r => { const l = grup[grup.length - 1]; if (l && l.t === r.tanggal) l.r.push(r); else grup.push({ t: r.tanggal, r: [r] }); });
-  let no = 0;
-  const baris = grup.map(g => g.r.map((r, i) => {
-    no++;
+  const baris = grup.map(g => {
     const p = aujBagianTgl(g.t);
-    const pw = [r.pengawas1, r.pengawas2].filter(Boolean).map((n, j, a) => (a.length > 1 ? (j + 1) + '. ' : '') + escapeHtml(n)).join('<br>') || '-';
-    return `<tr><td style="text-align:center;width:30px;">${no}</td>
-      ${i === 0 ? `<td rowspan="${g.r.length}" style="width:105px;">${p ? escapeHtml(p.hari) + '<br>' + p.d + ' ' + escapeHtml(p.bulan) + ' ' + p.y : escapeHtml(g.t || '-')}</td>` : ''}
-      <td style="white-space:nowrap;text-align:center;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + ' - ' + escapeHtml(r.jamSelesai) : '-'}</td>
-      <td>${escapeHtml(r.mapel || r.nama || '-')}</td><td style="text-align:center;">${escapeHtml(r.kelas || '-')}</td><td style="text-align:center;">${escapeHtml(r.ruang || '-')}</td><td>${pw}</td></tr>`;
-  }).join('')).join('');
+    const tgl = p ? p.hari + ', ' + p.d + ' ' + p.bulan + ' ' + p.y : (g.t || '-');
+    return `<tr class="hari"><td colspan="5">${escapeHtml(tgl)}</td></tr>` + g.r.map(r => {
+      const pw = [r.pengawas1, r.pengawas2].filter(Boolean).map(escapeHtml).join(' / ') || '-';
+      return `<tr><td style="white-space:nowrap;width:95px;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + ' - ' + escapeHtml(r.jamSelesai) : '-'}</td>
+        <td>${escapeHtml(r.mapel || r.nama || '-')}</td><td style="white-space:nowrap;">${escapeHtml(r.kelas || '-')}</td><td style="white-space:nowrap;">${escapeHtml(r.ruang || '-')}</td><td>${pw}</td></tr>`;
+    }).join('');
+  }).join('');
   const judul = aujJdwNama ? 'Jadwal ' + aujJdwNama : 'Jadwal Asesmen Sumatif Akhir Semester (ASAS/ASAT)';
   const tempat = aujTempat();
   const pseudo = { nama: judul, tanggal: daftar[0] && daftar[0].tanggal };
   return `<div class="halaman">${aujKopHtml()}
     <h1>${escapeHtml(judul)}</h1>
     <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}${aujJdwKelas ? ' — ' + escapeHtml(aujJdwKelas) : ''}</div>
-    <table class="data jadwal"><thead><tr><th>No</th><th>Hari / Tanggal</th><th>Waktu (WIB)</th><th>Mata Pelajaran</th><th>Kelas</th><th>Ruang</th><th>Pengawas</th></tr></thead><tbody>${baris}</tbody></table>
+    <table class="data jadwal"><thead><tr><th>Waktu (WIB)</th><th>Mata Pelajaran</th><th>Kelas</th><th>Ruang</th><th>Pengawas</th></tr></thead><tbody>${baris}</tbody></table>
     <div style="text-align:right;margin-top:10px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(tglLokal()))}</div>
     <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdPanitiaHtml()}</tr></table>
   </div>`;
@@ -2794,6 +2791,7 @@ function aujHtmlSk() {
   const ed = aujCanEdit(), sk = aujSkEfektif(), dis = ed ? '' : 'disabled', ada = aujSkMuatKey === aujSkKunci() && !!aujSk, kunci = aujSkKunci();
   if (aujSkMuatKey !== kunci) aujSkMuat(() => { if (aujTabAktif === 'sk') aujRenderTab(); });
   const rg = aujSkRuang(sk), ta = 'class="field" style="width:100%;font-family:inherit;" ' + dis;
+  if (ed) setTimeout(aujSkIntip, 0);   // tampilkan nomor otomatis berikutnya (setelah HTML terpasang)
   return `
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">📜 SK Panitia ${escapeHtml(sk.nama || 'ASAS/ASAT')} — TA ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' / ' + escapeHtml(currentSemesterAktif) : ''}</h4>
@@ -2805,10 +2803,12 @@ function aujHtmlSk() {
     ${aujSkGagal ? '<p style="font-size:12px;color:#b91c1c;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px;">⚠️ SK Panitia gagal dimuat. Periksa Rules node <strong>administrasi_ujian_sk</strong> (lihat rules-sk-panitia-ujian.txt).</p>' : ''}
     ${!ada && !aujSkGagal ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:6px;margin-bottom:8px;">${ed ? 'SK belum disimpan untuk tahun ajaran/semester ini. Isian di bawah masih bawaan — lengkapi nomor, tanggal, dan nama panitia, lalu Simpan.' : 'Admin belum membuat SK Panitia untuk tahun ajaran/semester ini.'}</p>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-bottom:8px;">
-      <div><label class="label">Nomor SK</label><input id="aujSkNomor" class="field" type="text" maxlength="80" value="${escapeHtml(sk.nomor)}" placeholder="mis. 045/MI.MU/XI/2026" ${dis}></div>
-      <div><label class="label">Tanggal SK</label><input id="aujSkTgl" class="field" type="date" value="${escapeHtml(sk.tanggalSk)}" ${dis}></div>
+      <div><label class="label">Nomor SK${ed ? ' (kosongkan = otomatis)' : ''}</label><input id="aujSkNomor" class="field" type="text" maxlength="80" value="${escapeHtml(sk.nomor)}" placeholder="${ed ? 'otomatis saat Simpan SK; boleh diketik manual' : ''}" oninput="aujSkIntip()" ${dis}></div>
+      <div><label class="label">Tanggal SK</label><input id="aujSkTgl" class="field" type="date" value="${escapeHtml(sk.tanggalSk)}" onchange="aujSkIntip()" ${dis}></div>
       ${aujPilihanHtml('aujSkNama', 'Nama Asesmen', sk.nama, aujOpsiNama(), { dis })}
+      ${ed && window.SIMambaNomor ? `<div><label class="label">Kode Klasifikasi (nomor otomatis)</label><select id="aujSkKlas" class="field" onchange="aujSkKlasUbah()">${window.SIMambaNomor.klasPilihan().map(k => `<option value="${escapeHtml(k.kode)}" ${k.kode === aujSkKlasPilih() ? 'selected' : ''}>${escapeHtml(k.kode)} — ${escapeHtml(k.label)}</option>`).join('')}</select></div>` : ''}
     </div>
+    ${ed ? '<p id="aujSkNomorInfo" style="font-size:11px;color:#6b7280;margin:-2px 0 8px;"></p>' : ''}
     <label class="label">Susunan Panitia — satu per baris: <em>Jabatan | Nama</em> (baris "Ketua" dipakai untuk tanda tangan Jadwal/Rekap Beban)</label>
     <textarea id="aujSkPanitia" rows="9" ${ta}>${escapeHtml(sk.panitia)}</textarea>
     <label class="label" style="margin-top:8px;">Menimbang — satu butir per baris (huruf a, b, … otomatis)</label>
@@ -2819,6 +2819,25 @@ function aujHtmlSk() {
     <h5 style="font-weight:700;font-size:13px;margin:6px 0;">Lampiran II — Pembagian Ruang (otomatis dari sesi${rg.semuaSesi ? '; tidak ada sesi bernama "' + escapeHtml(sk.nama) + '", jadi semua sesi dipakai' : ''})</h5>
     ${rg.baris.length ? `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f3f4f6;"><th style="text-align:left;padding:4px 6px;border:1px solid #e5e7eb;">Ruang</th><th style="text-align:left;padding:4px 6px;border:1px solid #e5e7eb;">Kelas</th><th style="padding:4px 6px;border:1px solid #e5e7eb;">Peserta</th><th style="text-align:left;padding:4px 6px;border:1px solid #e5e7eb;">Pengawas</th></tr></thead><tbody>${rg.baris.map(b => `<tr><td style="padding:4px 6px;border:1px solid #e5e7eb;">${escapeHtml(b.ruang)}</td><td style="padding:4px 6px;border:1px solid #e5e7eb;">${escapeHtml(b.kelas)}</td><td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;">${b.n}</td><td style="padding:4px 6px;border:1px solid #e5e7eb;">${escapeHtml(b.pw.join(', ') || '-')}</td></tr>`).join('')}</tbody></table></div>
       <p style="font-size:12px;color:#6b7280;margin-top:6px;">${rg.nRuang} ruang · ${rg.nPeserta} peserta · ${rg.nPengawas} pengawas.</p>` : '<p style="font-size:12px;color:#6b7280;">Belum ada sesi dengan ruang. Buat sesi di tab Data Sesi / Jadwal Ujian dulu, Lampiran II akan terisi sendiri.</p>'}`;
+}
+// Nomor SK otomatis: memakai API SIMambaNomor (js/surat-guru.js) -- seri yang SAMA dengan SK Kepala Madrasah lain
+// (counter nomor_surat/<tahun>/MI-MU_SK, kode klasifikasi KP.01). intip = hanya melihat; kunci = counter +1 (saat Simpan SK).
+let aujSkIntipGen = 0;
+// Kode klasifikasi arsip untuk nomor SK otomatis: pilihan dari SIMambaNomor.klasPilihan() (daftar di js/surat-guru.js), diingat per perangkat.
+const AUJ_SK_KLAS_KEY = 'aujSkKlas', AUJ_SK_KLAS_BAWAAN = 'UM.01';
+function aujSkKlasPilih() { try { const v = localStorage.getItem(AUJ_SK_KLAS_KEY); if (v) return v; } catch (e) {} return AUJ_SK_KLAS_BAWAAN; }
+function aujSkKlasDipakai() { const e = aujEl('aujSkKlas'); return e && e.value ? e.value : aujSkKlasPilih(); }
+function aujSkKlasUbah() { const e = aujEl('aujSkKlas'); if (e) { try { localStorage.setItem(AUJ_SK_KLAS_KEY, e.value); } catch (x) {} } aujSkIntip(); }
+function aujSkTglNomor() { const t = aujVal('aujSkTgl'); return aujAdaTanggal(t) ? t : tglLokal(); }
+function aujSkIntip() {
+  const info = aujEl('aujSkNomorInfo'); if (!info) return;
+  const no = aujEl('aujSkNomor'), g = ++aujSkIntipGen, set = (teks, warna) => { info.textContent = teks; info.style.color = warna || '#6b7280'; };
+  if (no && no.value.trim()) return set('Nomor diisi/tersimpan — dipakai apa adanya. Kosongkan kolom lalu Simpan SK untuk meminta nomor otomatis baru (nomor lama terlewat, tidak dipakai lagi).');
+  if (!window.SIMambaNomor) return set('Penomoran otomatis belum tersedia (js/surat-guru.js belum termuat). Isi nomor manual.', '#b45309');
+  set('Menghitung nomor otomatis…');
+  window.SIMambaNomor.intip('sk-tugas', aujSkTglNomor(), aujSkKlasDipakai())
+    .then(n => { if (g === aujSkIntipGen) set('🔢 Nomor otomatis berikutnya: ' + n + ' — dikunci saat Simpan SK; bulan/tahun mengikuti Tanggal SK (kosong = hari ini). Seri sama dengan SK Kepala Madrasah lainnya.'); })
+    .catch(e => { if (g === aujSkIntipGen) set('Gagal membaca penomoran (' + (e && e.message ? e.message : e) + '). Isi nomor manual, atau cek Rules node nomor_surat.', '#b91c1c'); });
 }
 function aujSimpanSk() {
   if (!aujCanEdit()) return toast('Hanya Admin yang bisa mengubah SK Panitia.', true);
@@ -2832,13 +2851,16 @@ function aujSimpanSk() {
   if (!aujSkBarisPanitia(data.panitia).length) return toast('Isi susunan panitia dulu.', true);
   setBusy('aujSkSimpan');
   const key = aujSkKunci();
-  db.ref(AUJ_SK_NODE + '/' + key).set(data, err => {
+  const tulis = () => db.ref(AUJ_SK_NODE + '/' + key).set(data, err => {
     clearBusy('aujSkSimpan');
     if (err) return toast('Gagal: ' + (err.message || err), true);
     aujSk = data; aujSkMuatKey = key; aujSkGagal = false;
     toast('✅ SK Panitia tersimpan!'); addLog('simpan_sk_panitia_ujian', `${data.nama} - ${data.nomor || 'tanpa nomor'}`);
     if (aujTabAktif === 'sk') aujRenderTab();
   });
+  if (data.nomor || !window.SIMambaNomor) return tulis();   // nomor diisi manual / sudah tersimpan -> dipakai apa adanya
+  window.SIMambaNomor.kunci('sk-tugas', data.tanggalSk || tglLokal(), aujSkKlasDipakai()).then(n => { data.nomor = bataS(n, 80); tulis(); })
+    .catch(e => { clearBusy('aujSkSimpan'); toast('❌ Nomor otomatis gagal: ' + (e && e.message ? e.message : e) + '. Isi nomor manual atau cek Rules node nomor_surat.', true); });
 }
 function aujSkTtdHtml(sk, final) {
   const isi = !final
