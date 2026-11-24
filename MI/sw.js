@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.562';
+const APP_VERSION = 'v8.564';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,7 +81,7 @@ const PRECACHE_URLS = [
   './js/logo-fallback.js',
   './js/offline-db.js',
   './js/kas.js?v=10',
-  './js/administrasi-ujian.js?v=27',
+  './js/administrasi-ujian.js?v=28',
   './js/app.js?v=176',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=52',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -139,12 +139,15 @@ const PRECACHE_URLS = [
   './js/data-soal-umum-tambahan.js?v=1',
   './js/data-soal-pai-fase-a-tambahan.js?v=1',
   './js/data-soal-tambahan-gabung.js?v=1',  // gabungan 6 file soal tambahan (urutan muat sama seperti sebelumnya)
+  './js/data-soal-uraian-aqh-ba-tambahan.js?v=1',
+  './js/data-soal-uraian-aa-fikih-ski-tambahan.js?v=1',
+  './js/data-soal-uraian-pjok-ipas-pp-tambahan.js?v=1',
   './js/perangkat-rpe.js?v=15',
   './js/perangkat-prota-promes.js?v=9',
   './js/perangkat-atp-tp.js?v=11',
   './js/data-kisi-resmi-mi.js?v=6',
   './js/perangkat-kisi.js?v=13',
-  './js/perangkat-soal.js?v=26',
+  './js/perangkat-soal.js?v=27',
   './js/perangkat-paket.js?v=4',
   './js/perangkat-pembelajaran.js?v=26',
   './js/modul-ajar.js?v=23',

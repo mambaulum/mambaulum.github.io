@@ -83,10 +83,18 @@
     if (m) return +m[1];
     m = /^(VI|IV|V|III|II|I)(?=[^IVX]|$)/.exec(t); return m ? { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 }[m[1]] : 0;
   }
+  // Rombel = huruf paralel di belakang angka/romawi ("1A" -> 0, "1B" -> 1, "IV-C" -> 2). Tanpa huruf tunggal (mis. "1", "VI") -> 0.
+  function rombelKelas(kelas) {
+    const t = String(kelas || '').trim().toUpperCase().replace(/^KELAS\s*/, '');
+    const sisa = t.replace(/^(\d+|VI|IV|V|III|II|I(?=[^IVX]|$))/, '').replace(/[\s\-.\/]/g, '');
+    return /^[A-Z]$/.test(sisa) ? sisa.charCodeAt(0) - 65 : 0;
+  }
   function urutKelas(daftar, kelas) {
     const n = nomorKelas(kelas); if (!n || daftar.length < 2) return daftar;
     const awal = n % 2 === 0 ? 1 : 0;
-    return daftar.filter((x, i) => i % 2 === awal).concat(daftar.filter((x, i) => i % 2 !== awal));
+    const d = daftar.filter((x, i) => i % 2 === awal).concat(daftar.filter((x, i) => i % 2 !== awal));
+    const g = rombelKelas(kelas) % d.length; // geser urutan menurut rombel agar 1A dan 1B tidak sama persis
+    return g ? d.slice(g).concat(d.slice(0, g)) : d;
   }
   function isiDariBank(slots, bank, kelas) {
     const pakai = new Set(slots.filter(s => s.q).map(s => s.q)); let n = 0;

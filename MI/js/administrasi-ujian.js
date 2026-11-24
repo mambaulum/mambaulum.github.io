@@ -10,7 +10,7 @@
      6. Berita Acara     : rekap otomatis dari daftar hadir + catatan pengawas -> cetak
      7. Jadwal Ujian     : (tab pertama, tidak tergantung sesi terpilih) semua sesi berurut tanggal/jam, filter,
                            form jadwal massal (rentang tanggal x 2 slot jam x daftar mapel), peringatan pengawas
-                           bentrok, tombol duplikat sesi, dan cetak jadwal (A4 mendatar). Kodenya di bagian
+                           bentrok, tombol duplikat sesi, dan cetak jadwal (F4 tegak). Kodenya di bagian
                            "JADWAL UJIAN" paling bawah file ini.
    8. Tambahan di tab Jadwal Ujian: Rekap Beban Pengawas (jumlah sesi & jam tiap guru, bisa dicetak), Jadwal Mengawas per
       Guru (tiap guru melihat/mencetak sesinya sendiri), dan tombol Urungkan untuk Jadwal Massal / Salin Jadwal / Isi
@@ -18,7 +18,7 @@
    9. Isian pilihan (drop down): Nama Asesmen, Mata Pelajaran (menurut kelas), Ruang, Jam Mulai (jam selesai otomatis +70 menit),
       Pengawas (daftar guru), tanggal libur tambahan, catatan & waktu Berita Acara, keterangan lokasi Denah. Semuanya tetap
       menyediakan "Lainnya (ketik sendiri)" / bisa diubah. Pembantunya ada di bagian "ISIAN PILIHAN" paling bawah file ini.
-   Setiap tab punya tombol cetak, plus "Cetak Semua Berkas" (satu paket A4, halaman terpisah).
+   Setiap tab punya tombol cetak, plus "Cetak Semua Berkas" (satu paket F4, halaman terpisah).
    Kartu Peserta dicetak TERPISAH dari paket itu karena kertasnya F4 (215 x 330 mm), sedangkan satu
    pekerjaan cetak hanya bisa memakai satu ukuran kertas.
 
@@ -862,10 +862,9 @@ const AUJ_KARTU_CSS = `
   .kp-nama { font-weight: 700; text-transform: uppercase; }
   .kp-nama-panjang { font-size: 6.2pt; line-height: 1.1; }   /* nama > 28 karakter: sedikit lebih kecil supaya tidak makan 4 baris */
   .kp-kanan { width: 26mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
-  .kp-foto { width: 16mm; height: 21mm; border: 0.3mm solid #555; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
+  .kp-foto { width: 16mm; height: 20mm; border: 0.3mm solid #555; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
   .kp-ttd { font-size: 5.5pt; text-align: center; line-height: 1.15; width: 100%; }
-  .kp-ttd-ruang { height: 5mm; }
-  .kp-ttd-ruang img { height: 5mm; max-width: 22mm; display: block; margin: 0 auto; }
+  .kp-ttd-ruang { height: 10mm; display: flex; align-items: center; justify-content: center; }
   .kp-ttd b { text-decoration: underline; }
 `;
 const AUJ_KARTU_CSS_CETAK = `
@@ -883,7 +882,93 @@ function aujPetaKursi(rec) {
   });
   return peta;
 }
-function aujKartuHtml(rec, p, kursiTeks) {
+// qr: 'cetak' = tempat QR Kepala (diisi skrip di jendela cetak), 'pratinjau' = kotak penanda di layar, selain itu kosong.
+// ---------- Foto siswa untuk kartu ----------
+// Disimpan TERPISAH di node `siswa_foto/{kunciSiswa}` = { base64, updatedBy, updatedAt } (bukan di node `siswa`, supaya data siswa yang
+// dimuat tiap membuka aplikasi tetap ringan; pola yang sama dengan foto check-in). Foto dipotong 4:5 dan dikecilkan (240x300 px, JPEG).
+// Diunggah Admin dari tab Kartu Peserta (bagian "Foto Siswa"). Butuh Rules node siswa_foto (lihat catatan di bawah fungsi aujFotoUnggah).
+let aujFotoCache = {}, aujFotoMuatSedang = false, aujFotoBuka = false;
+function aujFotoSiswa(key) { return aujFotoCache[key] || ''; }
+function aujFotoMuat(ps) {
+  if (!db || !isReallyOnline() || aujFotoMuatSedang) return;
+  const perlu = ps.filter(p => !(p.key in aujFotoCache)); if (!perlu.length) return;
+  aujFotoMuatSedang = true;
+  Promise.all(perlu.map(p => db.ref('siswa_foto/' + p.key).once('value').then(sn => {
+    const v = sn.val(); aujFotoCache[p.key] = (v && typeof v.base64 === 'string' && /^data:image\//.test(v.base64)) ? v.base64 : '';
+  }).catch(() => { aujFotoCache[p.key] = ''; }))).then(() => { aujFotoMuatSedang = false; if (aujTabAktif === 'kartu') aujRenderTab(); });
+}
+function aujFotoOlah(file) {
+  return new Promise((ok, gagal) => {
+    const fr = new FileReader();
+    fr.onerror = () => gagal(new Error('Gagal membaca file.'));
+    fr.onload = e => {
+      const im = new Image();
+      im.onerror = () => gagal(new Error('Gagal membaca gambar.'));
+      im.onload = () => {
+        try {
+          const W = 240, H = 300, c = document.createElement('canvas'); c.width = W; c.height = H;
+          const r = Math.max(W / im.naturalWidth, H / im.naturalHeight), w = im.naturalWidth * r, h = im.naturalHeight * r, cx = c.getContext('2d');
+          cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
+          cx.drawImage(im, (W - w) / 2, (H - h) / 4, w, h);   // potong rata tengah; sedikit condong ke atas supaya wajah tidak terpotong
+          ok(c.toDataURL('image/jpeg', 0.82));
+        } catch (err) { gagal(err); }
+      };
+      im.src = e.target.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+function aujFotoUnggah(key, input) {
+  const f = input.files && input.files[0]; input.value = '';
+  if (!f) return;
+  if (!aujCanEdit()) return toast('Hanya Admin yang bisa mengunggah foto siswa!', true);
+  if (!/^image\//.test(f.type)) return toast('File harus berupa gambar (JPG/PNG).', true);
+  if (f.size > 10 * 1024 * 1024) return toast('Ukuran foto maksimal 10 MB.', true);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Unggah foto butuh koneksi internet.', true);
+  if (isBusy('aujFoto')) return toast('Sedang menyimpan foto...', false, 1500);
+  const s = (allSiswa || []).find(x => x.key === key);
+  setBusy('aujFoto'); toast('⏳ Memproses foto…', false, 1500);
+  aujFotoOlah(f).then(b64 => {
+    const tulis = () => db.ref('siswa_foto/' + key).set({ base64: b64, updatedBy: currentUser.name || '', updatedAt: new Date().toISOString() }, err => {
+      clearBusy('aujFoto');
+      if (err) return toast('Gagal menyimpan foto: ' + (err.message || err) + ' (periksa Rules node siswa_foto).', true, 7000);
+      aujFotoCache[key] = b64; aujFotoBuka = true;
+      toast('✅ Foto tersimpan.'); addLog('upload_foto_siswa', s ? s.name + ' - ' + s.kelas : key);
+      aujRenderTab();
+    });
+    if (typeof tulisAdmin === 'function') tulisAdmin(null, null, tulis, () => clearBusy('aujFoto')); else tulis();
+  }).catch(e => { clearBusy('aujFoto'); toast('Gagal: ' + (e && e.message ? e.message : e), true); });
+}
+function aujFotoHapus(key) {
+  if (!aujCanEdit()) return;
+  const s = (allSiswa || []).find(x => x.key === key);
+  if (!confirm('Hapus foto ' + (s ? s.name : 'siswa ini') + '?')) return;
+  if (!isReallyOnline()) return toast('📡 Sedang offline.', true);
+  const hapus = () => db.ref('siswa_foto/' + key).remove(err => {
+    if (err) return toast('Gagal: ' + (err.message || err), true);
+    aujFotoCache[key] = ''; aujFotoBuka = true; toast('Foto dihapus.'); addLog('hapus_foto_siswa', s ? s.name + ' - ' + s.kelas : key); aujRenderTab();
+  });
+  if (typeof tulisAdmin === 'function') tulisAdmin(null, null, hapus); else hapus();
+}
+function aujHtmlFotoSiswa(ps) {
+  const ed = aujCanEdit(), ada = ps.filter(p => aujFotoSiswa(p.key)).length;
+  const baris = ps.map(p => {
+    const f = aujFotoSiswa(p.key);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid #f1f5f9;">
+      <div style="width:32px;height:40px;flex:none;border:1px solid #cbd5e1;border-radius:3px;overflow:hidden;background:#f8fafc;font-size:9px;color:#94a3b8;display:flex;align-items:center;justify-content:center;">${f ? `<img src="${escapeHtml(f)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '—'}</div>
+      <div style="flex:1;min-width:0;font-size:13px;">${p.no}. ${escapeHtml(p.nama)}</div>
+      ${ed ? `<label class="btn btn-soft" style="font-size:11px;padding:3px 8px;cursor:pointer;margin:0;">${f ? '🔄 Ganti' : '📷 Pilih'}<input type="file" accept="image/*" style="display:none;" onchange="aujFotoUnggah('${escapeJs(p.key)}', this)"></label>${f ? `<button class="btn btn-soft" style="font-size:11px;padding:3px 8px;" onclick="aujFotoHapus('${escapeJs(p.key)}')">🗑️</button>` : ''}` : ''}
+    </div>`;
+  }).join('');
+  return `<details ${aujFotoBuka ? 'open' : ''} ontoggle="aujFotoBuka=this.open" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;margin-bottom:10px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;">📷 Foto Siswa — ${ada} dari ${ps.length} sudah ada${aujFotoMuatSedang ? ' (memuat…)' : ''}</summary>
+    <p style="font-size:12px;color:#6b7280;margin:6px 0;">${ed ? 'Pilih foto per siswa (di HP bisa langsung memotret). Foto otomatis dipotong rasio 4:5 dan dikecilkan, lalu tercetak di kotak pas foto kartu. Siswa tanpa foto tetap tercetak dengan kotak kosong.' : 'Foto diunggah oleh Admin.'}</p>${baris}
+  </details>`;
+}
+// Rules Firebase (tambahkan, samakan syarat tulis/baca dengan node `siswa`):
+//   "siswa_foto": { "$siswaKey": { ".read": <sama dengan baca siswa>, ".write": <hanya Admin>,
+//                   ".validate": "newData.child('base64').isString() && newData.child('base64').val().length < 60000" } }
+function aujKartuHtml(rec, p, kursiTeks, qr) {
   const logo = new URL('logo/logo-lembaga.png', location.href).href;
   const baris = (label, isi, kls) => `<tr><td>${label}</td><td>:</td><td${kls ? ` class="${kls}"` : ''}>${isi}</td></tr>`;
   return `<div class="kp-kartu">
@@ -904,9 +989,9 @@ function aujKartuHtml(rec, p, kursiTeks) {
         ${baris('Waktu', escapeHtml(aujWaktu(rec)))}
       </table></div>
       <div class="kp-kanan">
-        <div class="kp-foto">Pas foto</div>
+        <div class="kp-foto">${aujFotoSiswa(p.key) ? `<img src="${escapeHtml(aujFotoSiswa(p.key))}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">` : 'Pas foto'}</div>
         <div class="kp-ttd">Kepala Madrasah,
-          <div class="kp-ttd-ruang"></div>
+          <div class="kp-ttd-ruang">${qr === 'cetak' ? '<span class="kp-qr-tujuan"></span>' : (qr === 'pratinjau' ? '<span style="display:inline-block;width:10mm;height:10mm;border:0.3mm dashed #999;font-size:5pt;line-height:10mm;color:#999;text-align:center;">QR</span>' : '')}</div>
           <b>${escapeHtml(MADRASAH.kepala_sekolah || '(........................)')}</b></div>
       </div>
     </div>
@@ -914,6 +999,7 @@ function aujKartuHtml(rec, p, kursiTeks) {
 }
 function aujHtmlKartu(rec) {
   const ps = aujPeserta(rec.kelas, rec), peta = aujPetaKursi(rec);
+  aujFotoMuat(ps);   // foto dimuat di latar belakang, tampilan digambar ulang bila selesai
   const tanpaKursi = ps.filter(p => !peta[p.key]).length;
   const halaman = Math.ceil(ps.length / AUJ_KARTU_PER_HALAMAN);
   const judul = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -921,24 +1007,32 @@ function aujHtmlKartu(rec) {
       <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>🖨\uFE0F Cetak Kartu (F4)</button>
     </div>`;
   if (!ps.length) return judul + `<p style="font-size:13px;color:#dc2626;">Belum ada siswa di ${escapeHtml(rec.kelas || 'kelas ini')} pada Data Siswa${aujCanEdit() ? '' : ' (atau bukan kelas yang Anda ampu)'}.</p>`;
-  const contoh = ps.slice(0, 2).map(p => aujKartuHtml(rec, p, peta[p.key])).join('');
+  const contoh = ps.slice(0, 2).map(p => aujKartuHtml(rec, p, peta[p.key], aujKartuPakaiQr() ? 'pratinjau' : '')).join('');
   return judul + `
-    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 (215 \u00d7 330 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_W} \u00d7 ${AUJ_KARTU_H} mm</strong>, pas untuk isi eblek / card case ukuran A1 (kartu 8,5 \u00d7 5,3 cm). Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas" (A4).</p>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 (215 \u00d7 330 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_W} \u00d7 ${AUJ_KARTU_H} mm</strong>, pas untuk isi eblek / card case ukuran A1 (kartu 8,5 \u00d7 5,3 cm). Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas".</p>
     <p style="font-size:13px;font-weight:600;margin-bottom:6px;">Akan tercetak ${ps.length} kartu = ${halaman} halaman F4.</p>
     ${tanpaKursi ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:6px;margin-bottom:8px;">\u26A0\uFE0F ${tanpaKursi} dari ${ps.length} peserta belum punya kursi di denah \u2014 kolom Kursi tertulis "-". Atur di tab Denah lalu simpan.</p>` : ''}
+    ${aujHtmlFotoSiswa(ps)}
     <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">Pratinjau (2 kartu pertama):</p>
     <style>${AUJ_KARTU_CSS}</style>
     <div style="display:flex;flex-wrap:wrap;gap:10px;overflow-x:auto;">${contoh}</div>
     <p style="font-size:11px;color:#6b7280;margin-top:8px;">Di dialog cetak pilih ukuran kertas F4 / Folio (215 \u00d7 330 mm), margin bawaan, dan skala 100%. Kalau printer tidak punya F4, pilih "Simpan sebagai PDF" \u2014 ukuran halamannya otomatis mengikuti F4.</p>`;
 }
+// QR pengesahan Kepala di kartu: hanya bila ttd-digital.js termuat dan yang mencetak Admin/Kepsek (sama dengan dokumen lain).
+function aujKartuPakaiQr() { return !!(window.TTD && TTD.penanda && aujBolehTtdKepala()); }
 function aujCetakKartu() {
   const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
   const ps = aujPeserta(rec.kelas, rec);
   if (!ps.length) return toast('Belum ada siswa di kelas ini.', true);
   if (aujCanEdit() && JSON.stringify(aujKursi) !== JSON.stringify(rec.kursi || {})) toast('\u26A0\uFE0F Ada perubahan denah yang belum disimpan \u2014 kursi pada kartu mengikuti denah tersimpan.', false, 4500);
-  const peta = aujPetaKursi(rec), kartu = ps.map(p => aujKartuHtml(rec, p, peta[p.key]));
+  if (ps.some(p => !(p.key in aujFotoCache))) { aujFotoMuat(ps); toast('ℹ️ Foto siswa masih dimuat. Tunggu sebentar lalu klik Cetak lagi bila ingin foto ikut tercetak.', false, 4000); }
+  const pakaiQr = aujKartuPakaiQr(), peta = aujPetaKursi(rec), kartu = ps.map(p => aujKartuHtml(rec, p, peta[p.key], pakaiQr ? 'cetak' : ''));
   let isi = '';
   for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) isi += `<div class="kp-halaman">${kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN).join('')}</div>`;
+  if (pakaiQr) {   // satu QR pengesahan Kepala untuk seluruh kartu (satu catatan verifikasi), disalin ke tiap kartu oleh skrip kecil di jendela cetak
+    const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, rec.kelas, rec.ruang, 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
+    isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
+  }
   aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_CETAK);
 }
 
@@ -946,7 +1040,7 @@ function aujCetakKartu() {
 // CETAK
 // =====================================================
 const AUJ_CSS = `
-  @page { size: A4; margin: 20mm 20mm 25mm 30mm; }   /* PMA 12/2026: atas 2, kanan 2, bawah 2,5, kiri 3 cm */
+  @page { size: 215mm 330mm; margin: 20mm 20mm 25mm 30mm; }   /* F4 (Folio) 215 x 330 mm */   /* PMA 12/2026: atas 2, kanan 2, bawah 2,5, kiri 3 cm */
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12pt; color: #000; margin: 0; }
   .halaman { page-break-after: always; }
@@ -1870,17 +1964,19 @@ function aujSimpanSalin() {
 }
 
 // ---------- Cetak jadwal ----------
-// Sama dengan AUJ_CSS (margin PMA) tetapi A4 mendatar, kepala tabel diulang di tiap halaman.
-const AUJ_CSS_JADWAL = AUJ_CSS.replace(/@page \{[^}]*\}/, '@page { size: A4 landscape; margin: 20mm 20mm 25mm 30mm; }') + `
+// Sama dengan AUJ_CSS (margin PMA) tetapi F4 tegak (portrait) dan dirapatkan agar ~14 baris muat 1 halaman; kepala tabel diulang di tiap halaman.
+const AUJ_CSS_JADWAL = AUJ_CSS.replace(/@page \{[^}]*\}/, '@page { size: 215mm 330mm; margin: 20mm 20mm 25mm 30mm; }') + `
   thead { display: table-header-group; } tr { page-break-inside: avoid; }
-  table.jadwal td, table.jadwal th { font-size: 10.5pt; vertical-align: top; }
+  table.jadwal td, table.jadwal th { font-size: 9.5pt; vertical-align: top; }
+  h1 { font-size: 12pt; } .sub { font-size: 10pt; margin-bottom: 6px; } .ttd .ruang { min-height: 46px; } .kop-garis { margin: 4px 0 8px; }
   /* Tampilan minimalis: tanpa kotak, hanya garis tipis; tanggal jadi baris penanda */
-  table.data.jadwal th, table.data.jadwal td { border: 0; border-bottom: 0.5pt solid #bbb; padding: 4px 8px; }
+  table.data.jadwal th, table.data.jadwal td { border: 0; border-bottom: 0.5pt solid #bbb; padding: 2.5px 5px; }
   table.data.jadwal th { background: none; border-bottom: 1.2pt solid #000; text-align: left; }
-  table.data.jadwal tr.hari td { background: #f2f2f2; font-weight: 700; border-bottom: 0.5pt solid #bbb; padding-top: 6px; }
+  table.data.jadwal tr.hari td { background: #f2f2f2; font-weight: 700; border-bottom: 0.5pt solid #bbb; padding-top: 4px; }
   table.data.jadwal tr.hari { page-break-after: avoid; }
 `;
 function aujCetakJadwalHtml(daftar) {
+  daftar = aujUrutJadwal(aujLipatRuang(daftar));   // kelas yang satu ruang & jam (ujian bersama) dijadikan satu baris
   const grup = [];
   daftar.forEach(r => { const l = grup[grup.length - 1]; if (l && l.t === r.tanggal) l.r.push(r); else grup.push({ t: r.tanggal, r: [r] }); });
   const baris = grup.map(g => {
@@ -1888,13 +1984,12 @@ function aujCetakJadwalHtml(daftar) {
     const tgl = p ? p.hari + ', ' + p.d + ' ' + p.bulan + ' ' + p.y : (g.t || '-');
     return `<tr class="hari"><td colspan="5">${escapeHtml(tgl)}</td></tr>` + g.r.map(r => {
       const pw = [r.pengawas1, r.pengawas2].filter(Boolean).map(escapeHtml).join(' / ') || '-';
-      return `<tr><td style="white-space:nowrap;width:95px;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + ' - ' + escapeHtml(r.jamSelesai) : '-'}</td>
-        <td>${escapeHtml(r.mapel || r.nama || '-')}</td><td style="white-space:nowrap;">${escapeHtml(r.kelas || '-')}</td><td style="white-space:nowrap;">${escapeHtml(r.ruang || '-')}</td><td>${pw}</td></tr>`;
+      return `<tr><td style="white-space:nowrap;width:80px;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + ' - ' + escapeHtml(r.jamSelesai) : '-'}</td>
+        <td>${escapeHtml(r.mapel || r.nama || '-')}</td><td>${escapeHtml(r.kelas || '-')}</td><td>${escapeHtml(r.ruang || '-')}</td><td>${pw}</td></tr>`;
     }).join('');
   }).join('');
   const judul = aujJdwNama ? 'Jadwal ' + aujJdwNama : 'Jadwal Asesmen Sumatif Akhir Semester (ASAS/ASAT)';
   const tempat = aujTempat();
-  const pseudo = { nama: judul, tanggal: daftar[0] && daftar[0].tanggal };
   return `<div class="halaman">${aujKopHtml()}
     <h1>${escapeHtml(judul)}</h1>
     <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}${aujJdwKelas ? ' — ' + escapeHtml(aujJdwKelas) : ''}</div>
@@ -1908,6 +2003,10 @@ function aujCetakJadwal() {
   if (!daftar.length) return toast('Belum ada jadwal untuk dicetak.', true);
   const nb = aujCariBentrok(daftar).pasangan.length;
   if (nb) toast(`⚠️ Ada ${nb} pengawas bentrok di jadwal ini — periksa dulu sebelum dibagikan.`, false, 5000);
+  if (!aujKetuaPanitia() && !aujHanyaGuru()) {   // nama Ketua belum ada (SK Panitia belum diisi): tanya sekali, diingat di perangkat ini
+    const n = prompt('Nama Ketua Panitia belum diisi.\nKetik namanya agar tercetak di tanda tangan jadwal (diingat di perangkat ini; atau isi di tab SK Panitia).\nKosongkan untuk diisi tangan:', '');
+    if (n && n.trim()) { try { localStorage.setItem(AUJ_KETUA_KEY, n.trim().slice(0, 80)); } catch (e) { /* abaikan */ } }
+  }
   aujCetakHtml(aujCetakJadwalHtml(daftar), `Jadwal Ujian${aujJdwNama ? ' - ' + aujJdwNama : ''}${aujJdwKelas ? ' - ' + aujJdwKelas : ''}`, AUJ_CSS_JADWAL);
 }
 
