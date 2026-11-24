@@ -1419,6 +1419,7 @@ function aujHtmlJadwal() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         ${ed ? '<button class="btn btn-success" onclick="aujToggleMassal()">🗓️ Jadwal Massal</button>' : ''}
         <button class="btn btn-primary" onclick="aujCetakJadwal()" ${allAdmUjian.length ? '' : 'disabled'}>🖨️ Cetak Jadwal</button>
+        <button class="btn btn-soft" onclick="aujCetakJadwal('ringkas')" ${allAdmUjian.length ? '' : 'disabled'} title="Semua ruang dalam satu tabel (tanggal/jam x ruang), biasanya muat satu lembar F4">📄 Cetak Ringkas</button>
       </div>
     </div>
     ${lain ? `<details style="margin-bottom:10px;"><summary style="cursor:pointer;font-size:12px;color:#475569;">⚙️ Alat lainnya</summary><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${lain}</div></details>` : ''}
@@ -2151,7 +2152,58 @@ function aujCetakJadwalHtml(daftar) {
     <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdPanitiaHtml()}</tr></table>
   </div>`;
 }
-function aujCetakJadwal() {
+// Cetak ringkas: SEMUA ruang dalam satu tabel (baris = tanggal + jam, kolom = ruang). Tiap sel: mapel, kelas, pengawas.
+// Dirancang muat satu lembar F4 untuk beberapa ruang dan belasan slot; bila slotnya lebih banyak, mengalir ke halaman berikutnya (judul kolom diulang).
+const AUJ_CSS_RINGKAS = AUJ_CSS_JADWAL + `
+  body { width: 165mm; }   /* sama dengan lebar area cetak, supaya ukuran di layar = hasil cetak (dipakai penyesuaian otomatis) */
+  table.rgk { width: 100%; border-collapse: collapse; table-layout: fixed; --fs: 7.5pt; }
+  table.rgk th, table.rgk td { border: 0.5pt solid #777; padding: 1.5px 3px; font-size: var(--fs); vertical-align: top; text-align: left; line-height: 1.2; }
+  table.rgk th { background: #eee; text-align: center; font-weight: 700; }
+  table.rgk td.tgl { font-weight: 700; text-align: center; vertical-align: middle; }
+  table.rgk td.jam { text-align: center; }
+  table.rgk .mp { font-weight: 700; } table.rgk .kl { font-weight: 400; font-size: 0.93em; color: #333; }
+  table.rgk .pw { font-size: 0.93em; font-style: italic; color: #222; }
+  table.rgk hr { border: 0; border-top: 0.5pt dotted #888; margin: 1.5px 0; }
+  table.rgk .kosong { color: #999; text-align: center; display: block; }
+  .ket-rgk { font-size: 7.5pt; margin-top: 3px; color: #333; }
+`;
+function aujCetakJadwalRingkasHtml(daftar) {
+  const n = aujNormNama, peta = {}, urutSlot = [], ruangList = [];
+  const kls = a => (a.length > 1 && a.every(x => /^kelas\s+\S+$/i.test(x))) ? 'Kelas ' + a.map(x => x.replace(/^kelas\s+/i, '')).join('+') : a.join(' + ');   // "Kelas 1 + Kelas 2" -> "Kelas 1+2"
+  daftar.forEach(r => {   // satu entri per (jam, ruang, mapel); kelas satu ruang dengan mapel sama digabung
+    const slot = [r.tanggal || '', r.jamMulai || '', r.jamSelesai || ''].join('|'), ruang = r.ruang || '-', rk = n(ruang);
+    if (!ruangList.some(x => n(x) === rk)) ruangList.push(ruang);
+    if (urutSlot.indexOf(slot) < 0) urutSlot.push(slot);
+    const k = slot + '#' + rk + '#' + n(r.mapel || r.nama), g = peta[k] || (peta[k] = { slot, rk, mapel: r.mapel || r.nama || '-', kelas: [], pw: [] });
+    if (r.kelas && g.kelas.indexOf(r.kelas) < 0) g.kelas.push(r.kelas);
+    [r.pengawas1, r.pengawas2].forEach(nm => { if (nm && !g.pw.some(x => aujIdPengawas(x) === aujIdPengawas(nm))) g.pw.push(nm); });
+  });
+  ruangList.sort((a, b) => String(a).localeCompare(String(b), 'id', { numeric: true }));
+  urutSlot.sort();
+  const perSlot = {}, jmlTgl = {};
+  Object.keys(peta).forEach(k => { const g = peta[k]; (perSlot[g.slot] = perSlot[g.slot] || []).push(g); });
+  urutSlot.forEach(sl => { const t = sl.split('|')[0]; jmlTgl[t] = (jmlTgl[t] || 0) + 1; });
+  let tglLalu = null;
+  const baris = urutSlot.map(sl => {
+    const p = sl.split('|'), kolTgl = p[0] !== tglLalu ? `<td class="tgl" rowspan="${jmlTgl[p[0]]}">${escapeHtml(aujTglPendek(p[0]))}</td>` : ''; tglLalu = p[0];
+    const sel = ruangList.map(ru => {
+      const isi = (perSlot[sl] || []).filter(g => g.rk === n(ru));
+      return '<td>' + (isi.length ? isi.map(g => `<div class="mp">${escapeHtml(g.mapel)}${g.kelas.length ? ` <span class="kl">(${escapeHtml(kls(g.kelas))})</span>` : ''}</div><div class="pw">${g.pw.slice(0, 2).map(escapeHtml).join(' / ') || '-'}</div>`).join('<hr>') : '<span class="kosong">–</span>') + '</td>';
+    }).join('');
+    return `<tr>${kolTgl}<td class="jam">${p[1] && p[2] ? escapeHtml(p[1]) + '–' + escapeHtml(p[2]) : '-'}</td>${sel}</tr>`;
+  }).join('');
+  const judul = aujJdwNama ? 'Jadwal ' + aujJdwNama : 'Jadwal Asesmen Sumatif Akhir Semester (ASAS/ASAT)', tempat = aujTempat();
+  return `<div class="halaman">${aujKopHtml()}
+    <h1>${escapeHtml(judul)}</h1>
+    <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}${aujJdwKelas ? ' — ' + escapeHtml(aujJdwKelas) : ''}</div>
+    <table class="rgk"><thead><tr><th style="width:13%;">Tanggal</th><th style="width:11%;">Waktu</th>${ruangList.map(ru => `<th>Ruang ${escapeHtml(String(ru).replace(/^ruang\s*/i, ''))}</th>`).join('')}</tr></thead><tbody>${baris}</tbody></table>
+    <div class="ket-rgk">Keterangan tiap kotak: <strong>mata pelajaran</strong> (kelas), lalu <em>nama pengawas</em>.</div>
+    <div style="text-align:right;margin-top:8px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(tglLokal()))}</div>
+    <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdPanitiaHtml()}</tr></table>
+  </div>
+  <script>(function(){var t=document.querySelector('table.rgk'),h=document.querySelector('.halaman');if(!t||!h)return;var fs=7.5;while(h.offsetHeight>1045&&fs>6.25){fs-=0.25;t.style.setProperty('--fs',fs+'pt');}})();</script>`;
+}
+function aujCetakJadwal(mode) {
   const daftar = aujJadwalTersaring();
   if (!daftar.length) return toast('Belum ada jadwal untuk dicetak.', true);
   const nb = aujCariBentrok(daftar).pasangan.length;
@@ -2160,7 +2212,7 @@ function aujCetakJadwal() {
     const n = prompt('Nama Ketua Panitia belum diisi.\nKetik namanya agar tercetak di tanda tangan jadwal (diingat di perangkat ini; atau isi di tab SK Panitia).\nKosongkan untuk diisi tangan:', '');
     if (n && n.trim()) { try { localStorage.setItem(AUJ_KETUA_KEY, n.trim().slice(0, 80)); } catch (e) { /* abaikan */ } }
   }
-  aujCetakHtml(aujCetakJadwalHtml(daftar), `Jadwal Ujian${aujJdwNama ? ' - ' + aujJdwNama : ''}${aujJdwKelas ? ' - ' + aujJdwKelas : ''}`, AUJ_CSS_JADWAL);
+  aujCetakHtml(mode === 'ringkas' ? aujCetakJadwalRingkasHtml(daftar) : aujCetakJadwalHtml(daftar), `Jadwal Ujian${mode === 'ringkas' ? ' (Ringkas)' : ''}${aujJdwNama ? ' - ' + aujJdwNama : ''}${aujJdwKelas ? ' - ' + aujJdwKelas : ''}`, mode === 'ringkas' ? AUJ_CSS_RINGKAS : AUJ_CSS_JADWAL);
 }
 
 
