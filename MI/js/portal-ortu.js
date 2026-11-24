@@ -867,7 +867,9 @@
         ortuBacaBersama('jurnal|' + tglLokal(), db.ref('journal').orderByChild('tanggal').equalTo(tglLokal()), 'journal', gagalMuat),
         ortuBacaBersama('kalender', db.ref('kalender_akademik'), 'kalender_akademik', gagalMuat),
         ortuBacaBersama('events|' + tglLokal(), db.ref('events').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'events', gagalMuat),
-        ortuBacaBersama('ujian|' + tglLokal(), db.ref('ujian').orderByChild('tanggal').startAt(tglLokal()).limitToFirst(8), 'ujian', gagalMuat),
+        // Node 'ujian' (tugas & honor Pengawas/Koreksi staf) sengaja TERTUTUP untuk ortu di Rules; membacanya selalu ditolak dan memunculkan
+        // spanduk "Sebagian data belum bisa dimuat". Jadwal ujian siswa memakai portal_jadwal_ujian (jujianSnap) di bawah.
+        Promise.resolve(ORTU_SNAP_KOSONG),
         bukaP,
         // Jadwal pelajaran & jadwal ujian kelas anak. Dibaca dengan penampung galat terpisah: sebelum Rules-nya dipasang kartunya
         // cukup tidak muncul, tanpa spanduk "sebagian data belum termuat".
