@@ -1537,8 +1537,12 @@ function aujMapelDiampu(kelas) {
   return out.size ? out : null;
 }
 function aujIsiMapelJadwal(tujuan) {
-  const kelas = tujuan === 'single' ? [aujVal('aujMsKelas')].filter(Boolean) : KELAS_LIST.filter(k => aujFaseKelas(k) === tujuan);
-  if (!kelas.length) return toast(tujuan === 'single' ? 'Pilih kelas dulu.' : 'Tidak ada kelas di fase ini.', true);
+  // Mode "Beberapa kelas sekaligus": kelas diambil dari kelas yang dicentang (kolom pilihan satu kelas tidak dipakai di mode itu).
+  const multi = !!(aujEl('aujMsMulti') && aujEl('aujMsMulti').checked);
+  const kelas = tujuan === 'single'
+    ? (multi ? [...document.querySelectorAll('.aujMsKelasCek')].filter(c => c.checked).map(c => c.value) : [aujVal('aujMsKelas')].filter(Boolean))
+    : KELAS_LIST.filter(k => aujFaseKelas(k) === tujuan);
+  if (!kelas.length) return toast(tujuan === 'single' ? (multi ? 'Centang minimal satu kelas dulu.' : 'Pilih kelas dulu.') : 'Tidak ada kelas di fase ini.', true);
   const daftar = aujMapelDariJadwal(kelas);
   if (!daftar.length) return toast('Belum ada mapel di Jadwal Pelajaran untuk kelas ini (atau jadwal belum dimuat). Ketik manual.', true);
   const ta = aujEl(tujuan === 'single' ? 'aujMsMapel' : 'aujMsMapelFase_' + tujuan); if (!ta) return;
