@@ -1411,7 +1411,7 @@ function aujHtmlJadwal() {
   const uniq = f => [...new Set(allAdmUjian.map(x => x[f]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
   if (aujJdwNama && !uniq('nama').includes(aujJdwNama)) aujJdwNama = '';     // filter yang opsinya sudah tidak ada (sesi dihapus/diurungkan) di-reset
   if (aujJdwKelas && !uniq('kelas').includes(aujJdwKelas)) aujJdwKelas = '';
-  const lain = `${ed ? '<button class="btn btn-soft" onclick="aujToggleSalin()" title="Salin jadwal satu asesmen ke asesmen baru (mis. ASAS ke ASAT)">📑 Salin Jadwal</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujIsiPengawasKosong()" title="Isi slot pengawas yang kosong, dibagi rata (mengikuti filter di bawah)">🤖 Isi Pengawas Kosong</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujTampilPeriksa()" title="Cocokkan jadwal, Daftar Hadir, check-in, dan susulan">🔎 Periksa Honor</button>' : ''}${ed ? '<button class="btn btn-primary" onclick="aujBuatSesiHonor()" title="Buat sesi honor pengawas dari jadwal (mengikuti filter di bawah)">💰 Buat Sesi Honor</button>' : ''}${ed ? aujHtmlTombolUrungkan() : ''}${ed && aujSesiBedaDurasi(aujJadwalTersaring()).length ? `<button class="btn btn-soft" onclick="aujSeragamkanDurasi()" title="Ubah jam selesai semua sesi yang tampil menjadi jam mulai + ${AUJ_DURASI_MENIT} menit">⏱️ Seragamkan ${AUJ_DURASI_MENIT} menit (${aujSesiBedaDurasi(aujJadwalTersaring()).length})</button>` : ''}${ed || aujEsKepsek() ? '<button class="btn btn-soft" onclick="aujToggleBeban()" title="Jumlah sesi & jam mengawas tiap guru (mengikuti filter di bawah)">📊 Rekap Beban</button>' : ''}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujToggleGuru()" title="Jadwal mengawas per guru, bisa dicetak">👤 Jadwal per Guru</button>'}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujUbahKetuaPanitia()" title="Nama Ketua Panitia yang tercetak di tanda tangan Jadwal, Rekap Beban, dan Jadwal Mengawas">✍️ Ketua Panitia</button>'}`.trim();
+  const lain = `${ed ? '<button class="btn btn-soft" onclick="aujToggleSalin()" title="Salin jadwal satu asesmen ke asesmen baru (mis. ASAS ke ASAT)">📑 Salin Jadwal</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujIsiPengawasKosong()" title="Isi slot pengawas yang kosong, dibagi rata (mengikuti filter di bawah)">🤖 Isi Pengawas Kosong</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujToggleBh()" title="Ganti satu guru yang berhalangan di semua sesi mengawasnya">🙋 Pengawas Berhalangan</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujTampilPeriksa()" title="Cocokkan jadwal, Daftar Hadir, check-in, dan susulan">🔎 Periksa Honor</button>' : ''}${ed ? '<button class="btn btn-primary" onclick="aujBuatSesiHonor()" title="Buat sesi honor pengawas dari jadwal (mengikuti filter di bawah)">💰 Buat Sesi Honor</button>' : ''}${ed ? aujHtmlTombolUrungkan() : ''}${ed && aujSesiBedaDurasi(aujJadwalTersaring()).length ? `<button class="btn btn-soft" onclick="aujSeragamkanDurasi()" title="Ubah jam selesai semua sesi yang tampil menjadi jam mulai + ${AUJ_DURASI_MENIT} menit">⏱️ Seragamkan ${AUJ_DURASI_MENIT} menit (${aujSesiBedaDurasi(aujJadwalTersaring()).length})</button>` : ''}${ed || aujEsKepsek() ? '<button class="btn btn-soft" onclick="aujToggleBeban()" title="Jumlah sesi & jam mengawas tiap guru (mengikuti filter di bawah)">📊 Rekap Beban</button>' : ''}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujToggleGuru()" title="Jadwal mengawas per guru, bisa dicetak">👤 Jadwal per Guru</button>'}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujUbahKetuaPanitia()" title="Nama Ketua Panitia yang tercetak di tanda tangan Jadwal, Rekap Beban, dan Jadwal Mengawas">✍️ Ketua Panitia</button>'}`.trim();
   const opt = (arr, sel, semua) => `<option value="">${semua}</option>` + arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
   return `
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -1425,6 +1425,7 @@ function aujHtmlJadwal() {
     <div id="aujPeriksaIsi"></div>
     <div id="aujJdwMassal">${ed && aujMassalBuka ? aujHtmlMassal() : ''}</div>
     <div id="aujJdwSalin">${ed && aujSalinBuka ? aujHtmlSalin() : ''}</div>
+    <div id="aujJdwBhl">${ed && aujBhBuka ? aujHtmlBh() : ''}</div>
     <div id="aujBebanBox">${(ed || aujEsKepsek()) && aujBebanBuka ? aujHtmlBeban() : ''}</div>
     <div id="aujGuruBox">${aujHanyaGuru() || aujGuruBuka ? aujHtmlPerGuru() : ''}</div>
     <div class="grid-2" style="margin-bottom:10px;">
@@ -1512,6 +1513,29 @@ function aujMapelDariJadwal(kelasArr) {
   });
   return out;
 }
+// Jarak ketikan (Levenshtein) untuk menebak nama mapel di Jadwal Pelajaran yang paling mirip.
+function aujJarakTeks(a, b) {
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = []; for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+function aujSaranMapel(mapel) {
+  const jd = (typeof allJadwal !== 'undefined' && Array.isArray(allJadwal)) ? allJadwal : [], n = aujNormNama(mapel), lihat = {}; let terbaik = '', skor = 1e9;
+  jd.forEach(j => {
+    const nm = String((j && j.mapel) || '').trim(), k = aujNormNama(nm);
+    if (!nm || lihat[k] || AUJ_BUKAN_MAPEL.test(nm)) return; lihat[k] = 1;
+    const d = (k.indexOf(n) >= 0 || n.indexOf(k) >= 0) ? 1 : aujJarakTeks(n, k);
+    if (d < skor) { skor = d; terbaik = nm; }
+  });
+  return terbaik && skor <= Math.max(2, Math.floor(n.length * 0.3)) ? terbaik : '';
+}
+// Himpunan mapel (nama dinormalisasi) yang diampu satu kelas menurut Jadwal Pelajaran; null bila kelas itu belum punya data jadwal.
+function aujMapelDiampu(kelas) {
+  const jd = (typeof allJadwal !== 'undefined' && Array.isArray(allJadwal)) ? allJadwal : [], out = new Set();
+  jd.forEach(j => { if (j && j.kelas === kelas && j.mapel && !AUJ_BUKAN_MAPEL.test(String(j.mapel))) out.add(aujNormNama(j.mapel)); });
+  return out.size ? out : null;
+}
 function aujIsiMapelJadwal(tujuan) {
   const kelas = tujuan === 'single' ? [aujVal('aujMsKelas')].filter(Boolean) : KELAS_LIST.filter(k => aujFaseKelas(k) === tujuan);
   if (!kelas.length) return toast(tujuan === 'single' ? 'Pilih kelas dulu.' : 'Tidak ada kelas di fase ini.', true);
@@ -1521,6 +1545,34 @@ function aujIsiMapelJadwal(tujuan) {
   if (ta.value.trim() && !confirm('Daftar mapel yang sekarang akan diganti. Lanjutkan?')) return;
   ta.value = daftar.join('\n'); aujMassalSimpanDraft();
   toast(`✅ ${daftar.length} mapel diambil dari Jadwal. Periksa urutannya dan hapus yang bukan mapel ujian.`, false, 5000);
+}
+// Aturan pengganti: satu per baris, "Kelas 1: Bahasa Arab = Tahfidz Quran" atau tanpa kelas (berlaku semua kelas). Pemisah: = => -> → >
+function aujParsePengganti(teks) {
+  const out = [];
+  String(teks || '').split(/\r?\n/).forEach(l => {
+    const m = /^(?:(.+?)\s*[:|]\s*)?(.+?)\s*(?:=>|->|→|=|>)\s*(.+)$/.exec(l.trim());
+    if (m && m[2].trim() && m[3].trim()) out.push({ kelas: m[1] ? m[1].trim() : '', dari: m[2].trim(), ke: m[3].trim() });
+  });
+  return out;
+}
+function aujCariPengganti(aturan, kelas, mapel) {
+  const n = aujNormNama, cocokKelas = g => n(g) === n(kelas) || n('Kelas ' + g) === n(kelas), dari = n(mapel);
+  return aturan.find(a => a.kelas && cocokKelas(a.kelas) && n(a.dari) === dari) || aturan.find(a => !a.kelas && n(a.dari) === dari) || null;
+}
+// Isi slot yang dilewati (kelas tidak mengampu) dengan mapel pengganti, hanya bila aman. Mengubah gabung.baris; mengembalikan { diganti, gagal }.
+function aujTerapkanPengganti(baris, dilewati, aturan) {
+  const n = aujNormNama, diganti = [], gagal = [];
+  dilewati.forEach(r => {
+    const a = aujCariPengganti(aturan, r.kelas, r.mapel); if (!a) return;
+    const rep = a.ke, ampu = aujMapelDiampu(r.kelas), gagalKarena = alasan => gagal.push({ kelas: r.kelas, dari: r.mapel, ke: rep, tanggal: r.tanggal, alasan });
+    if (ampu && !ampu.has(n(rep))) return gagalKarena('kelas ini tidak mengampu ' + rep);
+    if (baris.some(b => b.kelas === r.kelas && n(b.mapel) === n(rep))) return gagalKarena(rep + ' sudah dijadwalkan untuk kelas ini');
+    const lain = baris.find(b => b.kelas !== r.kelas && n(b.ruang) === n(r.ruang) && b.tanggal === r.tanggal && b.jamMulai === r.jamMulai && n(b.mapel) !== n(rep));
+    if (lain) return gagalKarena('ruang ' + r.ruang + ' dipakai ' + lain.kelas + ' untuk ' + lain.mapel + ' pada jam yang sama');
+    baris.push(Object.assign({}, r, { mapel: rep, _pengganti: true }));
+    diganti.push({ kelas: r.kelas, dari: r.mapel, ke: rep, tanggal: r.tanggal });
+  });
+  return { diganti, gagal };
 }
 function aujHitungMassal(p) {
   if (!p.multi) return aujHitungMassal1(p);
@@ -1533,16 +1585,31 @@ function aujHitungMassal(p) {
     if (ruangDipakai[rn]) ruangSama.push('Ruang "' + x.ruang + '": ' + ruangDipakai[rn] + ' dan ' + x.kelas); else ruangDipakai[rn] = x.kelas;
   }
   if ((p.p1 || p.p2) && Object.keys(ruangDipakai).length > 1) return err('Pengawas manual (Pengawas 1/2) hanya bisa dipakai bila semua kelas berada di SATU ruang yang sama. Untuk ruang berbeda pasti bentrok: kosongkan, lalu pakai pengawas otomatis atau isi per sesi nanti.');
-  let gabung = null;
+  let gabung = null; const lewatTakAmpu = [], tanpaJadwal = [], dilewatiBaris = [], mapelDaftar = [], kelasBerjadwal = [];
   for (const x of daftar) {
     const fase = aujFaseKelas(x.kelas), mapelFase = p.perFase && fase && p.mapelFase ? String(p.mapelFase[fase] || '').trim() : '';
     const h = aujHitungMassal1(Object.assign({}, p, { kelas: x.kelas, ruang: x.ruang, mapelTeks: mapelFase || p.mapelTeks }));
     if (h.error) return err(`${x.kelas}: ${h.error}`);
+    if (p.lewatTakAmpu && !mapelFase) {   // satu daftar mapel untuk semua kelas; sesi mapel yang tidak diampu kelas ini dibuang (slot lain tidak bergeser)
+      const ampu = aujMapelDiampu(x.kelas);
+      h.baris.forEach(b => { if (b.mapel && mapelDaftar.indexOf(b.mapel) < 0) mapelDaftar.push(b.mapel); });
+      if (!ampu) tanpaJadwal.push(x.kelas);
+      else {
+        kelasBerjadwal.push(x.kelas);
+        const buang = h.baris.filter(b => !ampu.has(aujNormNama(b.mapel)));
+        if (buang.length) { dilewatiBaris.push(...buang); h.baris = h.baris.filter(b => ampu.has(aujNormNama(b.mapel))); lewatTakAmpu.push({ kelas: x.kelas, mapel: buang.map(b => b.mapel).filter((v, i, a) => a.indexOf(v) === i) }); }
+      }
+    }
     if (!gabung) gabung = h; else { gabung.baris = gabung.baris.concat(h.baris); gabung.kapasitas += h.kapasitas; gabung.slotKosong += h.slotKosong; gabung.beratBertumpuk = (gabung.beratBertumpuk || 0) + (h.beratBertumpuk || 0); gabung.durasiBeda = (gabung.durasiBeda || []).concat(h.durasiBeda || []).filter((v, i, a) => a.indexOf(v) === i); gabung.hariTerpakai = Math.max(gabung.hariTerpakai, h.hariTerpakai); }
   }
+  gabung.diganti = []; gabung.gagalGanti = [];
+  if (dilewatiBaris.length) { const aturan = aujParsePengganti(p.penggantiTeks); if (aturan.length) { const r = aujTerapkanPengganti(gabung.baris, dilewatiBaris, aturan); gabung.diganti = r.diganti; gabung.gagalGanti = r.gagal; } }
   gabung.baris.sort((a, b) => (a.tanggal + (a.jamMulai || '') + a.kelas).localeCompare(b.tanggal + (b.jamMulai || '') + b.kelas));
   gabung.nKelas = daftar.length;
   gabung.ruangSama = ruangSama;
+  gabung.lewatTakAmpu = lewatTakAmpu; gabung.tanpaJadwal = tanpaJadwal;
+  gabung.mapelTakCocok = [];   // mapel di daftar yang tidak ada di Jadwal Pelajaran kelas mana pun (biasanya beda penulisan) -> terlewati untuk semua kelas berjadwal
+  if (kelasBerjadwal.length) mapelDaftar.forEach(m => { if (!kelasBerjadwal.some(k => aujMapelDiampu(k).has(aujNormNama(m)))) gabung.mapelTakCocok.push({ mapel: m, saran: aujSaranMapel(m) }); });
   return gabung;
 }
 function aujHitungMassal1(p) {
@@ -1609,6 +1676,8 @@ function aujMassalAmbil() {
     honorOtomatis: !!(aujEl('aujMsHonor') && aujEl('aujMsHonor').checked), honorNominal: aujInt(aujVal('aujMsHonorNominal'), 0, 0, 100000000),
     multi: !!(aujEl('aujMsMulti') && aujEl('aujMsMulti').checked),
     perFase: !!(aujEl('aujMsPerFase') && aujEl('aujMsPerFase').checked),
+    lewatTakAmpu: !(aujEl('aujMsLewatTakAmpu') && !aujEl('aujMsLewatTakAmpu').checked),
+    penggantiTeks: aujVal('aujMsPengganti'),
     mapelFase: { A: aujVal('aujMsMapelFase_A'), B: aujVal('aujMsMapelFase_B'), C: aujVal('aujMsMapelFase_C') },
     kelasList: [...document.querySelectorAll('.aujMsKelasCek')].filter(c => c.checked).map(c => ({ kelas: c.value, ruang: aujVal('aujMsRuangK_' + c.dataset.i) })),
     ruangK: [...document.querySelectorAll('.aujMsKelasCek')].reduce((o, c) => { o[c.value] = aujVal('aujMsRuangK_' + c.dataset.i); return o; }, {})
@@ -1669,6 +1738,11 @@ function aujHtmlMassal() {
           return `<div style="display:flex;align-items:center;gap:6px;"><label style="display:flex;align-items:center;gap:4px;font-size:13px;min-width:70px;"><input type="checkbox" class="aujMsKelasCek" data-i="${i}" value="${escapeHtml(k)}" ${dipilih ? 'checked' : ''} onchange="aujRuangKelasCek(this)"> ${escapeHtml(k)}</label><input id="aujMsRuangK_${i}" class="field" type="text" maxlength="40" placeholder="Ruang" value="${escapeHtml(rv)}" style="flex:1;min-width:0;"></div>`;
         }).join('')}</div>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:8px;"><input type="checkbox" id="aujMsPerFase" ${d.perFase ? 'checked' : ''} onchange="aujMassalToggleMulti()"> 📚 Mapel mengikuti fase</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:6px;"><input type="checkbox" id="aujMsLewatTakAmpu" ${d.lewatTakAmpu === false ? '' : 'checked'}> ✂️ Lewati mapel yang tidak diampu kelas</label>
+        <p style="font-size:12px;color:#6b7280;margin:2px 0 0 22px;">Berlaku bila "Mapel mengikuti fase" mati: semua kelas memakai satu daftar mapel, tetapi sesi mapel yang tidak ada di Jadwal Pelajaran kelas itu tidak dibuat. Kelas tanpa data Jadwal Pelajaran tetap mendapat semua mapel.</p>
+        <label class="label" style="margin-top:6px;">Mapel pengganti untuk slot yang dilewati (opsional, satu aturan per baris)</label>
+        <textarea id="aujMsPengganti" class="field" rows="3" placeholder="Kelas 1: Bahasa Arab = Tahfidz Quran&#10;Bahasa Arab = Seni dan Budaya  (tanpa nama kelas = berlaku untuk semua kelas)">${val('penggantiTeks')}</textarea>
+        <p style="font-size:12px;color:#6b7280;margin:2px 0 0;">Pengganti dipakai hanya bila kelas itu mengampu mapel penggantinya, belum punya sesi mapel itu, dan ruangnya tidak sedang dipakai kelas lain dengan mapel berbeda pada jam yang sama. Kalau tidak memenuhi, slot dibiarkan kosong dan alasannya ditulis di pratinjau.</p>
       </div>
     </div>
     <div class="grid-2" style="margin-bottom:10px;">
@@ -1810,13 +1884,18 @@ function aujHtmlPratinjauMassal() {
   const pwSel = (i, b) => h.p.auto ? sel(i, 1, b) + '<br>' + (h.p.jmlPw === 2 || b.pengawas2 ? sel(i, 2, b) : '') : escapeHtml([b.pengawas1, b.pengawas2].filter(Boolean).join(', ') || '—');
   const rows = h.baris.map((b, i) => `<tr style="${b.sudahAda ? 'color:#9ca3af;' : ''}">
       <td style="${td}">${i + 1}</td><td style="${td}white-space:nowrap;">${escapeHtml(aujTglPendek(b.tanggal))}</td>
-      <td style="${td}white-space:nowrap;">${escapeHtml(b.jamMulai)}–${escapeHtml(b.jamSelesai)}</td>${h.p.multi ? `<td style="${td}white-space:nowrap;">${escapeHtml(b.kelas)} · ${escapeHtml(b.ruang)}</td>` : ''}<td style="${td}">${escapeHtml(b.mapel)}</td>
+      <td style="${td}white-space:nowrap;">${escapeHtml(b.jamMulai)}–${escapeHtml(b.jamSelesai)}</td>${h.p.multi ? `<td style="${td}white-space:nowrap;">${escapeHtml(b.kelas)} · ${escapeHtml(b.ruang)}</td>` : ''}<td style="${td}">${escapeHtml(b.mapel)}${b._pengganti ? ' <span style="font-size:11px;color:#065f46;">🔁 pengganti</span>' : ''}</td>
       <td style="${td}">${b.sudahAda ? '—' : pwSel(i, b)}</td>
       <td style="${td}">${b.sudahAda ? 'sudah ada — dilewati' : (b.bentrok && b.bentrok.length ? `<span style="color:#b91c1c;">⚠️ ${escapeHtml(b.bentrok.map(x => x.nama + ' bentrok dengan ' + aujLabelSesi(x.lawan)).join('; '))}</span>` : '✓')}</td></tr>`).join('');
   return `<p style="font-size:13px;margin-bottom:6px;"><strong>${baru.length} sesi</strong> akan dibuat untuk ${h.p.multi ? `<strong>${h.nKelas} kelas</strong> (${escapeHtml(h.p.kelasList.map(x => x.kelas + ' di ' + x.ruang).join(', '))})` : `<strong>${escapeHtml(h.p.kelas)}</strong> di <strong>${escapeHtml(h.p.ruang)}</strong>`}, memakai ${h.hariTerpakai} hari${lewat ? `; ${lewat} sesi dilewati karena sudah ada` : ''}${h.slotKosong ? `; ${h.slotKosong} slot di hari terakhir kosong` : ''}.</p>
     ${h.beratBertumpuk ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚖️ ${h.beratBertumpuk} hari tetap berisi dua mapel berat karena jumlah mapel berat lebih banyak daripada hari ujian. Tambah hari atau kurangi tanda berat.</p>` : (h.nBerat ? `<p style="font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚖️ Mapel berat sudah disebar: tidak ada hari dengan dua mapel berat.</p>` : '')}
     ${h.durasiBeda && h.durasiBeda.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⏱️ Lama sesi di MI ditetapkan ${AUJ_DURASI_MENIT} menit, tetapi slot ${h.durasiBeda.map(escapeHtml).join(', ')} berbeda. Masih bisa disimpan; ubah jamnya bila tidak disengaja.</p>` : ''}
     ${h.liburDilewati && h.liburDilewati.length ? `<p style="font-size:12px;color:#1d4ed8;background:#eff6ff;border-radius:6px;padding:6px 10px;margin-bottom:6px;">📅 ${h.liburDilewati.length} tanggal dilewati karena libur di Kalender Akademik: ${h.liburDilewati.map(t => escapeHtml(aujTglPendek(t))).join(', ')}.</p>` : ''}
+    ${h.mapelTakCocok && h.mapelTakCocok.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ Mapel berikut tidak ditemukan di Jadwal Pelajaran kelas mana pun yang dipilih, jadi DILEWATI untuk semua kelas yang punya data jadwal: ${h.mapelTakCocok.map(x => '<strong>' + escapeHtml(x.mapel) + '</strong>' + (x.saran ? ' (mungkin maksudnya "' + escapeHtml(x.saran) + '")' : '')).join('; ')}. Samakan penulisannya dengan Jadwal Pelajaran, lalu Pratinjau lagi.</p>` : ''}
+    ${h.lewatTakAmpu && h.lewatTakAmpu.length ? `<p style="font-size:12px;color:#1d4ed8;background:#eff6ff;border-radius:6px;padding:6px 10px;margin-bottom:6px;">✂️ Dilewati karena kelas tidak mengampu mapel itu (menurut Jadwal Pelajaran): ${h.lewatTakAmpu.map(x => escapeHtml(x.kelas) + ' — ' + x.mapel.map(escapeHtml).join(', ')).join('; ')}. Kalau ada yang salah (mis. beda penulisan nama mapel), samakan namanya di Jadwal Pelajaran.</p>` : ''}
+    ${h.tanpaJadwal && h.tanpaJadwal.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ ${h.tanpaJadwal.map(escapeHtml).join(', ')} belum punya data Jadwal Pelajaran, jadi mendapat semua mapel di daftar.</p>` : ''}
+    ${h.diganti && h.diganti.length ? `<p style="font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:6px 10px;margin-bottom:6px;">🔁 ${h.diganti.length} slot yang dilewati diisi mapel pengganti: ${h.diganti.slice(0, 6).map(x => escapeHtml(x.kelas) + ' ' + escapeHtml(aujTglPendek(x.tanggal)) + ' (' + escapeHtml(x.dari) + ' → ' + escapeHtml(x.ke) + ')').join('; ')}${h.diganti.length > 6 ? '; dan ' + (h.diganti.length - 6) + ' lainnya' : ''}.</p>` : ''}
+    ${h.gagalGanti && h.gagalGanti.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ ${h.gagalGanti.length} slot tidak bisa diganti dan dibiarkan kosong: ${h.gagalGanti.slice(0, 4).map(x => escapeHtml(x.kelas) + ' ' + escapeHtml(aujTglPendek(x.tanggal)) + ' (' + escapeHtml(x.dari) + ' → ' + escapeHtml(x.ke) + '): ' + escapeHtml(x.alasan)).join('; ')}${h.gagalGanti.length > 4 ? '; dan ' + (h.gagalGanti.length - 4) + ' lainnya' : ''}.</p>` : ''}
     ${h.ruangSama && h.ruangSama.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ Satu ruang dipakai beberapa kelas pada jam yang sama (${escapeHtml(h.ruangSama.join('; '))}). Boleh dilanjutkan: pengawas kelas-kelas ini dibuat sama dan honor pengawasnya dihitung sekali per ruang (sesi honor dibuat di kelas pertama). Denah gabungan diatur di tab Denah.</p>` : ''}
     ${h.kalenderKosong ? '<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">ℹ️ Kalender Akademik belum memuat tanggal libur (kosong atau belum pernah dibuka). Buka menu Kalender Akademik sekali, lalu Pratinjau lagi bila ingin hari libur dilewati otomatis.</p>' : ''}
     ${h.p.honorOtomatis ? (() => { const kamar = aujLipatRuang(baru), lengkap = kamar.filter(b => Object.keys(aujKunciPengawasSesi(b).map).length).length; return `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">💰 ${lengkap} dari ${kamar.length} sesi honor${kamar.length < baru.length ? ' (satu per ruang)' : ''} akan langsung dibuat @ Rp ${h.p.honorNominal.toLocaleString('id-ID')} per pengawas${kamar.length - lengkap ? `; ${kamar.length - lengkap} sesi tanpa pengawas dilewati` : ''}.</p>`; })() : ''}
@@ -2232,6 +2311,199 @@ function aujIsiPengawasKosong() {
     addLog('ubah_administrasi_ujian', `isi pengawas otomatis ${kunci.length} sesi`);
     aujUndoSimpan({ jenis: 'ubah', label: 'Isi Pengawas Kosong', ubah: catatUbah });
     aujRenderSemua();
+  });
+}
+
+// =====================================================
+// PENGAWAS BERHALANGAN -- ganti satu guru di banyak sesi sekaligus
+// =====================================================
+// Hanya mengubah field pengawas yang sudah ada (pengawas1/2 + Key) lewat satu update, lalu sesi honor ikut disinkronkan
+// (jalur yang sama dengan Isi Pengawas Kosong). Sesi yang pengawas lamanya sudah check-in / punya susulan / dicentang Hadir dilewati.
+// Kelas-kelas satu ruang diganti bersama supaya ruang tidak berisi tiga pengawas.
+let aujBhBuka = false, aujBhDraft = null, aujBhHasil = null;
+function aujSlotGuru(rec, guruKey) {   // slot (1|2) yang dipegang guru itu di sesi ini; 0 bila tidak ada
+  if (!rec || !guruKey) return 0;
+  const k1 = rec.pengawas1 ? (rec.pengawas1Key || aujKunciGuru(rec.pengawas1)) : null, k2 = rec.pengawas2 ? (rec.pengawas2Key || aujKunciGuru(rec.pengawas2)) : null;
+  return k1 === guruKey ? 1 : (k2 === guruKey ? 2 : 0);
+}
+// Alasan satu baris tidak boleh diganti (membaca data terbaru yang ada di memori saat dipanggil).
+function aujBhKunci(row, guruKey) {
+  const alasan = [], att = (typeof allUjianAttendance !== 'undefined' && allUjianAttendance) || [], sus = (typeof allUjianSusulan !== 'undefined' && allUjianSusulan) || [];
+  const u = aujSesiHonorDari(row.recs[0].key);
+  if (u && att.some(c => c.ujianKey === u.key && c.guruKey === guruKey)) alasan.push('sudah check-in honor');
+  if (u && sus.some(z => z.ujianKey === u.key && z.guruKey === guruKey)) alasan.push('ada pengajuan susulan honor');
+  if (row.recs.some(r => (r.pengawasHadir || {})['p' + aujSlotGuru(r, guruKey)])) alasan.push('sudah dicentang Hadir di Daftar Hadir');
+  return alasan;
+}
+// Pasang pengganti g pada satu baris: patch per sesi { key: { pengawasN, pengawasNKey } }. kini (opsional) = peta sesi yang ikut diperbarui.
+function aujBhPasang(row, g, guruKey, kini) {
+  row.baru = { key: g.key, name: g.name }; row.patch = {};
+  row.recs.forEach(r => {
+    const s = aujSlotGuru(r, guruKey), pt = {}; if (!s) return;
+    pt['pengawas' + s] = g.name; pt['pengawas' + s + 'Key'] = g.key; row.patch[r.key] = pt;
+    if (kini) kini[r.key] = Object.assign({}, r, pt);
+  });
+}
+function aujRencanaGantiPengawas(p) {
+  const err = m => ({ error: m });
+  if (!p.guruKey) return err('Pilih guru yang berhalangan.');
+  if (!aujAdaTanggal(p.dari) || !aujAdaTanggal(p.sampai)) return err('Isi rentang tanggal dengan benar.');
+  if (p.dari > p.sampai) return err('Tanggal "sampai" tidak boleh sebelum tanggal "dari".');
+  const guru = (allGuru || []).find(g => g.key === p.guruKey), nama = guru ? guru.name : p.guruKey;
+  const terkena = allAdmUjian.filter(r => r.tanggal && r.tanggal >= p.dari && r.tanggal <= p.sampai && aujSlotGuru(r, p.guruKey))
+    .sort((a, b) => (a.tanggal + (a.jamMulai || '')).localeCompare(b.tanggal + (b.jamMulai || '')) || String(a.kelas || '').localeCompare(String(b.kelas || ''), 'id', { numeric: true }));
+  if (!terkena.length) return err(`${nama} tidak tercatat mengawas pada rentang tanggal itu.`);
+  const lihat = new Set(), rows = [];
+  terkena.forEach(r => {
+    if (lihat.has(r.key)) return;
+    const grup = aujGrupRuang(r); grup.forEach(x => lihat.add(x.key));
+    const recs = grup.filter(x => aujSlotGuru(x, p.guruKey));
+    const mapel = []; recs.forEach(x => { if (x.mapel && mapel.indexOf(x.mapel) < 0) mapel.push(x.mapel); });
+    rows.push({ recs, rec0: r, tanggal: r.tanggal, jamMulai: r.jamMulai, jamSelesai: r.jamSelesai, ruang: r.ruang, kelas: recs.map(x => x.kelas || '-').join(' + '), mapel: mapel.join(' / '), baru: null, patch: null, status: 'ok', alasan: '', bentrok: [] });
+  });
+  const beban = {}; aujLipatRuang(allAdmUjian).forEach(x => aujPengawasDari(x).forEach(pw => { beban[pw.k] = (beban[pw.k] || 0) + 1; }));
+  const poolOto = aujPoolOtomatis().filter(g => g.key !== p.guruKey), kini = {};
+  const siagaSet = new Set(p.siaga || []), kandSiaga = aujPoolPengawas().filter(g => siagaSet.has(g.key) && g.key !== p.guruKey);   // siaga yang dipilih Admin tetap dipakai walau termasuk daftar pengecualian
+  allAdmUjian.forEach(x => { kini[x.key] = x; });
+  rows.forEach(row => {
+    const kunci = aujBhKunci(row, p.guruKey);
+    if (kunci.length) { row.status = 'lewat'; row.alasan = kunci.join(', '); return; }
+    const ada = new Set(); aujGrupRuang(row.rec0).forEach(x => aujPengawasDari(x).forEach(pw => ada.add(pw.k)));
+    let pilih = null;
+    if (p.penggantiKey) {
+      pilih = (allGuru || []).find(g => g.key === p.penggantiKey) || null;
+      if (pilih && ada.has(pilih.key)) { row.status = 'lewat'; row.alasan = pilih.name + ' sudah mengawas di ruang ini'; return; }
+    } else {
+      const bebas = g => !Object.keys(kini).some(k => { const x = kini[k]; return x.tanggal === row.tanggal && aujTumpang(x, row.rec0) && !aujSatuRuang(x, row.rec0) && aujPengawasDari(x).some(pw => pw.k === g.key); });
+      const urut = arr => arr.filter(g => !ada.has(g.key)).sort((a, b) => ((beban[a.key] || 0) - (beban[b.key] || 0)) || (arr.indexOf(a) - arr.indexOf(b))).find(bebas) || null;
+      pilih = urut(kandSiaga);
+      if (pilih) row.sumber = 'siaga'; else { pilih = urut(poolOto); if (pilih && kandSiaga.length) row.sumber = 'umum'; }
+    }
+    if (!pilih) { row.status = 'tanpa'; row.alasan = 'tidak ada guru lain yang bebas jam (pilih manual)'; return; }
+    aujBhPasang(row, pilih, p.guruKey, kini); beban[pilih.key] = (beban[pilih.key] || 0) + 1;
+  });
+  const h = { p, nama, rows };
+  aujBhHitungBentrok(h);
+  return h;
+}
+// Bentrok pengawas pengganti terhadap sesi lain (dihitung dari jadwal setelah semua penggantian diterapkan).
+function aujBhHitungBentrok(h) {
+  const peta = {}; allAdmUjian.forEach(x => { peta[x.key] = x; });
+  h.rows.forEach(row => { if (row.baru && row.status === 'ok') Object.keys(row.patch).forEach(k => { peta[k] = Object.assign({}, peta[k], row.patch[k]); }); });
+  const bt = aujCariBentrok(Object.keys(peta).map(k => peta[k]));
+  h.nBentrok = 0;
+  h.rows.forEach(row => {
+    row.bentrok = []; if (!row.baru || row.status !== 'ok') return;
+    row.recs.forEach(r => (bt.perKey[r.key] || []).filter(x => aujIdPengawas(x.nama) === aujIdPengawas(row.baru.name)).forEach(x => row.bentrok.push(x)));
+    if (row.bentrok.length) h.nBentrok++;
+  });
+}
+function aujToggleBh() {
+  if (!aujCanEdit()) return;
+  aujBhBuka = !aujBhBuka; if (!aujBhBuka) aujBhHasil = null;
+  const el = aujEl('aujJdwBhl'); if (el) el.innerHTML = aujBhBuka ? aujHtmlBh() : '';
+}
+const AUJ_SIAGA_KEY = 'si-mamba-auj-siaga';
+function aujSiagaBaca() { try { const v = JSON.parse(localStorage.getItem(AUJ_SIAGA_KEY) || '[]'); return Array.isArray(v) ? v.filter(x => typeof x === 'string') : []; } catch (e) { return []; } }
+function aujSiagaSimpan(arr) { try { localStorage.setItem(AUJ_SIAGA_KEY, JSON.stringify(arr || [])); } catch (e) { /* penyimpanan penuh/diblokir: daftar siaga hanya tidak diingat */ } }
+function aujBhAmbil() { return { guruKey: aujVal('aujBhGuru'), dari: aujVal('aujBhDari'), sampai: aujVal('aujBhSampai'), penggantiKey: aujVal('aujBhPengganti'), siaga: [...document.querySelectorAll('.aujBhSiagaCek')].filter(c => c.checked).map(c => c.value) }; }
+function aujBhSimpanDraft() {
+  aujBhDraft = aujBhAmbil(); aujSiagaSimpan(aujBhDraft.siaga);   // daftar siaga diingat di perangkat ini
+  if (aujBhHasil) { aujBhHasil = null; const pv = aujEl('aujBhPrev'); if (pv) pv.innerHTML = '<p style="font-size:12px;color:#6b7280;">Isian berubah — klik Pratinjau lagi sebelum menerapkan.</p>'; }
+}
+function aujHtmlBh() {
+  const d = aujBhDraft || {}, hariIni = (typeof tglLokal === 'function') ? tglLokal() : '';
+  const guruSesi = {};
+  allAdmUjian.forEach(r => [[r.pengawas1, r.pengawas1Key], [r.pengawas2, r.pengawas2Key]].forEach(x => { if (!x[0]) return; const k = x[1] || aujKunciGuru(x[0]); if (k) guruSesi[k] = x[0]; }));
+  const optG = Object.keys(guruSesi).sort((a, b) => guruSesi[a].localeCompare(guruSesi[b], 'id')).map(k => `<option value="${escapeHtml(k)}" ${d.guruKey === k ? 'selected' : ''}>${escapeHtml(guruSesi[k])}</option>`).join('');
+  const optP = aujPoolPengawas().map(g => `<option value="${escapeHtml(g.key)}" ${d.penggantiKey === g.key ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('');
+  const siagaPilih = new Set(d.siaga || aujSiagaBaca());
+  const siagaHtml = aujPoolPengawas().map(g => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;"><input type="checkbox" class="aujBhSiagaCek" value="${escapeHtml(g.key)}" ${siagaPilih.has(g.key) ? 'checked' : ''}> ${escapeHtml(g.name)}</label>`).join('');
+  return `<div style="margin-bottom:12px;">
+    <div id="aujBhForm" oninput="aujBhSimpanDraft()" onchange="aujBhSimpanDraft()" style="border:1px solid #fecaca;background:#fef2f2;border-radius:10px;padding:12px;">
+      <h5 style="font-weight:700;font-size:14px;margin-bottom:4px;">🙋 Pengawas Berhalangan</h5>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">Ganti satu guru di semua sesi mengawasnya pada rentang tanggal tertentu. Pengganti dipilih otomatis (beban paling ringan dan jam bebas), atau pilih sendiri. Kelas-kelas satu ruang diganti bersama. Sesi yang pengawas lamanya sudah check-in dilewati. Belum ada yang tersimpan sebelum Anda klik Terapkan.</p>
+      <div class="grid-2" style="margin-bottom:10px;">
+        <div><label class="label">Guru yang berhalangan *</label><select id="aujBhGuru" class="field"><option value="">-- Pilih guru --</option>${optG}</select></div>
+        <div><label class="label">Pengganti (opsional)</label><select id="aujBhPengganti" class="field"><option value="">Otomatis</option>${optP}</select></div>
+        <div><label class="label">Dari tanggal *</label><input id="aujBhDari" class="field" type="date" value="${escapeHtml(d.dari || hariIni)}"></div>
+        <div><label class="label">Sampai tanggal *</label><input id="aujBhSampai" class="field" type="date" value="${escapeHtml(d.sampai || d.dari || hariIni)}"></div>
+      </div>
+      <div style="margin-bottom:10px;"><label class="label">Guru siaga (opsional)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:4px 14px;max-height:110px;overflow-y:auto;padding:6px 8px;background:#fff;border:1px dashed #fca5a5;border-radius:8px;">${siagaHtml}</div>
+        <p style="font-size:12px;color:#6b7280;margin-top:3px;">Bila ada yang dicentang, pengganti otomatis diambil dari guru siaga lebih dulu (yang jamnya bebas dan bebannya paling ringan); kalau tidak ada yang bebas, baru dari guru lain dan ditandai "di luar daftar siaga". Daftar ini diingat di perangkat ini saja.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-primary" onclick="aujBhPratinjau()">👁️ Pratinjau</button><button class="btn btn-soft" onclick="aujToggleBh()">✖ Tutup</button></div>
+    </div>
+    <div id="aujBhPrev" style="margin-top:10px;">${aujBhHasil ? aujHtmlBhPratinjau() : ''}</div>
+  </div>`;
+}
+function aujBhPratinjau() {
+  if (!aujCanEdit()) return;
+  aujBhDraft = aujBhAmbil(); aujBhHasil = null;
+  const pv = aujEl('aujBhPrev'); if (!pv) return;
+  const h = aujRencanaGantiPengawas(aujBhDraft);
+  if (h.error) { pv.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:8px 12px;font-size:13px;">${escapeHtml(h.error)}</div>`; return; }
+  aujBhHasil = h; pv.innerHTML = aujHtmlBhPratinjau();
+}
+function aujBhGanti(idx, key) {
+  const h = aujBhHasil; if (!h || !h.rows[idx]) return;
+  const row = h.rows[idx], tampil = () => { aujEl('aujBhPrev').innerHTML = aujHtmlBhPratinjau(); };
+  if (!key) { row.baru = null; row.patch = null; row.status = 'tanpa'; row.alasan = 'belum ada pengganti (pengawas lama tetap)'; aujBhHitungBentrok(h); return tampil(); }
+  const g = (allGuru || []).find(x => x.key === key); if (!g) return;
+  const ada = new Set(); aujGrupRuang(row.rec0).forEach(x => aujPengawasDari(x).forEach(pw => ada.add(pw.k)));
+  if (ada.has(g.key)) { toast(g.name + ' sudah mengawas di ruang ini.', true); return tampil(); }
+  aujBhPasang(row, g, h.p.guruKey); row.status = 'ok'; row.alasan = ''; row.sumber = '';
+  aujBhHitungBentrok(h); tampil();
+}
+function aujHtmlBhPratinjau() {
+  const h = aujBhHasil; if (!h) return '';
+  const ok = h.rows.filter(r => r.baru && r.status === 'ok'), lewat = h.rows.filter(r => r.status === 'lewat'), tanpa = h.rows.filter(r => r.status === 'tanpa');
+  const td = 'padding:4px 8px;border-top:1px solid #fecaca;vertical-align:top;';
+  const pool = aujPoolPengawas();
+  const baris = h.rows.map((r, i) => {
+    const sel = r.status === 'lewat' ? '<span style="color:#9ca3af;">—</span>' : `<select class="field" style="font-size:12px;padding:2px 4px;min-width:130px;" onchange="aujBhGanti(${i},this.value)"><option value="">— belum dipilih —</option>${pool.filter(g => g.key !== h.p.guruKey).map(g => `<option value="${escapeHtml(g.key)}" ${r.baru && r.baru.key === g.key ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</select>`;
+    const st = r.status === 'lewat' ? `<span style="color:#9ca3af;">dilewati: ${escapeHtml(r.alasan)}</span>` : (r.status === 'tanpa' ? `<span style="color:#92400e;">${escapeHtml(r.alasan)}</span>` : (r.bentrok.length ? `<span style="color:#b91c1c;">⚠️ ${escapeHtml(r.baru.name)} bentrok dengan ${escapeHtml(r.bentrok.map(x => aujLabelSesi(x.lawan)).join('; '))}</span>` : ('✓' + (r.sumber === 'siaga' ? ' <span style="font-size:11px;color:#065f46;">siaga</span>' : (r.sumber === 'umum' ? ' <span style="font-size:11px;color:#92400e;">di luar daftar siaga</span>' : '')))));
+    return `<tr style="${r.status === 'lewat' ? 'color:#9ca3af;' : ''}"><td style="${td}">${i + 1}</td><td style="${td}white-space:nowrap;">${escapeHtml(aujTglPendek(r.tanggal))}</td><td style="${td}white-space:nowrap;">${escapeHtml(r.jamMulai || '')}–${escapeHtml(r.jamSelesai || '')}</td><td style="${td}white-space:nowrap;">${escapeHtml(r.kelas)} · ${escapeHtml(r.ruang || '-')}</td><td style="${td}">${escapeHtml(r.mapel || '-')}</td><td style="${td}">${sel}</td><td style="${td}">${st}</td></tr>`;
+  }).join('');
+  return `<p style="font-size:13px;margin-bottom:6px;"><strong>${escapeHtml(h.nama)}</strong> mengawas di <strong>${h.rows.length} ruang-sesi</strong>: ${ok.length} akan diganti${lewat.length ? `, ${lewat.length} dilewati` : ''}${tanpa.length ? `, ${tanpa.length} belum ada pengganti` : ''}.</p>
+    ${h.nBentrok ? `<p style="font-size:12px;color:#991b1b;background:#fef2f2;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ ${h.nBentrok} pengganti bentrok dengan sesi lain. Masih bisa diterapkan; ganti pengawasnya di tabel bila perlu.</p>` : ''}
+    <div style="overflow-x:auto;background:#fff;border-radius:8px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;"><th style="padding:4px 8px;">No</th><th style="padding:4px 8px;">Tanggal</th><th style="padding:4px 8px;">Waktu</th><th style="padding:4px 8px;">Kelas · Ruang</th><th style="padding:4px 8px;">Mapel</th><th style="padding:4px 8px;">Pengganti</th><th style="padding:4px 8px;">Status</th></tr></thead><tbody>${baris}</tbody></table></div>
+    <div style="margin-top:10px;"><button class="btn btn-success" id="btnAujBh" onclick="aujBhTerapkan()" ${ok.length ? '' : 'disabled'}>💾 Terapkan ${ok.length} Penggantian</button></div>`;
+}
+function aujBhTerapkan() {
+  if (!aujCanEdit()) return toast('Hanya Admin!', true);
+  const h = aujBhHasil; if (!h) return toast('Klik Pratinjau dulu.', true);
+  if (isBusy('aujBh')) return toast('Sedang menyimpan...', false, 1500);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+  toast('⏳ Memeriksa data check-in terbaru…', false, 2500);
+  // Check-in / susulan bisa masuk dari perangkat lain sesudah pratinjau dibuat: muat ulang dulu, lalu cek kunci sekali lagi.
+  const tugas = [typeof reloadDataset === 'function' ? reloadDataset(['ujian', 'ujianAttendance']) : null, typeof muatUjianSusulan === 'function' ? muatUjianSusulan(true) : null];
+  Promise.all(tugas).catch(() => {}).then(() => aujBhSimpanKe(h));
+}
+function aujBhSimpanKe(h) {
+  const terkunciBaru = [];
+  const ok = h.rows.filter(r => r.baru && r.status === 'ok').filter(r => { const k = aujBhKunci(r, h.p.guruKey); if (k.length) { r.status = 'lewat'; r.alasan = k.join(', '); terkunciBaru.push(r); return false; } return true; });
+  if (terkunciBaru.length) { aujBhHitungBentrok(h); aujEl('aujBhPrev').innerHTML = aujHtmlBhPratinjau(); return toast(`⛔ ${terkunciBaru.length} sesi baru saja punya check-in/susulan dan dilewati. Periksa tabel, lalu klik Terapkan lagi.`, true, 7000); }
+  if (!ok.length) return toast('Tidak ada penggantian yang bisa diterapkan.', true);
+  if (!confirm(`Ganti ${h.nama} pada ${ok.length} ruang-sesi?` + (h.nBentrok ? `\n\n⚠️ ${h.nBentrok} pengganti bentrok dengan sesi lain.` : '') + '\n\nSesi honor yang sudah ada ikut diperbarui. Sesi yang pengawas lamanya sudah check-in tidak diubah.')) return;
+  const updates = {}; ok.forEach(r => Object.keys(r.patch).forEach(k => Object.keys(r.patch[k]).forEach(f => { updates[k + '/' + f] = r.patch[k][f]; })));
+  setBusy('aujBh');
+  db.ref(AUJ_NODE).update(updates, err => {
+    clearBusy('aujBh');
+    if (err) return toast('Gagal: ' + (err.message || err), true);
+    const catatUbah = {}; let honorBelum = 0, n = 0;
+    ok.forEach(r => {
+      r.recs.forEach(rec => {
+        const pt = r.patch[rec.key]; if (!pt) return;
+        const sebelum = {}; Object.keys(pt).forEach(f => { sebelum[f] = rec[f] == null ? null : rec[f]; });   // untuk Urungkan
+        catatUbah[rec.key] = { before: sebelum, after: Object.assign({}, pt) }; Object.assign(rec, pt); n++;
+      });
+      if (aujSesiHonorDari(r.recs[0].key)) aujSinkronHonor(r.recs[0]); else honorBelum++;   // semua kelas satu ruang sudah diperbarui di memori
+    });
+    toast(`✅ ${h.nama} diganti pada ${ok.length} ruang-sesi.${honorBelum ? ' Sesi honor belum dibuat: pakai 💰 Buat Sesi Honor.' : ''}`, false, 5000);
+    addLog('ubah_administrasi_ujian', `pengawas berhalangan ${h.nama}: ${ok.length} ruang-sesi diganti`);
+    aujUndoSimpan({ jenis: 'ubah', label: 'Pengawas Berhalangan', ubah: catatUbah });
+    aujBhBuka = false; aujBhHasil = null; aujBhDraft = null; aujRenderSemua();
   });
 }
 
