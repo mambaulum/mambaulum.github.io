@@ -3364,7 +3364,7 @@
       if (page === 'kalender-akademik') { ensureLazyDatasets(LAZY_PAGE_DATASETS['kalender-akademik'], () => { setupKalenderAkademikPage(); }); }
       if (page === 'saran-kritik') { setupSaranKritikPage(); }
       if (page === 'angket') { if (typeof setupAngketPage === 'function') setupAngketPage(); else komponenBelumTermuat('Angket'); }
-      if (page === 'administrasi-ujian') { if (typeof setupAdministrasiUjianPage === 'function') setupAdministrasiUjianPage(); }
+      if (page === 'administrasi-ujian') { ensureLazyDatasets(['kalenderAkademik'], () => { if (typeof setupAdministrasiUjianPage === 'function') setupAdministrasiUjianPage(); }); }   // libur Kalender Akademik (lazy) harus termuat untuk Jadwal Massal/Salin
       if (page === 'bacaan-shalat') { if (typeof setupBacaanShalatPage === 'function') setupBacaanShalatPage(); }
       finishRouteProgress();
     }

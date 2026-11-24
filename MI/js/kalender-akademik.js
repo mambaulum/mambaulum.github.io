@@ -134,7 +134,6 @@
       // --- Kalender Pendidikan Madrasah TA 2026/2027 (Kemenag, agenda akademik non-libur-nasional) ---
       { jenis:'akademik', judul:'Awal Masuk Tahun Ajaran 2026/2027', tanggalMulai:'2026-07-13', tanggalSelesai:'2026-07-13' },
       { jenis:'akademik', judul:'Pengenalan Lingkungan Madrasah (Matsama)', tanggalMulai:'2026-07-13', tanggalSelesai:'2026-07-18' },
-      { jenis:'akademik', judul:'Asesmen Sumatif Akhir Semester (ASAS) Gasal', tanggalMulai:'2026-11-23', tanggalSelesai:'2026-12-05' },
       { jenis:'akademik', judul:'Penyerahan Rapor Semester Gasal', tanggalMulai:'2026-12-18', tanggalSelesai:'2026-12-18' },
       { jenis:'libur', judul:'Libur Semester Gasal', tanggalMulai:'2026-12-21', tanggalSelesai:'2027-01-02' },
       { jenis:'akademik', judul:'Awal Masuk Semester Genap', tanggalMulai:'2027-01-04', tanggalSelesai:'2027-01-04' },

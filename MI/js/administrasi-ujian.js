@@ -45,6 +45,7 @@ const AUJ_DURASI_MENIT = 70;
 const AUJ_STATUS = { H: 'Hadir', S: 'Sakit', I: 'Izin', A: 'Alpa' };
 const AUJ_TABS = [
   { id: 'jadwal', label: '📅 Jadwal Ujian' },
+  { id: 'sk', label: '📜 SK Panitia' },
   { id: 'sesi', label: '📋 Data Sesi' },
   { id: 'hadir', label: '✅ Daftar Hadir' },
   { id: 'tatib', label: '📜 Tata Tertib' },
@@ -91,6 +92,8 @@ let aujKursi = {};          // draft tempat duduk: { 'baris_kolom': siswaKey }
 let aujHadir = {};          // draft kehadiran peserta: { siswaKey: 'H'|'S'|'I'|'A' }
 let aujHadirPengawas = {};  // draft kehadiran pengawas: { p1: true, p2: false }
 let aujSel = null;          // pilihan aktif di denah: { t:'k', k:'1_2' } atau { t:'s', key }
+let aujDenahAsli = null;    // foto isian denah saat sesi dibuka/disimpan; pembanding untuk mendeteksi draf yang belum disimpan
+function aujFotoDenah(r) { return r ? JSON.stringify([r.lokasiDenah || '', r.lokasiCatatan || '', r.denahPintu || '', r.denahBaris || null, r.denahKolom || null]) : null; }
 let aujSalinan = null;      // isian awal form "sesi baru" hasil Duplikat Sesi (null = form kosong)
 let aujJdwNama = '', aujJdwKelas = '';   // filter tab Jadwal Ujian (kosong = semua)
 let aujMassalBuka = false, aujMassalDraft = null, aujMassalHasil = null;   // form jadwal massal: terbuka?, isian, hasil pratinjau
@@ -176,6 +179,7 @@ function aujMuatDraft() {
   aujKursi = Object.assign({}, rec && rec.kursi || {}); aujGabung = false;
   aujHadir = Object.assign({}, rec && rec.hadirPeserta || {});
   aujHadirPengawas = aujPwHadirEfektif(rec);   // centang manual + check-in honor
+  aujDenahAsli = aujFotoDenah(rec);
   aujSel = null;
 }
 function aujPastikanAktif() {
@@ -190,6 +194,7 @@ function setupAdministrasiUjianPage() {
   if (aujTahunDimuat !== currentTahunAjaran) { allAdmUjian = []; aujAktifKey = null; aujBaru = false; }
   aujPastikanAktif();
   aujRenderSemua();
+  aujSkMuat();   // SK Panitia dimuat di latar belakang (nama Ketua untuk tanda tangan jadwal)
   // Data bisa berubah dari perangkat lain -> segarkan di latar belakang, tapi tidak tiap kali halaman dibuka.
   if (isReallyOnline() && (aujTahunDimuat !== currentTahunAjaran || Date.now() - aujTerakhirSegar > 60 * 1000)) {
     aujTerakhirSegar = Date.now();
@@ -247,6 +252,7 @@ function aujTangkapDraftDenah() {
 function aujRenderTab() {
   const body = aujEl('aujTabBody'); if (!body) return;
   if (aujTabAktif === 'denah') aujTangkapDraftDenah();
+  if (aujTabAktif === 'sk') { body.innerHTML = aujHtmlSk(); return; }   // SK Panitia: juga tidak butuh sesi terpilih
   if (aujTabAktif === 'jadwal') { body.innerHTML = aujHtmlJadwal(); aujIsiOpsiLibur(); return; }   // tab ini tidak butuh sesi terpilih
   const rec = aujRec();
   if (aujTabAktif !== 'sesi' && !rec) {
@@ -282,6 +288,7 @@ function aujTulis(patch, pesanOk, aksiLog, sesudah) {
     if ('kursi' in data) { aujKursi = Object.assign({}, rec.kursi || {}); aujGabung = false; }
     if ('hadirPeserta' in data) aujHadir = Object.assign({}, rec.hadirPeserta || {});
     if ('pengawasHadir' in data) aujHadirPengawas = aujPwHadirEfektif(rec);
+    if (['lokasiDenah', 'lokasiCatatan', 'denahPintu', 'denahBaris', 'denahKolom'].some(f => f in data)) aujDenahAsli = aujFotoDenah(rec);
     aujSel = null; aujRenderSemua();
   });
 }
@@ -366,7 +373,7 @@ function aujSimpanSesi() {
   isi.pengawas2 = g2 ? g2.name : null; isi.pengawas2Key = g2 ? g2.key : null;
   // Pengawas bentrok = peringatan, bukan larangan (kadang memang disengaja), jadi Admin diberi pilihan.
   const bentrok = aujPesanBentrokSesi(isi);
-  if (bentrok.length && !confirm('⚠️ Pengawas bentrok:\n\n• ' + bentrok.join('\n• ') + '\n\nTetap simpan sesi ini?')) return;
+  if (bentrok.length && !confirm('⚠️ Jadwal bentrok:\n\n• ' + bentrok.join('\n• ') + '\n\nTetap simpan sesi ini?')) return;
   if (aujBaru) {
     if (isBusy('aujSimpanSesi')) return toast('Sedang menyimpan...', false, 1500);
     if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
@@ -412,15 +419,28 @@ function aujHapusSesi() {
   if (isBusy('aujHapus')) return;
   if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
   const uHonor = aujSesiHonorDari(rec.key), honorSendiri = !!uHonor && uHonor.key === AUJ_HONOR_PREFIX + rec.key;   // honor satu ruang dipegang sesi pemilik
-  if (honorSendiri && (allUjianAttendance || []).some(x => x.ujianKey === uHonor.key)) return toast('Sesi ini sudah punya check-in honor pengawas, jadi tidak bisa dihapus. Hapus dulu check-in-nya di Honor Ujian bila memang perlu.', true);
+  if (honorSendiri && ((typeof allUjianAttendance !== 'undefined' && allUjianAttendance) || []).some(x => x.ujianKey === uHonor.key)) return toast('Sesi ini sudah punya check-in honor pengawas, jadi tidak bisa dihapus. Hapus dulu check-in-nya di Honor Ujian bila memang perlu.', true);
   if (!doubleConfirm(`Hapus sesi ASAS/ASAT ini beserta daftar hadir, denah, dan berita acaranya?\n\n${rec.nama || '-'} • ${rec.kelas || '-'} • ${rec.ruang || '-'}\n${aujTglIndo(rec.tanggal, true)}`)) return;
+  const saudara = honorSendiri ? aujGrupRuang(rec).filter(x => x.key !== rec.key) : [];   // kelas lain satu ruang: honor ruang harus dipindah, bukan ikut terhapus
   setBusy('aujHapus');
   db.ref(AUJ_NODE + '/' + rec.key).remove(err => {
     clearBusy('aujHapus');
     if (err) return toast('Gagal: ' + (err.message || err), true);
     toast('✅ Sesi ASAS/ASAT dihapus.'); addLog('hapus_administrasi_ujian', aujLogDetail(rec.nama, rec.kelas, rec.ruang));
     allAdmUjian = allAdmUjian.filter(x => x.key !== rec.key);
-    if (honorSendiri) { db.ref('ujian/' + uHonor.key).remove(() => {}); allUjian = allUjian.filter(x => x.key !== uHonor.key); }   // sesi honor yang belum dipakai ikut dibersihkan
+    if (honorSendiri && typeof allUjian !== 'undefined') {
+      const peta = {}; saudara.forEach(x => Object.assign(peta, aujKunciPengawasSesi(x).map));
+      if (saudara.length && Object.keys(peta).length) {   // pindahkan sesi honor ke kelas pertama yang tersisa (sesi honor satu ruang)
+        const kb = AUJ_HONOR_PREFIX + saudara[0].key, now = new Date().toISOString();
+        const baru = Object.assign({}, uHonor, { jadwalKey: saudara[0].key, pengawas: peta, updatedAt: now }); delete baru.key;
+        baru.nama = aujNamaHonor(saudara[0]);
+        const u2 = {}; u2[uHonor.key] = null; u2[kb] = baru;
+        db.ref('ujian').update(u2, e2 => {
+          if (e2) return toast('⚠️ Sesi dihapus, tetapi sesi honor ruang gagal dipindahkan: ' + (e2.message || e2) + '. Periksa di Honor Ujian.', true, 8000);
+          allUjian = allUjian.filter(x => x.key !== uHonor.key && x.key !== kb); allUjian.push(Object.assign({ key: kb }, baru)); aujRenderSemua();
+        });
+      } else { db.ref('ujian/' + uHonor.key).remove(() => {}); allUjian = allUjian.filter(x => x.key !== uHonor.key); }   // tidak ada kelas lain: honor yang belum dipakai ikut dibersihkan
+    }
     aujAktifKey = null; aujPastikanAktif(); aujRenderSemua();
   });
 }
@@ -761,7 +781,7 @@ function aujSimpanDenahGabung() {
     clearBusy('aujTulis');
     if (err) return toast('Gagal: ' + (err.message || err), true);
     grup.forEach(r => Object.keys(hasil[r.key]).forEach(f => { if (hasil[r.key][f] === null) delete r[f]; else r[f] = hasil[r.key][f]; }));
-    aujKursi = aujKursiGabungan(grup); aujSel = null;
+    aujKursi = aujKursiGabungan(grup); aujSel = null; aujDenahAsli = aujFotoDenah(rec);
     toast('✅ Denah gabungan tersimpan untuk ' + grup.length + ' kelas!'); addLog('simpan_denah_ujian', aujLogDetail(rec.nama, grup.map(r => r.kelas).join(' + '), rec.ruang));
     aujRenderSemua();
   });
@@ -886,7 +906,7 @@ function aujKartuHtml(rec, p, kursiTeks) {
       <div class="kp-kanan">
         <div class="kp-foto">Pas foto</div>
         <div class="kp-ttd">Kepala Madrasah,
-          <div class="kp-ttd-ruang">${(MADRASAH.ttdKepalaBase64 && aujBolehTtdKepala()) ? `<img src="${escapeHtml(MADRASAH.ttdKepalaBase64)}" alt="">` : ''}</div>
+          <div class="kp-ttd-ruang"></div>
           <b>${escapeHtml(MADRASAH.kepala_sekolah || '(........................)')}</b></div>
       </div>
     </div>
@@ -970,18 +990,22 @@ function aujInfoHtml(rec) {
 }
 // Gambar TTD Kepala hanya ikut tercetak bila yang mencetak Admin/Kepsek (guru yang membuka menu ini tidak mendapatkannya).
 function aujBolehTtdKepala() { return !!currentUser && (isAdmin() || isKepsek()); }
-function aujTtdKepalaHtml(rec, jenisDokumen) {
-  // Tanda tangan QR / gambar lewat js/ttd-digital.js (penanda diganti di aujCetakHtml); tanpa file itu, pakai gambar lama.
-  const isiTtd = (window.TTD && TTD.penanda && rec)
-    ? TTD.penanda('kepala', { jenis: jenisDokumen || 'Berita Acara ASAS/ASAT', ket: [rec.nama, rec.kelas, rec.ruang, aujTglIndo(rec.tanggal)].filter(Boolean).join(' | ') }, { mm: 17, hanyaPimpinan: true })
-    : ((MADRASAH.ttdKepalaBase64 && aujBolehTtdKepala()) ? `<img src="${escapeHtml(MADRASAH.ttdKepalaBase64)}" style="height:58px;max-width:150px;" alt="">` : '');
-  return `<td><div>Mengetahui,</div><div>Kepala Madrasah</div>
-    <div class="ruang">${isiTtd}</div>
-    <div style="font-weight:700;text-decoration:underline;">${escapeHtml(MADRASAH.kepala_sekolah || '(............................)')}</div>
-    ${MADRASAH.nip_kepala_sekolah ? `<div>NIP. ${escapeHtml(MADRASAH.nip_kepala_sekolah)}</div>` : ''}</td>`;
+// Tanda tangan PANITIA untuk Jadwal, Rekap Beban, dan Jadwal Mengawas (bukan Kepala, tanpa QR). Nama Ketua Panitia diingat di perangkat ini
+// (localStorage, tanpa Rules); kosong -> titik-titik untuk diisi tangan.
+const AUJ_KETUA_KEY = 'auj_ketua_panitia';
+function aujKetuaPanitia() { return aujSkNamaKetua() || (function () { try { return String(localStorage.getItem(AUJ_KETUA_KEY) || '').trim(); } catch (e) { return ''; } })(); }
+function aujUbahKetuaPanitia() {
+  if (aujSkNamaKetua()) return toast('Nama Ketua Panitia mengikuti SK Panitia (' + aujSkNamaKetua() + '). Ubah di tab SK Panitia.', false, 5000);
+  const n = prompt('Nama Ketua Panitia ASAS/ASAT (tercetak di Jadwal, Rekap Beban, dan Jadwal Mengawas).\nKosongkan untuk diisi tangan:', aujKetuaPanitia());
+  if (n === null) return;
+  try { localStorage.setItem(AUJ_KETUA_KEY, n.trim().slice(0, 80)); toast(n.trim() ? '✅ Ketua Panitia: ' + n.trim().slice(0, 80) : 'Nama Ketua Panitia dikosongkan (diisi tangan saat dicetak).'); } catch (e) { toast('Penyimpanan perangkat diblokir browser.', true); }
 }
-function aujTtdPengawasHtml(nama, no) {
-  return `<td><div>&nbsp;</div><div>Pengawas ${no}</div><div class="ruang"></div>
+function aujTtdPanitiaHtml() {
+  return `<td><div>&nbsp;</div><div>Ketua Panitia ASAS/ASAT</div><div class="ruang"></div>
+    <div style="font-weight:700;text-decoration:underline;">${escapeHtml(aujKetuaPanitia() || '(............................)')}</div></td>`;
+}
+function aujTtdPengawasHtml(nama, no, lebar) {
+  return `<td${lebar ? ` style="width:${lebar};"` : ''}><div>&nbsp;</div><div>Pengawas ${no}</div><div class="ruang"></div>
     <div style="font-weight:700;text-decoration:underline;">${escapeHtml(nama || '(............................)')}</div></td>`;
 }
 
@@ -1053,7 +1077,7 @@ function aujCetakBAHtml(rec) {
       <div style="border:1px solid #000;min-height:80px;padding:6px 8px;margin-top:3px;white-space:pre-wrap;font-size:11.5pt;">${escapeHtml(rec.baCatatan || '')}</div></div>
     <p style="margin-top:12px;">Demikian berita acara ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.</p>
     <div style="text-align:right;margin-top:6px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(rec.tanggal))}</div>
-    <table class="ttd"><tr>${aujTtdPengawasHtml(rec.pengawas1, 1)}${aujTtdPengawasHtml(rec.pengawas2, 2)}${aujTtdKepalaHtml(rec)}</tr></table>
+    <table class="ttd"><tr>${aujTtdPengawasHtml(rec.pengawas1, 1, '50%')}${aujTtdPengawasHtml(rec.pengawas2, 2, '50%')}</tr></table>
   </div>`;
 }
 
@@ -1066,6 +1090,7 @@ function aujDraftBeda(jenis, rec) {
     const pw = o => Object.keys(o || {}).filter(k => o[k]).sort().join(',');
     return j(aujHadir) !== j(rec.hadirPeserta || {}) || pw(aujHadirPengawas) !== pw(aujPwHadirEfektif(rec));
   }
+  if (jenis === 'denah' && aujDenahAsli !== null && aujFotoDenah(rec) !== aujDenahAsli) return true;
   if (jenis === 'denah') return aujGabung ? !aujKursiSama(aujKursi, aujKursiGabungan(aujGrupRuang(rec))) : j(aujKursi) !== j(rec.kursi || {});
   if (jenis === 'ba' && aujEl('aujBaCatatan')) {
     return aujVal('aujBaMulai') !== v(rec.baMulai || rec.jamMulai) || aujVal('aujBaSelesai') !== v(rec.baSelesai || rec.jamSelesai)
@@ -1101,7 +1126,8 @@ function aujCetakSemua() {
   const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
   if (!aujKonfirmasiBA(rec)) return;
   aujPeringatDraft(['hadir', 'tatib', 'denah', 'ba'], rec);
-  aujCetakHtml(['hadir', 'tatib', 'denah', 'ba'].map(j => AUJ_CETAK[j](rec)).join(''), `Berkas Administrasi ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`);
+  const sertakanSk = aujSkMuatKey === aujSkKunci() && !!aujSk && confirm('Sertakan SK Panitia + Lampiran I dan II di awal paket ini?\n\nOK = ikut dicetak, Batal = hanya berkas ruang.');
+  aujCetakHtml((sertakanSk ? aujCetakSkHtml(Object.assign(aujSkDefault(), aujSk)) : '') + ['hadir', 'tatib', 'denah', 'ba'].map(j => AUJ_CETAK[j](rec)).join(''), `Berkas Administrasi ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`);
 }
 function aujCetakHtml(bodyHtml, judul, cssKhusus) {
   const w = window.open('', '_blank', 'width=900,height=700');   // dibuka dulu (sinkron) agar tidak diblokir popup
@@ -1145,9 +1171,9 @@ function aujTumpang(a, b) {
 // Dua sesi "satu ruang": tanggal, nama asesmen, dan ruang sama, jam bertumpuk (atau sama). Kelas-kelas seperti ini mengawas bersama:
 // bukan bentrok, pengawasnya sama, dan honornya dibayar sekali per ruang.
 function aujSatuRuang(a, b) {
-  if (!a || !b || !a.ruang || !b.ruang || !a.tanggal || a.tanggal !== b.tanggal || (a.nama || '') !== (b.nama || '')) return false;
+  if (!a || !b || !a.ruang || !b.ruang || !a.tanggal || a.tanggal !== b.tanggal || aujNormNama(a.nama) !== aujNormNama(b.nama)) return false;
   if (aujNormNama(a.ruang) !== aujNormNama(b.ruang)) return false;
-  return aujTumpang(a, b) || (a.jamMulai || '') === (b.jamMulai || '');
+  return aujTumpang(a, b) || (!!a.jamMulai && a.jamMulai === b.jamMulai);
 }
 // Lipat sesi satu ruang menjadi satu baris (kelas digabung "Kelas 1 + Kelas 2"; pengawas dari anggota pertama yang punya).
 // Dipakai untuk hitungan beban dan jadwal mengawas guru, supaya satu ruang tidak dihitung dobel.
@@ -1201,20 +1227,25 @@ function aujLabelSesi(r) {
 // Pesan bentrok untuk satu sesi yang sedang diisi/disimpan (dibandingkan dengan semua sesi tersimpan lainnya).
 function aujPesanBentrokSesi(cand) {
   const lain = allAdmUjian.filter(x => x.key !== (aujBaru ? null : aujAktifKey));
-  const c = { key: '__form__', tanggal: cand.tanggal, jamMulai: cand.jamMulai, jamSelesai: cand.jamSelesai, pengawas1: cand.pengawas1, pengawas2: cand.pengawas2, ruang: cand.ruang, nama: cand.nama };
+  const c = { key: '__form__', kelas: cand.kelas, tanggal: cand.tanggal, jamMulai: cand.jamMulai, jamSelesai: cand.jamSelesai, pengawas1: cand.pengawas1, pengawas2: cand.pengawas2, ruang: cand.ruang, nama: cand.nama };
   const msgs = [];
   const n1 = aujIdPengawas(c.pengawas1), n2 = aujIdPengawas(c.pengawas2);
   if (n1 && n1 === n2) msgs.push('Pengawas 1 dan Pengawas 2 adalah orang yang sama.');
+  lain.forEach(x => {   // kelas yang sama tidak boleh punya dua sesi bertumpuk; satu ruang dipakai asesmen berbeda pada jam bertumpuk = bentrok
+    if (!c.tanggal || x.tanggal !== c.tanggal || !aujTumpang(c, x)) return;
+    if (c.kelas && x.kelas === c.kelas) msgs.push(`${c.kelas} sudah punya sesi pada jam bertumpuk: ${aujLabelSesi(x)}.`);
+    else if (c.ruang && aujNormNama(x.ruang) === aujNormNama(c.ruang) && !aujSatuRuang(c, x)) msgs.push(`Ruang ${x.ruang} sudah dipakai ${aujLabelSesi(x)} pada jam bertumpuk.`);
+  });
   (aujCariBentrok(lain.concat([c])).perKey.__form__ || []).forEach(h => msgs.push(`${h.nama} juga mengawas ${aujLabelSesi(h.lawan)} pada ${aujTglIndo(h.lawan.tanggal, true)}.`));
   return msgs;
 }
 function aujCekBentrokForm() {
   const box = aujEl('aujWarnBentrok'); if (!box) return;
-  const c = { tanggal: aujVal('aujTanggal'), jamMulai: aujVal('aujJamMulai'), jamSelesai: aujVal('aujJamSelesai'), pengawas1: aujVal('aujPengawas1'), pengawas2: aujVal('aujPengawas2'), ruang: aujVal('aujRuang'), nama: aujVal('aujNama') };
+  const c = { kelas: aujVal('aujKelas'), tanggal: aujVal('aujTanggal'), jamMulai: aujVal('aujJamMulai'), jamSelesai: aujVal('aujJamSelesai'), pengawas1: aujVal('aujPengawas1'), pengawas2: aujVal('aujPengawas2'), ruang: aujVal('aujRuang'), nama: aujVal('aujNama') };
   const msgs = aujPesanBentrokSesi(c);
   if (msgs.length) {
     box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:8px 12px;font-size:13px;">
-      <strong>⚠️ Pengawas bentrok</strong><ul style="margin:4px 0 0 18px;">${msgs.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
+      <strong>⚠️ Jadwal bentrok</strong><ul style="margin:4px 0 0 18px;">${msgs.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
       <div style="font-size:12px;margin-top:4px;color:#7f1d1d;">Sesi tetap bisa disimpan; Anda akan diminta konfirmasi.</div></div>`;
   } else if ((c.pengawas1 || c.pengawas2) && !(aujMenit(c.jamMulai) != null && aujMenit(c.jamSelesai) != null)) {
     box.innerHTML = '<div style="font-size:12px;color:#6b7280;">Isi jam mulai &amp; jam selesai agar bentrok pengawas bisa diperiksa.</div>';
@@ -1261,6 +1292,8 @@ function aujJadwalTersaring() {
 function aujHtmlJadwal() {
   const ed = aujCanEdit();
   const uniq = f => [...new Set(allAdmUjian.map(x => x[f]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
+  if (aujJdwNama && !uniq('nama').includes(aujJdwNama)) aujJdwNama = '';     // filter yang opsinya sudah tidak ada (sesi dihapus/diurungkan) di-reset
+  if (aujJdwKelas && !uniq('kelas').includes(aujJdwKelas)) aujJdwKelas = '';
   const opt = (arr, sel, semua) => `<option value="">${semua}</option>` + arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
   return `
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -1275,6 +1308,7 @@ function aujHtmlJadwal() {
         ${ed && aujSesiBedaDurasi(aujJadwalTersaring()).length ? `<button class="btn btn-soft" onclick="aujSeragamkanDurasi()" title="Ubah jam selesai semua sesi yang tampil menjadi jam mulai + ${AUJ_DURASI_MENIT} menit">⏱️ Seragamkan ${AUJ_DURASI_MENIT} menit (${aujSesiBedaDurasi(aujJadwalTersaring()).length})</button>` : ''}
         ${ed || aujEsKepsek() ? '<button class="btn btn-soft" onclick="aujToggleBeban()" title="Jumlah sesi & jam mengawas tiap guru (mengikuti filter di bawah)">📊 Rekap Beban</button>' : ''}
         ${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujToggleGuru()" title="Jadwal mengawas per guru, bisa dicetak">👤 Jadwal per Guru</button>'}
+        ${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujUbahKetuaPanitia()" title="Nama Ketua Panitia yang tercetak di tanda tangan Jadwal, Rekap Beban, dan Jadwal Mengawas">✍️ Ketua Panitia</button>'}
         <button class="btn btn-primary" onclick="aujCetakJadwal()" ${allAdmUjian.length ? '' : 'disabled'}>🖨️ Cetak Jadwal</button>
       </div>
     </div>
@@ -1869,7 +1903,7 @@ function aujCetakJadwalHtml(daftar) {
     <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}${aujJdwKelas ? ' — ' + escapeHtml(aujJdwKelas) : ''}</div>
     <table class="data jadwal"><thead><tr><th>No</th><th>Hari / Tanggal</th><th>Waktu (WIB)</th><th>Mata Pelajaran</th><th>Kelas</th><th>Ruang</th><th>Pengawas</th></tr></thead><tbody>${baris}</tbody></table>
     <div style="text-align:right;margin-top:10px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(tglLokal()))}</div>
-    <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdKepalaHtml(pseudo, 'Jadwal ASAS/ASAT')}</tr></table>
+    <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdPanitiaHtml()}</tr></table>
   </div>`;
 }
 function aujCetakJadwal() {
@@ -1941,6 +1975,15 @@ function aujSinkronHonor(rec) {
   if (!isReallyOnline()) return toast('⚠️ Sesi honor belum ikut diperbarui (offline). Tekan "Buat Sesi Honor" lagi nanti atau periksa di Honor Ujian.', true, 6000);
   const pm = aujPemilikHonor(rec), { map, tidakDikenal } = aujKunciPengawasRuang(rec);
   const mulaiMs = aujMsWIB(pm.tanggal, pm.jamMulai), selesaiMs = aujMsWIB(pm.tanggal, pm.jamSelesai);
+  if (!Object.keys(map).length && !tidakDikenal.length) {   // semua pengawas dicopot: sesi honor lama tidak boleh tetap membuka check-in
+    const sudahCheckin = ((typeof allUjianAttendance !== 'undefined' && allUjianAttendance) || []).some(x => x.ujianKey === u.key);
+    if (sudahCheckin) return toast('⚠️ Sesi honor tetap dipertahankan karena sudah ada check-in. Periksa di Honor Ujian.', true, 7000);
+    return db.ref('ujian/' + u.key).remove(err => {
+      if (err) return toast('⚠️ Pengawas dicopot, tetapi sesi honor gagal dihapus: ' + (err.message || err) + '. Periksa di Honor Ujian.', true, 8000);
+      if (typeof allUjian !== 'undefined') allUjian = allUjian.filter(z => z.key !== u.key);
+      toast('ℹ️ Sesi honor dihapus karena tidak ada pengawas tersisa.', false, 4000); aujRenderSemua();
+    });
+  }
   if (!Object.keys(map).length || tidakDikenal.length || mulaiMs == null || selesaiMs == null) return toast('⚠️ Sesi honor TIDAK diperbarui: pengawas atau jam belum lengkap / tidak dikenal. Periksa di Honor Ujian.', true, 7000);
   const data = { pengawas: map, tanggal: pm.tanggal, jamMulai: pm.jamMulai, jamSelesai: pm.jamSelesai, mulaiMs, selesaiMs, nama: aujNamaHonor(pm), updatedAt: new Date().toISOString() };
   db.ref('ujian/' + u.key).update(data, err => { if (err) return toast('⚠️ Sesi honor gagal diperbarui: ' + (err.message || err), true, 7000); Object.assign(u, data); });
@@ -2103,7 +2146,7 @@ function aujPeriksaHonor() {
   // Honor dua kegiatan pada jam yang bertumpuk (ujian x ujian, ujian x rapat/lembur) berdasarkan check-in yang benar-benar tercatat.
   const iv = [];
   att.forEach(c => { const u = (allUjian || []).find(z => z.key === c.ujianKey); if (u && c.guruKey) iv.push({ gk: c.guruKey, nama: c.guru, tanggal: u.tanggal, jamMulai: u.jamMulai, jamSelesai: u.jamSelesai, label: 'ujian "' + u.nama + '"' }); });
-  ((typeof allEventAttendance !== 'undefined' && allEventAttendance) || []).forEach(c => { const e = (allEvents || []).find(z => z.key === c.eventKey); if (e && c.guruKey) iv.push({ gk: c.guruKey, nama: c.guru, tanggal: e.tanggal, jamMulai: e.jamMulai, jamSelesai: e.jamSelesai, label: 'acara "' + e.nama + '"' }); });
+  ((typeof allEventAttendance !== 'undefined' && allEventAttendance) || []).forEach(c => { const e = ((typeof allEvents !== 'undefined' && allEvents) || []).find(z => z.key === c.eventKey); if (e && c.guruKey) iv.push({ gk: c.guruKey, nama: c.guru, tanggal: e.tanggal, jamMulai: e.jamMulai, jamSelesai: e.jamSelesai, label: 'acara "' + e.nama + '"' }); });
   const grup = {};
   iv.forEach(i => { if (i.tanggal) (grup[i.gk + '|' + i.tanggal] = grup[i.gk + '|' + i.tanggal] || []).push(i); });
   Object.keys(grup).forEach(k => {
@@ -2230,7 +2273,7 @@ function aujCetakBebanHtml(rk) {
     <table class="data"><thead><tr><th>No</th><th>Nama Guru</th><th>Jumlah Sesi</th><th>P1 / P2</th><th>Hari</th><th>Total Jam</th><th>± Rata-rata</th></tr></thead><tbody>${baris}</tbody></table>
     <p style="font-size:10.5pt;margin-top:6px;">Jumlah sesi: ${rk.nSesi}. Rata-rata ${rk.rata.toFixed(1).replace('.', ',')} sesi per guru; terbanyak ${rk.maks}, tersedikit ${rk.min} sesi. P1 / P2 = jumlah tugas sebagai Pengawas 1 / Pengawas 2.${rk.baris.some(b => b.tanpaJam) ? ' * Ada sesi tanpa jam lengkap yang tidak dihitung jamnya.' : ''}</p>
     <div style="text-align:right;margin-top:10px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(tglLokal()))}</div>
-    <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdKepalaHtml(pseudo, 'Rekap Beban Pengawas')}</tr></table>
+    <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdPanitiaHtml()}</tr></table>
   </div>`;
 }
 function aujCetakBeban() {
@@ -2284,7 +2327,7 @@ function aujCetakGuruHalaman(nama, sesi, id) {
     <table class="info"><tr><td style="width:120px;">Nama Pengawas</td><td style="width:10px;">:</td><td><strong>${escapeHtml(nama)}</strong></td></tr><tr><td>Jumlah Tugas</td><td>:</td><td>${sesi.length} sesi (${escapeHtml(aujFmtDurasi(aujJumlahMenit(sesi)))})</td></tr></table>
     <table class="data"><thead><tr><th>No</th><th>Hari / Tanggal</th><th>Waktu (WIB)</th><th>Mata Pelajaran</th><th>Kelas</th><th>Ruang</th><th>Rekan Pengawas</th></tr></thead><tbody>${baris}</tbody></table>
     <div style="text-align:right;margin-top:10px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(tglLokal()))}</div>
-    <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdKepalaHtml(pseudo, 'Jadwal Mengawas')}</tr></table>
+    <table class="ttd"><tr><td style="width:67%;"></td>${aujTtdPanitiaHtml()}</tr></table>
   </div>`;
 }
 function aujIdGuruTercetak() {
@@ -2667,6 +2710,9 @@ function aujSinkronPortal() {
     if (!db || !aujCanEdit() || aujTahunDimuat !== currentTahunAjaran || !isReallyOnline()) return;
     const peta = aujPortalPeta(), ttd = JSON.stringify(peta);
     if (ttd === aujPortalTtd) return;
+    // Pengaman: daftar kosong sebelum pernah ada isi yang tersinkron = kemungkinan gagal muat (error baca / offline), bukan "semua sesi dihapus".
+    // Tanpa ini, set(null) akan menghapus seluruh jadwal di Portal Ortu.
+    if (!Object.keys(peta).length && aujPortalTtd === '') return;
     db.ref(AUJ_PORTAL_NODE).set(Object.keys(peta).length ? peta : null)
       .then(() => { aujPortalTtd = ttd; })
       .catch(e => console.warn('[SI MAMBA] Jadwal ujian belum tersalin ke Portal Ortu (tidak fatal):', (e && e.message) || e));
@@ -2680,3 +2726,171 @@ function aujSinkronPortal() {
     return r;
   };
 })();
+
+// =====================================================
+// SK PANITIA ASAS/ASAT -- Surat Keputusan pembentukan panitia + Lampiran I (susunan panitia) + Lampiran II (pembagian ruang)
+// Tab "📜 SK Panitia". Tidak tergantung sesi terpilih. Satu SK per tahun ajaran + semester, disimpan di node
+// `administrasi_ujian_sk/{tahun}_{semester}` (butuh Rules, lihat rules-sk-panitia-ujian.txt). Lampiran II diambil otomatis dari sesi
+// (ruang, kelas, jumlah peserta, nomor peserta, pengawas). Nama Ketua di SK dipakai juga untuk tanda tangan Jadwal/Rekap Beban/Jadwal Mengawas.
+// =====================================================
+const AUJ_SK_NODE = 'administrasi_ujian_sk';
+let aujSk = null, aujSkMuatKey = '', aujSkGen = 0, aujSkGagal = false;   // aujSk = data TERSIMPAN (null = belum ada)
+function aujSkKunci() {
+  const s = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return (s(currentTahunAjaran) || 'x') + '_' + (s(currentSemesterAktif) || 'x');
+}
+function aujSkMuat(sesudah) {
+  const key = aujSkKunci();
+  if (aujSkMuatKey === key) { if (sesudah) sesudah(); return; }
+  if (!db || !isReallyOnline() || !aujCanOpenMenu()) return;
+  const g = ++aujSkGen;
+  db.ref(AUJ_SK_NODE + '/' + key).once('value')
+    .then(snap => { if (g !== aujSkGen) return; aujSk = snap.val() || null; aujSkGagal = false; })
+    .catch(e => { if (g !== aujSkGen) return; aujSk = null; aujSkGagal = true; console.warn('[SI MAMBA] SK Panitia gagal dimuat (cek Rules administrasi_ujian_sk):', e); })
+    .then(() => { if (g !== aujSkGen) return; aujSkMuatKey = key; if (sesudah) sesudah(); });
+}
+const AUJ_SK_PANITIA_DEFAULT = ['Penanggung Jawab | ', 'Ketua | ', 'Sekretaris | ', 'Bendahara | ', 'Seksi Naskah Soal dan Penggandaan | ', 'Seksi Pengawas dan Ruang | ', 'Seksi Keamanan dan Ketertiban | ', 'Seksi Konsumsi dan Perlengkapan | '];
+const AUJ_SK_MENIMBANG_DEFAULT = [
+  'bahwa untuk kelancaran dan ketertiban pelaksanaan {nama} Tahun Pelajaran {ta} di {madrasah}, perlu dibentuk panitia pelaksana;',
+  'bahwa nama-nama yang tercantum dalam lampiran keputusan ini dipandang mampu dan memenuhi syarat untuk diberi tugas sebagai panitia.'
+].join('\n');
+const AUJ_SK_MENGINGAT_DEFAULT = [
+  'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;',
+  'Peraturan Pemerintah Nomor 57 Tahun 2021 tentang Standar Nasional Pendidikan sebagaimana telah diubah dengan Peraturan Pemerintah Nomor 4 Tahun 2022;',
+  'Kalender Pendidikan Madrasah Tahun Pelajaran {ta}.'
+].join('\n');
+function aujSkDefault() {
+  const kepala = MADRASAH.kepala_sekolah || '';
+  return { nomor: '', tanggalSk: '', nama: aujOpsiNama()[0] || 'ASAS', panitia: AUJ_SK_PANITIA_DEFAULT.map(l => l.indexOf('Penanggung Jawab') === 0 ? 'Penanggung Jawab | ' + kepala : l).join('\n'), menimbang: AUJ_SK_MENIMBANG_DEFAULT, mengingat: AUJ_SK_MENGINGAT_DEFAULT };
+}
+function aujSkEfektif() { return Object.assign(aujSkDefault(), aujSkMuatKey === aujSkKunci() && aujSk ? aujSk : {}); }
+function aujSkIsi(t, sk) {
+  return String(t || '').replace(/\{nama\}/g, sk.nama || 'ASAS/ASAT').replace(/\{ta\}/g, currentTahunAjaran || '').replace(/\{madrasah\}/g, MADRASAH.nama || 'madrasah').replace(/\{semester\}/g, currentSemesterAktif || '');
+}
+function aujSkBarisPanitia(teks) {
+  return String(teks || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const i = l.indexOf('|'); return i < 0 ? { jab: l, nama: '' } : { jab: l.slice(0, i).trim(), nama: l.slice(i + 1).trim() }; });
+}
+// Nama Ketua dari SK tersimpan (dipakai tanda tangan Jadwal/Rekap Beban/Jadwal Mengawas). Kosong -> pakai nama isian manual di perangkat.
+function aujSkNamaKetua() {
+  if (!aujSk || aujSkMuatKey !== aujSkKunci()) return '';
+  const b = aujSkBarisPanitia(aujSk.panitia).find(x => /^ketua(\s+panitia)?$/i.test(x.jab) && x.nama);
+  return b ? b.nama : '';
+}
+// Lampiran II: satu baris per ruang + kelas, dari sesi (sesi ber-nama sama dengan SK; kalau tidak ada yang cocok, semua sesi tahun ini).
+function aujSkRuang(sk) {
+  const semua = allAdmUjian.filter(r => r && r.ruang), cocok = semua.filter(r => String(r.nama || '') === String(sk.nama || '')), pakai = cocok.length ? cocok : semua;
+  const peta = {}, tgl = [];
+  pakai.forEach(r => {
+    const k = r.ruang + '|' + (r.kelas || ''), b = peta[k] = peta[k] || { ruang: r.ruang, kelas: r.kelas || '-', n: aujPeserta(r.kelas, r).length, pw: [] };
+    [r.pengawas1, r.pengawas2].forEach(n => { if (n && b.pw.indexOf(n) < 0) b.pw.push(n); });
+    if (aujAdaTanggal(r.tanggal)) tgl.push(r.tanggal);
+  });
+  const baris = Object.keys(peta).map(k => peta[k]).sort((a, b) => String(a.ruang).localeCompare(String(b.ruang), 'id', { numeric: true }) || String(a.kelas).localeCompare(String(b.kelas), 'id', { numeric: true }));
+  tgl.sort();
+  const guru = new Set(); baris.forEach(b => b.pw.forEach(n => guru.add(n)));
+  return { baris, mulai: tgl[0] || '', akhir: tgl[tgl.length - 1] || '', nRuang: new Set(baris.map(b => b.ruang)).size, nPeserta: baris.reduce((t, b) => t + b.n, 0), nPengawas: guru.size, semuaSesi: !cocok.length && semua.length > 0 };
+}
+function aujHtmlSk() {
+  const ed = aujCanEdit(), sk = aujSkEfektif(), dis = ed ? '' : 'disabled', ada = aujSkMuatKey === aujSkKunci() && !!aujSk, kunci = aujSkKunci();
+  if (aujSkMuatKey !== kunci) aujSkMuat(() => { if (aujTabAktif === 'sk') aujRenderTab(); });
+  const rg = aujSkRuang(sk), ta = 'class="field" style="width:100%;font-family:inherit;" ' + dis;
+  return `
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h4 style="font-weight:700;">📜 SK Panitia ${escapeHtml(sk.nama || 'ASAS/ASAT')} — TA ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' / ' + escapeHtml(currentSemesterAktif) : ''}</h4>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${ed ? '<button class="btn btn-success" onclick="aujSimpanSk()">💾 Simpan SK</button>' : ''}
+        <button class="btn btn-primary" onclick="aujCetakSk()" ${ada ? '' : 'disabled'} title="${ada ? 'Mencetak data SK yang sudah tersimpan' : 'Simpan SK dulu'}">🖨️ Cetak SK + Lampiran</button>
+      </div>
+    </div>
+    ${aujSkGagal ? '<p style="font-size:12px;color:#b91c1c;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px;">⚠️ SK Panitia gagal dimuat. Periksa Rules node <strong>administrasi_ujian_sk</strong> (lihat rules-sk-panitia-ujian.txt).</p>' : ''}
+    ${!ada && !aujSkGagal ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:6px;margin-bottom:8px;">${ed ? 'SK belum disimpan untuk tahun ajaran/semester ini. Isian di bawah masih bawaan — lengkapi nomor, tanggal, dan nama panitia, lalu Simpan.' : 'Admin belum membuat SK Panitia untuk tahun ajaran/semester ini.'}</p>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-bottom:8px;">
+      <div><label class="label">Nomor SK</label><input id="aujSkNomor" class="field" type="text" maxlength="80" value="${escapeHtml(sk.nomor)}" placeholder="mis. 045/MI.MU/XI/2026" ${dis}></div>
+      <div><label class="label">Tanggal SK</label><input id="aujSkTgl" class="field" type="date" value="${escapeHtml(sk.tanggalSk)}" ${dis}></div>
+      ${aujPilihanHtml('aujSkNama', 'Nama Asesmen', sk.nama, aujOpsiNama(), { dis })}
+    </div>
+    <label class="label">Susunan Panitia — satu per baris: <em>Jabatan | Nama</em> (baris "Ketua" dipakai untuk tanda tangan Jadwal/Rekap Beban)</label>
+    <textarea id="aujSkPanitia" rows="9" ${ta}>${escapeHtml(sk.panitia)}</textarea>
+    <label class="label" style="margin-top:8px;">Menimbang — satu butir per baris (huruf a, b, … otomatis)</label>
+    <textarea id="aujSkMenimbang" rows="4" ${ta}>${escapeHtml(sk.menimbang)}</textarea>
+    <label class="label" style="margin-top:8px;">Mengingat (dasar hukum) — satu butir per baris. Periksa dan sesuaikan dengan ketentuan yang berlaku bagi madrasah Anda.</label>
+    <textarea id="aujSkMengingat" rows="5" ${ta}>${escapeHtml(sk.mengingat)}</textarea>
+    <p style="font-size:11px;color:#6b7280;margin:4px 0 12px;">Kata kunci otomatis: {nama} = nama asesmen, {ta} = tahun pelajaran, {madrasah} = nama madrasah, {semester}.</p>
+    <h5 style="font-weight:700;font-size:13px;margin:6px 0;">Lampiran II — Pembagian Ruang (otomatis dari sesi${rg.semuaSesi ? '; tidak ada sesi bernama "' + escapeHtml(sk.nama) + '", jadi semua sesi dipakai' : ''})</h5>
+    ${rg.baris.length ? `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f3f4f6;"><th style="text-align:left;padding:4px 6px;border:1px solid #e5e7eb;">Ruang</th><th style="text-align:left;padding:4px 6px;border:1px solid #e5e7eb;">Kelas</th><th style="padding:4px 6px;border:1px solid #e5e7eb;">Peserta</th><th style="text-align:left;padding:4px 6px;border:1px solid #e5e7eb;">Pengawas</th></tr></thead><tbody>${rg.baris.map(b => `<tr><td style="padding:4px 6px;border:1px solid #e5e7eb;">${escapeHtml(b.ruang)}</td><td style="padding:4px 6px;border:1px solid #e5e7eb;">${escapeHtml(b.kelas)}</td><td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;">${b.n}</td><td style="padding:4px 6px;border:1px solid #e5e7eb;">${escapeHtml(b.pw.join(', ') || '-')}</td></tr>`).join('')}</tbody></table></div>
+      <p style="font-size:12px;color:#6b7280;margin-top:6px;">${rg.nRuang} ruang · ${rg.nPeserta} peserta · ${rg.nPengawas} pengawas.</p>` : '<p style="font-size:12px;color:#6b7280;">Belum ada sesi dengan ruang. Buat sesi di tab Data Sesi / Jadwal Ujian dulu, Lampiran II akan terisi sendiri.</p>'}`;
+}
+function aujSimpanSk() {
+  if (!aujCanEdit()) return toast('Hanya Admin yang bisa mengubah SK Panitia.', true);
+  if (isBusy('aujSkSimpan')) return toast('Sedang menyimpan...', false, 1500);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Menyimpan SK butuh koneksi internet.', true);
+  const bataS = (v, n) => String(v || '').slice(0, n);
+  const data = { nomor: bataS(aujVal('aujSkNomor'), 80), tanggalSk: aujAdaTanggal(aujVal('aujSkTgl')) ? aujVal('aujSkTgl') : '', nama: bataS(aujVal('aujSkNama'), 80),
+    panitia: bataS(aujVal('aujSkPanitia'), 3000), menimbang: bataS(aujVal('aujSkMenimbang'), 2000), mengingat: bataS(aujVal('aujSkMengingat'), 2000),
+    tahunAjaran: currentTahunAjaran || '', semester: currentSemesterAktif || '', updatedBy: currentUser.name || '', updatedAt: new Date().toISOString() };
+  if (!data.nama) return toast('Isi nama asesmen dulu.', true);
+  if (!aujSkBarisPanitia(data.panitia).length) return toast('Isi susunan panitia dulu.', true);
+  setBusy('aujSkSimpan');
+  const key = aujSkKunci();
+  db.ref(AUJ_SK_NODE + '/' + key).set(data, err => {
+    clearBusy('aujSkSimpan');
+    if (err) return toast('Gagal: ' + (err.message || err), true);
+    aujSk = data; aujSkMuatKey = key; aujSkGagal = false;
+    toast('✅ SK Panitia tersimpan!'); addLog('simpan_sk_panitia_ujian', `${data.nama} - ${data.nomor || 'tanpa nomor'}`);
+    if (aujTabAktif === 'sk') aujRenderTab();
+  });
+}
+function aujSkTtdHtml(sk, final) {
+  const isi = !final
+    ? (aujBolehTtdKepala() ? '<div style="border:1px solid #b91c1c;color:#b91c1c;font-size:8.5pt;padding:3px 5px;line-height:1.25;display:inline-block;max-width:95%;">BELUM FINAL — QR pengesahan Kepala belum dicetak (lengkapi nomor SK, tanggal, dan nama Ketua)</div>' : '')
+    : ((window.TTD && TTD.penanda)
+      ? TTD.penanda('kepala', { jenis: 'SK Panitia ' + (sk.nama || 'ASAS/ASAT'), ket: [sk.nomor, sk.nama, currentTahunAjaran].filter(Boolean).join(' | ') }, { mm: 17, hanyaPimpinan: true })
+      : ((MADRASAH.ttdKepalaBase64 && aujBolehTtdKepala()) ? `<img src="${escapeHtml(MADRASAH.ttdKepalaBase64)}" style="height:58px;max-width:150px;" alt="">` : ''));
+  return `<table class="ttd"><tr><td style="width:50%;"></td><td><div>Kepala Madrasah,</div><div class="ruang">${isi}</div>
+    <div style="font-weight:700;text-decoration:underline;">${escapeHtml(MADRASAH.kepala_sekolah || '(............................)')}</div>
+    ${MADRASAH.nip_kepala_sekolah ? `<div>NIP. ${escapeHtml(MADRASAH.nip_kepala_sekolah)}</div>` : ''}</td></tr></table>`;
+}
+function aujCetakSkHtml(sk) {
+  const mad = MADRASAH.nama || 'Madrasah', tempat = aujTempat(), tgl = sk.tanggalSk ? aujTglIndo(sk.tanggalSk) : '..........................',
+    rg = aujSkRuang(sk), pan = aujSkBarisPanitia(sk.panitia), final = !!(sk.nomor && sk.tanggalSk && aujSkBarisPanitia(sk.panitia).some(x => /^ketua(\s+panitia)?$/i.test(x.jab) && x.nama));
+  const butir = (t, jenis) => `<ol type="${jenis}" style="margin:0;padding-left:22px;">${aujBarisTeks(aujSkIsi(t, sk)).map(x => `<li style="text-align:justify;line-height:1.4;">${escapeHtml(x)}</li>`).join('')}</ol>`;
+  const baris3 = (a, b) => `<tr><td style="width:105px;vertical-align:top;font-weight:700;">${a}</td><td style="width:12px;vertical-align:top;">:</td><td>${b}</td></tr>`;
+  const judulSk = `PEMBENTUKAN PANITIA ${escapeHtml(String(sk.nama || 'ASAS/ASAT').toUpperCase())} TAHUN PELAJARAN ${escapeHtml(currentTahunAjaran || '')}`;
+  const periode = rg.mulai ? ` yang dilaksanakan pada ${escapeHtml(aujTglIndo(rg.mulai))}${rg.akhir && rg.akhir !== rg.mulai ? ' sampai dengan ' + escapeHtml(aujTglIndo(rg.akhir)) : ''}` : '';
+  const kepalaLamp = `<div style="text-align:right;font-size:10.5pt;line-height:1.35;margin-bottom:8px;">Lampiran %L Keputusan Kepala ${escapeHtml(mad)}<br>Nomor : ${escapeHtml(sk.nomor || '..........')}<br>Tanggal : ${escapeHtml(tgl)}</div>`;
+  const ttdLamp = `<table class="ttd"><tr><td style="width:50%;"></td><td><div>Kepala Madrasah,</div><div class="ruang"></div><div style="font-weight:700;text-decoration:underline;">${escapeHtml(MADRASAH.kepala_sekolah || '(............................)')}</div></td></tr></table>`;
+  const sk1 = `<div class="halaman">${aujKopHtml()}
+    <h1>Keputusan Kepala ${escapeHtml(mad)}</h1>
+    <div class="sub">Nomor : ${escapeHtml(sk.nomor || '..........')}<br>tentang<br><strong>${judulSk}</strong><br><br><strong>KEPALA ${escapeHtml(mad.toUpperCase())}</strong></div>
+    <table class="info" style="width:100%;">
+      ${baris3('Menimbang', butir(sk.menimbang, 'a'))}
+      ${baris3('Mengingat', butir(sk.mengingat, '1'))}
+    </table>
+    <div style="text-align:center;font-weight:700;margin:12px 0 6px;">MEMUTUSKAN</div>
+    <table class="info" style="width:100%;">
+      ${baris3('Menetapkan', `<strong>KEPUTUSAN KEPALA ${escapeHtml(mad.toUpperCase())} TENTANG ${judulSk}.</strong>`)}
+      ${baris3('KESATU', `Membentuk Panitia ${escapeHtml(sk.nama || 'ASAS/ASAT')} Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${periode} dengan susunan sebagaimana tercantum dalam Lampiran I keputusan ini.`)}
+      ${baris3('KEDUA', `Panitia bertugas mempersiapkan, melaksanakan, mengawasi, dan melaporkan pelaksanaan ${escapeHtml(sk.nama || 'ASAS/ASAT')}, termasuk pembagian ruang dan pengawas sebagaimana tercantum dalam Lampiran II keputusan ini.`)}
+      ${baris3('KETIGA', 'Masa tugas panitia berakhir setelah seluruh pelaksanaan dan pelaporan kegiatan selesai.')}
+      ${baris3('KEEMPAT', 'Keputusan ini berlaku sejak tanggal ditetapkan, dengan ketentuan apabila terdapat kekeliruan akan diadakan perbaikan sebagaimana mestinya.')}
+    </table>
+    <div style="margin:14px 0 0 50%;line-height:1.4;">Ditetapkan di : ${escapeHtml(tempat || '..........................')}<br>pada tanggal : ${escapeHtml(tgl)}</div>
+    ${aujSkTtdHtml(sk, final)}
+  </div>`;
+  const dataRuang = rg.baris.map((b, i) => `<tr><td style="text-align:center;width:30px;">${i + 1}</td><td style="text-align:center;">${escapeHtml(b.ruang)}</td><td style="text-align:center;">${escapeHtml(b.kelas)}</td><td style="text-align:center;">${b.n}</td><td style="text-align:center;">${b.n ? '1 – ' + b.n : '-'}</td><td>${b.pw.map(n => escapeHtml(n)).join('<br>') || '-'}</td></tr>`).join('') || '<tr><td colspan="6" style="text-align:center;">Belum ada data ruang.</td></tr>';
+  const l1 = `<div class="halaman">${kepalaLamp.replace('%L', 'I')}
+    <h1>Susunan Panitia ${escapeHtml(sk.nama || 'ASAS/ASAT')}</h1><div class="sub">${escapeHtml(mad)} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
+    <table class="data"><thead><tr><th>No</th><th>Jabatan</th><th>Nama</th></tr></thead><tbody>${pan.map((p, i) => `<tr><td style="text-align:center;width:30px;">${i + 1}</td><td>${escapeHtml(p.jab)}</td><td>${escapeHtml(p.nama || '(............................)')}</td></tr>`).join('')}</tbody></table>
+    ${ttdLamp}</div>`;
+  const l2 = `<div class="halaman">${kepalaLamp.replace('%L', 'II')}
+    <h1>Pembagian Ruang dan Pengawas ${escapeHtml(sk.nama || 'ASAS/ASAT')}</h1><div class="sub">${escapeHtml(mad)} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
+    <table class="data"><thead><tr><th>No</th><th>Ruang</th><th>Kelas</th><th>Jumlah Peserta</th><th>Nomor Peserta</th><th>Pengawas</th></tr></thead><tbody>${dataRuang}</tbody></table>
+    <p style="font-size:11pt;margin-top:6px;">Jumlah: ${rg.nRuang} ruang, ${rg.nPeserta} peserta, ${rg.nPengawas} pengawas.</p>
+    ${ttdLamp}</div>`;
+  return sk1 + l1 + l2;
+}
+function aujCetakSk() {
+  if (aujSkMuatKey !== aujSkKunci() || !aujSk) return toast('Simpan SK Panitia dulu.', true);
+  if (aujCanEdit() && ['aujSkNomor', 'aujSkPanitia', 'aujSkMenimbang', 'aujSkMengingat'].some(id => aujEl(id) && aujVal(id) !== String(aujSk[{ aujSkNomor: 'nomor', aujSkPanitia: 'panitia', aujSkMenimbang: 'menimbang', aujSkMengingat: 'mengingat' }[id]] || '').trim())) toast('ℹ️ Ada perubahan SK yang belum disimpan — yang dicetak adalah data tersimpan.', false, 5000);
+  aujCetakHtml(aujCetakSkHtml(Object.assign(aujSkDefault(), aujSk)), `SK Panitia ${aujSk.nama || 'ASAS/ASAT'} - TA ${currentTahunAjaran || ''}`);
+}
