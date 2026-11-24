@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.554",
-  "disimpan": "2026-11-24T01:48:43.890Z",
+  "appVersion": "v8.560",
+  "disimpan": "2026-11-24T02:41:37.172Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -55,12 +55,12 @@
       "hash": "3f0afd882d3dd7aaaa3eac8049d2e28e63a7e4de"
     },
     "js/administrasi-ujian.js": {
-      "v": "v=19",
-      "hash": "90d49977badf4d2ce49e3298f99d535dc01441e4"
+      "v": "v=25",
+      "hash": "1e8b389482208f152a7db89c99425279799023e4"
     },
     "js/app.js": {
-      "v": "v=175",
-      "hash": "5133a7b0c7a8645f88b554b0489ef6848aebdaa3"
+      "v": "v=176",
+      "hash": "e149b7a717ad0b711faa1576befddd6e22999ae3"
     },
     "js/portal-ortu.js": {
       "v": "v=52",
@@ -127,8 +127,8 @@
       "hash": "81d3ef94985b8a826c6b60b3a8208330fee1c8ef"
     },
     "js/kalender-akademik.js": {
-      "v": "v=1",
-      "hash": "a54ee8a38b091ea9d90331dda1289d84c6bb860a"
+      "v": "v=2",
+      "hash": "f80a710d4bca38e85cd05f2af74517ab228b4620"
     },
     "js/saran-kritik.js": {
       "v": "v=1",
