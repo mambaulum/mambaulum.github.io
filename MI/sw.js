@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.580';
+const APP_VERSION = 'v8.581';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -133,21 +133,21 @@ const PRECACHE_URLS = [
   './js/pkg-analisis.js?v=3',             // tab Analisis PKG (dimuat SESUDAH pkg.js)
   './js/data-tp-mi.js?v=5',
   './js/data-tp-umum.js?v=1',            // bank TP mapel umum (dimuat sesudah data-tp-mi.js)
-  './js/data-soal-semua.js?v=2',          // bank soal gabungan semua mapel (menggantikan data-soal-mi.js)
+  './js/data-soal-semua.js?v=4',          // bank soal gabungan semua mapel (menggantikan data-soal-mi.js)
   './js/data-soal-aqh-tambahan.js?v=1',
   './js/data-soal-pai-tambahan.js?v=1',
   './js/data-soal-umum-tambahan.js?v=1',
-  './js/data-soal-pai-fase-a-tambahan.js?v=1',
+  './js/data-soal-pai-fase-a-tambahan.js?v=2',
   './js/data-soal-tambahan-gabung.js?v=1',  // gabungan 6 file soal tambahan (urutan muat sama seperti sebelumnya)
-  './js/data-soal-uraian-aqh-ba-tambahan.js?v=1',
-  './js/data-soal-uraian-aa-fikih-ski-tambahan.js?v=1',
-  './js/data-soal-uraian-pjok-ipas-pp-tambahan.js?v=1',
+  './js/data-soal-uraian-aqh-ba-tambahan.js?v=7',
+  './js/data-soal-uraian-aa-fikih-ski-tambahan.js?v=7',
+  './js/data-soal-uraian-pjok-ipas-pp-tambahan.js?v=7',
   './js/perangkat-rpe.js?v=15',
   './js/perangkat-prota-promes.js?v=9',
   './js/perangkat-atp-tp.js?v=11',
   './js/data-kisi-resmi-mi.js?v=6',
   './js/perangkat-kisi.js?v=13',
-  './js/perangkat-soal.js?v=27',
+  './js/perangkat-soal.js?v=30',
   './js/perangkat-paket.js?v=4',
   './js/perangkat-pembelajaran.js?v=26',
   './js/modul-ajar.js?v=23',
