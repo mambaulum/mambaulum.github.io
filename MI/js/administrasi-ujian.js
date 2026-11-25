@@ -1411,7 +1411,7 @@ function aujHtmlJadwal() {
   const uniq = f => [...new Set(allAdmUjian.map(x => x[f]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
   if (aujJdwNama && !uniq('nama').includes(aujJdwNama)) aujJdwNama = '';     // filter yang opsinya sudah tidak ada (sesi dihapus/diurungkan) di-reset
   if (aujJdwKelas && !uniq('kelas').includes(aujJdwKelas)) aujJdwKelas = '';
-  const lain = `${ed ? '<button class="btn btn-soft" onclick="aujToggleSalin()" title="Salin jadwal satu asesmen ke asesmen baru (mis. ASAS ke ASAT)">📑 Salin Jadwal</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujIsiPengawasKosong()" title="Isi slot pengawas yang kosong, dibagi rata (mengikuti filter di bawah)">🤖 Isi Pengawas Kosong</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujToggleBh()" title="Ganti satu guru yang berhalangan di semua sesi mengawasnya">🙋 Pengawas Berhalangan</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujTampilPeriksa()" title="Cocokkan jadwal, Daftar Hadir, check-in, dan susulan">🔎 Periksa Honor</button>' : ''}${ed ? '<button class="btn btn-primary" onclick="aujBuatSesiHonor()" title="Buat sesi honor pengawas dari jadwal (mengikuti filter di bawah)">💰 Buat Sesi Honor</button>' : ''}${ed ? aujHtmlTombolUrungkan() : ''}${ed && aujSesiBedaDurasi(aujJadwalTersaring()).length ? `<button class="btn btn-soft" onclick="aujSeragamkanDurasi()" title="Ubah jam selesai semua sesi yang tampil menjadi jam mulai + ${AUJ_DURASI_MENIT} menit">⏱️ Seragamkan ${AUJ_DURASI_MENIT} menit (${aujSesiBedaDurasi(aujJadwalTersaring()).length})</button>` : ''}${ed || aujEsKepsek() ? '<button class="btn btn-soft" onclick="aujToggleBeban()" title="Jumlah sesi & jam mengawas tiap guru (mengikuti filter di bawah)">📊 Rekap Beban</button>' : ''}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujToggleGuru()" title="Jadwal mengawas per guru, bisa dicetak">👤 Jadwal per Guru</button>'}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujUbahKetuaPanitia()" title="Nama Ketua Panitia yang tercetak di tanda tangan Jadwal, Rekap Beban, dan Jadwal Mengawas">✍️ Ketua Panitia</button>'}`.trim();
+  const lain = `${ed ? '<button class="btn btn-soft" onclick="aujToggleSalin()" title="Salin jadwal satu asesmen ke asesmen baru (mis. ASAS ke ASAT)">📑 Salin Jadwal</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujIsiPengawasKosong()" title="Isi slot pengawas yang kosong, dibagi rata (mengikuti filter di bawah)">🤖 Isi Pengawas Kosong</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujToggleBh()" title="Ganti satu guru yang berhalangan di semua sesi mengawasnya">🙋 Pengawas Berhalangan</button>' : ''}${ed ? '<button class="btn btn-soft" style="color:#b91c1c;" onclick="aujHapusSemua()" ' + (allAdmUjian.length ? '' : 'disabled') + ' title="Hapus semua sesi pada daftar (mengikuti filter Asesmen/Kelas). Sesi yang sudah punya check-in honor dilewati.">🗑️ Hapus Semua Sesi (' + aujJadwalTersaring().length + ')</button>' : ''}${ed ? '<button class="btn btn-soft" onclick="aujTampilPeriksa()" title="Cocokkan jadwal, Daftar Hadir, check-in, dan susulan">🔎 Periksa Honor</button>' : ''}${ed ? '<button class="btn btn-primary" onclick="aujBuatSesiHonor()" title="Buat sesi honor pengawas dari jadwal (mengikuti filter di bawah)">💰 Buat Sesi Honor</button>' : ''}${ed ? aujHtmlTombolUrungkan() : ''}${ed && aujSesiBedaDurasi(aujJadwalTersaring()).length ? `<button class="btn btn-soft" onclick="aujSeragamkanDurasi()" title="Ubah jam selesai semua sesi yang tampil menjadi jam mulai + ${AUJ_DURASI_MENIT} menit">⏱️ Seragamkan ${AUJ_DURASI_MENIT} menit (${aujSesiBedaDurasi(aujJadwalTersaring()).length})</button>` : ''}${ed || aujEsKepsek() ? '<button class="btn btn-soft" onclick="aujToggleBeban()" title="Jumlah sesi & jam mengawas tiap guru (mengikuti filter di bawah)">📊 Rekap Beban</button>' : ''}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujToggleGuru()" title="Jadwal mengawas per guru, bisa dicetak">👤 Jadwal per Guru</button>'}${aujHanyaGuru() ? '' : '<button class="btn btn-soft" onclick="aujUbahKetuaPanitia()" title="Nama Ketua Panitia yang tercetak di tanda tangan Jadwal, Rekap Beban, dan Jadwal Mengawas">✍️ Ketua Panitia</button>'}`.trim();
   const opt = (arr, sel, semua) => `<option value="">${semua}</option>` + arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
   return `
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -1611,9 +1611,31 @@ function aujHitungMassal(p) {
   if ((p.p1 || p.p2) && Object.keys(ruangDipakai).length > 1) return err('Pengawas manual (Pengawas 1/2) hanya bisa dipakai bila semua kelas berada di SATU ruang yang sama. Untuk ruang berbeda pasti bentrok: kosongkan, lalu pakai pengawas otomatis atau isi per sesi nanti.');
   const adaDiJadwal = new Set(); daftar.forEach(x => { const a = aujMapelDiampu(x.kelas); if (a) a.forEach(m => adaDiJadwal.add(m)); });   // mapel yang diampu minimal satu kelas; di luar itu = mapel tambahan (tidak ada di Jadwal Pelajaran), tidak dilewati otomatis
   let gabung = null; const lewatTakAmpu = [], tanpaJadwal = [], dilewatiBaris = [], mapelDaftar = [], kelasBerjadwal = [], lewatManual = [], aturanLewat = aujParseLewat(p.lewatTeks);
+  // Pengelompokan: mapel yang TIDAK diikuti semua kelas (menurut Jadwal Pelajaran atau aturan "tidak diujikan") dikumpulkan di hari-hari terakhir,
+  // supaya kelas yang tidak mengikutinya selesai lebih awal dan tidak punya hari yang hanya berisi satu mapel.
+  let kelompokInfo = null, teksSeragam = p.mapelTeks, sebarSeragam = p.sebar;
+  if (p.kelompok && !p.perFase) {
+    const seen = {}, daftarMapel = aujBarisTeks(p.mapelTeks).filter(m => { const k = aujNormNama(m); if (seen[k]) return false; seen[k] = 1; return true; });
+    const slotKe = (p.slot2 && p.slot2.m && p.slot2.s) ? 2 : 1;
+    const ikut = (kelas, m) => {
+      const k = aujNormNama(m);
+      if (aturanLewat.some(a => aujLewatCocokKelas(a, kelas) && a.mapel.some(z => aujNormNama(z) === k))) return false;
+      if (p.lewatTakAmpu) { const ampu = aujMapelDiampu(kelas); if (ampu && adaDiJadwal.has(k) && !ampu.has(k)) return false; }
+      return true;
+    };
+    const info = daftarMapel.map((m, i) => { const sig = daftar.map(x => ikut(x.kelas, m)); return { m, i, sig, jml: sig.filter(Boolean).length, kunci: sig.map(v => v ? '1' : '0').join('') }; });
+    const terbatas = info.filter(x => x.jml < daftar.length).sort((a, b) => (b.jml - a.jml) || a.kunci.localeCompare(b.kunci) || (a.i - b.i)), biasa = info.filter(x => x.jml === daftar.length).map(x => x.m);
+    if (terbatas.length && biasa.length) {
+      let urutBiasa = biasa, sus = null;
+      const berat = new Set(String(p.berat || '').split('|').map(aujNormNama).filter(Boolean));
+      if (p.sebar !== false && biasa.some(m => berat.has(aujNormNama(m)))) { sus = aujSusunMapel(biasa, berat, slotKe); urutBiasa = sus.tempat.slice().sort((a, b) => (a.d - b.d) || (a.j - b.j)).map(t => t.m); }
+      teksSeragam = urutBiasa.concat(terbatas.map(x => x.m)).join('\n'); sebarSeragam = false;
+      kelompokInfo = { mapel: terbatas.map(x => ({ nama: x.m, kelas: daftar.filter((_, k) => x.sig[k]).map(z => z.kelas) })), bertumpuk: sus ? sus.bertumpuk : 0, nBerat: sus ? sus.nBerat : 0, awalGanjil: slotKe > 1 && biasa.length % slotKe !== 0 };
+    }
+  }
   for (const x of daftar) {
     const fase = aujFaseKelas(x.kelas), mapelFase = p.perFase && fase && p.mapelFase ? String(p.mapelFase[fase] || '').trim() : '';
-    const h = aujHitungMassal1(Object.assign({}, p, { kelas: x.kelas, ruang: x.ruang, mapelTeks: mapelFase || p.mapelTeks }));
+    const h = aujHitungMassal1(Object.assign({}, p, { kelas: x.kelas, ruang: x.ruang, mapelTeks: mapelFase || teksSeragam, sebar: mapelFase ? p.sebar : sebarSeragam }));
     if (h.error) return err(`${x.kelas}: ${h.error}`);
     if (aturanLewat.length) {   // mapel yang tidak diujikan untuk kelas ini menurut aturan Admin (berlaku di atas Jadwal Pelajaran)
       const dilewat = new Set();
@@ -1643,6 +1665,7 @@ function aujHitungMassal(p) {
   gabung.nKelas = daftar.length;
   gabung.ruangSama = ruangSama;
   gabung.lewatTakAmpu = lewatTakAmpu; gabung.tanpaJadwal = tanpaJadwal;
+  gabung.kelompok = kelompokInfo; if (kelompokInfo) { gabung.beratBertumpuk = kelompokInfo.bertumpuk; gabung.nBerat = kelompokInfo.nBerat; }
   gabung.lewatManual = lewatManual; gabung.aturanLewatSia = aturanLewat.filter(a => !a.dipakai).map(a => a.teks);   // aturan yang tidak mengenai satu sesi pun (biasanya salah tulis)
   gabung.mapelTakCocok = [];   // mapel di daftar yang tidak ada di Jadwal Pelajaran kelas mana pun (biasanya beda penulisan) -> terlewati untuk semua kelas berjadwal
   if (kelasBerjadwal.length) mapelDaftar.forEach(m => { if (!kelasBerjadwal.some(k => aujMapelDiampu(k).has(aujNormNama(m)))) gabung.mapelTakCocok.push({ mapel: m, saran: aujSaranMapel(m) }); });
@@ -1715,6 +1738,7 @@ function aujMassalAmbil() {
     lewatTakAmpu: !(aujEl('aujMsLewatTakAmpu') && !aujEl('aujMsLewatTakAmpu').checked),
     penggantiTeks: aujVal('aujMsPengganti'),
     lewatTeks: aujVal('aujMsLewat'),
+    kelompok: !(aujEl('aujMsKelompok') && !aujEl('aujMsKelompok').checked),
     mapelFase: { A: aujVal('aujMsMapelFase_A'), B: aujVal('aujMsMapelFase_B'), C: aujVal('aujMsMapelFase_C') },
     kelasList: [...document.querySelectorAll('.aujMsKelasCek')].filter(c => c.checked).map(c => ({ kelas: c.value, ruang: aujVal('aujMsRuangK_' + c.dataset.i) })),
     ruangK: [...document.querySelectorAll('.aujMsKelasCek')].reduce((o, c) => { o[c.value] = aujVal('aujMsRuangK_' + c.dataset.i); return o; }, {})
@@ -1777,6 +1801,8 @@ function aujHtmlMassal() {
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:8px;"><input type="checkbox" id="aujMsPerFase" ${d.perFase ? 'checked' : ''} onchange="aujMassalToggleMulti()"> 📚 Mapel mengikuti fase</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:6px;"><input type="checkbox" id="aujMsLewatTakAmpu" ${d.lewatTakAmpu === false ? '' : 'checked'}> ✂️ Lewati mapel yang tidak diampu kelas</label>
         <p style="font-size:12px;color:#6b7280;margin:2px 0 0 22px;">Berlaku bila "Mapel mengikuti fase" mati: semua kelas memakai satu daftar mapel, tetapi sesi mapel yang tidak ada di Jadwal Pelajaran kelas itu tidak dibuat. Kelas tanpa data Jadwal Pelajaran tetap mendapat semua mapel.</p>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:6px;"><input type="checkbox" id="aujMsKelompok" ${d.kelompok === false ? '' : 'checked'}> 🗂️ Kelompokkan mapel yang tidak diikuti semua kelas</label>
+        <p style="font-size:12px;color:#6b7280;margin:2px 0 0 22px;">Mapel yang hanya diikuti sebagian kelas (misalnya IPAS dan SKI tidak untuk Kelas 1-2) ditaruh berdampingan di hari-hari terakhir. Kelas yang tidak mengikutinya selesai lebih awal, bukan punya hari berisi satu mapel. Berlaku bila "Mapel mengikuti fase" mati. Mapel lain tetap mengikuti urutan dan penyebaran mapel berat.</p>
         <label class="label" style="margin-top:6px;">Mapel yang tidak diujikan untuk kelas tertentu (opsional, satu aturan per baris)</label>
         <textarea id="aujMsLewat" class="field" rows="3" placeholder="Kelas 1, Kelas 2: Ilmu Pengetahuan Alam dan Sosial&#10;Kelas 1-3: Bahasa Inggris; Seni dan Budaya  (pisahkan beberapa mapel dengan titik koma)">${val('lewatTeks')}</textarea>
         <p style="font-size:12px;color:#6b7280;margin:2px 0 0;">Kelas bisa ditulis "Kelas 1, Kelas 2", "1, 2", rentang "1-3", atau "semua". Berlaku di atas Jadwal Pelajaran, jadi mapel ini dilewati walau data jadwalnya belum rapi. Slot yang ditinggalkan bisa diisi lewat kotak mapel pengganti di bawah.</p>
@@ -1931,6 +1957,7 @@ function aujHtmlPratinjauMassal() {
     ${h.beratBertumpuk ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚖️ ${h.beratBertumpuk} hari tetap berisi dua mapel berat karena jumlah mapel berat lebih banyak daripada hari ujian. Tambah hari atau kurangi tanda berat.</p>` : (h.nBerat ? `<p style="font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚖️ Mapel berat sudah disebar: tidak ada hari dengan dua mapel berat.</p>` : '')}
     ${h.durasiBeda && h.durasiBeda.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⏱️ Lama sesi di MI ditetapkan ${AUJ_DURASI_MENIT} menit, tetapi slot ${h.durasiBeda.map(escapeHtml).join(', ')} berbeda. Masih bisa disimpan; ubah jamnya bila tidak disengaja.</p>` : ''}
     ${h.liburDilewati && h.liburDilewati.length ? `<p style="font-size:12px;color:#1d4ed8;background:#eff6ff;border-radius:6px;padding:6px 10px;margin-bottom:6px;">📅 ${h.liburDilewati.length} tanggal dilewati karena libur di Kalender Akademik: ${h.liburDilewati.map(t => escapeHtml(aujTglPendek(t))).join(', ')}.</p>` : ''}
+    ${h.kelompok ? `<p style="font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:6px 10px;margin-bottom:6px;">🗂️ Mapel yang tidak diikuti semua kelas dikumpulkan di hari-hari terakhir: ${h.kelompok.mapel.map(x => '<strong>' + escapeHtml(x.nama) + '</strong> (hanya ' + x.kelas.map(escapeHtml).join(', ') + ')').join('; ')}. Kelas lain selesai lebih awal. Mapel berat pada bagian ini tidak dijamin tersebar.${h.kelompok.awalGanjil ? ' Jumlah mapel biasa ganjil, jadi satu hari berisi campuran.' : ''}</p>` : ''}
     ${h.lewatManual && h.lewatManual.length ? `<p style="font-size:12px;color:#1d4ed8;background:#eff6ff;border-radius:6px;padding:6px 10px;margin-bottom:6px;">✂️ Dilewati sesuai aturan Anda (tidak diujikan): ${h.lewatManual.map(x => escapeHtml(x.kelas) + ' — ' + x.mapel.map(escapeHtml).join(', ')).join('; ')}.</p>` : ''}
     ${h.aturanLewatSia && h.aturanLewatSia.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ Aturan "tidak diujikan" ini tidak mengenai sesi mana pun (cek penulisan kelas atau nama mapel): ${h.aturanLewatSia.map(x => '<em>' + escapeHtml(x) + '</em>').join('; ')}.</p>` : ''}
     ${h.mapelTakCocok && h.mapelTakCocok.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">ℹ️ Tidak ada di Jadwal Pelajaran kelas mana pun, jadi dianggap <strong>mapel tambahan</strong> dan DIUJIKAN untuk semua kelas: ${h.mapelTakCocok.map(x => '<strong>' + escapeHtml(x.mapel) + '</strong>' + (x.saran ? ' (kalau salah ketik, mungkin maksudnya "' + escapeHtml(x.saran) + '")' : '')).join('; ')}. Kelas yang tidak mengikutinya bisa ditulis di kotak "tidak diujikan".</p>` : ''}
@@ -2597,6 +2624,78 @@ function aujBhSimpanKe(h) {
     addLog('ubah_administrasi_ujian', `pengawas berhalangan ${h.nama}: ${ok.length} ruang-sesi diganti`);
     aujUndoSimpan({ jenis: 'ubah', label: 'Pengawas Berhalangan', ubah: catatUbah });
     aujBhBuka = false; aujBhHasil = null; aujBhDraft = null; aujRenderSemua();
+  });
+}
+
+// =====================================================
+// HAPUS SEMUA SESI (mengikuti filter Asesmen/Kelas pada daftar jadwal)
+// =====================================================
+// Aman: sesi yang sesi honornya sudah punya check-in/susulan DILEWATI; wajib mengetik HAPUS; cadangan JSON diunduh dulu.
+// Sesi honor milik sesi yang dihapus ikut dibersihkan; bila kelas lain satu ruang masih tersisa, sesi honor dipindah (sama seperti hapus satu sesi).
+function aujUnduhCadangan(nama, objek) {
+  try {
+    const blob = new Blob([JSON.stringify(objek, null, 1)], { type: 'application/json' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = nama; document.body.appendChild(a); a.click();
+    setTimeout(() => { try { URL.revokeObjectURL(a.href); a.remove(); } catch (e) { /* abaikan */ } }, 1500);
+    return true;
+  } catch (e) { return false; }
+}
+function aujHapusSemua() {
+  if (!aujCanEdit()) return toast('Hanya Admin!', true);
+  if (isBusy('aujHapusSemua')) return toast('Sedang menghapus...', false, 1500);
+  if (!isReallyOnline()) return toast('📡 Sedang offline. Coba lagi setelah online.', true);
+  if (!aujJadwalTersaring().length) return toast('Tidak ada sesi untuk dihapus.', true);
+  toast('⏳ Memeriksa data check-in terbaru…', false, 2500);
+  // Check-in/susulan bisa masuk dari perangkat lain: muat ulang dulu sebelum memutuskan sesi mana yang aman dihapus.
+  const tugas = [typeof reloadDataset === 'function' ? reloadDataset(['ujian', 'ujianAttendance']) : null, typeof muatUjianSusulan === 'function' ? muatUjianSusulan(true) : null];
+  Promise.all(tugas).catch(() => {}).then(aujHapusSemuaLanjut);
+}
+function aujHapusSemuaLanjut() {
+  const scope = aujJadwalTersaring(), att = (typeof allUjianAttendance !== 'undefined' && allUjianAttendance) || [], sus = (typeof allUjianSusulan !== 'undefined' && allUjianSusulan) || [];
+  if (!scope.length) return toast('Tidak ada sesi untuk dihapus.', true);
+  const kunci = new Set();   // sesi honor yang sudah dipakai: seluruh ruang-sesinya dipertahankan
+  scope.forEach(r => { const u = aujSesiHonorDari(r.key); if (u && (att.some(c => c.ujianKey === u.key) || sus.some(z => z.ujianKey === u.key))) kunci.add(u.key); });
+  const hapus = [], tahan = [];
+  scope.forEach(r => { const u = aujSesiHonorDari(r.key); (u && kunci.has(u.key) ? tahan : hapus).push(r); });
+  if (!hapus.length) return toast('Semua sesi pada daftar ini sudah punya check-in honor, jadi tidak ada yang dihapus. Hapus dulu check-in-nya di Honor Ujian bila memang perlu.', true, 8000);
+  const nHadir = hapus.filter(r => Object.keys(r.hadirPeserta || {}).length || Object.keys(r.pengawasHadir || {}).length).length;
+  const lingkup = (!aujJdwNama && !aujJdwKelas) ? 'SEMUA sesi' : 'sesi pada filter' + (aujJdwNama ? ' "' + aujJdwNama + '"' : '') + (aujJdwKelas ? ' · ' + aujJdwKelas : '');
+  const ketik = prompt(`⚠️ HAPUS ${hapus.length} sesi (${lingkup}) beserta daftar hadir, denah, dan berita acaranya.` + (nHadir ? `\n\n${nHadir} sesi sudah punya isian Daftar Hadir yang ikut hilang.` : '') + (tahan.length ? `\n\n${tahan.length} sesi DIPERTAHANKAN karena sudah ada check-in/susulan honor pengawas.` : '') + '\n\nCadangan (file JSON) akan diunduh otomatis sebelum menghapus. Tindakan ini tidak bisa diurungkan.\n\nKetik HAPUS (huruf besar) untuk melanjutkan:');
+  if (String(ketik || '').trim() !== 'HAPUS') return toast('Dibatalkan, tidak ada yang dihapus.', false, 2500);
+  const hapusSet = new Set(hapus.map(r => r.key)), honorHapus = [], honorPindah = [], diproses = new Set();
+  hapus.forEach(r => {
+    const u = aujSesiHonorDari(r.key); if (!u || diproses.has(u.key) || u.key !== AUJ_HONOR_PREFIX + r.key) return;   // hanya pemilik yang memegang sesi honor ruang
+    diproses.add(u.key);
+    const saudara = aujGrupRuang(r).filter(x => x.key !== r.key && !hapusSet.has(x.key));
+    if (saudara.length) honorPindah.push({ u, saudara }); else honorHapus.push(u);
+  });
+  const stempel = new Date().toISOString().slice(0, 10), honorCadangan = honorHapus.concat(honorPindah.map(x => x.u));
+  const adaCadangan = aujUnduhCadangan(`cadangan-sesi-ujian-${stempel}.json`, { dibuat: new Date().toISOString(), tahunAjaran: currentTahunAjaran, jumlahSesi: hapus.length, sesi: hapus, sesiHonor: honorCadangan });
+  if (!adaCadangan && !confirm('Cadangan gagal diunduh di perangkat ini. Tetap hapus tanpa cadangan?')) return;
+  const upd = {}; hapus.forEach(r => { upd[r.key] = null; });
+  setBusy('aujHapusSemua');
+  db.ref(AUJ_NODE).update(upd, err => {   // satu tulisan atomik: semua terhapus atau tidak sama sekali
+    clearBusy('aujHapusSemua');
+    if (err) return toast('Gagal menghapus: ' + (err.message || err), true, 7000);
+    allAdmUjian = allAdmUjian.filter(x => !hapusSet.has(x.key));
+    addLog('hapus_semua_administrasi_ujian', `${hapus.length} sesi dihapus${tahan.length ? `, ${tahan.length} dipertahankan` : ''}`);
+    toast(`✅ ${hapus.length} sesi dihapus.${tahan.length ? ` ${tahan.length} sesi dipertahankan (sudah ada check-in honor).` : ''}`, false, 6000);
+    aujUndoBuang();   // riwayat Urungkan merujuk sesi yang kini sudah tidak ada
+    const u2 = {}, baruLokal = [];
+    honorHapus.forEach(u => { u2[u.key] = null; });
+    honorPindah.forEach(x => {
+      const peta = {}; x.saudara.forEach(y => Object.assign(peta, aujKunciPengawasSesi(y).map));
+      u2[x.u.key] = null; if (!Object.keys(peta).length) return;
+      const kb = AUJ_HONOR_PREFIX + x.saudara[0].key, baru = Object.assign({}, x.u, { jadwalKey: x.saudara[0].key, pengawas: peta, updatedAt: new Date().toISOString() }); delete baru.key;
+      baru.nama = aujNamaHonor(x.saudara[0]); u2[kb] = baru; baruLokal.push(Object.assign({ key: kb }, baru));
+    });
+    aujAktifKey = null; aujPastikanAktif(); aujRenderSemua();
+    if (!Object.keys(u2).length) return;
+    db.ref('ujian').update(u2, e2 => {
+      if (e2) return toast('⚠️ Sesi jadwal sudah terhapus, tetapi sesi honornya gagal dibersihkan: ' + (e2.message || e2) + '. Periksa di Honor Ujian (hapus sesi berawalan "Pengawas" yang tersisa).', true, 9000);
+      if (typeof allUjian !== 'undefined') { allUjian = allUjian.filter(x => !(x.key in u2)); baruLokal.forEach(u => allUjian.push(u)); }
+      aujRenderSemua();
+    });
   });
 }
 
