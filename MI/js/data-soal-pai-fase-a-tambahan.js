@@ -127,7 +127,6 @@
       U("L2", "Tuliskan arti dari: نَهْرٌ, بَحْرٌ, dan شَمْسٌ!", "sungai; laut; matahari. Skor sebanding jumlah arti yang benar.")
     ],
     "ba-A-10": [
-      I("L1", "Arti \"الْقِرَاءَةُ\" adalah ....", "membaca")
     ],
     /* ---------- Fikih ---------- */
     "fikih-A-1": [

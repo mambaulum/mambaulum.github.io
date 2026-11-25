@@ -623,9 +623,6 @@
       P('L1', 'Arti "أُرِيدُ أَنْ أَكُونَ طَبِيبًا" adalah ...', 'Aku ingin menjadi dokter', 'Aku sedang bertemu dokter', 'Ayahku seorang dokter', 'Aku sakit dan pergi ke dokter'),
       P('L1', 'Arti "مَاذَا تُرِيدُ أَنْ تَكُونَ؟" adalah ...', 'Kamu ingin menjadi apa?', 'Apa yang kamu makan?', 'Kamu tinggal di mana?', 'Siapa temanmu?'),
       I('L1', 'Arti "أُرِيدُ" adalah ....', 'aku ingin'),
-      P('L1', 'Arti "طَبِيبٌ" adalah ...', 'dokter', 'guru', 'pilot', 'insinyur'),
-      P('L1', 'Arti "مُدَرِّسٌ" adalah ...', 'guru', 'pilot', 'insinyur', 'polisi'),
-      P('L1', 'Bahasa Arab "pilot" adalah ...', 'طَيَّارٌ', 'مُهَنْدِسٌ', 'شُرْطِيٌّ', 'تَاجِرٌ'),
       I('L1', 'Arti "مُهَنْدِسٌ" adalah ....', 'insinyur')
     ],
     'ba-B-10': [
@@ -856,7 +853,6 @@
       I("L1", "Surah Al-Fatihah terletak pada urutan ... dalam mushaf Al-Qur'an.", "pertama"),
       P("L1", "Surah An-Nas terdiri dari ... ayat.", "enam", "empat", "lima", "tujuh"),
       P("L1", "An-Nas artinya ...", "manusia", "fajar", "gajah", "kebersihan"),
-      P("L1", "Surah Al-Ikhlas terdiri dari ... ayat.", "empat", "tiga", "lima", "enam"),
       P("L1", "Surah Al-Falaq terdiri dari ... ayat.", "lima", "empat", "enam", "tujuh"),
       P("L1", "Al-Falaq artinya ...", "waktu subuh (fajar)", "manusia", "gajah", "kebaikan"),
       I("L1", "Surah terakhir dalam mushaf Al-Qur'an adalah surah ....", "An-Nas"),
@@ -1251,14 +1247,12 @@
     "ba-A-5": [
       P("L1", "Arti “هوايتي” adalah ...", "hobiku (kegemaranku)", "namaku", "kelasku", "rumahku"),
       P("L1", "Arti “القراءة” adalah ...", "membaca", "menulis", "berenang", "menggambar"),
-      P("L1", "Bahasa Arab “berenang” adalah ...", "السباحة", "القراءة", "الكتابة", "الرسم"),
       P("L1", "Bahasa Arab “menggambar” adalah ...", "الرسم", "السباحة", "القراءة", "الكتابة"),
       I("L1", "Arti “الكتابة” adalah ....", "menulis")
     ],
     // Nama-nama buah
     "ba-A-6": [
       P("L1", "Arti “تفاح” adalah ...", "apel", "pisang", "jeruk", "anggur"),
-      P("L1", "Bahasa Arab “pisang” adalah ...", "موز", "تفاح", "عنب", "برتقال"),
       P("L1", "Bahasa Arab “jeruk” adalah ...", "برتقال", "موز", "تفاح", "عنب"),
       P("L1", "Arti “بطيخ” adalah ...", "semangka", "mangga", "apel", "pisang"),
       I("L1", "Arti “عنب” adalah ....", "anggur")
@@ -1266,7 +1260,6 @@
     // Warna-warna
     "ba-A-7": [
       P("L1", "Arti “أحمر” adalah ...", "merah", "biru", "hijau", "kuning"),
-      P("L1", "Bahasa Arab “hijau” adalah ...", "أخضر", "أحمر", "أزرق", "أصفر"),
       P("L1", "Bahasa Arab “kuning” adalah ...", "أصفر", "أخضر", "أبيض", "أسود"),
       P("L1", "Lawan warna “أبيض” adalah ...", "أسود", "أحمر", "أزرق", "أخضر"),
       I("L1", "Arti “أزرق” adalah ....", "biru")
@@ -1275,14 +1268,12 @@
     "ba-A-8": [
       P("L1", "Arti “سيارة” adalah ...", "mobil", "sepeda", "pesawat", "kapal"),
       P("L1", "Bahasa Arab “kapal” adalah ...", "سفينة", "طائرة", "قطار", "سيارة"),
-      P("L1", "Bahasa Arab “pesawat” adalah ...", "طائرة", "سفينة", "دراجة", "قطار"),
       P("L1", "Alat transportasi yang berjalan di atas rel adalah ...", "قطار", "سفينة", "طائرة", "دراجة"),
       I("L1", "Arti “دراجة” adalah ....", "sepeda")
     ],
     // Pemandangan alam
     "ba-A-9": [
       P("L1", "Arti “جبل” adalah ...", "gunung", "laut", "sungai", "pohon"),
-      P("L1", "Bahasa Arab “laut” adalah ...", "بحر", "جبل", "نهر", "شجرة"),
       P("L1", "Bahasa Arab “matahari” adalah ...", "شمس", "قمر", "سماء", "نهر"),
       P("L1", "Bahasa Arab “sungai” adalah ...", "نهر", "بحر", "جبل", "شمس"),
       I("L1", "Arti “سماء” adalah ....", "langit")
@@ -1301,14 +1292,12 @@
     "ba-B-1": [
       P("L1", "Arti “الرياضيات” adalah ...", "matematika", "bahasa Arab", "olahraga", "ilmu pengetahuan alam"),
       P("L1", "Arti “اللغة العربية” adalah ...", "bahasa Arab", "bahasa Inggris", "bahasa Indonesia", "matematika"),
-      P("L1", "Bahasa Arab “ilmu pengetahuan alam (sains)” adalah ...", "العلوم", "الرياضيات", "اللغة العربية", "الرسم"),
       P("L2", "Arti kalimat “ما درسك اليوم؟” adalah ...", "Apa pelajaranmu hari ini?", "Siapa namamu?", "Di mana rumahmu?", "Jam berapa sekarang?"),
       I("L1", "Arti “اليوم” adalah ....", "hari ini")
     ],
     // Nama-nama binatang
     "ba-B-2": [
       P("L1", "Arti “أسد” adalah ...", "singa", "gajah", "kuda", "unta"),
-      P("L1", "Bahasa Arab “gajah” adalah ...", "فيل", "أسد", "حصان", "جمل"),
       P("L1", "Bahasa Arab “ikan” adalah ...", "سمكة", "عصفور", "بقرة", "دجاجة"),
       P("L2", "Arti kalimat “هذا حصان” adalah ...", "Ini kuda", "Itu kuda", "Ini sapi", "Ini unta"),
       I("L1", "Arti “عصفور” adalah ....", "burung")
@@ -1316,7 +1305,6 @@
     // Penyakit
     "ba-B-3": [
       P("L1", "Arti “صداع” adalah ...", "sakit kepala", "sakit gigi", "demam", "batuk"),
-      P("L1", "Bahasa Arab “demam” adalah ...", "حمى", "صداع", "سعال", "زكام"),
       P("L1", "Arti “طبيب” adalah ...", "dokter", "guru", "pilot", "polisi"),
       P("L2", "Arti kalimat “أنا مريض” adalah ...", "Saya sakit", "Saya sehat", "Saya lapar", "Saya haus"),
       I("L1", "Arti “دواء” adalah ....", "obat")
@@ -1340,8 +1328,6 @@
     // Taman
     "ba-B-6": [
       P("L1", "Arti “الحديقة” adalah ...", "taman", "kantin", "kelas", "perpustakaan"),
-      P("L1", "Bahasa Arab “bunga” adalah ...", "زهرة", "شجرة", "عشب", "فراشة"),
-      P("L1", "Bahasa Arab “pohon” adalah ...", "شجرة", "زهرة", "فراشة", "مقعد"),
       P("L2", "Arti kalimat “في الحديقة أزهار” adalah ...", "Di taman ada bunga-bunga", "Di taman ada pohon besar", "Di rumah ada bunga", "Di kantin ada bunga"),
       I("L1", "Arti “فراشة” adalah ....", "kupu-kupu")
     ],
@@ -1356,7 +1342,6 @@
     // Profesi
     "ba-B-8": [
       P("L1", "Arti “فلاح” adalah ...", "petani", "pedagang", "guru", "sopir"),
-      P("L1", "Bahasa Arab “polisi” adalah ...", "شرطي", "طيار", "تاجر", "سائق"),
       P("L1", "Bahasa Arab “pilot” adalah ...", "طيار", "شرطي", "فلاح", "معلم"),
       P("L2", "Arti kalimat “أبي تاجر” adalah ...", "Ayahku pedagang", "Ayahku guru", "Ibuku dokter", "Kakakku petani"),
       I("L1", "Arti “سائق” adalah ....", "sopir")
@@ -1373,7 +1358,6 @@
     "ba-B-10": [
       P("L1", "Arti “نافذة” adalah ...", "jendela", "pintu", "lampu", "kursi"),
       P("L1", "Bahasa Arab “pintu” adalah ...", "باب", "نافذة", "سرير", "طاولة"),
-      P("L1", "Bahasa Arab “tempat tidur” adalah ...", "سرير", "باب", "كرسي", "مصباح"),
       P("L2", "Arti kalimat “الكتاب على الطاولة” adalah ...", "Buku itu di atas meja", "Buku itu di bawah meja", "Buku itu di dalam tas", "Buku itu di samping kursi"),
       I("L1", "Arti “ثلاجة” adalah ....", "kulkas (lemari es)")
     ],
@@ -1406,8 +1390,6 @@
     // Anggota tubuh
     "ba-C-1": [
       P("L1", "Arti “عين” adalah ...", "mata", "telinga", "hidung", "mulut"),
-      P("L1", "Bahasa Arab “telinga” adalah ...", "أذن", "عين", "أنف", "فم"),
-      P("L1", "Bahasa Arab “tangan” adalah ...", "يد", "رأس", "فم", "أنف"),
       P("L2", "Arti kalimat “أسمع بالأذن” adalah ...", "Saya mendengar dengan telinga", "Saya melihat dengan mata", "Saya berbicara dengan mulut", "Saya mencium dengan hidung"),
       I("L1", "Arti “فم” adalah ....", "mulut"),
       U("L2", "Tuliskan lima nama anggota tubuh dalam bahasa Arab beserta artinya!", "Lima pasangan benar, mis. رأس (kepala), عين (mata), أذن (telinga), أنف (hidung), يد (tangan). Skor 20 per pasangan yang benar.")
@@ -1424,7 +1406,6 @@
     "ba-C-3": [
       P("L1", "Arti “غرفة الضيوف” adalah ...", "ruang tamu", "ruang belajar", "kamar tidur", "dapur"),
       P("L1", "Arti “غرفة المذاكرة” adalah ...", "ruang belajar", "ruang tamu", "kamar mandi", "ruang makan"),
-      P("L1", "Bahasa Arab “sofa” adalah ...", "أريكة", "خزانة", "مكتب", "مصباح"),
       P("L2", "Arti kalimat “في غرفة الضيوف أريكة” adalah ...", "Di ruang tamu ada sofa", "Di ruang belajar ada sofa", "Di kamar tidur ada lemari", "Di dapur ada meja"),
       I("L1", "Arti “خزانة” adalah ....", "lemari")
     ],
@@ -1840,7 +1821,6 @@
     ],
     // ===================== AL-QUR'AN HADIS (TP hafalan/hadis yang masih kurang dari 5 soal) =====================
     "aqh-A-5": [
-      P("L1", "Surah Al-Fatihah terdiri dari ... ayat.", "tujuh", "lima", "enam", "delapan")
     ],
     "aqh-A-6": [
       P("L1", "Contoh menerapkan hadis tentang kebersihan sebelum salat adalah ...", "berwudu dengan air yang bersih", "berwudu dengan air kotor", "langsung salat tanpa bersuci", "menunda wudu sampai nanti")

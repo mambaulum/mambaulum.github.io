@@ -7,6 +7,8 @@
    - "Isi dari bank soal": soal diambil dari bank draf (js/data-soal-semua.js: PAI, Bahasa Arab, dan mapel umum) menurut TP dan bentuk soal; opsi PG diacak
      dan kunci mengikuti. Soal dari bank berstatus DRAF sampai guru mencentang "Sudah saya periksa".
    - Soal tanpa bank (mis. soal bacaan/hafalan di luar bank, atau bila slot melebihi jumlah soal bank) diketik guru sendiri pada slot yang kosong.
+   - Gambar soal otomatis: teks soal boleh memuat penanda [[g:tipe;param;...]] (jam, pecahan, diagram, bangun, ikon, wajah, dll.);
+     gambar SVG dibuat kode saat soal ditampilkan atau dicetak (tanpa berkas gambar). Lihat blok "Gambar soal otomatis" di bawah.
    Bergantung pada js/perangkat-rpe.js; membaca data dari js/perangkat-kisi.js. Diekspos: soalBuka(id, rec, sem, ta), soalUtil.
 
    Data Firebase (baru):
@@ -23,6 +25,270 @@
   const HURUF = ['A', 'B', 'C', 'D'];
   const R = () => window.rpeUtil;
   const esc = s => R().esc(s);
+
+  // ---------- Gambar soal otomatis (SVG dibuat kode, tanpa berkas gambar) ----------
+  // Penanda di teks soal: [[g:tipe;param;param]] (tanpa tanda ] atau ; di dalam param). Contoh: [[g:jam;3;30]], [[g:pecahan;3;4]], [[g:ikon;apel;3]].
+  // Tipe: jam, pecahan, diagram, piktogram, bangun, ubin, kubus, penggaris, petak, pola, timbangan, garisbil, mataangin, ikon, wajah, warna,
+  // sudut, uang, termometer, rangkaian, magnet, daur, rantai, tumbuhan, ruang, jaring, bulan.
+  // Gambar dihitung dari parameter yang sama dengan soalnya, jadi isi gambar dan kunci jawaban tidak bisa berbeda.
+  const GBR_RE = /\[\[g:([a-z]+)((?:;[^\];]*)*)\]\]/g;
+  const gx = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const gn = (v, d, a, b) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? Math.min(b, Math.max(a, n)) : d; };
+  const GK = '#222';
+  const GWARNA = { merah: '#e53935', kuning: '#fdd835', biru: '#1e88e5', hijau: '#43a047', jingga: '#fb8c00', ungu: '#8e24aa', cokelat: '#6d4c41', putih: '#ffffff', hitam: '#212121', abu: '#9e9e9e', merahmuda: '#f48fb1' };
+  const gsvg = (w, h, isi) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="max-width:100%;height:auto" font-family="Arial,Helvetica,sans-serif" font-size="12" role="img" aria-label="Gambar soal">${isi}</svg>`;
+  const gt = (x, y, s, o) => `<text x="${x}" y="${y}" text-anchor="${(o && o.a) || 'middle'}" font-size="${(o && o.s) || 12}"${o && o.b ? ' font-weight="700"' : ''}${o && o.f ? ` fill="${o.f}"` : ''}>${gx(s)}</text>`;
+  const gp = (pts, fill, sw) => `<polygon points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="${fill || '#fff'}" stroke="${GK}" stroke-width="${sw || 2}" stroke-linejoin="round"/>`;
+  const gl = (x1, y1, x2, y2, sw, c) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c || GK}" stroke-width="${sw || 1.5}" stroke-linecap="round"/>`;
+  const gr = (x, y, w, h, fill, sw, ex) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill || '#fff'}" stroke="${GK}" stroke-width="${sw || 1.5}"${ex || ''}/>`;
+  const gc = (x, y, r, fill, sw) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill || '#fff'}" stroke="${GK}" stroke-width="${sw || 1.5}"/>`;
+  const gbintang = (cx, cy, R, fill) => { const pts = []; for (let i = 0; i < 10; i++) { const r = i % 2 ? R * 0.45 : R, a = i * Math.PI / 5; pts.push([cx + r * Math.sin(a), cy - r * Math.cos(a)]); } return gp(pts, fill || '#fdd835', 1.5); };
+  const gpoli = (cx, cy, R, n, rot) => { const pts = []; for (let i = 0; i < n; i++) { const a = (rot || 0) + i * 2 * Math.PI / n; pts.push([cx + R * Math.sin(a), cy - R * Math.cos(a)]); } return pts; };
+  const gsudut = (x, y, dx, dy) => `<path d="M${x + dx * 9},${y} L${x + dx * 9},${y + dy * 9} L${x},${y + dy * 9}" fill="none" stroke="${GK}" stroke-width="1.2"/>`;
+
+  // Ikon sederhana (kotak 40x40) untuk kelas rendah.
+  const GIKON = {
+    apel: `${gc(20, 24, 12, '#e53935')}${gl(20, 12, 22, 6, 2)}<ellipse cx="27" cy="9" rx="5" ry="3" fill="#43a047" stroke="${GK}" stroke-width="1"/>`,
+    jeruk: `${gc(20, 22, 13, '#fb8c00')}<ellipse cx="22" cy="8" rx="5" ry="3" fill="#43a047" stroke="${GK}" stroke-width="1"/>`,
+    pisang: `<path d="M6,12 Q18,40 35,16 Q22,30 6,12 Z" fill="#fdd835" stroke="${GK}" stroke-width="1.5" stroke-linejoin="round"/>`,
+    ikan: `<ellipse cx="17" cy="20" rx="13" ry="8" fill="#64b5f6" stroke="${GK}" stroke-width="1.5"/>${gp([[29, 20], [38, 11], [38, 29]], '#64b5f6', 1.5)}${gc(10, 18, 1.8, '#222', 1)}`,
+    kucing: `${gp([[8, 14], [10, 3], [18, 10]], '#ffcc80', 1.5)}${gp([[32, 14], [30, 3], [22, 10]], '#ffcc80', 1.5)}${gc(20, 23, 13, '#ffcc80')}${gc(15, 21, 1.8, '#222', 1)}${gc(25, 21, 1.8, '#222', 1)}${gp([[18, 26], [22, 26], [20, 29]], '#f48fb1', 1)}`,
+    ayam: `<ellipse cx="18" cy="26" rx="13" ry="10" fill="#fff59d" stroke="${GK}" stroke-width="1.5"/>${gc(28, 13, 7, '#fff59d')}${gp([[34, 13], [39, 15], [34, 17]], '#fb8c00', 1)}${gc(30, 11, 1.5, '#222', 1)}${gc(27, 6, 3, '#e53935', 1)}${gl(15, 36, 15, 40, 1.5)}${gl(22, 36, 22, 40, 1.5)}`,
+    bunga: `${gl(20, 20, 20, 38, 2.5, '#43a047')}${[0, 1, 2, 3, 4].map(i => { const a = i * 2 * Math.PI / 5; return gc(20 + 9 * Math.sin(a), 15 - 9 * Math.cos(a), 5.5, '#f48fb1', 1.2); }).join('')}${gc(20, 15, 5, '#fdd835', 1.2)}`,
+    pohon: `${gr(17, 24, 6, 14, '#8d6e63', 1.5)}${gc(20, 16, 13, '#66bb6a')}`,
+    rumah: `${gr(7, 18, 26, 20, '#fff3c4', 1.5)}${gp([[3, 19], [20, 4], [37, 19]], '#e57373', 1.5)}${gr(16, 26, 8, 12, '#8d6e63', 1.2)}`,
+    bintang: gbintang(20, 21, 17, '#fdd835'),
+    hati: `<path d="M20,35 C4,24 4,10 13,8 C17,7 20,10 20,13 C20,10 23,7 27,8 C36,10 36,24 20,35 Z" fill="#e53935" stroke="${GK}" stroke-width="1.5" stroke-linejoin="round"/>`,
+    matahari: `${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4; return gl((20 + 12 * Math.sin(a)).toFixed(1), (20 - 12 * Math.cos(a)).toFixed(1), (20 + 18 * Math.sin(a)).toFixed(1), (20 - 18 * Math.cos(a)).toFixed(1), 2, '#fb8c00'); }).join('')}${gc(20, 20, 9, '#fdd835')}`,
+    bola: `${gc(20, 20, 16, '#fff')}${gp(gpoli(20, 20, 6, 5, 0), '#444', 1)}${[0, 1, 2, 3, 4].map(i => { const a = i * 2 * Math.PI / 5; return gl((20 + 6 * Math.sin(a)).toFixed(1), (20 - 6 * Math.cos(a)).toFixed(1), (20 + 15 * Math.sin(a)).toFixed(1), (20 - 15 * Math.cos(a)).toFixed(1), 1.2); }).join('')}`,
+    buku: `${gr(6, 6, 28, 28, '#64b5f6', 1.5)}${gr(9, 9, 22, 22, '#fff', 1)}${gl(13, 15, 27, 15, 1)}${gl(13, 20, 27, 20, 1)}${gl(13, 25, 22, 25, 1)}`,
+    pensil: `${gp([[6, 30], [10, 34], [4, 36]], '#ffcc80', 1)}${gp([[10, 34], [6, 30], [28, 8], [32, 12]], '#fdd835', 1.5)}${gp([[28, 8], [32, 12], [36, 8], [32, 4]], '#f48fb1', 1.2)}`,
+    mobil: `${gp([[4, 24], [8, 14], [30, 14], [36, 24]], '#e57373', 1.5)}${gr(2, 22, 36, 9, '#e57373', 1.5)}${gc(11, 32, 4.5, '#444', 1.2)}${gc(29, 32, 4.5, '#444', 1.2)}${gr(11, 16, 7, 6, '#bbdefb', 1)}${gr(21, 16, 7, 6, '#bbdefb', 1)}`,
+    perahu: `<path d="M3,26 L37,26 L30,36 L10,36 Z" fill="#8d6e63" stroke="${GK}" stroke-width="1.5" stroke-linejoin="round"/>${gl(20, 26, 20, 4, 2)}${gp([[21, 5], [21, 23], [34, 23]], '#fff', 1.5)}`,
+    balon: `<ellipse cx="20" cy="15" rx="11" ry="13" fill="#e53935" stroke="${GK}" stroke-width="1.5"/>${gp([[17, 28], [23, 28], [20, 31]], '#e53935', 1)}${gl(20, 31, 20, 39, 1.2)}`,
+    rumput: `<path d="M8,36 Q10,22 12,10 M16,36 Q18,20 22,6 M24,36 Q26,24 30,12 M31,36 Q32,28 35,18" fill="none" stroke="#2e7d32" stroke-width="3" stroke-linecap="round"/>${gl(4, 37, 37, 37, 2, '#8d6e63')}`,
+    belalang: `<ellipse cx="18" cy="23" rx="12" ry="5" fill="#8bc34a" stroke="${GK}" stroke-width="1.5"/>${gc(31, 19, 4.5, '#8bc34a', 1.5)}${gc(32, 18, 1, '#222', 1)}<path d="M12,25 L6,12 L14,30 M18,25 L16,34 M24,25 L26,34" fill="none" stroke="${GK}" stroke-width="1.8" stroke-linecap="round"/>${gl(33, 15, 38, 8, 1.2)}`,
+    katak: `<ellipse cx="20" cy="27" rx="14" ry="9" fill="#66bb6a" stroke="${GK}" stroke-width="1.5"/>${gc(12, 16, 5.5, '#fff', 1.5)}${gc(28, 16, 5.5, '#fff', 1.5)}${gc(12, 16, 2, '#222', 1)}${gc(28, 16, 2, '#222', 1)}<path d="M12,28 Q20,34 28,28" fill="none" stroke="${GK}" stroke-width="1.5"/>`,
+    ular: `<path d="M5,30 Q12,8 20,22 T35,12" fill="none" stroke="#7cb342" stroke-width="7" stroke-linecap="round"/>${gc(35, 12, 5, '#7cb342', 1.5)}${gc(36, 10.5, 1, '#222', 1)}${gl(39, 12, 40, 12, 1.2, '#e53935')}`,
+    elang: `${gp([[20, 17], [2, 8], [7, 24], [20, 25]], '#8d6e63', 1.5)}${gp([[20, 17], [38, 8], [33, 24], [20, 25]], '#8d6e63', 1.5)}<ellipse cx="20" cy="26" rx="6" ry="9" fill="#a1887f" stroke="${GK}" stroke-width="1.5"/>${gc(20, 14, 5, '#fff', 1.5)}${gp([[18, 15], [22, 15], [20, 20]], '#fdd835', 1)}${gc(18, 13, 1, '#222', 1)}${gc(22, 13, 1, '#222', 1)}`,
+    tikus: `<ellipse cx="17" cy="26" rx="12" ry="8" fill="#bdbdbd" stroke="${GK}" stroke-width="1.5"/>${gc(30, 24, 6, '#bdbdbd', 1.5)}${gc(29, 17, 3, '#f48fb1', 1.2)}${gc(33, 17, 3, '#f48fb1', 1.2)}${gc(33, 24, 1, '#222', 1)}<path d="M5,28 Q-2,20 3,14" fill="none" stroke="${GK}" stroke-width="1.5"/>`,
+    telurkupu: `<ellipse cx="20" cy="26" rx="17" ry="8" fill="#81c784" stroke="${GK}" stroke-width="1.5"/>${gc(12, 21, 3, '#fff', 1)}${gc(20, 19, 3, '#fff', 1)}${gc(28, 21, 3, '#fff', 1)}${gc(16, 25, 3, '#fff', 1)}${gc(25, 25, 3, '#fff', 1)}`,
+    ulat: `${[8, 15, 22, 29].map(x => gc(x, 24, 5.5, '#9ccc65', 1.5)).join('')}${gc(35, 22, 5.5, '#fb8c00', 1.5)}${gc(36, 20.5, 1, '#222', 1)}${[8, 15, 22, 29].map(x => gl(x, 29, x, 33, 1.5)).join('')}`,
+    kepompong: `${gl(20, 3, 20, 10, 1.5)}<ellipse cx="20" cy="24" rx="8" ry="14" fill="#a1887f" stroke="${GK}" stroke-width="1.5"/>${gl(13, 20, 27, 20, 1)}${gl(12, 27, 28, 27, 1)}`,
+    kupu: `<ellipse cx="11" cy="14" rx="9" ry="8" fill="#ffb74d" stroke="${GK}" stroke-width="1.5"/><ellipse cx="29" cy="14" rx="9" ry="8" fill="#ffb74d" stroke="${GK}" stroke-width="1.5"/><ellipse cx="13" cy="27" rx="7" ry="6" fill="#ffd54f" stroke="${GK}" stroke-width="1.5"/><ellipse cx="27" cy="27" rx="7" ry="6" fill="#ffd54f" stroke="${GK}" stroke-width="1.5"/><rect x="18" y="8" width="4" height="26" rx="2" fill="#5d4037"/>${gl(19, 8, 15, 2, 1.2)}${gl(21, 8, 25, 2, 1.2)}`,
+    telurkatak: `${[[12, 14], [24, 12], [30, 22], [18, 24], [10, 28], [26, 32]].map(z => gc(z[0], z[1], 6, 'rgba(200,230,201,0.8)', 1.2) + gc(z[0], z[1], 2, '#263238', 1)).join('')}`,
+    berudu: `<ellipse cx="14" cy="20" rx="9" ry="7" fill="#37474f" stroke="${GK}" stroke-width="1.5"/><path d="M22,20 Q30,10 38,20 Q30,28 22,20 Z" fill="#78909c" stroke="${GK}" stroke-width="1.2"/>${gc(10, 18, 1.3, '#fff', 0.5)}`,
+    katakmuda: `<ellipse cx="18" cy="22" rx="10" ry="7" fill="#66bb6a" stroke="${GK}" stroke-width="1.5"/>${gc(12, 15, 3, '#fff', 1.2)}${gc(22, 15, 3, '#fff', 1.2)}<path d="M26,24 Q34,24 36,30 M10,28 L4,34 M20,29 L22,35" fill="none" stroke="#2e7d32" stroke-width="2.5" stroke-linecap="round"/>`
+  };
+  const gikon = (nama, x, y, k) => GIKON[nama] ? `<g transform="translate(${x},${y}) scale(${k || 1})">${GIKON[nama]}</g>` : '';
+
+  const GBR = {
+    jam(p) {
+      const h = gn(p[0], 12, 0, 23), m = gn(p[1], 0, 0, 59), cx = 80, cy = 80; let s = gc(cx, cy, 72, '#fff', 3);
+      for (let i = 1; i <= 12; i++) { const a = i * Math.PI / 6; s += gt((cx + 58 * Math.sin(a)).toFixed(1), (cy - 58 * Math.cos(a) + 4.5).toFixed(1), String(i), { s: 14, b: 1 }); }
+      for (let i = 0; i < 60; i++) { const a = i * Math.PI / 30, r1 = i % 5 ? 67 : 64; s += gl((cx + r1 * Math.sin(a)).toFixed(1), (cy - r1 * Math.cos(a)).toFixed(1), (cx + 70 * Math.sin(a)).toFixed(1), (cy - 70 * Math.cos(a)).toFixed(1), i % 5 ? 0.8 : 1.6); }
+      const ah = ((h % 12) * 30 + m * 0.5) * Math.PI / 180, am = m * 6 * Math.PI / 180;
+      s += gl(cx, cy, (cx + 36 * Math.sin(ah)).toFixed(1), (cy - 36 * Math.cos(ah)).toFixed(1), 5) + gl(cx, cy, (cx + 54 * Math.sin(am)).toFixed(1), (cy - 54 * Math.cos(am)).toFixed(1), 3) + gc(cx, cy, 4, GK, 1);
+      return gsvg(160, 160, s);
+    },
+    pecahan(p) {
+      const d = Math.round(gn(p[1], 2, 1, 12)), n = Math.round(gn(p[0], 1, 0, d)), bt = p[2] === 'batang', W = 200;
+      if (bt) { let s = ''; for (let i = 0; i < d; i++) s += gr(5 + i * (W / d), 10, W / d, 40, i < n ? '#90caf9' : '#fff', 2); return gsvg(W + 10, 60, s); }
+      const cx = 70, cy = 70, r = 62; let s = '';
+      if (d === 1) s = gc(cx, cy, r, n ? '#90caf9' : '#fff', 2);
+      else for (let i = 0; i < d; i++) { const a1 = i * 2 * Math.PI / d, a2 = (i + 1) * 2 * Math.PI / d; s += `<path d="M${cx},${cy} L${(cx + r * Math.sin(a1)).toFixed(1)},${(cy - r * Math.cos(a1)).toFixed(1)} A${r},${r} 0 ${a2 - a1 > Math.PI ? 1 : 0} 1 ${(cx + r * Math.sin(a2)).toFixed(1)},${(cy - r * Math.cos(a2)).toFixed(1)} Z" fill="${i < n ? '#90caf9' : '#fff'}" stroke="${GK}" stroke-width="2" stroke-linejoin="round"/>`; }
+      return gsvg(140, 140, s);
+    },
+    diagram(p) {
+      const it = p.map(z => { const a = z.split(':'); return [a[0] || '', gn(a[1], 0, 0, 99)]; }).slice(0, 6); if (!it.length) return '';
+      const mx = Math.max.apply(null, it.map(z => z[1])), st = mx <= 10 ? 1 : mx <= 20 ? 2 : mx <= 50 ? 5 : 10, top = Math.ceil(mx / st) * st || st, W = 50 + it.length * 48, H = 170, y0 = 135, ph = 110;
+      let s = '';
+      for (let v = 0; v <= top; v += st) { const y = y0 - v / top * ph; s += gl(36, y, W - 6, y, 0.7, '#bbb') + gt(30, y + 4, String(v), { a: 'end', s: 10 }); }
+      s += gl(36, y0 - ph, 36, y0, 1.5) + gl(36, y0, W - 6, y0, 1.5);
+      it.forEach((z, i) => { const h = z[1] / top * ph, x = 46 + i * 48; s += gr(x, y0 - h, 32, h, '#90caf9', 1.5) + gt(x + 16, y0 + 15, z[0].slice(0, 7), { s: 10 }); });
+      return gsvg(W, H, s);
+    },
+    piktogram(p) {
+      const ket = p.filter(z => z[0] === '='), it = p.filter(z => z[0] !== '=').slice(0, 6).map(z => { const a = z.split(':'); return [a[0] || '', Math.round(gn(a[1], 0, 0, 12))]; }); if (!it.length) return '';
+      let s = '', y = 16;
+      it.forEach(z => { s += gt(4, y + 5, z[0].slice(0, 8), { a: 'start', s: 12 }); for (let i = 0; i < z[1]; i++) s += gc(88 + i * 20, y, 8, '#ffe082', 1.2) + gc(85 + i * 20, y - 2, 1, GK, 1) + gc(91 + i * 20, y - 2, 1, GK, 1) + `<path d="M${84 + i * 20},${y + 2} Q${88 + i * 20},${y + 6} ${92 + i * 20},${y + 2}" fill="none" stroke="${GK}" stroke-width="1"/>`; y += 26; });
+      if (ket.length) s += gc(8, y + 2, 7, '#ffe082', 1.2) + gt(20, y + 6, '= ' + ket[0].slice(1).trim(), { a: 'start', s: 11 });
+      return gsvg(88 + 12 * 20 + 6, y + 14, s);
+    },
+    bangun(p) {
+      const n = p[0], a = p[1], b = p[2], T = (x, y, s) => s ? gt(x, y, s, { s: 12, b: 1 }) : ''; let s;
+      if (n === 'persegi') s = gr(35, 12, 90, 90, '#fff3c4', 2) + gsudut(35, 12, 1, 1) + gsudut(125, 12, -1, 1) + gsudut(35, 102, 1, -1) + gsudut(125, 102, -1, -1) + T(80, 118, a);
+      else if (n === 'persegipanjang') s = gr(15, 14, 130, 80, '#fff3c4', 2) + gsudut(15, 14, 1, 1) + gsudut(145, 14, -1, 1) + gsudut(15, 94, 1, -1) + gsudut(145, 94, -1, -1) + T(80, 110, a) + (b ? `<text x="152" y="58" font-size="12" font-weight="700">${gx(b)}</text>` : '');
+      else if (n === 'siku') s = gp([[25, 14], [25, 98], [140, 98]], '#fff3c4', 2) + gsudut(25, 98, 1, -1) + T(82, 113, a) + (b ? `<text x="6" y="60" font-size="12" font-weight="700">${gx(b)}</text>` : '');
+      else if (n === 'segitiga') s = gp([[80, 12], [20, 98], [140, 98]], '#fff3c4', 2) + T(80, 113, a);
+      else if (n === 'lingkaran') s = gc(80, 58, 46, '#fff3c4', 2) + (a ? gl(80, 58, 126, 58, 2) + gc(80, 58, 2.5, GK, 1) + T(103, 52, a) : '');
+      else if (n === 'segilima') s = gp(gpoli(80, 60, 50, 5, 0), '#fff3c4', 2);
+      else if (n === 'segienam') s = gp(gpoli(80, 58, 50, 6, Math.PI / 6), '#fff3c4', 2);
+      else if (n === 'belahketupat') s = gp([[80, 8], [135, 58], [80, 108], [25, 58]], '#fff3c4', 2);
+      else if (n === 'jajargenjang') s = gp([[45, 18], [150, 18], [115, 98], [10, 98]], '#fff3c4', 2);
+      else if (n === 'trapesium') s = gp([[55, 18], [105, 18], [150, 98], [10, 98]], '#fff3c4', 2);
+      else if (n === 'layang') s = gp([[80, 6], [120, 40], [80, 112], [40, 40]], '#fff3c4', 2);
+      else return '';
+      return gsvg(n === 'persegipanjang' ? 196 : 170, 126, s);
+    },
+    ubin(p) {
+      const r = Math.round(gn(p[0], 3, 1, 10)), c = Math.round(gn(p[1], 4, 1, 12)), k = 24; let s = '';
+      for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) s += gr(5 + j * k, 5 + i * k, k, k, '#bbdefb', 1.3);
+      return gsvg(c * k + 10, r * k + 10, s);
+    },
+    kubus(p) {
+      const a = Math.round(gn(p[0], 2, 1, 6)), l = Math.round(gn(p[1], 2, 1, 6)), t = Math.round(gn(p[2], 2, 1, 6)), sz = 22, ax = sz * 0.866, by = sz * 0.5, h = sz, cell = [];
+      for (let k = 0; k < t; k++) for (let i = 0; i < a; i++) for (let j = 0; j < l; j++) cell.push([i, j, k]);
+      cell.sort((u, v) => (u[0] + u[1]) - (v[0] + v[1]) || u[2] - v[2]);
+      const px = c => (c[0] - c[1]) * ax, py = c => (c[0] + c[1]) * by - c[2] * h;
+      const minX = -(l - 1) * ax - ax, maxX = (a - 1) * ax + ax, minY = -(t - 1) * h - h - 2 * by + 0, maxY = (a - 1 + l - 1) * by, ox = 6 - minX, oy = 6 - minY; let s = '';
+      cell.forEach(c => { const X = px(c) + ox, Y = py(c) + oy;
+        s += gp([[X, Y], [X + ax, Y - by], [X + ax, Y - by - h], [X, Y - h]], '#90caf9', 1.2) + gp([[X, Y], [X - ax, Y - by], [X - ax, Y - by - h], [X, Y - h]], '#64b5f6', 1.2) + gp([[X, Y - h], [X + ax, Y - by - h], [X, Y - 2 * by - h], [X - ax, Y - by - h]], '#bbdefb', 1.2); });
+      return gsvg(Math.ceil(maxX - minX + 12), Math.ceil(maxY - minY + 12), s);
+    },
+    penggaris(p) {
+      const len = gn(p[0], 5, 0.5, 15), k = 18, x0 = 22; let s = gr(8, 52, 15 * k + 28, 36, '#fff8e1', 1.5) + `<rect x="${x0}" y="14" width="${(len * k).toFixed(1)}" height="22" fill="#ffe082" stroke="${GK}" stroke-width="1.5"/>${gp([[x0 + len * k, 14], [x0 + len * k + 10, 25], [x0 + len * k, 36]], '#f8bbd0', 1.5)}`;
+      for (let i = 0; i <= 30; i++) { const x = x0 + i * k / 2, big = i % 2 === 0; s += gl(x, 52, x, big ? 68 : 61, big ? 1.4 : 1); if (big && i / 2 <= 15) s += gt(x, 82, String(i / 2), { s: 10 }); }
+      return gsvg(15 * k + 44, 96, s + gt(x0 + 15 * k + 14, 86, 'cm', { s: 9, a: 'end' }));
+    },
+    petak(p) {
+      const kol = Math.round(gn(p[0], 4, 2, 8)), bar = Math.round(gn(p[1], 4, 2, 8)), k = 38; let s = '';
+      for (let r = 0; r < bar; r++) for (let c = 0; c < kol; c++) s += gr(26 + c * k, 6 + r * k, k, k, '#fff', 1.2);
+      for (let c = 0; c < kol; c++) s += gt(26 + c * k + k / 2, 6 + bar * k + 16, String.fromCharCode(65 + c), { s: 12, b: 1 });
+      for (let r = 0; r < bar; r++) s += gt(14, 6 + (bar - 1 - r) * k + k / 2 + 4, String(r + 1), { s: 12, b: 1 });
+      p.slice(2).forEach(z => { const m = /^([A-H])(\d+):(.*)$/.exec(z); if (!m) return; const c = m[1].charCodeAt(0) - 65, r = parseInt(m[2], 10) - 1; if (c >= kol || r < 0 || r >= bar) return; s += gr(26 + c * k + 2, 6 + (bar - 1 - r) * k + 2, k - 4, k - 4, '#ffe082', 1.2) + gt(26 + c * k + k / 2, 6 + (bar - 1 - r) * k + k / 2 + 4, m[3].slice(0, 6), { s: 9 }); });
+      return gsvg(26 + kol * k + 8, 6 + bar * k + 24, s);
+    },
+    pola(p) {
+      const it = p.slice(0, 10), k = 38; let s = '';
+      it.forEach((z, i) => { const x = 4 + i * k, cx = x + k / 2 - 2, cy = 22;
+        if (z === 'k') s += gr(cx - 12, cy - 12, 24, 24, '#ffcc80', 1.5);
+        else if (z === 'o') s += gc(cx, cy, 13, '#90caf9', 1.5);
+        else if (z === 't') s += gp([[cx, cy - 14], [cx - 14, cy + 11], [cx + 14, cy + 11]], '#a5d6a7', 1.5);
+        else if (z === 'b') s += gbintang(cx, cy + 1, 15, '#fdd835');
+        else if (z === 'h') s += gp([[cx, cy + 12], [cx - 14, cy - 2], [cx - 8, cy - 11], [cx, cy - 5], [cx + 8, cy - 11], [cx + 14, cy - 2]], '#ef9a9a', 1.5);
+        else if (z === '?') s += gr(cx - 12, cy - 12, 24, 24, '#fff', 1.5, ' stroke-dasharray="4 3"') + gt(cx, cy + 6, '?', { s: 18, b: 1 }); });
+      return gsvg(it.length * k + 8, 46, s);
+    },
+    timbangan(p) {
+      const tr = p[2], y1 = tr === 'kiri' ? 56 : tr === 'kanan' ? 32 : 44, y2 = tr === 'kiri' ? 32 : tr === 'kanan' ? 56 : 44;
+      let s = gp([[100, 150], [78, 150], [100, 52]], '#bbb', 1.5) + gp([[100, 150], [122, 150], [100, 52]], '#bbb', 1.5) + gl(100, 52, 100, 150, 3) + gl(25, y1, 175, y2, 4);
+      [[25, y1, p[0]], [175, y2, p[1]]].forEach(z => { s += gl(z[0], z[1], z[0] - 22, z[1] + 38, 1.2) + gl(z[0], z[1], z[0] + 22, z[1] + 38, 1.2) + `<path d="M${z[0] - 30},${z[1] + 38} L${z[0] + 30},${z[1] + 38} Q${z[0]},${z[1] + 56} ${z[0] - 30},${z[1] + 38} Z" fill="#fff3c4" stroke="${GK}" stroke-width="1.5"/>` + gt(z[0], z[1] + 34, String(z[2] || '').slice(0, 9), { s: 11, b: 1 }); });
+      return gsvg(200, 160, s + gc(100, 52, 5, GK, 1));
+    },
+    garisbil(p) {
+      const a = Math.round(gn(p[0], 0, -50, 99)), b = Math.round(gn(p[1], 10, a + 1, a + 20)), t = p[2] === undefined || p[2] === '' ? null : Math.round(gn(p[2], a, a, b)), nm = p[3] || '', tampil = p[4] === 'tampil', k = Math.min(30, 300 / (b - a)), x0 = 20; let s = gl(x0 - 8, 50, x0 + (b - a) * k + 8, 50, 2) + gp([[x0 + (b - a) * k + 12, 50], [x0 + (b - a) * k + 4, 46], [x0 + (b - a) * k + 4, 54]], GK, 1);
+      for (let v = a; v <= b; v++) { const x = x0 + (v - a) * k; s += gl(x, 44, x, 56, 1.5); if (!(t === v && !tampil)) s += gt(x, 72, String(v), { s: 12 }); }
+      if (t !== null) { const x = x0 + (t - a) * k; s += gc(x, 50, 5, '#e53935', 1.2) + gl(x, 44, x, 26, 1.2, '#e53935') + gt(x, 20, nm || '?', { s: 14, b: 1, f: '#e53935' }); }
+      return gsvg(Math.ceil(x0 + (b - a) * k + 30), 84, s);
+    },
+    mataangin(p) {
+      const D = { U: 0, TL: 45, T: 90, TG: 135, S: 180, BD: 225, B: 270, BL: 315 }, ar = String(p[0] || '').toUpperCase(), cx = 90, cy = 90; let s = gc(cx, cy, 62, '#fff', 2);
+      Object.keys(D).forEach(k => { const a = D[k] * Math.PI / 180, big = k.length === 1, R = big ? 76 : 70; s += gl((cx + 56 * Math.sin(a)).toFixed(1), (cy - 56 * Math.cos(a)).toFixed(1), (cx + 62 * Math.sin(a)).toFixed(1), (cy - 62 * Math.cos(a)).toFixed(1), big ? 2 : 1.2) + gt((cx + R * Math.sin(a)).toFixed(1), (cy - R * Math.cos(a) + 4).toFixed(1), k, { s: big ? 14 : 10, b: big }); });
+      if (D[ar] !== undefined) { const a = D[ar] * Math.PI / 180, ex = cx + 46 * Math.sin(a), ey = cy - 46 * Math.cos(a); s += gl(cx, cy, ex.toFixed(1), ey.toFixed(1), 4, '#e53935') + gp([[ex + 10 * Math.sin(a), ey - 10 * Math.cos(a)], [ex + 5 * Math.cos(a), ey + 5 * Math.sin(a)], [ex - 5 * Math.cos(a), ey - 5 * Math.sin(a)]], '#e53935', 1); }
+      return gsvg(180, 180, s + gc(cx, cy, 4, GK, 1));
+    },
+    ikon(p) {
+      const it = []; for (let i = 0; i + 1 < p.length && it.length < 4; i += 2) if (GIKON[p[i]]) it.push([p[i], Math.round(gn(p[i + 1], 1, 1, 12))]); if (!it.length) return '';
+      let s = '', y = 2; it.forEach(z => { for (let i = 0; i < z[1]; i++) s += gikon(z[0], 4 + i * 34, y, 0.8); y += 36; });
+      return gsvg(4 + Math.max.apply(null, it.map(z => z[1])) * 34 + 4, y + 2, s);
+    },
+    wajah(p) {
+      const e = p[0], br = '#222'; let s = gc(40, 40, 34, '#ffe082', 2.5), m = '', b = '';
+      if (e === 'senang') { m = `<path d="M24,48 Q40,64 56,48" fill="none" stroke="${br}" stroke-width="3" stroke-linecap="round"/>`; }
+      else if (e === 'sedih') { m = `<path d="M26,58 Q40,44 54,58" fill="none" stroke="${br}" stroke-width="3" stroke-linecap="round"/>`; b = `<path d="M25,26 L35,30 M55,26 L45,30" stroke="${br}" stroke-width="2.5" stroke-linecap="round"/>`; }
+      else if (e === 'marah') { m = `<path d="M27,56 Q40,48 53,56" fill="none" stroke="${br}" stroke-width="3" stroke-linecap="round"/>`; b = `<path d="M22,24 L36,31 M58,24 L44,31" stroke="${br}" stroke-width="3.5" stroke-linecap="round"/>`; s = gc(40, 40, 34, '#ef9a9a', 2.5); }
+      else if (e === 'takut') { m = `<ellipse cx="40" cy="55" rx="7" ry="5" fill="#fff" stroke="${br}" stroke-width="2.5"/>`; b = `<path d="M24,22 L35,26 M56,22 L45,26" stroke="${br}" stroke-width="2.5" stroke-linecap="round"/>`; }
+      else if (e === 'terkejut') { m = `<ellipse cx="40" cy="56" rx="6" ry="8" fill="#fff" stroke="${br}" stroke-width="2.5"/>`; b = `<path d="M23,21 Q30,16 37,21 M43,21 Q50,16 57,21" fill="none" stroke="${br}" stroke-width="2.5" stroke-linecap="round"/>`; }
+      else return '';
+      const mata = e === 'terkejut' || e === 'takut' ? gc(30, 34, 4.5, '#fff', 2) + gc(50, 34, 4.5, '#fff', 2) + gc(30, 34, 2, br, 1) + gc(50, 34, 2, br, 1) : gc(30, 36, 3, br, 1) + gc(50, 36, 3, br, 1);
+      return gsvg(80, 80, s + b + mata + m);
+    },
+    sudut(p) {
+      const d = gn(p[0], 60, 5, 175), r = d * Math.PI / 180, L = 110, vy = 104, vx = 16 + (Math.cos(r) < 0 ? -L * Math.cos(r) : 0); let s = gl(vx, vy, vx + L, vy, 3) + gl(vx, vy, (vx + L * Math.cos(r)).toFixed(1), (vy - L * Math.sin(r)).toFixed(1), 3) + gc(vx, vy, 3, GK, 1);
+      if (Math.round(d) === 90) s += gsudut(vx, vy, 1, -1);
+      else s += `<path d="M${vx + 30},${vy} A30,30 0 0 0 ${(vx + 30 * Math.cos(r)).toFixed(1)},${(vy - 30 * Math.sin(r)).toFixed(1)}" fill="none" stroke="#e53935" stroke-width="2"/>`;
+      if (p[1] === 'tampil') s += gt(vx + 48, vy - 8, Math.round(d) + '°', { s: 12, b: 1 });
+      return gsvg(Math.ceil(vx + L + 12), 120, s);
+    },
+    uang(p) {
+      const W = { 2000: '#bdbdbd', 5000: '#bcaaa4', 10000: '#b39ddb', 20000: '#a5d6a7', 50000: '#90caf9', 100000: '#ef9a9a' }, rp = v => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.'), it = p.slice(0, 8).map(z => Math.round(gn(z, 0, 0, 100000))).filter(v => v > 0); if (!it.length) return '';
+      let s = '', x = 4; it.forEach(v => { if (v <= 1000) { s += gc(x + 18, 24, 18, v === 1000 ? '#e0e0e0' : '#ffd54f', 2) + gc(x + 18, 24, 13, 'none', 1) + gt(x + 18, 28, rp(v), { s: 11, b: 1 }); x += 42; } else { s += gr(x, 8, 70, 36, W[v] || '#eee', 2) + gr(x + 4, 12, 62, 28, 'none', 1) + gt(x + 35, 22, 'Rp', { s: 9 }) + gt(x + 35, 36, rp(v), { s: 13, b: 1 }); x += 76; } });
+      return gsvg(x + 2, 52, s);
+    },
+    termometer(p) {
+      const v = gn(p[0], 50, 0, 100); let s = gr(48, 10, 14, 150, '#fff', 2, ' rx="7"') + gc(55, 172, 15, '#e53935', 2) + `<rect x="51.5" y="${(160 - v * 1.4).toFixed(1)}" width="7" height="${(v * 1.4 + 12).toFixed(1)}" fill="#e53935"/>`;
+      for (let t = 0; t <= 100; t += 10) { const y = 160 - t * 1.4; s += gl(64, y, t % 50 === 0 ? 76 : 71, y, 1.5) + gt(80, y + 4, String(t), { a: 'start', s: 10 }); }
+      return gsvg(110, 196, s + gt(30, 14, '°C', { s: 11, b: 1 }));
+    },
+    rangkaian(p) {
+      const tutup = p[0] !== 'buka'; let s = gl(30, 30, 80, 30, 2.5) + gl(120, 30, 170, 30, 2.5) + gl(170, 30, 170, 100, 2.5) + gl(170, 100, 125, 100, 2.5) + gl(75, 100, 30, 100, 2.5) + gl(30, 100, 30, 72, 2.5) + gl(30, 58, 30, 30, 2.5);
+      s += gl(18, 72, 42, 72, 4) + gl(24, 58, 36, 58, 2.5) + gt(52, 70, '+', { s: 12, a: 'start', b: 1 }) + gt(52, 64, '', { s: 1 });
+      s += gc(80, 30, 3, GK, 1) + gc(120, 30, 3, GK, 1) + (tutup ? gl(80, 30, 120, 30, 3) : gl(80, 30, 112, 12, 3));
+      s += gc(100, 100, 18, tutup ? '#fff59d' : '#fff', 2) + gl(88, 88, 112, 112, 1.5) + gl(112, 88, 88, 112, 1.5);
+      if (tutup) for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + Math.PI / 8; s += gl((100 + 23 * Math.sin(a)).toFixed(1), (100 - 23 * Math.cos(a)).toFixed(1), (100 + 31 * Math.sin(a)).toFixed(1), (100 - 31 * Math.cos(a)).toFixed(1), 1.8, '#fb8c00'); }
+      return gsvg(200, 140, s + gt(100, 58, 'saklar', { s: 10 }) + gt(30, 112, 'baterai', { s: 10 }));
+    },
+    magnet(p) {
+      const bar = (x, o) => { const a = o[0] === 'U' ? ['#ef5350', 'U', '#42a5f5', 'S'] : ['#42a5f5', 'S', '#ef5350', 'U']; return gr(x, 20, 36, 30, a[0], 2) + gr(x + 36, 20, 36, 30, a[2], 2) + gt(x + 18, 41, a[1], { s: 16, b: 1 }) + gt(x + 54, 41, a[3], { s: 16, b: 1 }); };
+      return gsvg(200, 70, bar(6, String(p[0] || 'US')) + bar(122, String(p[1] || 'US')));
+    },
+    daur(p) {
+      const D = { kupu: ['telurkupu', 'ulat', 'kepompong', 'kupu'], katak: ['telurkatak', 'berudu', 'katakmuda', 'katak'] }[p[0]]; if (!D) return ''; const h = Math.round(gn(p[1], 0, 0, 4)); let s = '';
+      D.forEach((n, i) => { const x = 6 + i * 70; s += h === i + 1 ? gr(x + 4, 6, 40, 40, '#fff', 1.5, ' stroke-dasharray="4 3"') + gt(x + 24, 36, '?', { s: 24, b: 1 }) : gikon(n, x, 4, 1.15); if (i < 3) s += gl(x + 50, 26, x + 64, 26, 2) + gp([[x + 66, 26], [x + 59, 22], [x + 59, 30]], GK, 1); });
+      return gsvg(290, 54, s);
+    },
+    rantai(p) {
+      const it = p.slice(0, 5).filter(z => z === '?' || GIKON[z]); if (it.length < 2) return ''; let s = '';
+      it.forEach((n, i) => { const x = 4 + i * 62; s += n === '?' ? gr(x + 2, 4, 40, 40, '#fff', 1.5, ' stroke-dasharray="4 3"') + gt(x + 22, 34, '?', { s: 24, b: 1 }) : gikon(n, x, 2, 1.15); if (i < it.length - 1) s += gl(x + 48, 25, x + 58, 25, 2) + gp([[x + 60, 25], [x + 54, 21], [x + 54, 29]], GK, 1); });
+      return gsvg(4 + it.length * 62, 52, s);
+    },
+    tumbuhan(p) {
+      const B = { akar: [60, 142], batang: [60, 90], daun: [74, 80], bunga: [60, 32] }, t = B[p[0]]; let s = gr(8, 112, 100, 36, '#d7ccc8', 1.5) + gl(8, 112, 108, 112, 3, '#6d4c41');
+      s += `<path d="M60,114 Q50,130 40,142 M60,114 L60,146 M60,114 Q70,130 82,142" fill="none" stroke="#8d6e63" stroke-width="3" stroke-linecap="round"/>` + gr(56, 44, 8, 70, '#66bb6a', 1.5);
+      s += `<ellipse cx="82" cy="80" rx="18" ry="8" transform="rotate(-25 82 80)" fill="#81c784" stroke="${GK}" stroke-width="1.5"/><ellipse cx="38" cy="92" rx="18" ry="8" transform="rotate(25 38 92)" fill="#81c784" stroke="${GK}" stroke-width="1.5"/>`;
+      for (let i = 0; i < 5; i++) { const a = i * 2 * Math.PI / 5; s += gc((60 + 12 * Math.sin(a)).toFixed(1), (32 - 12 * Math.cos(a)).toFixed(1), 9, '#f48fb1', 1.2); } s += gc(60, 32, 7, '#fdd835', 1.2);
+      if (t) s += gl(t[0] + (p[0] === 'daun' ? 18 : 0) + 22, t[1] - (p[0] === 'daun' ? 6 : 0), t[0] + (p[0] === 'daun' ? 18 : 0) + (p[0] === 'bunga' ? 24 : 6), t[1] - (p[0] === 'daun' ? 6 : 0), 1.5, '#e53935') + gc(t[0] + (p[0] === 'daun' ? 18 : 0) + (p[0] === 'bunga' ? 24 : 6), t[1] - (p[0] === 'daun' ? 6 : 0), 2.5, '#e53935', 1) + gt(t[0] + (p[0] === 'daun' ? 18 : 0) + 30, t[1] - (p[0] === 'daun' ? 2 : -4), 'A', { s: 16, b: 1, f: '#e53935' });
+      return gsvg(150, 152, s);
+    },
+    ruang(p) {
+      const n = p[0], f = '#bbdefb', g = '#90caf9', h = '#64b5f6'; let s;
+      if (n === 'kubus') s = gp([[20, 40], [80, 40], [80, 100], [20, 100]], f) + gp([[20, 40], [45, 18], [105, 18], [80, 40]], '#e3f2fd') + gp([[80, 40], [105, 18], [105, 78], [80, 100]], g);
+      else if (n === 'balok') s = gp([[10, 50], [110, 50], [110, 100], [10, 100]], f) + gp([[10, 50], [35, 28], [135, 28], [110, 50]], '#e3f2fd') + gp([[110, 50], [135, 28], [135, 78], [110, 100]], g);
+      else if (n === 'tabung') s = `<path d="M30,28 L30,92 A30,12 0 0 0 90,92 L90,28" fill="${f}" stroke="${GK}" stroke-width="2"/><ellipse cx="60" cy="28" rx="30" ry="12" fill="#e3f2fd" stroke="${GK}" stroke-width="2"/>`;
+      else if (n === 'kerucut') s = `<path d="M60,10 L25,92 A35,12 0 0 0 95,92 Z" fill="${f}" stroke="${GK}" stroke-width="2" stroke-linejoin="round"/>`;
+      else if (n === 'bola') s = gc(60, 58, 44, f, 2) + `<ellipse cx="60" cy="58" rx="44" ry="12" fill="none" stroke="${GK}" stroke-width="1" stroke-dasharray="4 3"/>`;
+      else if (n === 'limas') s = gp([[15, 90], [85, 90], [110, 70], [40, 70]], '#e3f2fd') + gp([[15, 90], [85, 90], [58, 12]], f) + gp([[85, 90], [110, 70], [58, 12]], g) + gl(15, 90, 40, 70, 1, '#999') + gl(40, 70, 110, 70, 1, '#999') + gl(40, 70, 58, 12, 1, '#999');
+      else return '';
+      return gsvg(150, 112, s);
+    },
+    jaring(p) {
+      const c = String(p[0] || '').split(',').map(z => [parseInt(z[0], 10), parseInt(z[1], 10)]).filter(z => z[0] >= 0 && z[1] >= 0 && z[0] < 8 && z[1] < 8).slice(0, 12); if (!c.length) return ''; const k = 26;
+      const mx = Math.max.apply(null, c.map(z => z[0])), my = Math.max.apply(null, c.map(z => z[1])); let s = '';
+      c.forEach(z => { s += gr(6 + z[0] * k, 6 + z[1] * k, k, k, '#ffe0b2', 1.6); });
+      return gsvg(12 + (mx + 1) * k, 12 + (my + 1) * k, s);
+    },
+    bulan(p) {
+      const F = { baru: 0, sabit: 0.25, separuh: 0.5, cembung: 0.75, purnama: 1 }[p[0]]; if (F === undefined) return ''; const cx = 50, cy = 50, R = 40, rx = Math.abs(1 - 2 * F) * R; let lit = '';
+      if (F >= 1) lit = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#fff9c4"/>`;
+      else if (F > 0) lit = `<path d="M${cx},${cy - R} A${R},${R} 0 0 1 ${cx},${cy + R} A${rx.toFixed(1)},${R} 0 0 ${F < 0.5 ? 0 : 1} ${cx},${cy - R} Z" fill="#fff9c4"/>`;
+      return gsvg(100, 100, `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#37474f"/>` + (p[1] === 'kiri' ? `<g transform="translate(${2 * cx},0) scale(-1,1)">${lit}</g>` : lit) + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${GK}" stroke-width="2"/>`);
+    },
+    warna(p) {
+      let s = '', x = 4; p.slice(0, 7).forEach(z => { const c = GWARNA[z];
+        if (c) { s += gr(x, 6, 44, 44, c, 2); x += 52; }
+        else if (z === '?') { s += gr(x, 6, 44, 44, '#fff', 2, ' stroke-dasharray="5 3"') + gt(x + 22, 38, '?', { s: 24, b: 1 }); x += 52; }
+        else { s += gt(x + 8, 38, z.slice(0, 2), { s: 26, b: 1 }); x += 24; } });
+      return gsvg(x + 2, 56, s);
+    }
+  };
+  function gbrSvg(tipe, ps) { const f = GBR[tipe]; if (!f) return ''; try { return f(ps) || ''; } catch (e) { return ''; } }
+  // Pisahkan penanda gambar dari teks soal: { teks, gambar } (gambar = deretan SVG, kosong bila tidak ada penanda yang sah).
+  function gbrPisah(q) {
+    let g = ''; const teks = String(q || '').replace(GBR_RE, (m, t, ps) => { const v = gbrSvg(t, ps ? ps.slice(1).split(';') : []); if (v) g += '<span style="display:inline-block;margin:3px 10px 3px 0;vertical-align:top">' + v + '</span>'; return ''; });
+    return { teks: teks.replace(/^\s+|\s+$/g, ''), gambar: g };
+  }
+  const gbrKotak = (g, kecil) => g ? '<div class="gb" style="margin:3px 0 4px"' + (kecil ? ' data-kecil="1"' : '') + '>' + (kecil ? g.replace(/display:inline-block;margin:3px 10px 3px 0/g, 'display:inline-block;width:34mm;margin:2px 6px 2px 0').replace(/style="max-width:100%;height:auto"/g, 'style="width:100%;height:auto"') : g) + '</div>' : '';
 
   // ---------- Pembantu murni ----------
   const angka = v => { const n = parseInt(v, 10); return n >= 0 && n <= 99 ? n : 0; };
@@ -235,24 +501,27 @@ body{font-size:11pt;line-height:1.25}
   const bentukX = x => (x.b === 'pg' && x.st) ? SUB.find(z => z[0] === x.st)[1] : bentukNama(x.b);
   // Titik-titik isian ("yang ke ...") dilekatkan ke kata sebelumnya agar tidak jatuh sendirian di baris baru.
   const rapi = t => esc(t).replace(/\s+(\.{2,}|…)/g, '&nbsp;$1');
+  // Pilihan jawaban boleh berupa gambar: teks pilihan memuat penanda [[g:...]] (gambar kecil di samping/bawah huruf pilihan).
+  const opIsi = (o, fmt) => { const g = gbrPisah(o); return (fmt || rapi)(g.teks) + (g.gambar ? gbrKotak(g.gambar, true).replace('style="margin:3px 0 4px"', 'style="margin:2px 0;text-indent:0"') : ''); };
+  const adaGbrOp = x => x.o && x.o.some(o => /\[\[g:/.test(String(o || '')));
   function soalHtml(x, rapat) {
-    const q = rapi(x.q || '(belum diisi)').replace(/\n/g, '<br>');
+    const gb = gbrPisah(x.q), q = rapi(gb.teks || (gb.gambar ? '' : '(belum diisi)')).replace(/\n/g, '<br>') + gbrKotak(gb.gambar);
     if (x.b !== 'pg') return q;
     if (x.st === 'jd') {
       const u = acak(4, x.key + '|jd');
       const baris = [0, 1, 2, 3].map(n => `<tr><td style="padding:2px 6px;width:50%;">${n + 1}. ${esc(pasang(x, n)[0])}</td><td style="padding:2px 6px;">${HURUF[n]}. ${esc(pasang(x, u[n])[1])}</td></tr>`).join('');
       return q + '<div style="font-size:10pt;"><i>Jodohkan pernyataan di kolom kiri dengan pasangan yang tepat di kolom kanan.</i></div><table style="width:100%;border-collapse:collapse;">' + baris + '</table>';
     }
-    const ops = x.o.map((o, i) => `<div class="op">${HURUF[i]}. ${rapi(o)}</div>`).join('');
+    const ops = x.o.map((o, i) => `<div class="op">${HURUF[i]}. ${opIsi(o)}</div>`).join('');
     // rapat = batas panjang pilihan (karakter): bila semua pilihan sependek itu, tampil 2 per baris (A B / C D) untuk menghemat kertas.
-    const pendek = rapat && x.o.length > 2 && x.o.every(o => String(o || '').length <= rapat && String(o || '').indexOf('\n') < 0);
+    const pendek = adaGbrOp(x) || rapat && x.o.length > 2 && x.o.every(o => String(o || '').length <= rapat && String(o || '').indexOf('\n') < 0);
     return q + (x.st === 'pk' ? '<div style="font-size:10pt;"><i>(Pilih semua jawaban yang benar.)</i></div>' : '') + (pendek ? '<div class="opg">' + ops + '</div>' : ops);
   }
   function kunciTeks(x) {
     if (x.b !== 'pg') return esc(x.kt || '(belum diisi)').replace(/\n/g, '<br>');
     if (x.st === 'jd') { const u = acak(4, x.key + '|jd'); return [0, 1, 2, 3].map(n => (n + 1) + '-' + HURUF[u.indexOf(n)]).join(', '); }
-    if (x.st === 'pk') { const k = ksList(x); return k.length ? k.map(i => HURUF[i] + (x.o[i] ? '. ' + esc(x.o[i]) : '')).join('; ') : '(belum diisi)'; }
-    return HURUF[x.kp] + (x.o[x.kp] ? '. ' + esc(x.o[x.kp]) : '');
+    if (x.st === 'pk') { const k = ksList(x); return k.length ? k.map(i => HURUF[i] + (x.o[i] ? '. ' + opIsi(x.o[i], esc) : '')).join('; ') : '(belum diisi)'; }
+    return HURUF[x.kp] + (x.o[x.kp] ? '. ' + opIsi(x.o[x.kp], esc) : '');
   }
   const catatanSub = s => S.slots[s].some(x => x.st) ? 'PG Kompleks dan Menjodohkan: skor penuh hanya bila seluruh jawaban/pasangan benar.<br>' : '';
 
@@ -313,10 +582,10 @@ body{font-size:11pt;line-height:1.25}
   const CSS_TEL = CSS_DOK.replace('@page{size:215mm 330mm;margin:7mm 8mm}', '@page{size:330mm 215mm;margin:7mm 8mm}') +
     `\n.tl{width:100%}.tl th,.tl td{border:1px solid #333;padding:3px 5px;font-size:10pt;vertical-align:top}.tl th{background:#e5e7eb;text-align:center}.tl td.c{text-align:center}.tl tr{page-break-inside:avoid}.tl thead{display:table-header-group}\n.sm{font-size:9pt;color:#222;margin-top:2px}.tp{font-size:8.5pt;color:#555;margin-top:2px;font-style:italic}.cb{white-space:nowrap;line-height:1.5}`;
   function soalRingkas(x) {
-    const q = esc(x.q || '(belum diisi)').replace(/\n/g, '<br>');
+    const gb = gbrPisah(x.q), q = esc(gb.teks || (gb.gambar ? '' : '(belum diisi)')).replace(/\n/g, '<br>') + gbrKotak(gb.gambar, true);
     if (x.b !== 'pg') return q;
     if (x.st === 'jd') return q + '<div class="sm">Menjodohkan: ' + [0, 1, 2, 3].map(n => esc(pasang(x, n)[0]) + ' &rarr; ' + esc(pasang(x, n)[1])).join('; ') + '</div>';
-    return q + '<div class="sm">' + x.o.map((o, i) => HURUF[i] + '. ' + esc(o)).join(' &nbsp; ') + '</div>';
+    return q + '<div class="sm">' + x.o.map((o, i) => HURUF[i] + '. ' + opIsi(o, esc)).join(' &nbsp; ') + '</div>';
   }
   const sumberTeks = x => x.src === 'bank' ? (x.ok ? 'Bank, sudah diperiksa guru' : 'Bank (DRAF)') : 'Ditulis guru';
   function dokTelaah(s) {
@@ -362,12 +631,13 @@ body{font-size:11pt;line-height:1.25}
     return `Soal: <b>${sl.length}</b> · lengkap <b>${sl.length - kosong}</b>${kosong ? ` · <span style="color:#b45309">belum lengkap ${kosong}</span>` : ''}${draf ? ` · <span style="color:#b45309">draf bank belum diperiksa ${draf}</span>` : ''} · Skor maksimal: <b style="color:${skorMaks(S.sem) === 100 ? '#15803d' : '#b45309'}">${skorMaks(S.sem)}</b>${skorMaks(S.sem) === 100 ? ' ✓' : ' (belum 100)'}`
       + (S.yatim[S.sem] ? `<div style="color:#b91c1c;margin-top:4px;">⚠️ ${S.yatim[S.sem]} soal tersimpan tidak punya slot lagi (jumlah soal di Kisi-kisi dikurangi). Soal itu akan terhapus bila Anda menekan Simpan.</div>` : '');
   }
+  const gbrPrev = q => { const g = gbrPisah(q); return g.gambar ? `<div style="margin-top:4px;padding:6px;border:1px dashed #cbd5e1;border-radius:6px;"><div style="${muted}">Gambar otomatis (tampil di naskah soal). Jangan hapus penanda [[g:...]] di teks soal bila gambar ingin tetap ada.</div>${gbrKotak(g.gambar, true)}</div>` : ''; };
   function kartuHtml(x, i) {
     const lencana = x.src === 'bank' ? (x.ok ? '<span style="color:#15803d">✔ dari bank, sudah diperiksa</span>' : '<span style="color:#b45309">● draf dari bank, periksa dulu</span>') : '<span style="color:#6b7280">ditulis guru</span>';
     let h = `<div style="margin-top:8px;padding:8px;border:1px solid ${lengkap(x) ? '#e5e7eb' : '#fcd34d'};border-radius:8px;">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;"><b>No. ${x.no} · ${bentukX(x)} · ${esc(x.lv)}</b><span>${lencana}</span></div>
       <div style="${muted}margin:2px 0 6px;">${esc(x.e)} — ${esc(x.t)}</div>
-      <textarea class="field" rows="${x.b === 'ur' ? 3 : 2}" maxlength="600" style="width:100%;" data-i="${i}" data-k="q" placeholder="Tulis soal..." aria-label="Soal ${x.no}">${esc(x.q)}</textarea>`;
+      <textarea class="field" rows="${x.b === 'ur' ? 3 : 2}" maxlength="600" style="width:100%;" data-i="${i}" data-k="q" placeholder="Tulis soal..." aria-label="Soal ${x.no}">${esc(x.q)}</textarea>${gbrPrev(x.q)}`;
     if (x.b === 'pg') {
       const res = ((window.BANK_KISI_RESMI_MI || {})[x.k] || []).map(z => z.bentuk).filter(v => /kompleks|menjodohkan/i.test(v)).filter((v, n, a) => a.indexOf(v) === n);
       h += `<div style="margin-top:6px;font-size:12px;">Jenis: <select class="field" data-i="${i}" data-k="st" aria-label="Jenis soal ${x.no}">${SUB.map(z => `<option value="${z[0]}" ${x.st === z[0] ? 'selected' : ''}>${z[1]}</option>`).join('')}</select>${res.length ? ` <span style="color:#1e40af;">📘 Kisi-kisi resmi untuk TP ini juga memuat: ${esc(res.join(', '))}</span>` : ''}</div>`;
