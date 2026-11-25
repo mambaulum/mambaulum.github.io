@@ -93,7 +93,7 @@ let aujHadir = {};          // draft kehadiran peserta: { siswaKey: 'H'|'S'|'I'|
 let aujHadirPengawas = {};  // draft kehadiran pengawas: { p1: true, p2: false }
 let aujSel = null;          // pilihan aktif di denah: { t:'k', k:'1_2' } atau { t:'s', key }
 let aujDenahAsli = null;    // foto isian denah saat sesi dibuka/disimpan; pembanding untuk mendeteksi draf yang belum disimpan
-function aujFotoDenah(r) { return r ? JSON.stringify([r.lokasiDenah || '', r.lokasiCatatan || '', r.denahPintu || '', r.denahBaris || null, r.denahKolom || null]) : null; }
+function aujFotoDenah(r) { return r ? JSON.stringify([r.lokasiDenah || '', r.lokasiCatatan || '', r.denahPintu || '', r.denahBaris || null, r.denahKolom || null, r.denahPerBangku || null]) : null; }
 let aujSalinan = null;      // isian awal form "sesi baru" hasil Duplikat Sesi (null = form kosong)
 let aujJdwNama = '', aujJdwKelas = '';   // filter tab Jadwal Ujian (kosong = semua)
 let aujMassalBuka = false, aujMassalDraft = null, aujMassalHasil = null;   // form jadwal massal: terbuka?, isian, hasil pratinjau
@@ -127,17 +127,28 @@ function aujUrutSesi() {
   return [...allAdmUjian].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (a.ruang || '').localeCompare(b.ruang || '', 'id'));
 }
 // Daftar peserta "hidup" dari Data Siswa (urut abjad, nomor = urutan).
+// Format nomor peserta (tampil di Daftar Hadir, Denah, Kartu Peserta, dan Label Meja):
+//   'kelas' = nomor kelas + urut 2 digit, mis. Kelas 4 siswa ke-1 = 401, Kelas 5 siswa ke-12 = 512 (unik antar kelas).
+//   'urut'  = nomor urut abjad dalam kelas saja (1, 2, 3...), seperti versi lama.
+const AUJ_FORMAT_NOMOR = 'kelas';
+function aujNomor(kelas, no) {
+  const n = +no || 0; if (AUJ_FORMAT_NOMOR !== 'kelas') return String(n);
+  const k = /(\d+)/.exec(String(kelas || ''));
+  return (k ? k[1] : '') + String(n).padStart(2, '0');
+}
+// Teks nomor peserta di kotak denah/chip: format 'kelas' sudah memuat kelas; format 'urut' perlu awalan kelas agar tidak ambigu.
+function aujLabelPeserta(p) { return AUJ_FORMAT_NOMOR === 'kelas' ? String(p.nomor) : ((p.kls ? p.kls + ' · ' : '') + p.no); }
 function aujPesertaLive(kelas) {
   return (allSiswa || []).filter(s => s.kelas === kelas)
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'id'))
-    .map((s, i) => ({ key: s.key, nama: s.name || '-', kelas: s.kelas, no: i + 1 }));
+    .map((s, i) => ({ key: s.key, nama: s.name || '-', kelas: s.kelas, no: i + 1, nomor: aujNomor(s.kelas, i + 1) }));
 }
 // Kalau sesi punya snapshot (rec.pesertaSnap = { siswaKey: { n: nama, no } }), pakai itu: nomor peserta tetap walau
 // Data Siswa berubah, dan pengawas yang tidak mengampu kelas itu tetap bisa mencetak. Tanpa snapshot -> ikut Data Siswa.
 function aujPeserta(kelas, rec) {
   const snap = rec && rec.pesertaSnap;
   if (snap && typeof snap === 'object' && Object.keys(snap).length) {
-    return Object.keys(snap).map(k => ({ key: k, nama: (snap[k] && snap[k].n) || '-', kelas: rec.kelas || kelas, no: +(snap[k] && snap[k].no) || 0 }))
+    return Object.keys(snap).map(k => ({ key: k, nama: (snap[k] && snap[k].n) || '-', kelas: rec.kelas || kelas, no: +(snap[k] && snap[k].no) || 0, nomor: aujNomor(rec.kelas || kelas, +(snap[k] && snap[k].no) || 0) }))
       .sort((a, b) => a.no - b.no);
   }
   return aujPesertaLive(kelas);
@@ -248,6 +259,7 @@ function aujTangkapDraftDenah() {
   const b = aujEl('aujBaris'), k = aujEl('aujKolom');
   if (b && b.value !== '') rec.denahBaris = aujInt(b.value, 6, 1, 15);
   if (k && k.value !== '') rec.denahKolom = aujInt(k.value, 5, 1, 8);
+  const pb = aujEl('aujPerBangku'); if (pb) rec.denahPerBangku = pb.value === '2' ? 2 : null;
 }
 function aujRenderTab() {
   const body = aujEl('aujTabBody'); if (!body) return;
@@ -288,7 +300,7 @@ function aujTulis(patch, pesanOk, aksiLog, sesudah) {
     if ('kursi' in data) { aujKursi = Object.assign({}, rec.kursi || {}); aujGabung = false; }
     if ('hadirPeserta' in data) aujHadir = Object.assign({}, rec.hadirPeserta || {});
     if ('pengawasHadir' in data) aujHadirPengawas = aujPwHadirEfektif(rec);
-    if (['lokasiDenah', 'lokasiCatatan', 'denahPintu', 'denahBaris', 'denahKolom'].some(f => f in data)) aujDenahAsli = aujFotoDenah(rec);
+    if (['lokasiDenah', 'lokasiCatatan', 'denahPintu', 'denahBaris', 'denahKolom', 'denahPerBangku'].some(f => f in data)) aujDenahAsli = aujFotoDenah(rec);
     aujSel = null; aujRenderSemua();
   });
 }
@@ -452,7 +464,7 @@ function aujHtmlHadir(rec) {
   const ps = aujPeserta(rec.kelas, rec), ed = aujCanEdit();
   const opt = v => `<option value="">— belum —</option>` + Object.keys(AUJ_STATUS).map(k => `<option value="${k}" ${v === k ? 'selected' : ''}>${AUJ_STATUS[k]}</option>`).join('');
   const barisPeserta = ps.map(p => `<tr>
-      <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${p.no}</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${p.nomor}</td>
       <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(p.nama)}</td>
       <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;"><select class="field" style="padding:3px 6px;font-size:13px;" ${ed ? '' : 'disabled'} onchange="aujSetHadir('${escapeJs(p.key)}', this.value)">${opt(aujHadir[p.key])}</select></td></tr>`).join('');
   const ck = aujCheckinPengawas(rec);   // pengawas yang sudah check-in honor: otomatis Hadir, tidak bisa dicopot dari sini
@@ -524,7 +536,9 @@ function aujResetTatib() {
 // =====================================================
 // TAB 4 -- DENAH (lokasi + tempat duduk)
 // =====================================================
-function aujDimensi(rec) { return { B: aujInt(rec.denahBaris, 6, 1, 15), K: aujInt(rec.denahKolom, 5, 1, 8) }; }
+function aujDimensi(rec) { return { B: aujInt(rec.denahBaris, 6, 1, 15), K: aujInt(rec.denahKolom, 5, 1, 8), P: rec.denahPerBangku === 2 ? 2 : 1 }; }
+// Kunci kursi: 'baris_kolom' (kursi 1 / kiri) dan 'baris_kolom_2' (kursi ke-2 / kanan) bila satu bangku diisi dua siswa (denahPerBangku = 2).
+function aujKunciKursi(r, c, s) { return r + '_' + c + (s === 2 ? '_2' : ''); }
 // Denah lokasi: tiap baris teks = satu baris ruangan di gedung, dipisah tanda "|". Ruang ASAS/ASAT sesi ini disorot.
 function aujLokasiHtml(rec) {
   const baris = String(rec.lokasiDenah || '').split('\n').map(x => x.trim()).filter(Boolean).map(x => x.split('|').map(y => y.trim()));
@@ -543,17 +557,29 @@ function aujLokasiHtml(rec) {
 }
 // Denah tempat duduk. interaktif=true dipakai di layar (bisa diklik); false untuk cetak.
 function aujGridHtml(rec, kursi, peserta, interaktif) {
-  const { B, K } = aujDimensi(rec), byKey = {}; peserta.forEach(p => { byKey[p.key] = p; });
-  const bt = peserta.some(p => p.recKey) ? aujSeatBentrok(kursi, byKey, B, K) : { set: {}, n: 0 };   // denah gabungan: tandai kursi bersebelahan sama kelas
+  const { B, K, P } = aujDimensi(rec), byKey = {}; peserta.forEach(p => { byKey[p.key] = p; });
+  const bt = peserta.some(p => p.recKey) ? aujSeatBentrok(kursi, byKey, B, K, P) : { set: {}, n: 0 };   // denah gabungan: tandai kursi bersebelahan sama kelas
+  const bisaKlik = interaktif && aujCanEdit();
   let h = `<table style="width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed;">
     <tr><td colspan="${K}" style="border:1px solid #334155;background:#e2e8f0;text-align:center;font-size:12px;font-weight:700;padding:6px;">MEJA PENGAWAS / PAPAN TULIS</td></tr>`;
+  const warna = (k, p) => {
+    const pilih = interaktif && aujSel && aujSel.t === 'k' && aujSel.k === k;
+    return pilih ? 'background:#bfdbfe;outline:2px solid #2563eb;' : (p ? 'background:' + (p.warna || '#f0fdf4') + ';' + (p.warna ? 'color:#111827;' : '') + (interaktif && bt.set[k] ? 'outline:2px solid #dc2626;' : '') : 'background:#fff;color:#9ca3af;');
+  };
   for (let r = 1; r <= B; r++) {
     h += '<tr>';
     for (let c = 1; c <= K; c++) {
-      const k = r + '_' + c, p = byKey[kursi[k]], pilih = interaktif && aujSel && aujSel.t === 'k' && aujSel.k === k;
-      const gaya = `border:1px solid #64748b;padding:4px 3px;text-align:center;font-size:${interaktif ? 11 : 10}px;height:${interaktif ? 48 : 44}px;vertical-align:middle;overflow:hidden;` +
-        (pilih ? 'background:#bfdbfe;outline:2px solid #2563eb;' : (p ? 'background:' + (p.warna || '#f0fdf4') + ';' + (p.warna ? 'color:#111827;' : '') + (interaktif && bt.set[k] ? 'outline:2px solid #dc2626;' : '') : 'background:#fff;color:#9ca3af;')) + (interaktif && aujCanEdit() ? 'cursor:pointer;' : '');
-      h += `<td style="${gaya}" ${interaktif && aujCanEdit() ? `onclick="aujKlikKursi(${r},${c})"` : ''}>${p ? `<div style="font-weight:700;">${p.kls ? escapeHtml(p.kls) + ' · ' : ''}${p.no}</div><div style="line-height:1.15;">${escapeHtml(p.nama)}</div>` : '·'}</td>`;
+      if (P === 2) {   // satu bangku = dua kursi berdampingan (kiri | kanan), masing-masing bisa diklik
+        const tinggi = interaktif ? 52 : 46, f = interaktif ? 9.5 : 8.5;
+        h += `<td style="border:1px solid #64748b;padding:0;vertical-align:middle;overflow:hidden;"><div style="display:flex;height:${tinggi}px;">${[1, 2].map(s => {
+          const k = aujKunciKursi(r, c, s), p = byKey[kursi[k]];
+          return `<div style="flex:1;min-width:0;${s === 2 ? 'border-left:1px dashed #64748b;' : ''}padding:2px;text-align:center;font-size:${f}px;display:flex;flex-direction:column;justify-content:center;overflow:hidden;word-break:break-word;${warna(k, p)}${bisaKlik ? 'cursor:pointer;' : ''}" ${bisaKlik ? `onclick="aujKlikKursi(${r},${c},${s})"` : ''}>${p ? `<div style="font-weight:700;">${escapeHtml(aujLabelPeserta(p))}</div><div style="line-height:1.1;">${escapeHtml(p.nama)}</div>` : '·'}</div>`;
+        }).join('')}</div></td>`;
+        continue;
+      }
+      const k = r + '_' + c, p = byKey[kursi[k]];
+      const gaya = `border:1px solid #64748b;padding:4px 3px;text-align:center;font-size:${interaktif ? 11 : 10}px;height:${interaktif ? 48 : 44}px;vertical-align:middle;overflow:hidden;` + warna(k, p) + (bisaKlik ? 'cursor:pointer;' : '');
+      h += `<td style="${gaya}" ${bisaKlik ? `onclick="aujKlikKursi(${r},${c})"` : ''}>${p ? `<div style="font-weight:700;">${escapeHtml(aujLabelPeserta(p))}</div><div style="line-height:1.15;">${escapeHtml(p.nama)}</div>` : '·'}</td>`;
     }
     h += '</tr>';
   }
@@ -563,14 +589,15 @@ function aujGridHtml(rec, kursi, peserta, interaktif) {
 }
 function aujHtmlDenah(rec) {
   const ed = aujCanEdit(), dis = ed ? '' : 'disabled', grup = aujGrupRuang(rec), gab = aujGabung && grup.length > 1;
-  const ps = gab ? aujPesertaGabungan(grup) : aujPeserta(rec.kelas, rec), { B, K } = aujDimensi(rec);
+  const ps = gab ? aujPesertaGabungan(grup) : aujPeserta(rec.kelas, rec), { B, K, P } = aujDimensi(rec);
   const terpakai = new Set(Object.keys(aujKursi).map(k => aujKursi[k]));
   const belum = ps.filter(p => !terpakai.has(p.key));
-  const chip = p => `<button class="btn ${aujSel && aujSel.t === 's' && aujSel.key === p.key ? 'btn-primary' : 'btn-soft'}" style="padding:3px 8px;font-size:12px;" ${ed ? `onclick="aujKlikSiswa('${escapeJs(p.key)}')"` : 'disabled'}>${p.kls ? escapeHtml(p.kls) + ' · ' : ''}${p.no}. ${escapeHtml(p.nama)}</button>`;
+  const chip = p => `<button class="btn ${aujSel && aujSel.t === 's' && aujSel.key === p.key ? 'btn-primary' : 'btn-soft'}" style="padding:3px 8px;font-size:12px;" ${ed ? `onclick="aujKlikSiswa('${escapeJs(p.key)}')"` : 'disabled'}>${escapeHtml(aujLabelPeserta(p))}. ${escapeHtml(p.nama)}</button>`;
   return `
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🗺️ Denah Lokasi & Tempat Duduk</h4>
       <button class="btn btn-primary" onclick="aujCetakSatu('denah')">🖨️ Cetak Denah</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('label')" title="Label nomor peserta untuk ditempel di bangku, berurutan sesuai denah tersimpan">🏷️ Cetak Label Meja</button>
     </div>
 
     <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:14px;">
@@ -582,19 +609,20 @@ function aujHtmlDenah(rec) {
     </div>
 
     <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:12px;">
-      <h5 style="font-weight:700;font-size:14px;margin-bottom:6px;">2. Denah Tempat Duduk${gab ? ' Gabungan' : ''} — ${escapeHtml(rec.ruang || '')} (${ps.length} peserta${gab ? ', ' + escapeHtml(grup.map(r => r.kelas).join(' + ')) : ''})</h5>
+      <h5 style="font-weight:700;font-size:14px;margin-bottom:6px;">2. Denah Tempat Duduk${gab ? ' Gabungan' : ''} — ${escapeHtml(rec.ruang || '')} (${ps.length} peserta${gab ? ', ' + escapeHtml(grup.map(r => r.kelas).join(' + ')) : ''}${P === 2 ? ', ' + B * K + ' bangku × 2' : ''})</h5>
       ${aujBannerGabung(grup, gab)}
       ${ed ? `<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:8px;">
         <div><label class="label">Baris</label><input id="aujBaris" type="number" class="field" style="width:80px;" min="1" max="15" value="${B}" ${dis} onchange="aujUbahUkuran()"></div>
         <div><label class="label">Kolom</label><input id="aujKolom" type="number" class="field" style="width:80px;" min="1" max="8" value="${K}" ${dis} onchange="aujUbahUkuran()"></div>
         <div><label class="label">Pintu</label><select id="aujPintu" class="field" ${dis}><option value="kanan" ${rec.denahPintu !== 'kiri' ? 'selected' : ''}>Kanan</option><option value="kiri" ${rec.denahPintu === 'kiri' ? 'selected' : ''}>Kiri</option></select></div>
+        <div><label class="label">Siswa per bangku</label><select id="aujPerBangku" class="field" ${dis} onchange="aujUbahPerBangku()"><option value="1" ${P === 1 ? 'selected' : ''}>1 siswa</option><option value="2" ${P === 2 ? 'selected' : ''}>2 siswa (satu bangku berdua)</option></select></div>
         ${gab ? '<button class="btn btn-soft" style="font-size:12px;" onclick="aujDenahGabungOtomatis(false)">🧩 Susun Selang-seling Kelas</button><button class="btn btn-soft" style="font-size:12px;" onclick="aujDenahGabungOtomatis(true)">🎲 Acak Selang-seling</button>' : '<button class="btn btn-soft" style="font-size:12px;" onclick="aujDenahOtomatis(false)">🔤 Urut Abjad</button><button class="btn btn-soft" style="font-size:12px;" onclick="aujDenahOtomatis(true)">🎲 Acak</button>'}
         <button class="btn btn-soft" style="font-size:12px;" onclick="aujKosongkanTerpilih()">⬜ Kosongkan Kursi Terpilih</button>
         <button class="btn btn-soft" style="font-size:12px;" onclick="aujDenahReset()">🧹 Kosongkan Semua</button>
       </div>
       <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">Tukar posisi: klik satu kursi, lalu klik kursi lain. Untuk menaruh siswa dari daftar "belum dapat kursi": klik namanya lalu klik kursinya.</p>` : ''}
       <div id="aujGridWrap" style="overflow-x:auto;">${aujGridHtml(rec, aujKursi, ps, true)}</div>
-      ${gab ? aujCatatanBentrok(aujKursi, ps, B, K, grup) : ''}
+      ${P === 2 ? aujCatatanBangku(aujKursi, B, K) : ''}${gab ? aujCatatanBentrok(aujKursi, ps, B, K, grup, P) : ''}
       ${belum.length ? `<p style="font-size:12px;font-weight:700;margin:10px 0 4px;">Belum dapat kursi (${belum.length}):</p><div style="display:flex;flex-wrap:wrap;gap:4px;">${belum.map(chip).join('')}</div>` : (ps.length ? '<p style="font-size:12px;color:#059669;margin-top:8px;">✅ Semua peserta sudah mendapat kursi.</p>' : '')}
     </div>
     ${ed ? '<button class="btn btn-success" onclick="' + (gab ? 'aujSimpanDenahGabung' : 'aujSimpanDenah') + '()">💾 Simpan Denah' + (gab ? ' Gabungan' : '') + '</button>' : ''}`;
@@ -612,14 +640,27 @@ function aujUbahUkuran() {
   aujSel = null; aujRenderTab();
   if (lepas) toast('ℹ️ ' + lepas + ' kursi di luar ukuran baru dilepas (belum disimpan).', false, 3500);
 }
+function aujUbahPerBangku() {
+  const rec = aujRec(); if (!rec) return;
+  const P = aujVal('aujPerBangku') === '2' ? 2 : 1;
+  if (P === 1) {
+    const kedua = Object.keys(aujKursi).filter(k => k.split('_')[2] === '2');   // 'baris_kolom_2' = kursi kedua (jangan samakan dengan kursi biasa 'baris_2')
+    if (kedua.length) {
+      if (!confirm(`${kedua.length} siswa yang duduk di kursi kedua bangku akan dilepas dari kursinya (belum disimpan). Lanjutkan?`)) { aujRenderTab(); return; }
+      kedua.forEach(k => { delete aujKursi[k]; });
+    }
+  }
+  rec.denahPerBangku = P === 2 ? 2 : null;   // hanya di memori sampai disimpan
+  aujSel = null; aujRenderTab();
+}
 function aujDenahOtomatis(acak) {
   const rec = aujRec(); if (!rec) return;
-  const ps = aujPeserta(rec.kelas, rec), { B, K } = aujDimensi(rec);
-  if (ps.length > B * K) return toast(`Kursi (${B * K}) kurang dari jumlah peserta (${ps.length}). Tambah baris/kolom dulu.`, true);
+  const ps = aujPeserta(rec.kelas, rec), { B, K, P } = aujDimensi(rec);
+  if (ps.length > B * K * P) return toast(`Kursi (${B * K * P}) kurang dari jumlah peserta (${ps.length}). Tambah baris/kolom dulu.`, true);
   if (Object.keys(aujKursi).length && !confirm('Susunan kursi saat ini akan ditimpa. Lanjutkan?')) return;
   const urut = ps.slice();
   if (acak) for (let i = urut.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [urut[i], urut[j]] = [urut[j], urut[i]]; }
-  aujKursi = {}; urut.forEach((p, i) => { aujKursi[(Math.floor(i / K) + 1) + '_' + ((i % K) + 1)] = p.key; });
+  aujKursi = {}; urut.forEach((p, i) => { const bangku = Math.floor(i / P); aujKursi[aujKunciKursi(Math.floor(bangku / K) + 1, (bangku % K) + 1, (i % P) + 1)] = p.key; });
   aujSel = null; aujRenderTab();
 }
 function aujDenahReset() { if (!confirm('Kosongkan semua kursi pada denah?')) return; aujKursi = {}; aujSel = null; aujRenderTab(); }
@@ -627,14 +668,14 @@ function aujSetKursi(k, key) {
   if (key) { Object.keys(aujKursi).forEach(x => { if (aujKursi[x] === key) delete aujKursi[x]; }); aujKursi[k] = key; }
   else delete aujKursi[k];
 }
-function aujKlikKursi(r, c) {
+function aujKlikKursi(r, c, s) {
   if (!aujCanEdit()) return;
-  const k = r + '_' + c, s = aujSel;
-  if (!s) aujSel = { t: 'k', k };
-  else if (s.t === 'k') {
-    if (s.k !== k) { const a = aujKursi[s.k], b = aujKursi[k]; aujSetKursi(k, a); aujSetKursi(s.k, b); }
+  const k = aujKunciKursi(r, c, s), sel = aujSel;
+  if (!sel) aujSel = { t: 'k', k };
+  else if (sel.t === 'k') {
+    if (sel.k !== k) { const a = aujKursi[sel.k], b = aujKursi[k]; aujSetKursi(k, a); aujSetKursi(sel.k, b); }
     aujSel = null;
-  } else { aujSetKursi(k, s.key); aujSel = null; }
+  } else { aujSetKursi(k, sel.key); aujSel = null; }
   aujRenderTab();
 }
 function aujKlikSiswa(key) {
@@ -650,15 +691,15 @@ function aujKosongkanTerpilih() {
 function aujSimpanDenah() {
   const rec = aujRec(); if (!rec) return;
   const B = aujInt(aujVal('aujBaris'), 6, 1, 15), K = aujInt(aujVal('aujKolom'), 5, 1, 8);
-  const sah = new Set(aujPeserta(rec.kelas, rec).map(p => p.key)), kursi = {};
-  Object.keys(aujKursi).forEach(k => { const [r, c] = k.split('_').map(Number); if (r <= B && c <= K && sah.has(aujKursi[k])) kursi[k] = aujKursi[k]; });
+  const P = aujVal('aujPerBangku') === '2' ? 2 : 1, sah = new Set(aujPeserta(rec.kelas, rec).map(p => p.key)), kursi = {};
+  Object.keys(aujKursi).forEach(k => { const m = k.split('_'), s = m[2] === '2' ? 2 : 1; if (+m[0] <= B && +m[1] <= K && s <= P && sah.has(aujKursi[k])) kursi[k] = aujKursi[k]; });
   const lain = aujGrupRuang(rec).filter(x => x.key !== rec.key), dipakai = new Set();
   lain.forEach(x => Object.keys(x.kursi || {}).forEach(k => dipakai.add(k)));
   const tabrak = Object.keys(kursi).filter(k => dipakai.has(k)).length;
   if (tabrak && !confirm(`⚠️ ${tabrak} kursi sudah dipakai kelas lain di ruang dan jam yang sama (${lain.map(x => x.kelas).join(', ')}). Gunakan denah gabungan agar kursi tidak bertabrakan.\n\nTetap simpan denah kelas ini?`)) return;
   aujTulis({
     lokasiDenah: aujKosongJadiNull(aujVal('aujLokasiDenah')), lokasiCatatan: aujKosongJadiNull(aujVal('aujLokasiCatatan')),
-    denahBaris: B, denahKolom: K, denahPintu: aujVal('aujPintu') === 'kiri' ? 'kiri' : 'kanan',
+    denahBaris: B, denahKolom: K, denahPerBangku: P === 2 ? 2 : null, denahPintu: aujVal('aujPintu') === 'kiri' ? 'kiri' : 'kanan',
     kursi: Object.keys(kursi).length ? kursi : null
   }, '✅ Denah tersimpan!', 'simpan_denah_ujian');
 }
@@ -692,21 +733,30 @@ function aujKursiGabungan(grup) {
   return out;
 }
 // Pasangan kursi yang bersebelahan (kiri-kanan atau depan-belakang) dan berasal dari kelas yang sama.
-function aujSeatBentrok(kursi, byKey, B, K) {
-  const set = {}; let n = 0;
-  const kelasDi = (r, c) => { const p = byKey[kursi[r + '_' + c]]; return p ? (p.recKey || p.kls || '') : ''; };
-  for (let r = 1; r <= B; r++) for (let c = 1; c <= K; c++) {
-    const a = kelasDi(r, c); if (!a) continue;
-    [[r, c + 1], [r + 1, c]].forEach(x => { if (x[0] > B || x[1] > K) return; if (kelasDi(x[0], x[1]) === a) { set[r + '_' + c] = 1; set[x[0] + '_' + x[1]] = 1; n++; } });
+function aujSeatBentrok(kursi, byKey, B, K, P) {
+  P = P === 2 ? 2 : 1;
+  const W = K * P, set = {}; let n = 0;   // dengan 2 siswa per bangku, deretan kursi dihitung memanjang (kiri-kanan melintasi batas bangku)
+  const kunci = (r, w) => aujKunciKursi(r, Math.ceil(w / P), ((w - 1) % P) + 1);
+  const kelasDi = (r, w) => { const p = byKey[kursi[kunci(r, w)]]; return p ? (p.recKey || p.kls || '') : ''; };
+  for (let r = 1; r <= B; r++) for (let w = 1; w <= W; w++) {
+    const a = kelasDi(r, w); if (!a) continue;
+    [[r, w + 1], [r + 1, w]].forEach(x => { if (x[0] > B || x[1] > W) return; if (kelasDi(x[0], x[1]) === a) { set[kunci(r, w)] = 1; set[kunci(x[0], x[1])] = 1; n++; } });
   }
   return { set, n };
 }
 function aujLegendaKelas(grup) {
   return grup.map((r, i) => `<span style="display:inline-block;padding:1px 8px;border-radius:10px;border:1px solid #94a3b8;background:${AUJ_WARNA_KELAS[i % AUJ_WARNA_KELAS.length]};color:#111827;font-size:11px;margin-right:4px;">${escapeHtml(r.kelas || '')}</span>`).join('');
 }
-function aujCatatanBentrok(kursi, ps, B, K, grup) {
+// Bangku berdua: berapa bangku berisi 2 siswa dan berapa yang hanya 1 (siswa tidak berpasangan duduk sendiri).
+function aujCatatanBangku(kursi, B, K) {
+  let berdua = 0, sendiri = 0;
+  for (let r = 1; r <= B; r++) for (let c = 1; c <= K; c++) { const a = !!kursi[aujKunciKursi(r, c, 1)], b = !!kursi[aujKunciKursi(r, c, 2)]; if (a && b) berdua++; else if (a || b) sendiri++; }
+  if (!berdua && !sendiri) return '';
+  return `<p style="font-size:12px;margin-top:6px;color:${sendiri ? '#92400e' : '#059669'};">${sendiri ? `ℹ️ ${sendiri} bangku hanya diisi 1 siswa (siswa yang tidak berpasangan duduk sendiri), ${berdua} bangku diisi berdua. Ingin dipasangkan? Tukar atau pindahkan siswanya di denah.` : `✅ Semua bangku terisi berdua (${berdua} bangku).`}</p>`;
+}
+function aujCatatanBentrok(kursi, ps, B, K, grup, P) {
   const byKey = {}; ps.forEach(p => { byKey[p.key] = p; });
-  const bt = aujSeatBentrok(kursi, byKey, B, K);
+  const bt = aujSeatBentrok(kursi, byKey, B, K, P);
   const status = bt.n ? `<span style="color:#b91c1c;">⚠️ ${bt.n} pasang kursi bersebelahan sama kelas (berbingkai merah). Tukar posisi atau klik Susun Selang-seling.</span>`
     : (Object.keys(kursi).length ? '<span style="color:#059669;">✅ Tidak ada kursi bersebelahan yang sama kelasnya.</span>' : '');
   return `<div style="margin-top:8px;font-size:12px;">${aujLegendaKelas(grup)}<div style="margin-top:4px;">${status}</div></div>`;
@@ -734,8 +784,8 @@ function aujToggleGabung() {
 // Bila tidak ada pilihan: kursi dikosongkan selama kursi masih lebih banyak daripada siswa, kalau tidak terpaksa bersebelahan (ditandai merah).
 function aujDenahGabungOtomatis(acak) {
   const rec = aujRec(); if (!rec) return;
-  const grup = aujGrupRuang(rec), ps = aujPesertaGabungan(grup), { B, K } = aujDimensi(rec);
-  if (ps.length > B * K) return toast(`Kursi (${B * K}) kurang dari jumlah peserta (${ps.length}). Tambah baris/kolom dulu.`, true);
+  const grup = aujGrupRuang(rec), ps = aujPesertaGabungan(grup), { B, K, P } = aujDimensi(rec), W = K * P;   // W = jumlah kursi per baris (bangku x siswa per bangku)
+  if (ps.length > B * W) return toast(`Kursi (${B * W}) kurang dari jumlah peserta (${ps.length}). Tambah baris/kolom dulu.`, true);
   if (Object.keys(aujKursi).length && !confirm('Susunan kursi saat ini akan ditimpa. Lanjutkan?')) return;
   const antre = {};
   grup.forEach(g => {
@@ -743,22 +793,26 @@ function aujDenahGabungOtomatis(acak) {
     if (acak) for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
     antre[g.key] = a;
   });
-  const dari = {}; let sisa = ps.length, spare = B * K - sisa, bentrok = 0;
+  const dari = {}; let sisa = ps.length, spare = B * W - sisa, bentrok = 0;
   aujKursi = {};
-  for (let r = 1; r <= B && sisa > 0; r++) for (let c = 1; c <= K && sisa > 0; c++) {
-    const kiri = dari[r + '_' + (c - 1)], atas = dari[(r - 1) + '_' + c];
+  for (let r = 1; r <= B && sisa > 0; r++) for (let w = 1; w <= W && sisa > 0; w++) {
+    const kiri = dari[r + '_' + (w - 1)], atas = dari[(r - 1) + '_' + w];
     let pilih = null;
     grup.forEach(g => { const n = antre[g.key].length; if (n && g.key !== kiri && g.key !== atas && (!pilih || n > antre[pilih].length)) pilih = g.key; });
+    if (pilih) {   // sisa seri: utamakan kelas di kursi serong kiri-atas (pola diagonal: A B C / C A B / B C A) supaya tidak berbenturan di baris berikutnya
+      const diag = dari[(r - 1) + '_' + (w > 1 ? w - 1 : W)];
+      if (diag && diag !== kiri && diag !== atas && antre[diag].length === antre[pilih].length) pilih = diag;
+    }
     if (!pilih) {
       if (spare > 0) { spare--; continue; }
       grup.forEach(g => { const n = antre[g.key].length; if (n && (!pilih || n > antre[pilih].length)) pilih = g.key; });
       bentrok++;
     }
-    const k = r + '_' + c, p = antre[pilih].shift();
-    aujKursi[k] = p.key; dari[k] = pilih; sisa--;
+    const p = antre[pilih].shift();
+    aujKursi[aujKunciKursi(r, Math.ceil(w / P), ((w - 1) % P) + 1)] = p.key; dari[r + '_' + w] = pilih; sisa--;
   }
   aujSel = null; aujRenderTab();
-  toast(bentrok ? `⚠️ Tersusun, tetapi ${bentrok} kursi terpaksa bersebelahan sama kelas (kelas terlalu timpang atau kursi kurang). Tambah baris/kolom atau tukar manual.` : '✅ Kursi tersusun selang-seling antar kelas. Periksa lalu klik Simpan Denah Gabungan.', !!bentrok, 5000);
+  toast(bentrok ? `⚠️ Tersusun, tetapi ${bentrok} kursi terpaksa bersebelahan sama kelas (kelas terlalu timpang atau kursi kurang). Tambah baris/kolom atau tukar manual.` : (P === 2 ? '✅ Tersusun: teman satu bangku dan kursi di sekitarnya diusahakan beda kelas. Periksa lalu klik Simpan Denah Gabungan.' : '✅ Kursi tersusun selang-seling antar kelas. Periksa lalu klik Simpan Denah Gabungan.'), !!bentrok, 5000);
 }
 function aujSimpanDenahGabung() {
   if (!aujCanEdit()) return toast('Hanya Admin yang bisa mengubah administrasi ASAS/ASAT!', true);
@@ -766,13 +820,13 @@ function aujSimpanDenahGabung() {
   const grup = aujGrupRuang(rec); if (grup.length < 2) return toast('Tidak ada kelas lain di ruang dan jam yang sama.', true);
   if (isBusy('aujTulis')) return toast('Sedang menyimpan...', false, 1500);
   if (!isReallyOnline()) return toast('📡 Sedang offline. Penyimpanan administrasi ASAS/ASAT butuh koneksi internet — coba lagi setelah online.', true);
-  const B = aujInt(aujVal('aujBaris'), 6, 1, 15), K = aujInt(aujVal('aujKolom'), 5, 1, 8), pintu = aujVal('aujPintu') === 'kiri' ? 'kiri' : 'kanan';
+  const B = aujInt(aujVal('aujBaris'), 6, 1, 15), K = aujInt(aujVal('aujKolom'), 5, 1, 8), P = aujVal('aujPerBangku') === '2' ? 2 : 1, pintu = aujVal('aujPintu') === 'kiri' ? 'kiri' : 'kanan';
   const lokasi = aujKosongJadiNull(aujVal('aujLokasiDenah')), catatan = aujKosongJadiNull(aujVal('aujLokasiCatatan'));
   const now = new Date().toISOString(), updates = {}, hasil = {};
   grup.forEach(r => {
     const sah = new Set(aujPeserta(r.kelas, r).map(p => p.key)), kursi = {};
-    Object.keys(aujKursi).forEach(k => { const m = k.split('_').map(Number); if (m[0] <= B && m[1] <= K && sah.has(aujKursi[k])) kursi[k] = aujKursi[k]; });
-    const d = { lokasiDenah: lokasi, lokasiCatatan: catatan, denahBaris: B, denahKolom: K, denahPintu: pintu, kursi: Object.keys(kursi).length ? kursi : null, updatedBy: currentUser.name, updatedAt: now };
+    Object.keys(aujKursi).forEach(k => { const m = k.split('_'), s = m[2] === '2' ? 2 : 1; if (+m[0] <= B && +m[1] <= K && s <= P && sah.has(aujKursi[k])) kursi[k] = aujKursi[k]; });
+    const d = { lokasiDenah: lokasi, lokasiCatatan: catatan, denahBaris: B, denahKolom: K, denahPerBangku: P === 2 ? 2 : null, denahPintu: pintu, kursi: Object.keys(kursi).length ? kursi : null, updatedBy: currentUser.name, updatedAt: now };
     hasil[r.key] = d;
     Object.keys(d).forEach(f => { updates[r.key + '/' + f] = d[f]; });
   });
@@ -829,7 +883,7 @@ function aujSimpanBA() {
 // =====================================================
 // KARTU PESERTA (kertas F4 = 215 x 330 mm)
 // =====================================================
-// Nomor peserta = nomor urut abjad kelas (p.no), SAMA dengan yang tampil di Daftar Hadir & Denah.
+// Nomor peserta (p.nomor, lihat AUJ_FORMAT_NOMOR) SAMA dengan yang tampil di Daftar Hadir, Denah, dan Label Meja; p.no = urut abjad dalam kelas.
 // Kursi diambil dari denah TERSIMPAN (rec.kursi: { 'baris_kolom': siswaKey }). Baris 1 = terdepan
 // (dekat meja pengawas / papan tulis), sesuai gambar denah.
 // UKURAN KARTU mengikuti eblek (card case) A1 yang umum dijual: casing 100 x 68 mm, kartu di dalamnya
@@ -878,8 +932,8 @@ const AUJ_KARTU_CSS_CETAK = `
 function aujPetaKursi(rec) {
   const peta = {};
   Object.keys(rec.kursi || {}).forEach(k => {
-    const m = /^(\d+)_(\d+)$/.exec(k); if (!m) return;
-    peta[rec.kursi[k]] = `Baris ${m[1]} / Kolom ${m[2]}`;
+    const m = /^(\d+)_(\d+)(_2)?$/.exec(k); if (!m) return;
+    peta[rec.kursi[k]] = `Baris ${m[1]} / Kolom ${m[2]}` + (rec.denahPerBangku === 2 ? (m[3] ? ' (kanan)' : ' (kiri)') : '');
   });
   return peta;
 }
@@ -957,7 +1011,7 @@ function aujHtmlFotoSiswa(ps) {
     const f = aujFotoSiswa(p.key);
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid #f1f5f9;">
       <div style="width:32px;height:40px;flex:none;border:1px solid #cbd5e1;border-radius:3px;overflow:hidden;background:#f8fafc;font-size:9px;color:#94a3b8;display:flex;align-items:center;justify-content:center;">${f ? `<img src="${escapeHtml(f)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '—'}</div>
-      <div style="flex:1;min-width:0;font-size:13px;">${p.no}. ${escapeHtml(p.nama)}</div>
+      <div style="flex:1;min-width:0;font-size:13px;">${p.nomor}. ${escapeHtml(p.nama)}</div>
       ${ed ? `<label class="btn btn-soft" style="font-size:11px;padding:3px 8px;cursor:pointer;margin:0;">${f ? '🔄 Ganti' : '📷 Pilih'}<input type="file" accept="image/*" style="display:none;" onchange="aujFotoUnggah('${escapeJs(p.key)}', this)"></label>${f ? `<button class="btn btn-soft" style="font-size:11px;padding:3px 8px;" onclick="aujFotoHapus('${escapeJs(p.key)}')">🗑️</button>` : ''}` : ''}
     </div>`;
   }).join('');
@@ -983,7 +1037,7 @@ function aujKartuHtml(rec, p, kursiTeks, qr) {
     </div>
     <div class="kp-isi">
       <div class="kp-data"><table>
-        ${baris('No. Peserta', escapeHtml(String(p.no)), 'kp-no')}
+        ${baris('No. Peserta', escapeHtml(String(p.nomor)), 'kp-no')}
         ${baris('Nama', escapeHtml(p.nama), p.nama.length > 28 ? 'kp-nama kp-nama-panjang' : 'kp-nama')}
         ${baris('Kelas / Ruang', escapeHtml(p.kelas || '-') + ' / ' + escapeHtml(rec.ruang || '-'))}
         ${baris('Kursi', escapeHtml(kursiTeks || '-'))}
@@ -1111,7 +1165,7 @@ function aujCetakHadirHtml(rec) {
   const ps = aujPeserta(rec.kelas, rec), st = rec.hadirPeserta || {};
   const baris = ps.map(p => {
     const v = st[p.key];
-    return `<tr><td style="text-align:center;width:34px;">${p.no}</td><td>${escapeHtml(p.nama)}</td><td style="width:34%;height:26px;"></td><td style="width:16%;text-align:center;">${v ? AUJ_STATUS[v] : ''}</td></tr>`;
+    return `<tr><td style="text-align:center;width:42px;">${p.nomor}</td><td>${escapeHtml(p.nama)}</td><td style="width:34%;height:26px;"></td><td style="width:16%;text-align:center;">${v ? AUJ_STATUS[v] : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="4" style="text-align:center;">Belum ada data siswa.</td></tr>';
   const pw = [[rec.pengawas1, 'p1'], [rec.pengawas2, 'p2']].filter(x => x[0]);
   if (!pw.length) pw.push(['', 'p1'], ['', 'p2']);
@@ -1178,8 +1232,30 @@ function aujCetakBAHtml(rec) {
   </div>`;
 }
 
-const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml };
-const AUJ_JUDUL = { hadir: 'Daftar Hadir ASAS/ASAT', tatib: 'Tata Tertib ASAS/ASAT', denah: 'Denah Ruang ASAS/ASAT', ba: 'Berita Acara ASAS/ASAT' };
+// Label Meja: stiker/kertas nomor peserta untuk DITEMPEL di bangku, satu label per siswa, berurutan sesuai denah TERSIMPAN.
+const AUJ_CSS_LABEL = AUJ_CSS + `
+  .lbgrid { display: flex; flex-wrap: wrap; margin-top: 3mm; }
+  .lb { box-sizing: border-box; width: 33.333%; height: 31mm; border: 0.4mm dashed #777; padding: 2mm 2.5mm; text-align: center; break-inside: avoid; page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+  .lb .kl { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4pt; line-height: 1.1; }
+  .lb .no { font-size: 22pt; font-weight: 700; line-height: 1.05; }
+  .lb .nm { font-size: 9pt; font-weight: 700; line-height: 1.15; margin-top: 1mm; }
+  .lb .kt { font-size: 7.5pt; margin-top: 1mm; color: #222; }
+  .lb .ps { font-size: 7.5pt; color: #444; }
+`;
+function aujCetakLabelHtml(rec) {
+  const grup = aujGrupRuang(rec), gab = grup.length > 1 && grup.some(r => r.kursi && Object.keys(r.kursi).length);
+  const kursi = gab ? aujKursiGabungan(grup) : (rec.kursi || {}), ps = gab ? aujPesertaGabungan(grup) : aujPeserta(rec.kelas, rec), { B, K, P } = aujDimensi(rec), byKey = {};
+  ps.forEach(p => { byKey[p.key] = p; });
+  const isi = [];
+  for (let r = 1; r <= B; r++) for (let c = 1; c <= K; c++) for (let s = 1; s <= P; s++) {
+    const p = byKey[kursi[aujKunciKursi(r, c, s)]]; if (!p) continue;
+    isi.push(`<div class="lb"><div class="kl">${escapeHtml(p.kelas || '')}</div><div class="no">${escapeHtml(String(p.nomor))}</div><div class="nm">${escapeHtml(p.nama)}</div><div class="kt">${escapeHtml(rec.ruang || '-')}</div><div class="ps">Baris ${r} / Kolom ${c}${P === 2 ? (s === 2 ? ' (kanan)' : ' (kiri)') : ''}</div></div>`);
+  }
+  if (!isi.length) return '<p style="text-align:center;padding:20mm 0;">Belum ada kursi pada denah yang tersimpan. Susun dan simpan denah dulu, lalu cetak label.</p>';
+  return `${aujKopHtml()}<h1>LABEL NOMOR MEJA ${escapeHtml(rec.nama || 'ASAS/ASAT')}</h1><div class="sub">${escapeHtml(rec.ruang || '-')}${gab ? ' (' + escapeHtml(grup.map(r => r.kelas).join(' + ')) + ')' : ' · ' + escapeHtml(rec.kelas || '')} — ${isi.length} label, urut dari baris terdepan. Gunting mengikuti garis putus-putus lalu tempel di meja sesuai Baris/Kolom.</div><div class="lbgrid">${isi.join('')}</div>`;
+}
+const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml, label: aujCetakLabelHtml };
+const AUJ_JUDUL = { hadir: 'Daftar Hadir ASAS/ASAT', tatib: 'Tata Tertib ASAS/ASAT', denah: 'Denah Ruang ASAS/ASAT', ba: 'Berita Acara ASAS/ASAT', label: 'Label Meja ASAS/ASAT' };
 // Cetak selalu memakai data TERSIMPAN. Fungsi ini mendeteksi isian/draft di layar yang belum disimpan.
 function aujDraftBeda(jenis, rec) {
   const j = JSON.stringify, v = x => (x == null ? '' : String(x)).trim();
@@ -1216,8 +1292,8 @@ function aujKonfirmasiBA(rec) {
 function aujCetakSatu(jenis) {
   const rec = aujRec(); if (!rec || !AUJ_CETAK[jenis]) return toast('Pilih sesi ASAS/ASAT dulu.', true);
   if (jenis === 'ba' && !aujKonfirmasiBA(rec)) return;
-  aujPeringatDraft([jenis], rec);
-  aujCetakHtml(AUJ_CETAK[jenis](rec), `${AUJ_JUDUL[jenis]} - ${rec.kelas || ''} ${rec.ruang || ''}`);
+  aujPeringatDraft([jenis === 'label' ? 'denah' : jenis], rec);
+  aujCetakHtml(AUJ_CETAK[jenis](rec), `${AUJ_JUDUL[jenis]} - ${rec.kelas || ''} ${rec.ruang || ''}`, jenis === 'label' ? AUJ_CSS_LABEL : undefined);
 }
 function aujCetakSemua() {
   const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
