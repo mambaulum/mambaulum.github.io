@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.587",
-  "disimpan": "2026-11-26T04:12:39.760Z",
+  "appVersion": "v8.592",
+  "disimpan": "2026-11-26T13:26:01.550Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -55,8 +55,8 @@
       "hash": "3f0afd882d3dd7aaaa3eac8049d2e28e63a7e4de"
     },
     "js/administrasi-ujian.js": {
-      "v": "v=47",
-      "hash": "c428e7724216ecaea5663ff61cc90457f27904f1"
+      "v": "v=48",
+      "hash": "1502ab4df41879ff56a0cd8ddad5d05ce05b86bb"
     },
     "js/app.js": {
       "v": "v=176",
@@ -298,6 +298,22 @@
       "v": "v=1",
       "hash": "fb759f17882db99f5c48d142f6a04fb0c2231f70"
     },
+    "js/data-soal-fikih-gambar.js": {
+      "v": "v=1",
+      "hash": "133d33e76eb2d8faf7f823fcad80ae559d6a7a5d"
+    },
+    "js/data-soal-pancasila-gambar.js": {
+      "v": "v=1",
+      "hash": "2dd2f8a979046ebac3e3855b95e36fdaa24e7a70"
+    },
+    "js/data-soal-pjok-gambar.js": {
+      "v": "v=1",
+      "hash": "051c15a15fc7fd9f8308008989624aaa2159e787"
+    },
+    "js/data-soal-aa-gambar.js": {
+      "v": "v=1",
+      "hash": "94dbb1a42bf961c9196bcc068e17a07059f897ad"
+    },
     "js/perangkat-rpe.js": {
       "v": "v=16",
       "hash": "65634f0f812b0ddcc5987c76bc15bf84cb05fe59"
@@ -319,8 +335,8 @@
       "hash": "64f1d2725f8a7b3f71a909a4c2051b66980021d1"
     },
     "js/perangkat-soal.js": {
-      "v": "v=33",
-      "hash": "d5309d9811b0978e7a99738ea649338156008a4a"
+      "v": "v=35",
+      "hash": "535a8a5053907c01fe4b1a5728f643be431ceb2f"
     },
     "js/perangkat-paket.js": {
       "v": "v=4",
