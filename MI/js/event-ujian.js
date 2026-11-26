@@ -331,6 +331,7 @@
       const list = document.getElementById('ujianTodayList');
       if (!list || !currentUser) return;
       muatUjianSusulan();   // kartu susulan dimuat/digambar sendiri (tidak mengganggu daftar di bawah)
+      ujPasangOnline(); ujAntreKirim();   // kirim check-in offline yang tertunda (bila ada & sudah online)
       const today = tglLokal();
       const ujianToday = allUjian.filter(u => u.tanggal === today && (isAdmin() || ujianBolehCheckin(u)));
       if (ujianToday.length === 0) { list.innerHTML = '<p class="text-muted" style="font-size:13px;">Tidak ada sesi ujian hari ini.</p>'; return; }
@@ -338,8 +339,11 @@
       ujianToday.forEach(u => {
         const sudahCheckin = allUjianAttendance.find(a => a.ujianKey === u.key && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
         const icon = u.jenis === 'Koreksi' ? '✏️' : u.jenis === 'Pembuat Soal' ? '📄' : '👁️';
+        const antre = ujAntreSaya().find(x => x.ujianKey === u.key);
         const tombol = sudahCheckin
           ? `<span style="color:#065f46;font-weight:600;">✅ Sudah Check-in ${sudahCheckin.waktu ? new Date(sudahCheckin.waktu).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : ''}</span>`
+          : antre
+          ? `<span style="color:#92400e;font-weight:600;">⏳ Tersimpan offline ${new Date(antre.dicatatMs).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})} — terkirim otomatis saat online</span> <button class="btn btn-soft" style="padding:3px 10px;font-size:11px;" onclick="ujAntreKirim(true)">Kirim sekarang</button>`
           : `<button class="btn btn-success" style="padding:4px 14px;font-size:12px;" onclick="openUjianCheckin('${u.key}')">📸 Check-in</button>`;
         html += `<div style="padding:10px 12px;background:#f3e8ff;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
           <span><strong>${icon} ${escapeHtml(u.nama)}</strong> <span style="font-size:11px;color:#7c3aed;">(${escapeHtml(u.jenis)})</span><br><span class="text-muted" style="font-size:12px;">${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} · Rp ${(u.honor||0).toLocaleString('id-ID')}</span></span>
@@ -388,7 +392,9 @@
       const sudahCheckin = allUjianAttendance.find(a => a.ujianKey === activeUjianKey && (a.guruKey ? a.guruKey === currentUser.key : a.guru === currentUser.name));
       if (sudahCheckin) return toast('Anda sudah check-in sesi ujian ini!', true);
       if (!ujianCameraStream) return toast('⚠️ Aktifkan kamera terlebih dahulu!', true);
-      if (!isReallyOnline()) return toast('📡 Sedang offline. Check-in butuh koneksi internet — coba lagi setelah online.', true);
+      const offline = !isReallyOnline();   // offline: check-in disimpan di perangkat lalu dikirim otomatis saat online (lihat ujAntre*)
+      if (offline && !(currentUser && currentUser.key)) return toast('Akun ini belum punya kunci guru, check-in offline tidak bisa disimpan.', true);
+      if (offline && ujAntreSaya().some(x => x.ujianKey === activeUjianKey)) return toast('Check-in sesi ini sudah tersimpan di perangkat dan menunggu terkirim.', true);
       const vSiap = document.getElementById('ujianVideo');
       if (!vSiap || vSiap.readyState < 2 || !vSiap.videoWidth) return toast('⏳ Kamera belum siap, tunggu sebentar lalu coba lagi.', true);
       const btn = document.getElementById('btnUjianCheckin');
@@ -405,6 +411,14 @@
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         fotoDataUrl = canvas.toDataURL('image/jpeg', 0.5);
       } catch (e) { console.error('Gagal ambil snapshot:', e); }
+      if (offline) {   // simpan di perangkat; terkirim otomatis begitu online (lihat ujAntreKirim)
+        btn.disabled = false; btn.textContent = '✅ Ambil Foto & Check-in';
+        if (!ujAntreSimpan(u, fotoDataUrl)) return toast('⚠️ Gagal menyimpan check-in offline (penyimpanan perangkat penuh/diblokir).', true);
+        toast('📥 Check-in tersimpan di perangkat. Akan terkirim otomatis saat internet kembali; jangan hapus data browser.', false, 8000);
+        addLog('checkin_ujian_offline', u.nama);
+        cancelUjianCheckin(); renderUjianToday();
+        return;
+      }
       const today = tglLokal();
       const guruKeyAman = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g,'_');
       const dbRef = db.ref(`ujian_attendance/${activeUjianKey}_${guruKeyAman}`);
@@ -419,6 +433,89 @@
         renderUjianToday(); renderUjianList();
         cancelUjianCheckin();
       }));
+    }
+
+    // ============================================================
+    // CHECK-IN UJIAN OFFLINE -- antrean di perangkat guru, dikirim otomatis saat online
+    // ============================================================
+    // Saat listrik/internet mati, check-in (foto kamera + jam perangkat) disimpan di localStorage. Begitu online:
+    //  - masih di dalam jendela check-in sesi -> dikirim sebagai check-in biasa (Rules memeriksa jendela waktu dengan jam SERVER);
+    //  - jendela sudah lewat, atau Rules menolak -> dikirim otomatis sebagai pengajuan susulan (status menunggu), Admin yang memutuskan.
+    // Jam perangkat bisa diubah-ubah, karena itu check-in offline yang terlambat TIDAK pernah langsung jadi honor tanpa persetujuan Admin.
+    const UJ_ANTRE_KEY = 'si_mamba_ujian_checkin_antre_v1';
+    let _ujFlushJalan = false, _ujFlushTs = 0, _ujOnlineTerpasang = false;
+    function ujAntreBaca() { try { const a = JSON.parse(localStorage.getItem(UJ_ANTRE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    function ujAntreTulis(a) { try { localStorage.setItem(UJ_ANTRE_KEY, JSON.stringify(a)); return true; } catch (e) { return false; } }
+    function ujAntreSaya() { const me = currentUser && currentUser.key; return me ? ujAntreBaca().filter(x => x.guruKey === me) : []; }
+    function ujAntreHapus(it) { ujAntreTulis(ujAntreBaca().filter(x => !(x.guruKey === it.guruKey && x.ujianKey === it.ujianKey))); }
+    function ujAntreSimpan(u, foto) {
+      const me = currentUser && currentUser.key; if (!me) return false;
+      const a = ujAntreBaca().filter(x => !(x.guruKey === me && x.ujianKey === u.key));
+      a.push({ ujianKey: u.key, guruKey: me, guruNama: currentUser.name, tanggal: u.tanggal, dicatatMs: Date.now(), foto: foto || null });
+      if (ujAntreTulis(a)) return true;
+      a[a.length - 1].foto = null;   // penyimpanan sempit: simpan tanpa foto daripada kehilangan catatan
+      return ujAntreTulis(a);
+    }
+    function ujPasangOnline() {
+      if (_ujOnlineTerpasang) return; _ujOnlineTerpasang = true;
+      window.addEventListener('online', () => setTimeout(() => ujAntreKirim(true), 2500));
+    }
+    function ujKirimCheckin(u, foto, selesai) {
+      const guruKeyAman = currentUser.key || currentUser.name.replace(/[^a-zA-Z0-9]/g,'_');
+      const dbRef = db.ref(`ujian_attendance/${u.key}_${guruKeyAman}`);
+      const dataBaru = { ujianKey: u.key, ujianNama: u.nama, jenis: u.jenis, guru: currentUser.name, guruKey: currentUser.key || null, tanggal: tglLokal(), waktu: firebase.database.ServerValue.TIMESTAMP, honor: u.honor, tahunAjaran: currentTahunAjaran, hasFoto: !!foto };
+      guruSesiSiap().then(() => dbRef.transaction(existing => existing !== null ? undefined : dataBaru, (err, committed, snapshot) => {
+        if (err) return selesai(/permission/i.test(String(err.code || '') + ' ' + String(err.message || '')) ? 'ditolak' : 'gagal');
+        if (!committed) return selesai('ada');
+        if (foto) simpanFotoTerpisah('ujian_attendance', snapshot.key, foto);
+        allUjianAttendance.push({ ...dataBaru, waktu: (snapshot.val() && snapshot.val().waktu) || Date.now(), key: snapshot.key });
+        selesai('ok');
+      }));
+    }
+    function ujKirimSusulanOtomatis(u, it, selesai) {
+      const jam = new Date(it.dicatatMs).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const id = u.key + '_' + currentUser.key;
+      const data = { ujianKey: u.key, ujianNama: u.nama, jenis: u.jenis, guru: currentUser.name, guruKey: currentUser.key, tanggal: u.tanggal, honor: u.honor, tahunAjaran: currentTahunAjaran,
+        alasan: ('Check-in dilakukan offline (listrik/internet mati) pukul ' + jam + ' menurut jam perangkat; terkirim otomatis setelah online.').slice(0, 300), status: 'menunggu', diajukanAt: firebase.database.ServerValue.TIMESTAMP };
+      guruSesiSiap().then(() => db.ref('ujian_susulan/' + id).set(data, err => {
+        if (err) return selesai('gagal', err);
+        allUjianSusulan.push(Object.assign({}, data, { key: id, diajukanAt: Date.now() })); renderUjianSusulan();
+        selesai('ok');
+      }));
+    }
+    // paksa = true dari event 'online'; tanpa paksa dibatasi sekali per 20 detik supaya render tidak memicu pengiriman berulang.
+    function ujAntreKirim(paksa) {
+      if (_ujFlushJalan || !currentUser || !currentUser.key || typeof db === 'undefined' || !db) return;
+      if (!paksa && Date.now() - _ujFlushTs < 20000) return;
+      const antre = ujAntreSaya(); if (!antre.length || !isReallyOnline()) return;
+      _ujFlushJalan = true; _ujFlushTs = Date.now();
+      const muat = [typeof reloadDataset === 'function' ? reloadDataset(['ujian', 'ujianAttendance']) : null, typeof muatUjianSusulan === 'function' ? muatUjianSusulan(true) : null].filter(Boolean);
+      Promise.all(muat.map(x => Promise.resolve(x))).catch(() => {}).then(() => {
+        const proses = i => {
+          if (i >= antre.length) { _ujFlushJalan = false; renderUjianToday(); if (typeof renderUjianList === 'function') renderUjianList(); return; }
+          const it = antre[i], lanjut = hapus => { if (hapus) ujAntreHapus(it); proses(i + 1); };
+          const u = allUjian.find(e => e.key === it.ujianKey);
+          if (!u) return lanjut(allUjian.length > 0);   // sesi sudah dihapus Admin -> buang; data belum termuat -> simpan dulu
+          if (!ujianBolehCheckin(u)) return lanjut(true);   // sudah tidak ditugaskan lagi
+          if (allUjianAttendance.some(a => a.ujianKey === u.key && a.guruKey === it.guruKey)) return lanjut(true);   // sudah tercatat
+          const susulan = () => {
+            if (allUjianSusulan.some(s => s.ujianKey === u.key && s.guruKey === it.guruKey)) return lanjut(true);   // sudah ada pengajuan
+            ujKirimSusulanOtomatis(u, it, (h, err) => {
+              if (h === 'ok') toast('📨 Check-in offline "' + u.nama + '" dikirim sebagai pengajuan susulan, menunggu persetujuan Admin.', false, 7000);
+              else toast('⚠️ Check-in offline "' + u.nama + '" belum terkirim (' + ((err && err.message) || 'gagal') + '). Akan dicoba lagi.', true, 7000);
+              lanjut(h === 'ok');
+            });
+          };
+          if (cekJendelaCheckin(u).ok) ujKirimCheckin(u, it.foto, h => {
+            if (h === 'ok') { toast('✅ Check-in offline terkirim: ' + u.nama); addLog('checkin_ujian', u.nama + ' (dari antrean offline)'); lanjut(true); }
+            else if (h === 'ada') lanjut(true);
+            else if (h === 'ditolak') susulan();   // jam server di luar jendela (jam perangkat salah/terlambat) -> jalur susulan
+            else lanjut(false);
+          });
+          else susulan();
+        };
+        proses(0);
+      });
     }
 
     // ============================================================
@@ -458,6 +555,7 @@
         const me = currentUser.key;
         const kandidat = (allUjian || []).filter(u => u.pengawas && u.pengawas[me] === true && u.selesaiMs && Date.now() > u.selesaiMs
           && !(allUjianAttendance || []).some(a => a.ujianKey === u.key && a.guruKey === me)
+          && !ujAntreSaya().some(x => x.ujianKey === u.key)
           && !allUjianSusulan.some(s => s.ujianKey === u.key && s.guruKey === me)).sort((a, b) => b.selesaiMs - a.selesaiMs).slice(0, 15);
         html += kandidat.map(u => baris(`<strong>${escapeHtml(u.nama)}</strong>`, `${escapeHtml(u.tanggal)} · ${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} · belum check-in`,
           `<button class="btn btn-soft" style="padding:3px 12px;font-size:12px;" onclick="ajukanSusulanUjian('${escapeJs(u.key)}')">📝 Ajukan Susulan</button>`)).join('');
