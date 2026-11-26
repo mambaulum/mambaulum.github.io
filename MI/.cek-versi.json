@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.585",
-  "disimpan": "2026-11-26T03:01:57.551Z",
+  "appVersion": "v8.586",
+  "disimpan": "2026-11-26T04:01:10.828Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -299,8 +299,8 @@
       "hash": "fb759f17882db99f5c48d142f6a04fb0c2231f70"
     },
     "js/perangkat-rpe.js": {
-      "v": "v=15",
-      "hash": "65376e314bc31464888ebf1e528c4526551eaa7a"
+      "v": "v=16",
+      "hash": "65634f0f812b0ddcc5987c76bc15bf84cb05fe59"
     },
     "js/perangkat-prota-promes.js": {
       "v": "v=9",
