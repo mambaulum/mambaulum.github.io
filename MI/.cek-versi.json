@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.583",
-  "disimpan": "2026-11-26T02:13:11.388Z",
+  "appVersion": "v8.585",
+  "disimpan": "2026-11-26T03:01:57.551Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -319,8 +319,8 @@
       "hash": "64f1d2725f8a7b3f71a909a4c2051b66980021d1"
     },
     "js/perangkat-soal.js": {
-      "v": "v=31",
-      "hash": "3ca27a3878c5fb51370abf478743a08983457f97"
+      "v": "v=33",
+      "hash": "d5309d9811b0978e7a99738ea649338156008a4a"
     },
     "js/perangkat-paket.js": {
       "v": "v=4",
