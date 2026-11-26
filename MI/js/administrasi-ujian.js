@@ -18,6 +18,8 @@
    9. Isian pilihan (drop down): Nama Asesmen, Mata Pelajaran (menurut kelas), Ruang, Jam Mulai (jam selesai otomatis +70 menit),
       Pengawas (daftar guru), tanggal libur tambahan, catatan & waktu Berita Acara, keterangan lokasi Denah. Semuanya tetap
       menyediakan "Lainnya (ketik sendiri)" / bisa diubah. Pembantunya ada di bagian "ISIAN PILIHAN" paling bawah file ini.
+  10. Cetakan tambahan (26 Nov 2026): Daftar Hadir & Berita Acara KOSONGAN (satu ruang, satu tanggal, atau rentang tanggal), Nomor Ruang untuk pintu,
+      Daftar Peserta per Ruang, Sampul Amplop naskah/LJK, dan Rekap Kehadiran per kelas (F4 mendatar). Kartu Peserta: font & pas foto diperbesar + catatan bawah.
    Setiap tab punya tombol cetak, plus "Cetak Semua Berkas" (satu paket F4, halaman terpisah).
    Kartu Peserta dicetak TERPISAH dari paket itu karena kertasnya F4 (215 x 330 mm), sedangkan satu
    pekerjaan cetak hanya bisa memakai satu ukuran kertas.
@@ -497,7 +499,12 @@ function aujHtmlHadir(rec) {
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">✅ Daftar Hadir — ${escapeHtml(rec.kelas || '')} · ${escapeHtml(rec.ruang || '')}</h4>
       <button class="btn btn-primary" onclick="aujCetakSatu('hadir')">🖨️ Cetak Daftar Hadir</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('hadir0')" title="Daftar hadir tanpa status, untuk diisi tangan pengawas di ruangan">📝 Daftar Hadir Kosongan</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('rekap')" title="Rekap H/S/I/A siswa kelas ini di semua sesi asesmen (F4 mendatar)">📊 Rekap Kehadiran Kelas</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('rekapSemua')" title="Rekap kehadiran semua kelas, satu halaman per kelas (F4 mendatar)">📊 Rekap Semua Kelas</button>
+      <button class="btn btn-soft" onclick="aujCetakKosonganHari()" title="Daftar Hadir + Berita Acara kosong untuk semua ruang pada tanggal sesi ini">📚 Kosongan Semua Ruang (tanggal ini)</button>
     </div>
+    ${aujBarKosongan(rec)}
     <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">Status di sini dipakai untuk rekap Berita Acara. Formulir cetak tetap memuat kolom tanda tangan untuk diisi langsung di ruang ASAS/ASAT.</p>
     <h5 style="font-weight:700;font-size:13px;margin:12px 0 6px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">Pengawas <button class="btn btn-soft" style="font-size:11px;padding:2px 8px;font-weight:400;" onclick="aujMuatCheckin()" title="Muat ulang data check-in honor pengawas">↻ Muat check-in terbaru</button></h5>
     ${rec.pengawas1 || rec.pengawas2 ? (rec.pengawas1 ? pw('p1', rec.pengawas1) : '') + (rec.pengawas2 ? pw('p2', rec.pengawas2) : '') : '<p style="font-size:13px;color:#6b7280;">Nama pengawas belum diisi (tab Data Sesi).</p>'}
@@ -622,6 +629,8 @@ function aujHtmlDenah(rec) {
       <h4 style="font-weight:700;">🗺️ Denah Lokasi & Tempat Duduk</h4>
       <button class="btn btn-primary" onclick="aujCetakSatu('denah')">🖨️ Cetak Denah</button>
       <button class="btn btn-soft" onclick="aujCetakSatu('label')" title="Label nomor peserta untuk ditempel di bangku, berurutan sesuai denah tersimpan">🏷️ Cetak Label Meja</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('pintu')" title="Lembar besar nama ruang + kelas + rentang nomor peserta untuk ditempel di pintu, satu lembar per ruang">🚪 Cetak Nomor Ruang (Pintu)</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('pintuNama')" title="Daftar nama dan nomor peserta per ruang (satu halaman per ruang), untuk ditempel di dekat pintu">📋 Daftar Peserta per Ruang</button>
     </div>
 
     <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:14px;">
@@ -909,7 +918,11 @@ function aujHtmlBA(rec) {
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">📄 Berita Acara Pelaksanaan ASAS/ASAT</h4>
       <button class="btn btn-primary" onclick="aujCetakSatu('ba')">🖨️ Cetak Berita Acara</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('ba0')" title="Berita acara dengan angka dan catatan dikosongkan, untuk diisi tangan pengawas">📝 Berita Acara Kosongan</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('sampul')" title="Sampul amplop naskah soal dan lembar jawaban untuk ruang/sesi ini">✉️ Sampul Amplop</button>
+      <button class="btn btn-soft" onclick="aujCetakKosonganHari()" title="Daftar Hadir + Berita Acara kosong untuk semua ruang pada tanggal sesi ini">📚 Kosongan Semua Ruang (tanggal ini)</button>
     </div>
+    ${aujBarKosongan(rec)}
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;">
       <strong>Rekap otomatis dari Daftar Hadir:</strong> peserta seharusnya <strong>${rk.total}</strong> · hadir <strong>${rk.h}</strong> · tidak hadir <strong>${rk.s + rk.i + rk.a}</strong> (sakit ${rk.s}, izin ${rk.i}, alpa ${rk.a})${rk.belum ? ` · <span style="color:#b45309;">${rk.belum} belum diisi statusnya</span>` : ''}
     </div>
@@ -967,18 +980,19 @@ const AUJ_KARTU_CSS = `
   .kp-isi { display: flex; gap: 2mm; flex: 1; padding-top: 1.2mm; min-height: 0; }
   .kp-data { flex: 1; min-width: 0; }
   .kp-data table { border-collapse: collapse; width: 100%; }
-  .kp-data td { font-size: 7pt; line-height: 1.15; padding: 0.15mm 0; vertical-align: top; border: none; }
-  .kp-data td:first-child { width: 17mm; white-space: nowrap; }
+  .kp-data td { font-size: 7.5pt; line-height: 1.15; padding: 0.15mm 0; vertical-align: top; border: none; }
+  .kp-data td:first-child { width: 18.5mm; white-space: nowrap; }
   .kp-data td:nth-child(2) { width: 1.8mm; }
-  .kp-no { font-size: 10pt; font-weight: 700; line-height: 1.1; }
+  .kp-no { font-size: 11pt; font-weight: 700; line-height: 1.1; }
   .kp-nama { font-weight: 700; text-transform: uppercase; }
   .kp-nama-panjang { font-size: 6.2pt; line-height: 1.1; }   /* nama > 28 karakter: sedikit lebih kecil supaya tidak makan 4 baris */
-  .kp-kanan { width: 26mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
-  .kp-foto { width: 16mm; height: 21mm; border: 0.3mm solid #555; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
-  .kp-ttd { display: flex; align-items: center; gap: 1.5mm; margin-top: 1mm; font-size: 5.8pt; line-height: 1.2; }   /* di bawah baris Waktu */
+  .kp-kanan { width: 22mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
+  .kp-foto { width: 19mm; height: 24mm; border: 0.3mm solid #555; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
+  .kp-ttd { display: flex; align-items: center; gap: 1.5mm; margin-top: 1mm; font-size: 6.2pt; line-height: 1.2; }   /* di bawah baris Waktu */
   .kp-ttd-ruang { width: 10mm; height: 10mm; flex: none; display: flex; align-items: center; justify-content: center; }
   .kp-ttd-teks { min-width: 0; }
   .kp-ttd b { text-decoration: underline; display: block; }
+  .kp-catatan { margin-top: auto; border-top: 0.2mm solid #999; padding-top: 0.8mm; font-size: 5.5pt; line-height: 1.2; text-align: center; color: #333; flex: none; }
 `;
 const AUJ_KARTU_CSS_CETAK = `
   @page { size: 215mm 330mm; margin: 10mm; }
@@ -1110,6 +1124,7 @@ function aujKartuHtml(rec, p, kursiTeks, qr) {
         <div class="kp-foto">${aujFotoSiswa(p.key) ? `<img src="${escapeHtml(aujFotoSiswa(p.key))}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">` : 'Pas foto'}</div>
       </div>
     </div>
+    <div class="kp-catatan">Kartu wajib dibawa setiap hari ASAS/ASAT. Hadir 15 menit sebelum ujian dimulai.</div>
   </div>`;
 }
 function aujHtmlKartu(rec) {
@@ -1219,15 +1234,15 @@ function aujTtdPengawasHtml(nama, no, lebar) {
 }
 
 // ---- 1. Daftar Hadir ----
-function aujCetakHadirHtml(rec) {
+function aujCetakHadirHtml(rec, kosong) {
   const ps = aujPeserta(rec.kelas, rec), st = rec.hadirPeserta || {};
   const baris = ps.map(p => {
     const v = st[p.key];
-    return `<tr><td style="text-align:center;width:42px;">${p.nomor}</td><td>${escapeHtml(p.nama)}</td><td style="width:34%;height:26px;"></td><td style="width:16%;text-align:center;">${v ? AUJ_STATUS[v] : ''}</td></tr>`;
+    return `<tr><td style="text-align:center;width:42px;">${p.nomor}</td><td>${escapeHtml(p.nama)}</td><td style="width:34%;height:26px;"></td><td style="width:16%;text-align:center;">${!kosong && v ? AUJ_STATUS[v] : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="4" style="text-align:center;">Belum ada data siswa.</td></tr>';
   const pw = [[rec.pengawas1, 'p1'], [rec.pengawas2, 'p2']].filter(x => x[0]);
   if (!pw.length) pw.push(['', 'p1'], ['', 'p2']);
-  const bPw = pw.map((x, i) => `<tr><td style="text-align:center;width:34px;">${i + 1}</td><td>${escapeHtml(x[0])}</td><td style="width:34%;height:30px;"></td><td style="width:16%;text-align:center;">${x[0] && aujPwHadirEfektif(rec)[x[1]] ? 'Hadir' : ''}</td></tr>`).join('');
+  const bPw = pw.map((x, i) => `<tr><td style="text-align:center;width:34px;">${i + 1}</td><td>${escapeHtml(x[0])}</td><td style="width:34%;height:30px;"></td><td style="width:16%;text-align:center;">${!kosong && x[0] && aujPwHadirEfektif(rec)[x[1]] ? 'Hadir' : ''}</td></tr>`).join('');
   return `<div class="halaman">${aujKopHtml()}
     <h1>Daftar Hadir Peserta dan Pengawas Asesmen Sumatif Akhir Semester (ASAS/ASAT)</h1>
     <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}</div>
@@ -1236,6 +1251,7 @@ function aujCetakHadirHtml(rec) {
     <table class="data"><thead><tr><th>No</th><th>Nama Pengawas</th><th>Tanda Tangan</th><th>Keterangan</th></tr></thead><tbody>${bPw}</tbody></table>
     <h2>B. Daftar Hadir Peserta</h2>
     <table class="data"><thead><tr><th>No</th><th>Nama Peserta</th><th>Tanda Tangan</th><th>Keterangan</th></tr></thead><tbody>${baris}</tbody></table>
+    ${kosong ? '<p class="muted" style="margin-top:4px;">Kolom Keterangan diisi tangan oleh pengawas: Hadir / Sakit / Izin / Alpa.</p>' : ''}
   </div>`;
 }
 // ---- 2. Tata Tertib ----
@@ -1260,22 +1276,25 @@ function aujCetakDenahHtml(rec) {
   </div>`;
 }
 // ---- 4. Berita Acara ----
-function aujCetakBAHtml(rec) {
+function aujCetakBAHtml(rec, bl) {
+  if (bl) rec = Object.assign({}, rec, { hadirPeserta: {}, baNaskah: '', baLjk: '', baCatatan: '', baMulai: '', baSelesai: '' });   // kosongan: hasil dikosongkan, jadwal tetap
   const rk = aujRekapHadir(rec), p = aujBagianTgl(rec.tanggal) || { hari: '...', d: '...', bulan: '...', y: '...' };
-  const kosong = rk.belum === rk.total && rk.total > 0;
+  const kosong = !!bl || (rk.belum === rk.total && rk.total > 0);
   const orang = n => kosong ? '.......... orang' : `${n} orang`;
   const titik = v => (v == null || v === '') ? '..........' : escapeHtml(String(v));
-  const mulai = rec.baMulai || rec.jamMulai, selesai = rec.baSelesai || rec.jamSelesai;
+  const mulai = bl ? '' : (rec.baMulai || rec.jamMulai), selesai = bl ? '' : (rec.baSelesai || rec.jamSelesai);
   const tdkHadir = rk.tidakHadir.length
     ? `<table class="data" style="margin-top:4px;"><thead><tr><th style="width:34px;">No</th><th>Nama Peserta</th><th style="width:20%;">Keterangan</th></tr></thead><tbody>${rk.tidakHadir.map((x, i) => `<tr><td style="text-align:center;">${i + 1}</td><td>${escapeHtml(x.nama)}</td><td style="text-align:center;">${x.ket}</td></tr>`).join('')}</tbody></table>`
-    : `<span>${kosong ? '' : '– (nihil)'}</span>`;
+    : (bl
+      ? `<table class="data" style="margin-top:4px;"><thead><tr><th style="width:34px;">No</th><th>Nama Peserta</th><th style="width:20%;">Keterangan</th></tr></thead><tbody>${[1, 2, 3, 4, 5].map(n => `<tr><td style="text-align:center;height:24px;">${n}</td><td></td><td></td></tr>`).join('')}</tbody></table>`
+      : `<span>${kosong ? '' : '– (nihil)'}</span>`);
   const tempat = aujTempat();
   return `<div class="halaman">${aujKopHtml()}
     <h1>Berita Acara Pelaksanaan Asesmen Sumatif Akhir Semester (ASAS/ASAT)</h1>
     <div class="sub">${escapeHtml(rec.nama || '')}<br>Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}</div>
     <p style="text-align:justify;line-height:1.5;">Pada hari ini <strong>${escapeHtml(p.hari)}</strong> tanggal <strong>${escapeHtml(String(p.d))}</strong> bulan <strong>${escapeHtml(p.bulan)}</strong> tahun <strong>${escapeHtml(String(p.y))}</strong>, telah dilaksanakan <strong>${escapeHtml(rec.nama || '')}</strong>${rec.mapel ? ' mata pelajaran <strong>' + escapeHtml(rec.mapel) + '</strong>' : ''} untuk <strong>${escapeHtml(rec.kelas || '')}</strong> di ${escapeHtml(MADRASAH.nama || 'madrasah')}, ruang <strong>${escapeHtml(rec.ruang || '')}</strong>, mulai pukul <strong>${escapeHtml(mulai || '.....')}</strong> sampai dengan pukul <strong>${escapeHtml(selesai || '.....')}</strong> WIB, dengan keterangan sebagai berikut:</p>
     <table class="info" style="margin-left:6px;">
-      <tr><td style="width:24px;">1.</td><td style="width:250px;">Jumlah peserta seharusnya</td><td>: ${orang(rk.total)}</td></tr>
+      <tr><td style="width:24px;">1.</td><td style="width:250px;">Jumlah peserta seharusnya</td><td>: ${bl ? rk.total + ' orang' : orang(rk.total)}</td></tr>
       <tr><td>2.</td><td>Jumlah peserta hadir</td><td>: ${orang(rk.h)}</td></tr>
       <tr><td>3.</td><td>Jumlah peserta tidak hadir</td><td>: ${kosong ? '.......... orang' : `${rk.s + rk.i + rk.a} orang (sakit ${rk.s}, izin ${rk.i}, alpa ${rk.a})`}</td></tr>
       <tr><td>4.</td><td>Jumlah naskah soal yang diterima</td><td>: ${titik(rec.baNaskah)} eksemplar</td></tr>
@@ -1283,7 +1302,7 @@ function aujCetakBAHtml(rec) {
     </table>
     <div class="blok" style="margin-top:8px;padding-left:6px;"><div style="margin-bottom:2px;">Peserta yang tidak hadir:</div>${tdkHadir}</div>
     <div class="blok" style="margin-top:10px;padding-left:6px;"><div>Catatan selama pelaksanaan ASAS/ASAT:</div>
-      <div style="border:1px solid #000;min-height:80px;padding:6px 8px;margin-top:3px;white-space:pre-wrap;font-size:11.5pt;">${escapeHtml(rec.baCatatan || '')}</div></div>
+      <div style="border:1px solid #000;min-height:${bl ? 110 : 80}px;padding:6px 8px;margin-top:3px;white-space:pre-wrap;font-size:11.5pt;">${escapeHtml(rec.baCatatan || '')}</div></div>
     <p style="margin-top:12px;">Demikian berita acara ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.</p>
     <div style="text-align:right;margin-top:6px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(rec.tanggal))}</div>
     <table class="ttd"><tr>${aujTtdPengawasHtml(rec.pengawas1, 1, '50%')}${aujTtdPengawasHtml(rec.pengawas2, 2, '50%')}</tr></table>
@@ -1312,8 +1331,198 @@ function aujCetakLabelHtml(rec) {
   if (!isi.length) return '<p style="text-align:center;padding:20mm 0;">Belum ada kursi pada denah yang tersimpan. Susun dan simpan denah dulu, lalu cetak label.</p>';
   return `${aujKopHtml()}<h1>LABEL NOMOR MEJA ${escapeHtml(rec.nama || 'ASAS/ASAT')}</h1><div class="sub">${escapeHtml(rec.ruang || '-')}${gab ? ' (' + escapeHtml(grup.map(r => r.kelas).join(' + ')) + ')' : ' · ' + escapeHtml(rec.kelas || '')} — ${isi.length} label, urut dari baris terdepan. Gunting mengikuti garis putus-putus lalu tempel di meja sesuai Baris/Kolom.</div><div class="lbgrid">${isi.join('')}</div>`;
 }
-const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml, label: aujCetakLabelHtml };
-const AUJ_JUDUL = { hadir: 'Daftar Hadir ASAS/ASAT', tatib: 'Tata Tertib ASAS/ASAT', denah: 'Denah Ruang ASAS/ASAT', ba: 'Berita Acara ASAS/ASAT', label: 'Label Meja ASAS/ASAT' };
+
+// Nomor Ruang untuk ditempel di PINTU: satu lembar F4 per ruang (semua ruang pada asesmen yang sama), memuat nama ruang besar,
+// kelas yang menempati, dan rentang nomor peserta supaya siswa mudah mencari ruangnya.
+const AUJ_CSS_PINTU = AUJ_CSS + `
+  .pt { box-sizing: border-box; height: 262mm; border: 1.2mm solid #000; padding: 10mm 8mm; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-after: always; break-after: page; }
+  .pt:last-child { page-break-after: auto; break-after: auto; }
+  .pt img { width: 30mm; height: 30mm; object-fit: contain; margin-bottom: 4mm; }
+  .pt .mad { font-size: 17pt; font-weight: 700; text-transform: uppercase; line-height: 1.2; }
+  .pt .ases { font-size: 14pt; margin-top: 2mm; }
+  .pt .garis { width: 70%; border-top: 0.8mm solid #000; margin: 10mm 0 8mm; }
+  .pt .ruang { font-weight: 700; line-height: 1.05; text-transform: uppercase; word-break: break-word; }
+  .pt .kls { margin-top: 12mm; }
+  .pt .kls .k { font-size: 30pt; font-weight: 700; line-height: 1.15; }
+  .pt .kls .n { font-size: 18pt; margin-bottom: 3mm; }
+  .pt .ket { margin-top: 14mm; font-size: 11pt; color: #333; }
+`;
+// Kunci urut ruang: angka kalau ada ("Ruang 3"), angka Romawi kalau ada ("Ruang III"), selain itu terakhir.
+function aujKunciRuang(nama) {
+  const t = String(nama || ''), d = /(\d+)/.exec(t);
+  if (d) return +d[1];
+  const m = /(?:^|\s)([IVXLC]+)(?:\s|$)/i.exec(t);
+  if (m) {
+    const v = { I: 1, V: 5, X: 10, L: 50, C: 100 }, r = m[1].toUpperCase();
+    let tot = 0;
+    for (let i = 0; i < r.length; i++) { const a = v[r[i]], b = v[r[i + 1]] || 0; tot += a < b ? -a : a; }
+    return tot;
+  }
+  return 9999;
+}
+// { peta: { 'Ruang I': { 'Kelas 4': recordSesi } }, ruangs: [nama ruang terurut] } untuk semua sesi pada asesmen yang sama.
+function aujPetaRuang(rec) {
+  const sama = allAdmUjian.filter(r => r.ruang && r.nama === rec.nama);
+  if (!sama.some(r => r.key === rec.key) && rec.ruang) sama.push(rec);
+  const peta = {};
+  sama.forEach(r => {
+    const e = peta[r.ruang] || (peta[r.ruang] = {});
+    if (r.kelas && !e[r.kelas]) e[r.kelas] = r;
+  });
+  const ruangs = Object.keys(peta).sort((a, b) => aujKunciRuang(a) - aujKunciRuang(b) || a.localeCompare(b, 'id', { numeric: true }));
+  return { peta, ruangs };
+}
+// Daftar nama + nomor peserta (+ kursi bila denah sudah disimpan) per ruang, satu halaman per ruang, untuk ditempel di dekat pintu.
+function aujCetakPintuNamaHtml(rec) {
+  const { peta, ruangs } = aujPetaRuang(rec);
+  if (!ruangs.length) return '<p style="text-align:center;padding:20mm 0;">Belum ada ruang pada sesi ini. Isi Ruang di tab Data Sesi dulu.</p>';
+  return ruangs.map(nm => {
+    const baris = [];
+    Object.keys(peta[nm]).sort((a, b) => a.localeCompare(b, 'id', { numeric: true })).forEach(k => {
+      const r = peta[nm][k], kursi = aujPetaKursi(r);
+      aujPeserta(k, r).forEach(p => baris.push(`<tr><td style="text-align:center;width:70px;">${escapeHtml(String(p.nomor))}</td><td>${escapeHtml(p.nama)}</td><td style="text-align:center;width:90px;">${escapeHtml(k)}</td><td style="width:130px;">${escapeHtml(kursi[p.key] || '')}</td></tr>`));
+    });
+    return `<div class="halaman" style="text-align:center;">
+      <div style="font-size:12pt;font-weight:700;text-transform:uppercase;">${escapeHtml(MADRASAH.nama || '')}</div>
+      <div style="font-size:11pt;margin-top:1mm;">${escapeHtml(rec.nama || 'ASAS/ASAT')} · TA ${escapeHtml(currentTahunAjaran || '')}</div>
+      <div style="font-size:36pt;font-weight:700;text-transform:uppercase;line-height:1.1;margin:4mm 0 2mm;">${escapeHtml(nm)}</div>
+      <div style="font-size:11pt;margin-bottom:3mm;">Daftar Peserta · ${baris.length} siswa</div>
+      <table class="data" style="text-align:left;"><thead><tr><th>No. Peserta</th><th>Nama</th><th>Kelas</th><th>Kursi</th></tr></thead><tbody>${baris.join('') || '<tr><td colspan="4" style="text-align:center;">Belum ada data siswa.</td></tr>'}</tbody></table>
+    </div>`;
+  }).join('');
+}
+function aujCetakPintuHtml(rec) {
+  const { peta, ruangs } = aujPetaRuang(rec);
+  if (!ruangs.length) return '<p style="text-align:center;padding:20mm 0;">Belum ada ruang pada sesi ini. Isi Ruang di tab Data Sesi dulu.</p>';
+  const logo = new URL('logo/logo-lembaga.png', location.href).href;
+  return ruangs.map(nm => {
+    const ukuran = nm.length <= 8 ? 78 : (nm.length <= 12 ? 56 : 40);
+    const kelasHtml = Object.keys(peta[nm]).sort((a, b) => a.localeCompare(b, 'id', { numeric: true })).map(k => {
+      const ps = aujPeserta(k, peta[nm][k]);
+      const rentang = ps.length ? `No. Peserta ${escapeHtml(String(ps[0].nomor))}${ps.length > 1 ? ' – ' + escapeHtml(String(ps[ps.length - 1].nomor)) : ''}` : '';
+      return `<div class="k">${escapeHtml(k)}</div>${rentang ? `<div class="n">${rentang}</div>` : ''}`;
+    }).join('');
+    return `<div class="pt"><img src="${escapeHtml(logo)}" alt="" onerror="this.style.display='none'">
+      <div class="mad">${escapeHtml(MADRASAH.nama || '')}</div>
+      <div class="ases">${escapeHtml(rec.nama || 'ASAS/ASAT')} · TA ${escapeHtml(currentTahunAjaran || '')}</div>
+      <div class="garis"></div>
+      <div class="ruang" style="font-size:${ukuran}pt;">${escapeHtml(nm)}</div>
+      <div class="kls">${kelasHtml}</div>
+      <div class="ket">Cari ruangan sesuai nomor peserta pada kartu peserta.</div></div>`;
+  }).join('');
+}
+// Kosongan banyak ruang: Daftar Hadir + Berita Acara kosong tiap sesi pada asesmen yang sama, urut tanggal, jam, lalu ruang.
+function aujCetakKosongan(dari, sampai) {
+  const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
+  if (!aujAdaTanggal(dari) || !aujAdaTanggal(sampai)) return toast('Isi tanggal Dari dan Sampai dulu.', true);
+  if (dari > sampai) return toast('Tanggal Dari tidak boleh sesudah tanggal Sampai.', true);
+  const daftar = allAdmUjian.filter(r => r.nama === rec.nama && aujAdaTanggal(r.tanggal) && r.tanggal >= dari && r.tanggal <= sampai)
+    .sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.jamMulai || '').localeCompare(String(b.jamMulai || '')) || aujKunciRuang(a.ruang) - aujKunciRuang(b.ruang) || String(a.kelas || '').localeCompare(String(b.kelas || ''), 'id', { numeric: true }));
+  if (!daftar.length) return toast('Tidak ada sesi pada rentang tanggal itu.', true);
+  const hari = new Set(daftar.map(r => r.tanggal)).size;
+  if (!confirm('Cetak Daftar Hadir + Berita Acara KOSONGAN untuk ' + daftar.length + ' sesi pada ' + hari + ' hari (' + aujTglIndo(dari) + ' s.d. ' + aujTglIndo(sampai) + ')?\n\nKira-kira ' + (daftar.length * 3) + ' lembar F4. Pastikan kertas cukup.')) return;
+  aujCetakHtml(daftar.map(r => aujCetakHadirHtml(r, true) + aujCetakBAHtml(r, true)).join(''), `Berkas Kosongan ASAS/ASAT - ${aujTglIndo(dari)} s.d. ${aujTglIndo(sampai)}`);
+}
+function aujCetakKosonganHari() { const rec = aujRec(); if (rec) aujCetakKosongan(rec.tanggal, rec.tanggal); }
+function aujCetakKosonganRentang() { aujCetakKosongan(aujVal('aujKosDari'), aujVal('aujKosSampai')); }
+// Baris pilihan rentang tanggal (bawaan: seluruh masa asesmen yang sama), dipasang di tab Daftar Hadir dan Berita Acara.
+function aujBarKosongan(rec) {
+  const tgl = allAdmUjian.filter(r => r.nama === rec.nama && aujAdaTanggal(r.tanggal)).map(r => r.tanggal).sort();
+  const dari = tgl[0] || rec.tanggal || '', sampai = tgl[tgl.length - 1] || rec.tanggal || '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;border:1px dashed #cbd5e1;border-radius:8px;padding:6px 10px;margin-bottom:10px;">
+    <span>📚 Cetak banyak hari:</span>
+    <input id="aujKosDari" class="field" type="date" value="${escapeHtml(dari)}" style="width:auto;padding:3px 6px;font-size:12px;"> s.d.
+    <input id="aujKosSampai" class="field" type="date" value="${escapeHtml(sampai)}" style="width:auto;padding:3px 6px;font-size:12px;">
+    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakKosonganRentang()" title="Daftar Hadir + Berita Acara kosong semua ruang pada rentang tanggal ini">🖨️ Hadir + BA Kosongan</button>
+    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakSampulRentang()" title="Sampul amplop naskah dan lembar jawaban, satu lembar per sesi pada rentang tanggal ini">✉️ Sampul Amplop</button></div>`;
+}
+// ---- Sampul amplop naskah & lembar jawaban (satu lembar per sesi/ruang) ----
+function aujSesiRentang(dari, sampai, rec) {
+  return allAdmUjian.filter(r => r.nama === rec.nama && aujAdaTanggal(r.tanggal) && r.tanggal >= dari && r.tanggal <= sampai)
+    .sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.jamMulai || '').localeCompare(String(b.jamMulai || '')) || aujKunciRuang(a.ruang) - aujKunciRuang(b.ruang) || String(a.kelas || '').localeCompare(String(b.kelas || ''), 'id', { numeric: true }));
+}
+function aujCetakSampulHtml(rec) {
+  const jml = aujPeserta(rec.kelas, rec).length, titik = '..............';
+  const baris = (a, b) => `<tr><td style="width:42%;">${a}</td><td style="width:2%;text-align:center;">:</td><td>${b}</td></tr>`;
+  const kol = (judul, nama) => `<td><div>${judul}</div><div class="ruang"></div><div style="font-weight:700;text-decoration:underline;">${escapeHtml(nama || '(............................)')}</div></td>`;
+  return `<div class="halaman">${aujKopHtml()}
+    <h1>Sampul Naskah Soal dan Lembar Jawaban</h1>
+    <div class="sub">${escapeHtml(rec.nama || 'ASAS/ASAT')} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
+    <div style="text-align:center;font-size:34pt;font-weight:700;text-transform:uppercase;line-height:1.1;margin:8px 0 2px;">${escapeHtml(rec.ruang || '-')}</div>
+    <div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;">${escapeHtml(rec.kelas || '')}${rec.mapel ? ' · ' + escapeHtml(rec.mapel) : ''}</div>
+    ${aujInfoHtml(rec)}
+    <table class="info" style="margin-top:2px;"><tr><td style="width:120px;">Jumlah Peserta</td><td style="width:10px;">:</td><td>${jml} siswa</td></tr></table>
+    <h2>Rincian Naskah dan Lembar Jawaban</h2>
+    <table class="data"><thead><tr><th>Keterangan</th><th style="width:30%;">Jumlah</th></tr></thead><tbody>
+      <tr><td>Naskah soal diterima pengawas dari panitia</td><td style="height:30px;">${titik} eksemplar</td></tr>
+      <tr><td>Naskah soal dikembalikan ke panitia</td><td style="height:30px;">${titik} eksemplar</td></tr>
+      <tr><td>Lembar jawaban dibagikan</td><td style="height:30px;">${titik} lembar</td></tr>
+      <tr><td>Lembar jawaban dikumpulkan</td><td style="height:30px;">${titik} lembar</td></tr>
+      <tr><td>Peserta tidak hadir</td><td style="height:30px;">${titik} orang</td></tr>
+    </tbody></table>
+    <table class="ttd"><tr>${kol('Diserahkan oleh Panitia,', '')}${kol('Diterima Pengawas 1,', rec.pengawas1)}${kol('Dikembalikan ke Panitia,', '')}</tr></table>
+  </div>`;
+}
+function aujCetakSampulRentang() {
+  const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
+  const dari = aujVal('aujKosDari'), sampai = aujVal('aujKosSampai');
+  if (!aujAdaTanggal(dari) || !aujAdaTanggal(sampai)) return toast('Isi tanggal Dari dan Sampai dulu.', true);
+  if (dari > sampai) return toast('Tanggal Dari tidak boleh sesudah tanggal Sampai.', true);
+  const daftar = aujSesiRentang(dari, sampai, rec);
+  if (!daftar.length) return toast('Tidak ada sesi pada rentang tanggal itu.', true);
+  if (!confirm('Cetak sampul amplop untuk ' + daftar.length + ' sesi (' + aujTglIndo(dari) + ' s.d. ' + aujTglIndo(sampai) + ')? Satu lembar F4 per sesi.')) return;
+  aujCetakHtml(daftar.map(aujCetakSampulHtml).join(''), `Sampul Amplop ASAS/ASAT - ${aujTglIndo(dari)} s.d. ${aujTglIndo(sampai)}`);
+}
+
+// ---- Rekap kehadiran peserta per kelas selama masa asesmen (F4 mendatar): baris = siswa, kolom = tiap sesi ----
+const AUJ_CSS_REKAP = AUJ_CSS + `
+  @page { size: 330mm 215mm; margin: 12mm 15mm; }
+  table.rk { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  table.rk th, table.rk td { border: 1px solid #000; padding: 1.5px 3px; font-size: 8pt; text-align: center; line-height: 1.2; }
+  table.rk th { background: #eee; font-size: 7.5pt; }
+  table.rk td.nm { text-align: left; white-space: nowrap; }
+  table.rk thead { display: table-header-group; }
+  table.rk tr { page-break-inside: avoid; }
+  table.rk td.x { font-weight: 700; }
+`;
+function aujRekapKelasHtml(kelas, daftar) {
+  const ps = [], ada = {};
+  daftar.forEach(r => aujPeserta(kelas, r).forEach(p => { if (!ada[p.key]) { ada[p.key] = 1; ps.push(p); } }));
+  ps.sort((a, b) => a.no - b.no);
+  const kolom = daftar.map(r => {
+    const t = aujBagianTgl(r.tanggal);
+    return `<th>${t ? escapeHtml(t.hari.slice(0, 3)) + '<br>' + t.d + ' ' + escapeHtml(t.bulan.slice(0, 3)) : ''}<br><span style="font-weight:400;">${escapeHtml(r.mapel || '')}</span></th>`;
+  }).join('');
+  const baris = ps.map(p => {
+    const c = { H: 0, S: 0, I: 0, A: 0 };
+    const sel = daftar.map(r => {
+      const v = (r.hadirPeserta || {})[p.key];
+      if (v && c[v] != null) c[v]++;
+      return `<td${v && v !== 'H' ? ' class="x"' : ''}>${v && c[v] != null ? v : ''}</td>`;
+    }).join('');
+    return `<tr><td>${escapeHtml(String(p.nomor))}</td><td class="nm">${escapeHtml(p.nama)}</td>${sel}<td>${c.H}</td><td>${c.S}</td><td>${c.I}</td><td>${c.A}</td></tr>`;
+  }).join('') || `<tr><td colspan="${daftar.length + 6}">Belum ada data siswa.</td></tr>`;
+  return `<div class="halaman">${aujKopHtml()}
+    <h1>Rekap Kehadiran Peserta ${escapeHtml(daftar[0].nama || 'ASAS/ASAT')} — ${escapeHtml(kelas)}</h1>
+    <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}</div>
+    <table class="rk"><thead><tr><th style="width:36px;">No. Peserta</th><th>Nama</th>${kolom}<th style="width:24px;">H</th><th style="width:24px;">S</th><th style="width:24px;">I</th><th style="width:24px;">A</th></tr></thead><tbody>${baris}</tbody></table>
+    <p class="muted" style="margin-top:4px;">H = Hadir, S = Sakit, I = Izin, A = Alpa. Sel kosong = status belum diisi di Daftar Hadir.</p>
+  </div>`;
+}
+function aujCetakRekapHtml(rec, semua) {
+  const sesi = allAdmUjian.filter(r => r.nama === rec.nama && r.kelas && aujAdaTanggal(r.tanggal));
+  if (!sesi.some(r => r.key === rec.key) && rec.kelas && aujAdaTanggal(rec.tanggal)) sesi.push(rec);
+  const kelasList = semua ? [...new Set(sesi.map(r => r.kelas))].sort((a, b) => a.localeCompare(b, 'id', { numeric: true })) : [rec.kelas];
+  const hasil = kelasList.map(k => {
+    const d = sesi.filter(r => r.kelas === k).sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.jamMulai || '').localeCompare(String(b.jamMulai || '')));
+    return d.length ? aujRekapKelasHtml(k, d) : '';
+  }).join('');
+  return hasil || '<p style="text-align:center;padding:20mm 0;">Belum ada sesi bertanggal untuk direkap.</p>';
+}
+const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml, label: aujCetakLabelHtml,
+  hadir0: r => aujCetakHadirHtml(r, true), ba0: r => aujCetakBAHtml(r, true), pintu: aujCetakPintuHtml, pintuNama: aujCetakPintuNamaHtml,
+  sampul: aujCetakSampulHtml, rekap: r => aujCetakRekapHtml(r, false), rekapSemua: r => aujCetakRekapHtml(r, true) };
+const AUJ_JUDUL = { hadir: 'Daftar Hadir ASAS/ASAT', tatib: 'Tata Tertib ASAS/ASAT', denah: 'Denah Ruang ASAS/ASAT', ba: 'Berita Acara ASAS/ASAT', label: 'Label Meja ASAS/ASAT', hadir0: 'Daftar Hadir Kosongan ASAS/ASAT', ba0: 'Berita Acara Kosongan ASAS/ASAT', pintu: 'Nomor Ruang ASAS/ASAT', pintuNama: 'Daftar Peserta per Ruang ASAS/ASAT', sampul: 'Sampul Amplop ASAS/ASAT', rekap: 'Rekap Kehadiran ASAS/ASAT', rekapSemua: 'Rekap Kehadiran Semua Kelas ASAS/ASAT' };
 // Cetak selalu memakai data TERSIMPAN. Fungsi ini mendeteksi isian/draft di layar yang belum disimpan.
 function aujDraftBeda(jenis, rec) {
   const j = JSON.stringify, v = x => (x == null ? '' : String(x)).trim();
@@ -1350,8 +1559,8 @@ function aujKonfirmasiBA(rec) {
 function aujCetakSatu(jenis) {
   const rec = aujRec(); if (!rec || !AUJ_CETAK[jenis]) return toast('Pilih sesi ASAS/ASAT dulu.', true);
   if (jenis === 'ba' && !aujKonfirmasiBA(rec)) return;
-  aujPeringatDraft([jenis === 'label' ? 'denah' : jenis], rec);
-  aujCetakHtml(AUJ_CETAK[jenis](rec), `${AUJ_JUDUL[jenis]} - ${rec.kelas || ''} ${rec.ruang || ''}`, jenis === 'label' ? AUJ_CSS_LABEL : undefined);
+  aujPeringatDraft([{ label: 'denah', rekap: 'hadir', rekapSemua: 'hadir' }[jenis] || jenis], rec);
+  aujCetakHtml(AUJ_CETAK[jenis](rec), `${AUJ_JUDUL[jenis]} - ${rec.kelas || ''} ${rec.ruang || ''}`, { label: AUJ_CSS_LABEL, pintu: AUJ_CSS_PINTU, rekap: AUJ_CSS_REKAP, rekapSemua: AUJ_CSS_REKAP }[jenis]);
 }
 function aujCetakSemua() {
   const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
