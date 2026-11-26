@@ -116,7 +116,7 @@
 
   <!-- Menu Administrasi Ujian (Daftar Hadir, Tata Tertib, Denah, Berita Acara) -- juga dimuat SEBELUM app.js
        supaya setupAdministrasiUjianPage() & aujCanOpenMenu() sudah ada saat app.js berjalan. -->
-  <script defer src="js/administrasi-ujian.js?v=46"></script>
+  <script defer src="js/administrasi-ujian.js?v=47"></script>
 
   <!-- Logic utama aplikasi -- defer juga (bukan lagi ditaruh di akhir <body>) supaya urutan
        eksekusinya konsisten dengan script defer lain di atas (semua defer dijamin browser
@@ -141,7 +141,7 @@
   <script defer src="js/honor-guru.js?v=28"></script>
   <script defer src="js/honor-kebersihan.js?v=3"></script>
   <!-- Hasil pecahan app.js tahap 4 (Event & Ujian; Absen Guru Admin + Pengingat). WAJIB sesudah app.js, sebelum skrip lain. -->
-  <script defer src="js/event-ujian.js?v=4"></script>
+  <script defer src="js/event-ujian.js?v=5"></script>
   <script defer src="js/pengingat-absen-guru.js?v=4"></script>
   <!-- Hasil pecahan app.js tahap 5 (lapisan V4: Tahfidz/Pramuka/Ekskul; tarif honor V4, pengaturan Absen QR, notifikasi, persetujuan, Rapor). WAJIB sesudah app.js, sebelum skrip lain. -->
   <script defer src="js/v4-tahfidz-pramuka-ekskul.js?v=7"></script>
@@ -1353,6 +1353,15 @@
 
         <div class="card">
           <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 Daftar Sesi Ujian</h3>
+          <div id="ujFilterBar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+            <div style="flex:1;min-width:110px;"><label class="label" for="ujFilterHari">Hari</label><select id="ujFilterHari" class="field" onchange="renderUjianList()"><option value="">Semua hari</option></select></div>
+            <div style="flex:1;min-width:110px;"><label class="label" for="ujFilterKelas">Kelas</label><select id="ujFilterKelas" class="field" onchange="renderUjianList()"><option value="">Semua kelas</option></select></div>
+            <div style="flex:2;min-width:150px;"><label class="label" for="ujFilterCari">Nama pengawas</label><input id="ujFilterCari" class="field" placeholder="Cari nama pengawas..." oninput="renderUjianList()"></div>
+            <div style="flex:1;min-width:150px;"><label class="label" for="ujFilterStatus">Status check-in</label><select id="ujFilterStatus" class="field" onchange="renderUjianList()"><option value="">Semua</option><option value="belum">Ada pengawas belum check-in</option><option value="lengkap">Semua pengawas sudah check-in</option></select></div>
+            <button type="button" id="ujBtnHariIni" class="btn btn-soft" style="padding:8px 12px;" aria-pressed="false" onclick="ujToggleHariIni()">📅 Hari ini</button>
+            <button type="button" class="btn btn-soft" style="padding:8px 12px;" onclick="ujResetFilter()">↺ Reset</button>
+          </div>
+          <div id="ujFilterInfo" class="text-muted" style="font-size:12px;margin-bottom:6px;"></div>
           <div id="ujianList"><p style="color:#6b7280;font-size:13px;">Memuat...</p></div>
         </div>
       </div>

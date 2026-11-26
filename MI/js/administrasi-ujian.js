@@ -2044,35 +2044,137 @@ function aujHtmlMassal() {
 }
 // Pembagian pengawas bagi rata. Murni (tidak menyentuh layar/database). baris = sesi baru (urutan jadwal), pool = [{key,name}],
 // existing = sesi tersimpan, jml = 1|2 pengawas per sesi, nama = nama asesmen (beban dihitung per asesmen yang sama).
-// Slot yang sudah terisi (pengawas manual) dipertahankan. Prioritas: beban paling sedikit, lalu yang paling lama menganggur,
-// dan hanya guru yang jamnya tidak bertabrakan. Kalau semua bentrok, dipilih yang bebannya paling ringan (ditandai di pratinjau).
+// Slot yang sudah terisi (pengawas manual) dipertahankan. Aturan, berurutan:
+//  1. KELANJUTAN SESI: guru yang bertugas di sesi sebelumnya pada hari yang sama (mis. sesi 1) dibawa lagi ke sesi berikutnya (sesi 2),
+//     walau ruangnya berbeda. Bila slot sesi berikutnya kurang dari jumlah guru yang harus lanjut, sisanya dihitung di `tanpaLanjut`.
+//  2. Slot yang belum terisi dilengkapi guru dengan beban paling sedikit, lalu yang paling lama menganggur, dan hanya guru yang
+//     jamnya tidak bertabrakan. Kalau semua bentrok, dipilih yang bebannya paling ringan (ditandai di pratinjau).
+//  3. PASANGAN: guru-guru sesi itu disebar ke ruang-ruang supaya pasangan yang sudah pernah berdua (di hari yang sama lebih berat,
+//     di hari/sesi lain lebih ringan) sebisa mungkin tidak terulang. Pasangan yang terpaksa terulang dihitung di `pasanganUlang`.
 function aujBagiPengawas(baris, pool, existing, jml, nama) {
   if (!pool.length) return { error: 'Tidak ada guru/wali kelas di Data Guru untuk dibagi.' };
   if (pool.length < jml) return { error: `Pengawas per sesi ${jml} orang, tetapi guru yang tersedia hanya ${pool.length}.` };
   const beban = {}, terakhir = {}; pool.forEach(g => { beban[g.key] = 0; terakhir[g.key] = 0; });
+  const poolByKey = {}; pool.forEach(g => { poolByKey[g.key] = g; });
   const dihitung = [];   // satu ruang dihitung sekali untuk beban
   const kunciBaris = new Set(baris.map(b => b.key).filter(Boolean));   // sesi yang sedang diisi sudah dihitung lewat slot yang terisi
   (existing || []).forEach(x => { if ((nama && x.nama !== nama) || kunciBaris.has(x.key)) return; if (dihitung.some(y => aujSatuRuang(y, x))) return; dihitung.push(x); aujPengawasDari(x).forEach(pw => { if (pw.k in beban) beban[pw.k]++; }); });
   const urut = baris.filter(b => !b.sudahAda).sort((a, b) => (a.tanggal + (a.jamMulai || '')).localeCompare(b.tanggal + (b.jamMulai || '')));
-  const terpakai = (existing || []).slice();   // + sesi baru yang sudah dibagi
-  let seq = 0, tanpaCelah = 0;
-  const bebasDi = (g, b) => !terpakai.some(x => x.tanggal === b.tanggal && aujTumpang(x, b) && !aujSatuRuang(x, b) && aujPengawasDari(x).some(pw => pw.k === g.key));
-  urut.forEach(b => {
-    const ada = []; [['pengawas1', 'pengawas1Key'], ['pengawas2', 'pengawas2Key']].forEach(f => { if (b[f[0]]) { ada.push(b[f[1]]); if (b[f[1]] in beban) beban[b[f[1]]]++; } });
-    // Kelas lain di ruang & jam yang sama: pengawas ikut sama (tanpa menambah beban), sisa slot baru dibagi seperti biasa.
-    const kem = terpakai.find(x => x !== b && !(x.key && x.key === b.key) && aujSatuRuang(x, b) && (x.pengawas1 || x.pengawas2));
-    if (kem) [['pengawas1', 'pengawas1Key'], ['pengawas2', 'pengawas2Key']].forEach(f => { if (!b[f[0]] && kem[f[0]] && ada.indexOf(kem[f[1]]) < 0) { b[f[0]] = kem[f[0]]; b[f[1]] = kem[f[1]]; ada.push(kem[f[1]]); } });
-    for (let slot = 1; slot <= jml; slot++) {
-      const f = slot === 1 ? ['pengawas1', 'pengawas1Key'] : ['pengawas2', 'pengawas2Key'];
-      if (b[f[0]]) continue;
-      const kand = pool.filter(g => ada.indexOf(g.key) < 0).sort((x, y) => (beban[x.key] - beban[y.key]) || ((terakhir[x.key] || 0) - (terakhir[y.key] || 0)) || (pool.indexOf(x) - pool.indexOf(y)));
-      const pilih = kand.find(g => bebasDi(g, b)) || (tanpaCelah++, kand[0]);
-      if (!pilih) continue;
-      b[f[0]] = pilih.name; b[f[1]] = pilih.key; ada.push(pilih.key); beban[pilih.key]++; terakhir[pilih.key] = ++seq;
+  const terpakai = (existing || []).slice();   // untuk cek bentrok jam: sesi tersimpan + sesi baru yang sudah dibagi
+  const riwayat = (existing || []).filter(x => !(x.key && kunciBaris.has(x.key)));   // untuk kelanjutan sesi & riwayat pasangan (salinan lama sesi yang sedang diisi tidak ikut)
+  let seq = 0, tanpaCelah = 0, tanpaLanjut = 0, pasanganUlang = 0;
+  const bebasDi = (id, b) => !terpakai.some(x => x.tanggal === b.tanggal && aujTumpang(x, b) && !aujSatuRuang(x, b) && aujPengawasDari(x).some(pw => pw.k === id));
+  // Riwayat pasangan: berapa kali dua orang sudah berdua (satu ruang-sesi dihitung sekali), dan apakah sudah berdua pada tanggal itu.
+  const pk = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+  const histSemua = {}, histHari = {};
+  const catat = (x, hitungUlang) => {
+    const ids = aujPengawasDari(x).map(p => p.k); if (ids.length < 2) return;
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const k = pk(ids[i], ids[j]);
+      if (hitungUlang && histSemua[k]) pasanganUlang++;
+      histSemua[k] = (histSemua[k] || 0) + 1; histHari[x.tanggal + '#' + k] = true;
     }
-    terpakai.push(b);
+  };
+  dihitung.forEach(x => catat(x, false));
+  const biayaPasangan = (a, b, tgl) => { const k = pk(a, b), c = histSemua[k] || 0; return c * c * 10 + (histHari[tgl + '#' + k] ? 50 : 0); };
+  const slotPw = [['pengawas1', 'pengawas1Key'], ['pengawas2', 'pengawas2Key']];
+
+  // Susun ruang-sesi (kelas satu ruang & jam = satu unit, pengawasnya sama), lalu kelompokkan per sesi (tanggal + jam mulai).
+  const units = [];
+  urut.forEach(b => {
+    let u = units.find(z => aujSatuRuang(z.rep, b));
+    if (!u) { u = { rep: b, anggota: [], tetap: [] }; units.push(u); }
+    u.anggota.push(b);
   });
-  return { beban, tanpaCelah };
+  const sesiList = [];
+  units.forEach(u => {
+    const kunci = u.rep.tanggal + '#' + (u.rep.jamMulai || '');
+    let s = sesiList.find(z => z.kunci === kunci);
+    if (!s) { s = { kunci, tanggal: u.rep.tanggal, jamMulai: u.rep.jamMulai || '', units: [] }; sesiList.push(s); }
+    s.units.push(u);
+  });
+  // Pengawas yang sudah ditentukan (manual / kelas lain satu ruang yang sudah tersimpan) per unit.
+  units.forEach(u => {
+    const tambah = (n, key) => {
+      if (!n) return; const id = key || aujIdPengawas(n);
+      if (id && !u.tetap.some(t => t.k === id)) u.tetap.push({ k: id, nama: n, key: key || (poolByKey[id] ? id : null) });
+    };
+    u.anggota.forEach(b => slotPw.forEach(f => { if (b[f[0]]) { const n0 = u.tetap.length; tambah(b[f[0]], b[f[1]]); if (u.tetap.length > n0 && u.tetap[n0].k in beban) beban[u.tetap[n0].k]++; } }));
+    const kem = terpakai.find(x => !u.anggota.includes(x) && !(x.key && u.anggota.some(b => b.key === x.key)) && aujSatuRuang(x, u.rep) && (x.pengawas1 || x.pengawas2));
+    if (kem) slotPw.forEach(f => tambah(kem[f[0]], kem[f[1]]));
+  });
+
+  sesiList.forEach(S => {
+    const sisaUnit = S.units.map(u => Math.max(0, jml - u.tetap.length));
+    const kapasitas = sisaUnit.reduce((a, b) => a + b, 0);
+    const tetapIds = new Set(); S.units.forEach(u => u.tetap.forEach(t => tetapIds.add(t.k)));
+    // (1) Kelanjutan: orang dari sesi sebelumnya (jam mulai terdekat sebelum ini, hari & asesmen sama).
+    const sebelum = riwayat.filter(x => x.tanggal === S.tanggal && S.jamMulai && x.jamMulai && x.jamMulai < S.jamMulai && aujNormNama(x.nama) === aujNormNama(S.units[0].rep.nama));
+    let lanjutKandidat = [];
+    if (sebelum.length) {
+      const jamAkhir = sebelum.reduce((m, x) => x.jamMulai > m ? x.jamMulai : m, '');
+      sebelum.filter(x => x.jamMulai === jamAkhir).forEach(x => aujPengawasDari(x).forEach(p => { if (!lanjutKandidat.some(q => q.k === p.k)) lanjutKandidat.push({ k: p.k, nama: p.nama, key: poolByKey[p.k] ? p.k : null }); }));
+    }
+    const lanjut = [];
+    lanjutKandidat.forEach(p => {
+      if (tetapIds.has(p.k)) return;   // sudah bertugas di sesi ini (manual / kelas satu ruang)
+      if (lanjut.length >= kapasitas || !S.units.some(u => bebasDi(p.k, u.rep))) { tanpaLanjut++; return; }
+      lanjut.push(p);
+    });
+    // (2) Sisa slot: guru dengan beban paling ringan.
+    const dipilih = new Set(lanjut.map(p => p.k)), perlu = kapasitas - lanjut.length, pengisi = [];
+    if (perlu > 0) {
+      const kand = pool.filter(g => !tetapIds.has(g.key) && !dipilih.has(g.key)).sort((x, y) => (beban[x.key] - beban[y.key]) || ((terakhir[x.key] || 0) - (terakhir[y.key] || 0)) || (pool.indexOf(x) - pool.indexOf(y)));
+      const bebas = kand.filter(g => S.units.some(u => bebasDi(g.key, u.rep))), sibuk = kand.filter(g => !bebas.includes(g));
+      bebas.concat(sibuk).slice(0, perlu).forEach(g => { if (sibuk.includes(g)) tanpaCelah++; pengisi.push({ k: g.key, nama: g.name, key: g.key }); });
+    }
+    const orang = lanjut.concat(pengisi);
+    orang.forEach(p => { if (p.k in beban) beban[p.k]++; terakhir[p.k] = ++seq; });
+    // (3) Sebar ke ruang: kurangi pasangan yang berulang (tukar-tukar sampai tidak ada perbaikan; deterministik).
+    const slot = []; sisaUnit.forEach((n, ui) => { for (let i = 0; i < n; i++) slot.push(ui); });
+    const asg = orang.slice(); while (asg.length < slot.length) asg.push(null);
+    const biaya = a => {
+      const per = S.units.map(u => u.tetap.map(t => t.k)); slot.forEach((ui, i) => { if (a[i]) per[ui].push(a[i].k); });
+      let t = 0; per.forEach(ids => { for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) t += biayaPasangan(ids[i], ids[j], S.tanggal); });
+      return t;
+    };
+    if (jml > 1 && slot.length > 1) {
+      const perbaiki = a => {   // tukar dua orang di ruang berbeda selama biaya turun
+        let c0 = biaya(a), lagi = true, putaran = 0;
+        while (lagi && putaran++ < 60) {
+          lagi = false;
+          for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) {
+            if (slot[i] === slot[j] || a[i] === a[j]) continue;
+            [a[i], a[j]] = [a[j], a[i]];
+            const c = biaya(a);
+            if (c < c0) { c0 = c; lagi = true; } else [a[i], a[j]] = [a[j], a[i]];
+          }
+        }
+        return c0;
+      };
+      let terbaik = perbaiki(asg), hasil = asg.slice(), rnd = 12345;   // beberapa susunan awal acak semu (tetap sama tiap dijalankan)
+      for (let r = 0; r < 40 && terbaik > 0; r++) {
+        const a = orang.slice(); while (a.length < slot.length) a.push(null);
+        for (let i = a.length - 1; i > 0; i--) { rnd = (rnd * 1103515245 + 12345) % 2147483648; const j = rnd % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+        const c = perbaiki(a); if (c < terbaik) { terbaik = c; hasil = a.slice(); }
+      }
+      for (let i = 0; i < asg.length; i++) asg[i] = hasil[i];
+    }
+    S.units.forEach((u, ui) => {
+      const akhir = u.tetap.slice(); slot.forEach((uj, i) => { if (uj === ui && asg[i]) akhir.push(asg[i]); });
+      u.anggota.forEach(b => {
+        const ada = []; slotPw.forEach(f => { if (b[f[0]]) ada.push(b[f[1]] || aujIdPengawas(b[f[0]])); });
+        slotPw.forEach((f, si) => {
+          if (si >= jml || b[f[0]]) return;
+          const p = akhir.find(z => ada.indexOf(z.k) < 0 && ada.indexOf(z.key) < 0); if (!p) return;
+          b[f[0]] = p.nama; b[f[1]] = p.key; ada.push(p.k);
+        });
+        terpakai.push(b); riwayat.push(b);
+      });
+      catat(u.anggota[0], true);   // pasangan dicatat sekali per ruang
+    });
+  });
+  return { beban, tanpaCelah, tanpaLanjut, pasanganUlang };
 }
 function aujPoolPengawas() { return (allGuru || []).filter(g => g && g.key && g.name && (g.role === 'guru' || g.role === 'wali_kelas')); }
 // Guru yang TIDAK ikut dibagi otomatis sebagai pengawas (tulis sesuai Data Guru; besar/kecil huruf & spasi ganda diabaikan).
@@ -2081,6 +2183,21 @@ const AUJ_KECUALI_PENGAWAS = ['Achmad Syauqi'];
 function aujPoolOtomatis() {
   const kecuali = new Set(AUJ_KECUALI_PENGAWAS.map(aujNormNama));
   return aujPoolPengawas().filter(g => !kecuali.has(aujNormNama(g.name)));
+}
+// Periksa aturan penugasan pengawas (independen dari pembagi otomatis, jadi ikut berlaku untuk isian manual):
+//  - putus: guru yang bertugas di satu sesi tetapi TIDAK bertugas lagi di sesi berikutnya pada hari yang sama (beda ruang tidak masalah)
+//  - ulang: pasangan dua guru yang sama muncul di lebih dari satu ruang-sesi
+// daftar = sesi yang diperiksa (satu asesmen). Hanya tanggal di `tanggalFokus` (Set) yang dilaporkan bila diberikan.
+function aujCekLanjutSesi(daftar, tanggalFokus) {
+  const putus = [], ulang = [], perHari = {}, pasangan = {};
+  aujLipatRuang((daftar || []).filter(r => r && r.tanggal && r.jamMulai)).forEach(r => { (perHari[r.tanggal] = perHari[r.tanggal] || {}); (perHari[r.tanggal][r.jamMulai] = perHari[r.tanggal][r.jamMulai] || []).push(r); });
+  Object.keys(perHari).sort().forEach(t => {
+    const jam = Object.keys(perHari[t]).sort(), orang = jam.map(j => { const m = new Map(); perHari[t][j].forEach(r => aujPengawasDari(r).forEach(p => m.set(p.k, p.nama))); return m; });
+    for (let i = 0; i < jam.length - 1; i++) orang[i].forEach((nm, k) => { if (!orang[i + 1].has(k) && (!tanggalFokus || tanggalFokus.has(t))) putus.push({ nama: nm, tanggal: t, dari: jam[i], ke: jam[i + 1] }); });
+    jam.forEach(j => perHari[t][j].forEach(r => { const ids = aujPengawasDari(r); if (ids.length < 2) return; const k = [ids[0].k, ids[1].k].sort().join('|'); (pasangan[k] = pasangan[k] || []).push({ tanggal: t, jam: j, ruang: r.ruang || '-', a: ids[0].nama, b: ids[1].nama }); }));
+  });
+  Object.keys(pasangan).forEach(k => { const g = pasangan[k]; if (g.length > 1 && (!tanggalFokus || g.some(x => tanggalFokus.has(x.tanggal)))) ulang.push({ a: g[0].a, b: g[0].b, kali: g.length, contoh: g.slice(0, 3).map(x => aujTglPendek(x.tanggal) + ' ' + x.jam).join(', ') }); });
+  return { putus, ulang };
 }
 // Hitung ulang bentrok untuk sesi baru pada pratinjau (dipanggil saat pratinjau dibuat dan saat pengawas diganti manual).
 function aujHitungBentrokMassal(h) {
@@ -2092,6 +2209,8 @@ function aujHitungBentrokMassal(h) {
   const tb = aujCekTumpangBaru(baru); baru.forEach((b, i) => { b.tumpang = tb.perBaris[i]; }); h.nTumpang = tb.jumlah; h.contohTumpang = tb.contoh;   // kelas/ruang bertabrakan
   const rekap = {}; aujLipatRuang(baru).forEach(b => [b.pengawas1, b.pengawas2].forEach(n => { if (n) rekap[n] = (rekap[n] || 0) + 1; }));   // kelas satu ruang dihitung sekali (sama seperti honor & Rekap Beban)
   h.rekap = Object.keys(rekap).map(n => ({ nama: n, n: rekap[n] })).sort((a, b) => b.n - a.n || a.nama.localeCompare(b.nama));
+  const nmAsesmen = aujNormNama((baru[0] || {}).nama), tglBaru = new Set(baru.map(b => b.tanggal));
+  h.cekSesi = aujCekLanjutSesi(allAdmUjian.filter(x => aujNormNama(x.nama) === nmAsesmen).concat(baru), tglBaru);
 }
 function aujPratinjauMassal() {
   if (!aujCanEdit()) return;
@@ -2163,6 +2282,8 @@ function aujHtmlPratinjauMassal() {
     ${h.kalenderKosong ? '<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">ℹ️ Kalender Akademik belum memuat tanggal libur (kosong atau belum pernah dibuka). Buka menu Kalender Akademik sekali, lalu Pratinjau lagi bila ingin hari libur dilewati otomatis.</p>' : ''}
     ${h.p.honorOtomatis ? (() => { const kamar = aujLipatRuang(baru), lengkap = kamar.filter(b => Object.keys(aujKunciPengawasSesi(b).map).length).length; return `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">💰 ${lengkap} dari ${kamar.length} sesi honor${kamar.length < baru.length ? ' (satu per ruang)' : ''} akan langsung dibuat @ Rp ${h.p.honorNominal.toLocaleString('id-ID')} per pengawas${kamar.length - lengkap ? `; ${kamar.length - lengkap} sesi tanpa pengawas dilewati` : ''}.</p>`; })() : ''}
     ${h.p.auto && h.rekap && h.rekap.length ? `<p style="font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:6px 10px;margin-bottom:6px;">🤖 Pembagian pengawas (jumlah ruang-sesi; kelas satu ruang dihitung sekali): ${h.rekap.map(x => escapeHtml(x.nama) + ' (' + x.n + ')').join(', ')}.${h.tanpaCelah ? ` ${h.tanpaCelah} penugasan tidak menemukan guru yang bebas jam — lihat tanda ⚠️ dan ganti manual.` : ''}</p>` : ''}
+    ${h.cekSesi && h.cekSesi.putus.length ? `<p style="font-size:12px;color:#991b1b;background:#fef2f2;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ ${h.cekSesi.putus.length} pengawas bertugas di satu sesi tetapi tidak dijadwalkan lagi di sesi berikutnya pada hari yang sama, mis. ${escapeHtml(h.cekSesi.putus.slice(0, 3).map(x => x.nama + ' (' + aujTglPendek(x.tanggal) + ', ' + x.dari + ' → ' + x.ke + ')').join('; '))}. Sesi berikutnya mungkin punya ruang lebih sedikit; atur manual bila perlu.</p>` : (h.p.auto && h.cekSesi ? `<p style="font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:6px 10px;margin-bottom:6px;">🔗 Semua pengawas sesi sebelumnya sudah dijadwalkan lagi di sesi berikutnya pada hari yang sama.</p>` : '')}
+    ${h.cekSesi && h.cekSesi.ulang.length ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 10px;margin-bottom:6px;">👥 ${h.cekSesi.ulang.length} pasangan pengawas sama muncul lebih dari sekali, mis. ${escapeHtml(h.cekSesi.ulang.slice(0, 3).map(x => x.a + ' & ' + x.b + ' (' + x.kali + '×: ' + x.contoh + ')').join('; '))}. Pasangan tidak bisa dihindari bila jumlah guru atau ruang terlalu sedikit.</p>` : ''}
     ${h.nTumpang ? `<p style="font-size:12px;color:#991b1b;background:#fef2f2;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ ${h.nTumpang} sesi bertabrakan kelas atau ruangnya dengan sesi lain pada jam yang sama, mis. ${escapeHtml((h.contohTumpang || []).join('; '))}. Masih bisa disimpan; periksa tanggal, jam, dan ruangnya dulu.</p>` : ''}
     ${h.nBentrok ? `<p style="font-size:12px;color:#991b1b;background:#fef2f2;border-radius:6px;padding:6px 10px;margin-bottom:6px;">⚠️ ${h.nBentrok} bentrok pengawas dengan sesi lain. Masih bisa disimpan; ${h.p.auto ? 'ganti pengawasnya di tabel ini atau di Data Sesi sesudahnya' : 'ubah pengawasnya di Data Sesi sesudahnya'}.</p>` : ''}
     <div style="overflow-x:auto;background:#fff;border-radius:8px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;"><th style="padding:4px 8px;">No</th><th style="padding:4px 8px;">Tanggal</th><th style="padding:4px 8px;">Waktu</th>${h.p.multi ? '<th style="padding:4px 8px;">Kelas · Ruang</th>' : ''}<th style="padding:4px 8px;">Mapel</th><th style="padding:4px 8px;">Pengawas</th><th style="padding:4px 8px;">Status</th></tr></thead><tbody>${rows}</tbody></table></div>

@@ -300,11 +300,82 @@
         toast('🗑️ Sesi ujian dihapus.'); addLog('hapus_ujian', key); reloadDataset('ujian');
       });
     }
+    // --- Nama pengawas + filter hari/kelas pada Daftar Sesi Ujian (hanya tampilan; tidak ada data baru yang ditulis) ---
+    const UJ_HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    function ujHariDari(tgl) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(tgl || ''); return m ? UJ_HARI[new Date(+m[1], +m[2]-1, +m[3]).getDay()] : ''; }
+    // Kelas dibaca dari nama sesi honor buatan jadwal: "Pengawas <mapel> · 4A + 4B · Ruang II". Sesi manual (tanpa " · ") -> tanpa kelas.
+    function ujKelasDari(u) {
+      const p = String(u.nama || '').split(' · ');
+      if (p.length < 3) return [];
+      return p[p.length - 2].split('+').map(s => s.trim()).filter(s => s && s !== '-');
+    }
+    function ujRuangDari(u) { const p = String(u.nama || '').split(' · '); return p.length >= 3 ? p[p.length - 1].trim() : ''; }
+    // Daftar pengawas sebuah sesi: [{nama, hadir}]. Nama dari Data Guru; bila tidak ada, dari catatan check-in; terakhir "?".
+    function ujPengawasDari(u) {
+      const guruList = (typeof allGuru !== 'undefined' && allGuru) || [];
+      const hadirMap = {}, namaAtt = {};
+      (allUjianAttendance || []).forEach(a => { if (a.ujianKey !== u.key) return; const k = a.guruKey || ('n:' + a.guru); hadirMap[k] = true; if (a.guruKey) namaAtt[a.guruKey] = a.guru; });
+      return Object.keys(u.pengawas || {}).filter(k => u.pengawas[k] === true).map(k => {
+        const g = guruList.find(x => x.key === k);
+        return { nama: (g && g.name) || namaAtt[k] || 'Guru (tidak dikenal)', hadir: !!hadirMap[k] };
+      }).sort((a, b) => COLLATOR_ID.compare(a.nama, b.nama));
+    }
+    function ujPengawasHtml(u) {
+      const pw = ujPengawasDari(u);
+      if (!pw.length) return '';
+      return `<div style="margin-top:4px;font-size:12px;color:#4c1d95;">👤 <strong>Pengawas:</strong> ` +
+        pw.map(p => `<span style="white-space:nowrap;">${escapeHtml(p.nama)}${p.hadir ? ' <span title="Sudah check-in" style="color:#065f46;">✅</span>' : ''}</span>`).join(', ') + `</div>`;
+    }
+    // Isi pilihan filter dari data yang ada; pilihan yang sedang dipakai dipertahankan saat daftar digambar ulang.
+    function ujSiapkanFilter() {
+      const selHari = document.getElementById('ujFilterHari'), selKelas = document.getElementById('ujFilterKelas');
+      if (!selHari || !selKelas) return;
+      const hariAda = new Set(), kelasAda = new Set();
+      allUjian.forEach(u => { const h = ujHariDari(u.tanggal); if (h) hariAda.add(h); ujKelasDari(u).forEach(k => kelasAda.add(k)); });
+      const urutHari = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'].filter(h => hariAda.has(h));
+      const kelasUrut = [...kelasAda].sort((a, b) => COLLATOR_ID.compare(a, b));
+      const isi = (sel, daftar, semua) => {
+        const sekarang = sel.value, sig = daftar.join('|');
+        if (sel.dataset.sig === sig) return;
+        sel.innerHTML = `<option value="">${semua}</option>` + daftar.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+        sel.value = daftar.indexOf(sekarang) >= 0 ? sekarang : '';
+        sel.dataset.sig = sig;
+      };
+      isi(selHari, urutHari, 'Semua hari'); isi(selKelas, kelasUrut, 'Semua kelas');
+    }
+    let ujHanyaHariIni = false;
+    function ujToggleHariIni() { ujHanyaHariIni = !ujHanyaHariIni; renderUjianList(); }
+    function ujResetFilter() {
+      ['ujFilterHari', 'ujFilterKelas', 'ujFilterCari', 'ujFilterStatus'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      ujHanyaHariIni = false;
+      renderUjianList();
+    }
     function renderUjianList() {
       const list = document.getElementById('ujianList');
       if (!list) return;
-      const sorted = [...allUjian].sort((a,b) => COLLATOR_ID.compare((b.tanggal||''), a.tanggal||''));
-      if (sorted.length === 0) { list.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada sesi ujian.</p>'; return; }
+      ujSiapkanFilter();
+      const fHari = (document.getElementById('ujFilterHari') || {}).value || '', fKelas = (document.getElementById('ujFilterKelas') || {}).value || '';
+      const semua = [...allUjian].sort((a,b) => COLLATOR_ID.compare((b.tanggal||''), a.tanggal||''));
+      if (semua.length === 0) { list.innerHTML = '<p class="text-muted" style="font-size:13px;">Belum ada sesi ujian.</p>'; return; }
+      const fCari = (((document.getElementById('ujFilterCari') || {}).value) || '').trim().toLowerCase(), fStatus = (document.getElementById('ujFilterStatus') || {}).value || '';
+      const hariIni = ujHanyaHariIni ? tglLokal() : '';
+      const btnHariIni = document.getElementById('ujBtnHariIni');
+      if (btnHariIni) { btnHariIni.setAttribute('aria-pressed', ujHanyaHariIni ? 'true' : 'false'); btnHariIni.style.background = ujHanyaHariIni ? '#7c3aed' : ''; btnHariIni.style.color = ujHanyaHariIni ? '#fff' : ''; }
+      const sorted = semua.filter(u => {
+        if (fHari && ujHariDari(u.tanggal) !== fHari) return false;
+        if (fKelas && ujKelasDari(u).indexOf(fKelas) < 0) return false;
+        if (hariIni && u.tanggal !== hariIni) return false;
+        if (fCari || fStatus) {
+          const pw = ujPengawasDari(u);
+          if (fCari && !pw.some(p => p.nama.toLowerCase().indexOf(fCari) >= 0)) return false;
+          if (fStatus === 'belum' && !pw.some(p => !p.hadir)) return false;
+          if (fStatus === 'lengkap' && !(pw.length && pw.every(p => p.hadir))) return false;
+        }
+        return true;
+      });
+      const info = document.getElementById('ujFilterInfo');
+      if (info) info.textContent = (fHari || fKelas || fCari || fStatus || hariIni) ? `${sorted.length} dari ${semua.length} sesi` : `${semua.length} sesi`;
+      if (sorted.length === 0) { list.innerHTML = '<p class="text-muted" style="font-size:13px;">Tidak ada sesi yang cocok dengan filter.</p>'; return; }
       let html = '';
       sorted.forEach(u => {
         const jumlahHadir = allUjianAttendance.filter(a => a.ujianKey === u.key).length;
@@ -315,7 +386,8 @@
             <span><strong>${icon} ${escapeHtml(u.nama)}</strong> <span style="font-size:11px;color:#7c3aed;">(${escapeHtml(u.jenis)})</span></span>
             <span>${tombolAdmin}</span>
           </div>
-          <div class="text-muted" style="margin-top:2px;">${escapeHtml(u.tanggal)} | ${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} | Rp ${(u.honor||0).toLocaleString('id-ID')} | ${(isAdmin()||isKepsek()) ? `<span style="color:#7c3aed;cursor:pointer;text-decoration:underline;" onclick="lihatPesertaUjian('${u.key}')">👥 ${jumlahHadir} hadir</span>` : `👥 ${jumlahHadir} hadir`}</div>
+          <div class="text-muted" style="margin-top:2px;">${escapeHtml(ujHariDari(u.tanggal))} ${escapeHtml(u.tanggal)} | ${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} | Rp ${(u.honor||0).toLocaleString('id-ID')} | ${(isAdmin()||isKepsek()) ? `<span style="color:#7c3aed;cursor:pointer;text-decoration:underline;" onclick="lihatPesertaUjian('${u.key}')">👥 ${jumlahHadir} hadir</span>` : `👥 ${jumlahHadir} hadir`}</div>
+          ${ujPengawasHtml(u)}
         </div>`;
       });
       list.innerHTML = html;
@@ -346,7 +418,7 @@
           ? `<span style="color:#92400e;font-weight:600;">⏳ Tersimpan offline ${new Date(antre.dicatatMs).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})} — terkirim otomatis saat online</span> <button class="btn btn-soft" style="padding:3px 10px;font-size:11px;" onclick="ujAntreKirim(true)">Kirim sekarang</button>`
           : `<button class="btn btn-success" style="padding:4px 14px;font-size:12px;" onclick="openUjianCheckin('${u.key}')">📸 Check-in</button>`;
         html += `<div style="padding:10px 12px;background:#f3e8ff;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-          <span><strong>${icon} ${escapeHtml(u.nama)}</strong> <span style="font-size:11px;color:#7c3aed;">(${escapeHtml(u.jenis)})</span><br><span class="text-muted" style="font-size:12px;">${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} · Rp ${(u.honor||0).toLocaleString('id-ID')}</span></span>
+          <span><strong>${icon} ${escapeHtml(u.nama)}</strong> <span style="font-size:11px;color:#7c3aed;">(${escapeHtml(u.jenis)})</span><br><span class="text-muted" style="font-size:12px;">${escapeHtml(u.jamMulai)}-${escapeHtml(u.jamSelesai)} · Rp ${(u.honor||0).toLocaleString('id-ID')}</span>${ujPengawasHtml(u)}</span>
           ${tombol}
         </div>`;
       });

@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.586';
+const APP_VERSION = 'v8.587';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,7 +81,7 @@ const PRECACHE_URLS = [
   './js/logo-fallback.js',
   './js/offline-db.js',
   './js/kas.js?v=10',
-  './js/administrasi-ujian.js?v=46',
+  './js/administrasi-ujian.js?v=47',
   './js/app.js?v=176',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=52',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -95,7 +95,7 @@ const PRECACHE_URLS = [
   './js/honor-guru.js?v=28',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-kebersihan.js?v=3',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
   './js/versi-app.js?v=2',                   // Penampil versi + Cek pembaruan (footer menu samping; berdiri sendiri)
-  './js/event-ujian.js?v=4',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/event-ujian.js?v=5',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=4',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-tahfidz-pramuka-ekskul.js?v=7',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-pengaturan-notif-rapor.js?v=19',  // V4: tarif honor, pengaturan Absen QR, notifikasi, persetujuan, Rapor (dipecah dari app.js; dimuat SESUDAH app.js)
