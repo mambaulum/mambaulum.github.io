@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.581",
-  "disimpan": "2026-11-25T12:56:50.845Z",
+  "appVersion": "v8.582",
+  "disimpan": "2026-11-26T01:11:49.429Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -55,8 +55,8 @@
       "hash": "3f0afd882d3dd7aaaa3eac8049d2e28e63a7e4de"
     },
     "js/administrasi-ujian.js": {
-      "v": "v=44",
-      "hash": "d60d4e51b60e80d539f198cc44a246ff8c9177eb"
+      "v": "v=45",
+      "hash": "ebe5cd82a0349f792db743bcdf9c82db8562ef7b"
     },
     "js/app.js": {
       "v": "v=176",
@@ -286,17 +286,17 @@
       "v": "v=1",
       "hash": "a762983978ea9060d204de054f6c86ce7b75243d"
     },
-    "js/data-soal-uraian-aqh-ba-tambahan.js": {
-      "v": "v=7",
-      "hash": "a0891e44b49e209a05a764fb57fedf5fc3b8e284"
+    "js/data-soal-lanjutan-aqh-ba.js": {
+      "v": "v=1",
+      "hash": "1d98a32d972be4da62eb402bde0286bb04ce3a91"
     },
-    "js/data-soal-uraian-aa-fikih-ski-tambahan.js": {
-      "v": "v=7",
-      "hash": "99d4851550cf1d7fb79f85ebb6e792164ec6c423"
+    "js/data-soal-lanjutan-pai.js": {
+      "v": "v=1",
+      "hash": "a45facde5acfe46732b270f48485157829b862ae"
     },
-    "js/data-soal-uraian-pjok-ipas-pp-tambahan.js": {
-      "v": "v=7",
-      "hash": "345b3c82451a26dd856bc0e35daed551dcfb7ea6"
+    "js/data-soal-lanjutan-umum.js": {
+      "v": "v=1",
+      "hash": "fb759f17882db99f5c48d142f6a04fb0c2231f70"
     },
     "js/perangkat-rpe.js": {
       "v": "v=15",
@@ -319,8 +319,8 @@
       "hash": "64f1d2725f8a7b3f71a909a4c2051b66980021d1"
     },
     "js/perangkat-soal.js": {
-      "v": "v=30",
-      "hash": "e768a0c6b86e3fe8e4f791b156d49587ca3b4542"
+      "v": "v=31",
+      "hash": "3ca27a3878c5fb51370abf478743a08983457f97"
     },
     "js/perangkat-paket.js": {
       "v": "v=4",
