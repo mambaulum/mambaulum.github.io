@@ -480,6 +480,42 @@ ${tabelHtml(h)}
     if (!id || typeof db === 'undefined' || !db || !navigator.onLine) return;
     (daftarJk || []).forEach(jk => { try { db.ref('perangkat_v4/' + id + '/docs/' + jk + '/setuju').remove().catch(() => {}); } catch (e) {} });
   }
+  // Gambar <svg> inline (soal bergambar otomatis, QR) TIDAK tampil di Word. Jadi untuk unduhan Word, tiap <svg> diubah menjadi PNG
+  // (digambar di kanvas) lalu disematkan sebagai <img src="data:image/png;base64,..."> (tetap HTML biasa, jadi tetap terbuka di Word/WPS/LibreOffice).
+  // gambarPngDari mengembalikan Promise<string|null>; null = tidak ada <svg> atau gagal, maka unduhan memakai HTML apa adanya seperti sebelumnya.
+  function svgKePng(s) {
+    return new Promise(ok => {
+      try {
+        const tag = (/^<svg\b[^>]*>/i.exec(s) || [''])[0], at = n => { const m = new RegExp('\\s' + n + '="(\\d+(?:\\.\\d+)?)(?:px)?"', 'i').exec(tag); return m ? +m[1] : 0; };
+        let W = at('width'), H = at('height');
+        if (!W || !H) { const vb = /viewBox="[\d.\-]+[ ,]+[\d.\-]+[ ,]+([\d.]+)[ ,]+([\d.]+)"/i.exec(tag); if (vb) { W = +vb[1]; H = +vb[2]; } }
+        if (!(W > 0 && H > 0)) return ok(null);
+        const img = new Image(), k = 2;
+        img.onload = () => {
+          try {
+            const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k);
+            const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+            const kecil = /[\s"';]width:\s*100%/i.test(tag), tw = kecil ? Math.min(W, 128) : W;   // gambar pilihan jawaban: lebar sekitar 34 mm
+            ok({ png: c.toDataURL('image/png').split(',')[1], w: Math.round(tw), h: Math.round(tw * H / W) });
+          } catch (e) { ok(null); }
+        };
+        img.onerror = () => ok(null);
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+      } catch (e) { ok(null); }
+    });
+  }
+  function gambarPngDari(html) {
+    const daftar = Array.from(new Set(html.match(/<svg\b[\s\S]*?<\/svg>/gi) || []));
+    if (!daftar.length) return Promise.resolve(null);
+    return Promise.all(daftar.map(svgKePng)).then(hasil => {
+      let h = html, n = 0;
+      hasil.forEach((r, x) => {
+        if (!r) return;
+        n++; h = h.split(daftar[x]).join('<img src="data:image/png;base64,' + r.png + '" width="' + r.w + '" height="' + r.h + '" alt="Gambar soal" style="vertical-align:middle">');
+      });
+      return n ? h : null;
+    }).catch(() => null);
+  }
   // mode 'word' => unduh .doc; selain itu buka jendela cetak.
   // Jendela cetak dibuka SINKRON (agar tidak diblokir popup), isinya ditulis setelah QR selesai dibuat.
   function keluarkan(html, nama, mode) {
@@ -496,9 +532,12 @@ ${tabelHtml(h)}
     siap.then(h => {
       h = String(h).replace(/\[\[TTD:[^\]\s]*\]\]/g, '');   // penanda yang tak terproses jangan sampai tercetak
       if (mode === 'word') {
-        const blob = new Blob(['\ufeff' + wordDari(h)], { type: 'application/msword' }), a = document.createElement('a');
-        a.href = URL.createObjectURL(blob); a.download = String(nama || 'dokumen').replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').slice(0, 80) + '.doc';
-        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        const doc = wordDari(h), unduh = isi => {
+          const blob = new Blob([isi], { type: 'application/msword' }), a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = String(nama || 'dokumen').replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').slice(0, 80) + '.doc';
+          document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        };
+        gambarPngDari(doc).then(hd => unduh('\ufeff' + (hd || doc)), () => unduh('\ufeff' + doc));
         return;
       }
       if (w.closed) return;
@@ -584,5 +623,5 @@ ${tabelHtml(h)}
   }
   window.rpeUtil = { siap: siap, parseTgl: parseTgl, bacaCfg: bacaCfg, hitungRpe: hitungRpe, hitungPekan: hitungPekan, dokumen: dokumen, nomor: nomor,
     esc: esc, slug: slug, fmtTgl: fmtTgl, fmtRentang: fmtRentang, daftar: daftar, BULAN: BULAN,
-    keluarkan: keluarkan, ttdSp: ttdSp, ttdKepalaSp: ttdKepalaSp, cabutSetuju: cabutSetuju, idSemester: idSemester, wordDari: wordDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
+    keluarkan: keluarkan, ttdSp: ttdSp, ttdKepalaSp: ttdKepalaSp, cabutSetuju: cabutSetuju, idSemester: idSemester, wordDari: wordDari, gambarPngDari: gambarPngDari, nipMuat: nipMuat, nipSimpan: nipSimpan, nipIsi: nipIsi };
 })();
