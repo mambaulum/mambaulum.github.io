@@ -688,7 +688,7 @@ body{font-size:11pt;line-height:1.25}
   // ---------- Event ----------
   function sinkron() {
     const el = document.getElementById('soalOverlay'); if (!el) return; const sl = S.slots[S.sem];
-    el.querySelectorAll('[data-i]').forEach(i => {
+    el.querySelectorAll('textarea[data-i],input[data-i],select[data-i]').forEach(i => {  // pengaman: hanya kolom isian yang dibaca; tombol (mis. 🖼 gambar) yang memakai data-i/data-k sama tidak boleh menimpa data
       const x = sl[+i.getAttribute('data-i')], k = i.getAttribute('data-k'); if (!x) return;
       if (k === 'q' || k === 'kt') x[k] = i.value;
       else if (/^o[0-3]$/.test(k) && x.o) x.o[+k[1]] = i.value;
@@ -843,7 +843,7 @@ body{font-size:11pt;line-height:1.25}
     m.addEventListener('keydown', e => { if (e.key === 'Escape') tutupM(); });
     m.querySelector('#gbrOk').addEventListener('click', () => {
       const r = hitung(); if (!gbrSvg(r.kt.t, r.p)) return;
-      const el = document.querySelector('#soalOverlay [data-i="' + i + '"][data-k="' + k + '"]'); if (!el) return tutupM();
+      const el = document.querySelector('#soalOverlay textarea[data-i="' + i + '"][data-k="' + k + '"],#soalOverlay input[data-i="' + i + '"][data-k="' + k + '"]'); if (!el) return tutupM();
       const v = String(el.value), maks = +el.getAttribute('maxlength') || 600;
       if (v.length + r.tok.length > maks) { say('Teks sudah terlalu panjang untuk menampung gambar. Persingkat dulu teksnya.', true); return; }
       const pos = typeof el.selectionStart === 'number' && document.activeElement === el ? el.selectionStart : v.length;
