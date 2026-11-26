@@ -48,7 +48,7 @@
    js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
 ============================================================ */
 
-const APP_VERSION = 'v8.587';
+const APP_VERSION = 'v8.592';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,7 +81,7 @@ const PRECACHE_URLS = [
   './js/logo-fallback.js',
   './js/offline-db.js',
   './js/kas.js?v=10',
-  './js/administrasi-ujian.js?v=47',
+  './js/administrasi-ujian.js?v=48',
   './js/app.js?v=176',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=52',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
@@ -142,12 +142,16 @@ const PRECACHE_URLS = [
   './js/data-soal-lanjutan-aqh-ba.js?v=1',
   './js/data-soal-lanjutan-pai.js?v=1',
   './js/data-soal-lanjutan-umum.js?v=1',
+  './js/data-soal-fikih-gambar.js?v=1',
+  './js/data-soal-pancasila-gambar.js?v=1',
+  './js/data-soal-pjok-gambar.js?v=1',
+  './js/data-soal-aa-gambar.js?v=1',
   './js/perangkat-rpe.js?v=16',
   './js/perangkat-prota-promes.js?v=9',
   './js/perangkat-atp-tp.js?v=11',
   './js/data-kisi-resmi-mi.js?v=6',
   './js/perangkat-kisi.js?v=13',
-  './js/perangkat-soal.js?v=33',
+  './js/perangkat-soal.js?v=35',
   './js/perangkat-paket.js?v=4',
   './js/perangkat-pembelajaran.js?v=26',
   './js/modul-ajar.js?v=23',
