@@ -392,7 +392,7 @@
   const S = { rec: null, ta: '', fase: '', sem: 'ganjil', slots: { ganjil: [], genap: [] }, judul: { ganjil: '', genap: '' },
               skor: { pg: '1', is: '2', ur: '5' }, cfg: { ganjil: null, genap: null }, nip: '', yatim: { ganjil: 0, genap: 0 },
               loading: false, err: null, busy: false, dirty: false, ro: false, epoch: 0 };
-  const MUT = ['simpan', 'ganti', 'bank', 'skor100'];
+  const MUT = ['simpan', 'ganti', 'bank', 'skor100', 'gbr'];
   // Mode baca-saja untuk Admin/Kepsek yang membuka perangkat milik guru lain (simpan memang hanya untuk pemilik).
   function kunciRo(el, mut) {
     el.querySelectorAll('input:not([data-f="nip"]),select,textarea').forEach(i => { i.disabled = true; });
@@ -637,7 +637,7 @@ body{font-size:11pt;line-height:1.25}
     let h = `<div style="margin-top:8px;padding:8px;border:1px solid ${lengkap(x) ? '#e5e7eb' : '#fcd34d'};border-radius:8px;">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;"><b>No. ${x.no} · ${bentukX(x)} · ${esc(x.lv)}</b><span>${lencana}</span></div>
       <div style="${muted}margin:2px 0 6px;">${esc(x.e)} — ${esc(x.t)}</div>
-      <textarea class="field" rows="${x.b === 'ur' ? 3 : 2}" maxlength="600" style="width:100%;" data-i="${i}" data-k="q" placeholder="Tulis soal..." aria-label="Soal ${x.no}">${esc(x.q)}</textarea>${gbrPrev(x.q)}`;
+      <textarea class="field" rows="${x.b === 'ur' ? 3 : 2}" maxlength="600" style="width:100%;" data-i="${i}" data-k="q" placeholder="Tulis soal..." aria-label="Soal ${x.no}">${esc(x.q)}</textarea><div style="margin-top:4px;">${btn('gbr" data-i="' + i + '" data-k="q', '🖼 Sisipkan gambar otomatis')}</div>${gbrPrev(x.q)}`;
     if (x.b === 'pg') {
       const res = ((window.BANK_KISI_RESMI_MI || {})[x.k] || []).map(z => z.bentuk).filter(v => /kompleks|menjodohkan/i.test(v)).filter((v, n, a) => a.indexOf(v) === n);
       h += `<div style="margin-top:6px;font-size:12px;">Jenis: <select class="field" data-i="${i}" data-k="st" aria-label="Jenis soal ${x.no}">${SUB.map(z => `<option value="${z[0]}" ${x.st === z[0] ? 'selected' : ''}>${z[1]}</option>`).join('')}</select>${res.length ? ` <span style="color:#1e40af;">📘 Kisi-kisi resmi untuk TP ini juga memuat: ${esc(res.join(', '))}</span>` : ''}</div>`;
@@ -646,10 +646,10 @@ body{font-size:11pt;line-height:1.25}
           + `<div style="${muted}margin-top:2px;">Tulis tiap pasangan yang benar sejajar. Kolom kanan diacak otomatis saat dicetak.</div>`;
       } else if (x.st === 'pk') {
         const kc = ksList(x);
-        h += x.o.map((o, n) => `<div style="display:flex;gap:6px;align-items:center;margin-top:4px;"><input type="checkbox" data-i="${i}" data-k="kc${n}" ${kc.indexOf(n) >= 0 ? 'checked' : ''} aria-label="Benar ${HURUF[n]}"><span style="width:16px;font-weight:700;">${HURUF[n]}</span><input class="field" maxlength="160" style="flex:1;" data-i="${i}" data-k="o${n}" value="${esc(o)}" aria-label="Opsi ${HURUF[n]}"></div>`).join('')
+        h += x.o.map((o, n) => `<div style="display:flex;gap:6px;align-items:center;margin-top:4px;"><input type="checkbox" data-i="${i}" data-k="kc${n}" ${kc.indexOf(n) >= 0 ? 'checked' : ''} aria-label="Benar ${HURUF[n]}"><span style="width:16px;font-weight:700;">${HURUF[n]}</span><input class="field" maxlength="160" style="flex:1;" data-i="${i}" data-k="o${n}" value="${esc(o)}" aria-label="Opsi ${HURUF[n]}">${btn('gbr" data-i="' + i + '" data-k="o' + n, '🖼', 'btn-soft', 'padding:4px 8px;')}</div>`).join('')
           + `<div style="${muted}margin-top:2px;">Centang SEMUA jawaban yang benar (minimal 2).</div>`;
       } else {
-        h += x.o.map((o, n) => `<div style="display:flex;gap:6px;align-items:center;margin-top:4px;"><input type="radio" name="kp${i}" value="${n}" data-i="${i}" data-k="kp" ${x.kp === n ? 'checked' : ''} aria-label="Kunci ${HURUF[n]}"><span style="width:16px;font-weight:700;">${HURUF[n]}</span><input class="field" maxlength="160" style="flex:1;" data-i="${i}" data-k="o${n}" value="${esc(o)}" aria-label="Opsi ${HURUF[n]}"></div>`).join('')
+        h += x.o.map((o, n) => `<div style="display:flex;gap:6px;align-items:center;margin-top:4px;"><input type="radio" name="kp${i}" value="${n}" data-i="${i}" data-k="kp" ${x.kp === n ? 'checked' : ''} aria-label="Kunci ${HURUF[n]}"><span style="width:16px;font-weight:700;">${HURUF[n]}</span><input class="field" maxlength="160" style="flex:1;" data-i="${i}" data-k="o${n}" value="${esc(o)}" aria-label="Opsi ${HURUF[n]}">${btn('gbr" data-i="' + i + '" data-k="o' + n, '🖼', 'btn-soft', 'padding:4px 8px;')}</div>`).join('')
           + `<div style="${muted}margin-top:2px;">Pilih bulatan di kiri sebagai kunci jawaban.</div>`;
       }
     } else {
@@ -768,6 +768,90 @@ body{font-size:11pt;line-height:1.25}
       if (berubah) ajukanUlang(SEM.filter(s => S.slots[s].length)).then(n => { if (n) { audit('AJUKAN_ULANG_PERANGKAT_SOAL', idSem(S.sem)); say('⏳ Kartu Soal & Kunci kembali menunggu persetujuan Kepala', false, 4500); } }).catch(err => console.error('[SI MAMBA] ajukan ulang soal:', err)); })
       .catch(err => { S.busy = false; console.error('[SI MAMBA] soal:', err); say('❌ Gagal menyimpan: ' + ((err && err.message) || err), true); });
   }
+  // ---------- Dialog "Sisipkan gambar" di editor soal ----------
+  // Guru memilih jenis gambar, mengisi isian, melihat pratinjau, lalu penanda [[g:...]] disisipkan ke teks soal atau pilihan jawaban.
+  const GN = (id, l, a, b, d) => ({ id, l, k: 'n', a, b, d });
+  const GS = (id, l, o, d) => ({ id, l, k: 's', o, d });
+  const GT = (id, l, d, h, x) => ({ id, l, k: 't', d, h, x });
+  const gdaftar = v => String(v).split(',').map(z => z.trim()).filter(Boolean);
+  const GIK = Object.keys(GIKON).map(n => [n, n]);
+  const GBENTUK = [['persegi', 'Persegi'], ['persegipanjang', 'Persegi panjang'], ['siku', 'Segitiga siku-siku'], ['segitiga', 'Segitiga'], ['lingkaran', 'Lingkaran'], ['segilima', 'Segi lima'], ['segienam', 'Segi enam'], ['belahketupat', 'Belah ketupat'], ['jajargenjang', 'Jajar genjang'], ['trapesium', 'Trapesium'], ['layang', 'Layang-layang']];
+  const GARAH = [['U', 'Utara (U)'], ['TL', 'Timur laut (TL)'], ['T', 'Timur (T)'], ['TG', 'Tenggara (TG)'], ['S', 'Selatan (S)'], ['BD', 'Barat daya (BD)'], ['B', 'Barat (B)'], ['BL', 'Barat laut (BL)']];
+  const GKAT = [
+    { t: 'jam', n: 'Jam analog', f: [GN('h', 'Jam (1-12)', 1, 12, 3), GN('m', 'Menit (0-59)', 0, 59, 30)] },
+    { t: 'pecahan', n: 'Pecahan (bagian berwarna)', f: [GN('n', 'Bagian berwarna', 0, 12, 3), GN('d', 'Jumlah bagian seluruhnya', 1, 12, 4), GS('b', 'Bentuk', [['lingkaran', 'Lingkaran'], ['batang', 'Batang']], 'lingkaran')] },
+    { t: 'diagram', n: 'Diagram batang', h: 'Pisahkan dengan koma. Maksimal 6 batang.', f: [GT('i', 'Nama:nilai', 'Apel:5, Jeruk:8, Mangga:3', 'Apel:5, Jeruk:8', gdaftar)] },
+    { t: 'piktogram', n: 'Piktogram (diagram gambar)', f: [GT('i', 'Nama:jumlah gambar', 'Bola:4, Voli:2, Basket:5', 'Bola:4, Voli:2', gdaftar), GT('k', 'Keterangan (boleh kosong)', '1 anak', 'mis. 1 anak', v => v ? ['=' + v] : [])] },
+    { t: 'bangun', n: 'Bangun datar', f: [GS('b', 'Bentuk', GBENTUK, 'persegi'), GT('a', 'Label sisi/jari-jari (boleh kosong)', '5 cm', 'mis. 5 cm'), GT('c', 'Label sisi kedua (persegi panjang atau siku-siku, boleh kosong)', '', 'mis. 3 cm')] },
+    { t: 'ubin', n: 'Kotak satuan (untuk luas)', f: [GN('r', 'Baris', 1, 10, 3), GN('c', 'Kolom', 1, 12, 4)] },
+    { t: 'kubus', n: 'Susunan kubus satuan (untuk volume)', f: [GN('p', 'Panjang', 1, 6, 3), GN('l', 'Lebar', 1, 6, 2), GN('t', 'Tinggi', 1, 6, 2)] },
+    { t: 'penggaris', n: 'Penggaris dan benda', f: [GN('p', 'Panjang benda (cm, maks 15)', 0.5, 15, 7)] },
+    { t: 'petak', n: 'Peta berpetak', f: [GN('k', 'Kolom (A, B, C, ...)', 2, 8, 5), GN('b', 'Baris (1, 2, 3, ...)', 2, 8, 4), GT('m', 'Penanda (huruf+angka:nama)', 'B2:Toko, D3:Pasar', 'mis. B2:Toko', gdaftar)] },
+    { t: 'pola', n: 'Pola gambar', h: 'k = kotak, o = bulat, t = segitiga, b = bintang, h = hati, ? = yang ditanyakan. Maksimal 10.', f: [GT('i', 'Urutan bentuk', 'k, o, o, k, o, o, k, ?', 'k, o, k, o, ?', gdaftar)] },
+    { t: 'timbangan', n: 'Timbangan', f: [GT('a', 'Isi sisi kiri', 'Apel', 'mis. Apel'), GT('b', 'Isi sisi kanan', 'Jeruk', 'mis. Jeruk'), GS('t', 'Sisi yang turun (lebih berat)', [['kiri', 'Kiri'], ['kanan', 'Kanan'], ['seimbang', 'Seimbang']], 'kiri')] },
+    { t: 'garisbil', n: 'Garis bilangan', f: [GN('a', 'Bilangan awal', -50, 99, 0), GN('b', 'Bilangan akhir', -49, 119, 10), GN('t', 'Letak titik', -50, 119, 7), GT('h', 'Nama titik', 'A', 'mis. A'), GS('s', 'Angka di titik', [['sembunyi', 'Disembunyikan (untuk ditanyakan)'], ['tampil', 'Ditampilkan']], 'sembunyi')] },
+    { t: 'mataangin', n: 'Mata angin (arah panah)', f: [GS('a', 'Arah panah merah', GARAH, 'T')] },
+    { t: 'ikon', n: 'Ikon sederhana (kelas rendah)', h: 'Boleh dua jenis ikon sekaligus, misalnya untuk soal penjumlahan.', f: [GS('n1', 'Ikon pertama', GIK, 'apel'), GN('j1', 'Jumlah (1-12)', 1, 12, 3), GS('n2', 'Ikon kedua (boleh kosong)', [['', '(tidak ada)']].concat(GIK), ''), GN('j2', 'Jumlah ikon kedua', 1, 12, 2)], b: v => v.n2 ? [v.n1, v.j1, v.n2, v.j2] : [v.n1, v.j1] },
+    { t: 'wajah', n: 'Ekspresi wajah', f: [GS('e', 'Ekspresi', [['senang', 'Senang'], ['sedih', 'Sedih'], ['marah', 'Marah'], ['takut', 'Takut'], ['terkejut', 'Terkejut']], 'senang')] },
+    { t: 'warna', n: 'Kotak warna / campuran warna', h: 'Warna: merah, kuning, biru, hijau, jingga, ungu, cokelat, putih, hitam, abu, merahmuda. Simbol: + = ?', f: [GT('i', 'Urutan', 'merah, +, kuning, =, ?', 'merah, +, kuning', gdaftar)] },
+    { t: 'sudut', n: 'Sudut', f: [GN('d', 'Besar sudut (derajat)', 5, 175, 60), GS('s', 'Besar sudut ditulis?', [['', 'Tidak'], ['tampil', 'Ya']], '')] },
+    { t: 'uang', n: 'Uang rupiah', h: 'Koin: 100, 200, 500, 1000. Lembaran: 2000, 5000, 10000, 20000, 50000, 100000.', f: [GT('i', 'Nominal', '5000, 2000, 500', 'mis. 5000, 2000', gdaftar)] },
+    { t: 'termometer', n: 'Termometer', f: [GN('s', 'Suhu (0-100 derajat Celsius)', 0, 100, 60)] },
+    { t: 'rangkaian', n: 'Rangkaian listrik', f: [GS('s', 'Saklar', [['tutup', 'Tertutup (lampu menyala)'], ['buka', 'Terbuka (lampu padam)']], 'tutup')] },
+    { t: 'magnet', n: 'Dua magnet', h: 'US = kiri kutub utara, kanan kutub selatan; SU sebaliknya.', f: [GS('a', 'Magnet kiri', [['US', 'U - S'], ['SU', 'S - U']], 'US'), GS('b', 'Magnet kanan', [['US', 'U - S'], ['SU', 'S - U']], 'SU')] },
+    { t: 'daur', n: 'Daur hidup', f: [GS('j', 'Hewan', [['kupu', 'Kupu-kupu'], ['katak', 'Katak']], 'kupu'), GN('h', 'Tahap yang ditanyakan (0 = tidak ada)', 0, 4, 3)] },
+    { t: 'rantai', n: 'Rantai makanan', h: 'Nama ikon: rumput, padi, belalang, katak, ular, elang, tikus, ikan, ayam, kucing. Pakai ? untuk yang ditanyakan.', f: [GT('i', 'Urutan', 'rumput, belalang, ?, ular', 'rumput, belalang, katak', gdaftar)] },
+    { t: 'tumbuhan', n: 'Bagian tumbuhan (penunjuk A)', f: [GS('b', 'Bagian yang ditunjuk huruf A', [['akar', 'Akar'], ['batang', 'Batang'], ['daun', 'Daun'], ['bunga', 'Bunga']], 'akar')] },
+    { t: 'ruang', n: 'Bangun ruang', f: [GS('b', 'Bentuk', [['kubus', 'Kubus'], ['balok', 'Balok'], ['tabung', 'Tabung'], ['kerucut', 'Kerucut'], ['bola', 'Bola'], ['limas', 'Limas segi empat']], 'kubus')] },
+    { t: 'jaring', n: 'Jaring-jaring (susunan persegi)', h: 'Tulis koordinat tiap persegi sebagai kolom lalu baris (mulai 0), dipisah koma. Contoh jaring silang kubus: 10,01,11,21,12,13', f: [GT('c', 'Koordinat', '10,01,11,21,12,13', '10,01,11,21,12,13', v => [String(v).replace(/\s+/g, '')])] },
+    { t: 'bulan', n: 'Fase bulan', f: [GS('f', 'Fase', [['baru', 'Bulan baru'], ['sabit', 'Bulan sabit'], ['separuh', 'Separuh'], ['cembung', 'Cembung'], ['purnama', 'Purnama']], 'sabit'), GS('a', 'Sisi yang terang', [['', 'Kanan'], ['kiri', 'Kiri']], '')] }
+  ];
+  const gbrSih = v => String(v).replace(/[;\[\]]/g, '');
+  function gbrParam(kat, ambil) {
+    const v = {}; kat.f.forEach(f => { v[f.id] = ambil(f.id); });
+    let p = kat.b ? kat.b(v) : [].concat.apply([], kat.f.map(f => f.k === 't' && f.x ? f.x(v[f.id]) : [v[f.id]]));
+    p = p.map(gbrSih); while (p.length && p[p.length - 1] === '') p.pop(); return p;
+  }
+  function bukaGbr(i, k) {
+    const sl = S.slots[S.sem], x = sl && sl[i]; if (!x) return;
+    const tutupM = () => { const m = document.getElementById('gbrModal'); if (m) m.remove(); };
+    tutupM();
+    const m = document.createElement('div'); m.id = 'gbrModal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', 'Sisipkan gambar otomatis');
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100001;display:flex;align-items:center;justify-content:center;padding:10px;';
+    m.innerHTML = `<div style="background:#fff;color:#111;border-radius:12px;padding:14px;width:min(600px,96vw);max-height:92vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:2px;">🖼 Sisipkan gambar otomatis</div>
+      <div style="${muted}margin-bottom:8px;">Gambar dibuat dari isian di bawah dan disisipkan sebagai penanda <code>[[g:...]]</code> pada ${k === 'q' ? 'teks soal' : 'pilihan ' + HURUF[+k[1]]}. Jangan hapus penanda itu bila gambar ingin tetap ada.</div>
+      <label style="font-size:12px;font-weight:600;">Jenis gambar</label>
+      <select id="gbrTipe" class="field" style="width:100%;box-sizing:border-box;margin-bottom:8px;">${GKAT.map(z => `<option value="${z.t}">${esc(z.n)}</option>`).join('')}</select>
+      <div id="gbrForm"></div>
+      <div style="font-size:12px;font-weight:600;margin:8px 0 2px;">Pratinjau</div>
+      <div id="gbrPrev" style="min-height:70px;padding:8px;border:1px dashed #cbd5e1;border-radius:8px;background:#fafafa;overflow:auto;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;"><button type="button" class="btn btn-soft" id="gbrBatal" style="padding:6px 14px;font-size:13px;">Batal</button><button type="button" class="btn" id="gbrOk" style="padding:6px 14px;font-size:13px;">Sisipkan</button></div></div>`;
+    document.body.appendChild(m);
+    const tipe = m.querySelector('#gbrTipe'), form = m.querySelector('#gbrForm'), prev = m.querySelector('#gbrPrev');
+    const kat = () => GKAT.filter(z => z.t === tipe.value)[0];
+    const ambil = id => { const el = form.querySelector('[data-gf="' + id + '"]'); return el ? String(el.value).trim() : ''; };
+    const hitung = () => { const kt = kat(); const p = gbrParam(kt, ambil); return { kt, p, tok: '[[g:' + [kt.t].concat(p).join(';') + ']]' }; };
+    const segar = () => { const r = hitung(), s = gbrSvg(r.kt.t, r.p); prev.innerHTML = s ? '<span style="display:inline-block;max-width:100%;">' + s + '</span>' : '<span style="' + muted + '">Isian belum lengkap atau di luar batas.</span>'; m.querySelector('#gbrOk').disabled = !s; };
+    const bentuk = () => { const kt = kat(); form.innerHTML = (kt.h ? `<div style="${muted}margin-bottom:6px;">${esc(kt.h)}</div>` : '') + kt.f.map(f => {
+      const lab = `<label style="font-size:12px;display:block;margin-top:6px;">${esc(f.l)}</label>`;
+      if (f.k === 's') return lab + `<select class="field" style="width:100%;box-sizing:border-box;" data-gf="${f.id}">${f.o.map(o => `<option value="${esc(o[0])}"${o[0] === f.d ? ' selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`;
+      if (f.k === 'n') return lab + `<input class="field" type="number" step="any" min="${f.a}" max="${f.b}" value="${f.d}" style="width:100%;box-sizing:border-box;" data-gf="${f.id}">`;
+      return lab + `<input class="field" maxlength="120" value="${esc(f.d || '')}" placeholder="${esc(f.h || '')}" style="width:100%;box-sizing:border-box;" data-gf="${f.id}">`; }).join(''); segar(); };
+    tipe.addEventListener('change', bentuk); form.addEventListener('input', segar); form.addEventListener('change', segar);
+    m.addEventListener('click', e => { if (e.target === m || e.target.id === 'gbrBatal') tutupM(); });
+    m.addEventListener('keydown', e => { if (e.key === 'Escape') tutupM(); });
+    m.querySelector('#gbrOk').addEventListener('click', () => {
+      const r = hitung(); if (!gbrSvg(r.kt.t, r.p)) return;
+      const el = document.querySelector('#soalOverlay [data-i="' + i + '"][data-k="' + k + '"]'); if (!el) return tutupM();
+      const v = String(el.value), maks = +el.getAttribute('maxlength') || 600;
+      if (v.length + r.tok.length > maks) { say('Teks sudah terlalu panjang untuk menampung gambar. Persingkat dulu teksnya.', true); return; }
+      const pos = typeof el.selectionStart === 'number' && document.activeElement === el ? el.selectionStart : v.length;
+      el.value = v.slice(0, pos) + r.tok + v.slice(pos); sinkron(); S.dirty = true; tutupM(); gambar();
+    });
+    bentuk(); tipe.focus();
+  }
+
   function klik(e) {
     const t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t) return;
     const a = t.getAttribute('data-a');
@@ -778,6 +862,7 @@ body{font-size:11pt;line-height:1.25}
       case 'sem': S.sem = t.getAttribute('data-s') === 'genap' ? 'genap' : 'ganjil'; return gambar();
       case 'bank': { const n = isiDariBank(S.slots[S.sem], window.BANK_SOAL_MI, S.rec && S.rec.kelas); if (n) S.dirty = true; say(n ? '✅ ' + n + ' soal diisi dari bank (draf, mohon diperiksa). Sisanya diketik guru.' : 'Tidak ada soal bank yang cocok untuk slot kosong. Ketik soal sendiri.', !n); return gambar(); }
       case 'ganti': ganti(+t.getAttribute('data-i')); return gambar();
+      case 'gbr': return bukaGbr(+t.getAttribute('data-i'), t.getAttribute('data-k') || 'q');
       case 'skor100': {
         const h = skor100(S.sem);
         if (!h) { say('Tidak bisa tepat 100 dengan skor bulat untuk jumlah soal ini. Atur manual; nilai akhir tetap dikonversi ke skala 100 oleh rumus.', true, 4000); return gambar(); }
