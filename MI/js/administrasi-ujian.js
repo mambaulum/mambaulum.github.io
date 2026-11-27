@@ -134,13 +134,13 @@ function aujUrutSesi() {
 }
 // Daftar peserta "hidup" dari Data Siswa (urut abjad, nomor = urutan).
 // Format nomor peserta (tampil di Daftar Hadir, Denah, Kartu Peserta, dan Label Meja):
-//   'kelas' = nomor kelas + urut 2 digit, mis. Kelas 4 siswa ke-1 = 401, Kelas 5 siswa ke-12 = 512 (unik antar kelas).
+//   'kelas' = nomor kelas + "-" + urut 3 digit, mis. Kelas 4 siswa ke-1 = 4-001, Kelas 5 siswa ke-12 = 5-012 (unik antar tingkat).
 //   'urut'  = nomor urut abjad dalam kelas saja (1, 2, 3...), seperti versi lama.
 const AUJ_FORMAT_NOMOR = 'kelas';
 function aujNomor(kelas, no) {
   const n = +no || 0; if (AUJ_FORMAT_NOMOR !== 'kelas') return String(n);
   const k = /(\d+)/.exec(String(kelas || ''));
-  return (k ? k[1] : '') + String(n).padStart(2, '0');
+  return (k ? k[1] + '-' : '') + String(n).padStart(3, '0');
 }
 // Teks nomor peserta di kotak denah/chip: format 'kelas' sudah memuat kelas; format 'urut' perlu awalan kelas agar tidak ambigu.
 function aujLabelPeserta(p) { return AUJ_FORMAT_NOMOR === 'kelas' ? String(p.nomor) : ((p.kls ? p.kls + ' · ' : '') + p.no); }
@@ -634,7 +634,8 @@ function aujHtmlDenah(rec) {
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🗺️ Denah Lokasi & Tempat Duduk</h4>
       <button class="btn btn-primary" onclick="aujCetakSatu('denah')">🖨️ Cetak Denah</button>
-      <button class="btn btn-soft" onclick="aujCetakSatu('label')" title="Label nomor peserta untuk ditempel di bangku, berurutan sesuai denah tersimpan">🏷️ Cetak Label Meja</button>
+      <button class="btn btn-soft" onclick="aujUnduhLabelPdf(false)" title="Label nomor peserta untuk ditempel di bangku ruang ini, berurutan sesuai denah tersimpan">🏷️ Unduh PDF Label Meja</button>
+      <button class="btn btn-soft" onclick="aujUnduhLabelPdf(true)" title="Label meja semua ruang pada asesmen ini dalam satu file PDF, disambung tanpa ganti halaman">🏷️ Label Meja Semua Ruang</button>
       <button class="btn btn-soft" onclick="aujCetakSatu('pintu')" title="Lembar besar nama ruang + kelas + rentang nomor peserta untuk ditempel di pintu, satu lembar per ruang">🚪 Cetak Nomor Ruang (Pintu)</button>
       <button class="btn btn-soft" onclick="aujCetakSatu('pintuNama')" title="Daftar nama dan nomor peserta per ruang (satu halaman per ruang), untuk ditempel di dekat pintu">📋 Daftar Peserta per Ruang</button>
     </div>
@@ -963,46 +964,52 @@ function aujSimpanBA() {
 // Nomor peserta (p.nomor, lihat AUJ_FORMAT_NOMOR) SAMA dengan yang tampil di Daftar Hadir, Denah, dan Label Meja; p.no = urut abjad dalam kelas.
 // Kursi diambil dari denah TERSIMPAN (rec.kursi: { 'baris_kolom': siswaKey }). Baris 1 = terdepan
 // (dekat meja pengawas / papan tulis), sesuai gambar denah.
-// UKURAN KARTU mengikuti eblek (card case) A1 yang umum dijual: casing 100 x 68 mm, kartu di dalamnya
-// 85 x 53 mm (8,5 x 5,3 cm), mendatar. Gunting mengikuti garis putus-putus, jadi kartu pas masuk eblek.
-// Kertas F4 215 x 330 mm, margin 10mm -> area 195 x 310mm. 2 kolom x 5 baris = 10 kartu per halaman:
-// lebar 2x85 + 8 (jarak) = 178mm, tinggi 5x53 + 4x6 (jarak) = 289mm -- keduanya muat.
-// Kalau ganti ke eblek lain (mis. A2: kartu 91 x 67 mm), cukup ubah 5 angka di bawah ini.
-const AUJ_KARTU_W = 85, AUJ_KARTU_H = 53, AUJ_KARTU_JARAK_X = 8, AUJ_KARTU_JARAK_Y = 6;
-const AUJ_KARTU_KOLOM = Math.floor((195 + AUJ_KARTU_JARAK_X) / (AUJ_KARTU_W + AUJ_KARTU_JARAK_X));
-const AUJ_KARTU_BARIS = Math.floor((310 + AUJ_KARTU_JARAK_Y) / (AUJ_KARTU_H + AUJ_KARTU_JARAK_Y));
+// UKURAN KARTU untuk eblek dengan ukuran DALAM 11 x 8 cm: kartu jadi 105 x 77 mm, mendatar. Gunting mengikuti garis putus-putus.
+// Kertas F4 MENDATAR (330 x 215 mm): 3 kolom x 2 baris = 6 kartu per halaman.
+// Isi kartu dirancang pada lebar 85 mm lalu diperbesar ke 105 mm saat PDF dibuat (huruf, foto, dan QR ikut membesar).
+// Ganti eblek: ubah AUJ_KARTU_CETAK_W / AUJ_KARTU_CETAK_H (pastikan 3 x 2 kartu masih muat di 330 x 215 mm).
+const AUJ_KARTU_CETAK_W = 105, AUJ_KARTU_CETAK_H = 77;
+const AUJ_KARTU_SKALA = AUJ_KARTU_CETAK_W / 85;
+const AUJ_KARTU_W = 85, AUJ_KARTU_H = AUJ_KARTU_CETAK_H / AUJ_KARTU_SKALA, AUJ_KARTU_JARAK_X = 2 / AUJ_KARTU_SKALA, AUJ_KARTU_JARAK_Y = 4 / AUJ_KARTU_SKALA;
+const AUJ_KARTU_KOLOM = 3, AUJ_KARTU_BARIS = 2;
 const AUJ_KARTU_PER_HALAMAN = AUJ_KARTU_KOLOM * AUJ_KARTU_BARIS;
+const AUJ_KARTU_LEBAR_ISI = AUJ_KARTU_KOLOM * AUJ_KARTU_W + (AUJ_KARTU_KOLOM - 1) * AUJ_KARTU_JARAK_X;   // lebar satu halaman sebelum diperbesar
+// Tata letak halaman PDF (mm). lebarIsi = lebar rancangan, lebar = lebar di kertas.
+const AUJ_PDF_KARTU = { format: [330, 215], arah: 'landscape', x: (330 - AUJ_KARTU_LEBAR_ISI * AUJ_KARTU_SKALA) / 2, y: 10, lebar: AUJ_KARTU_LEBAR_ISI * AUJ_KARTU_SKALA, lebarIsi: AUJ_KARTU_LEBAR_ISI };
+const AUJ_PDF_LABEL = { format: [215, 330], arah: 'portrait', x: 10, y: 10, lebar: 195, lebarIsi: 195 };
 // Aturan kartu (dipakai di pratinjau layar DAN di jendela cetak). Semua kelas berawalan kp- agar tidak bentrok.
 const AUJ_KARTU_CSS = `
   .kp-halaman { display: grid; grid-template-columns: repeat(${AUJ_KARTU_KOLOM}, ${AUJ_KARTU_W}mm); grid-auto-rows: ${AUJ_KARTU_H}mm; gap: ${AUJ_KARTU_JARAK_Y}mm ${AUJ_KARTU_JARAK_X}mm; justify-content: center; align-content: start; page-break-after: always; break-after: page; }
   .kp-halaman:last-child { page-break-after: auto; break-after: auto; }
-  .kp-kartu { box-sizing: border-box; width: ${AUJ_KARTU_W}mm; height: ${AUJ_KARTU_H}mm; border: 0.3mm dashed #555; padding: 2mm 2.5mm; display: flex; flex-direction: column; overflow: hidden; break-inside: avoid; page-break-inside: avoid; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; text-align: left; }
-  .kp-kepala { box-sizing: border-box; display: flex; align-items: center; gap: 2mm; border-bottom: 0.4mm solid #000; padding-bottom: 1mm; height: 9.5mm; flex: none; }
+  .kp-kartu { box-sizing: border-box; width: ${AUJ_KARTU_W}mm; height: ${AUJ_KARTU_H}mm; border: 0.3mm dashed #555; padding: 0.8mm; display: flex; flex-direction: column; overflow: hidden; break-inside: avoid; page-break-inside: avoid; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; text-align: left; }
+  .kp-bingkai { box-sizing: border-box; flex: 1; min-height: 0; display: flex; flex-direction: column; border: 1mm double #0f5c66; border-radius: 1.5mm; padding: 0.6mm 1.4mm; overflow: hidden; }   /* bingkai kartu; garis putus-putus di luarnya = garis gunting */
+  .kp-kepala { box-sizing: border-box; display: flex; align-items: center; gap: 2mm; border-bottom: 0.4mm solid #000; padding-bottom: 0.8mm; height: 11mm; flex: none; }
   .kp-logo { width: 7.5mm; height: 7.5mm; object-fit: contain; flex: none; }
   .kp-judul { min-width: 0; flex: 1; }
-  .kp-madrasah { font-size: 7.5pt; font-weight: 700; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .kp-jenis { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.3pt; line-height: 1.15; }
-  .kp-ujian { font-size: 5.8pt; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kp-madrasah { font-size: 8.9pt; font-weight: 700; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kp-jenis { font-size: 7.2pt; font-weight: 700; letter-spacing: 0.3pt; line-height: 1.15; }
+  .kp-ujian { font-size: 6.3pt; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kp-isi { display: flex; gap: 2mm; flex: 1; padding-top: 1.2mm; min-height: 0; }
-  .kp-data { flex: 1; min-width: 0; }
+  .kp-data { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .kp-data table { border-collapse: collapse; width: 100%; }
-  .kp-data td { font-size: 7.5pt; line-height: 1.15; padding: 0.15mm 0; vertical-align: top; border: none; }
-  .kp-data td:first-child { width: 18.5mm; white-space: nowrap; }
+  .kp-data td { font-size: 8.4pt; line-height: 1.2; padding: 0.25mm 0; vertical-align: top; border: none; }
+  .kp-data td:first-child { width: 19.5mm; white-space: nowrap; }
   .kp-data td:nth-child(2) { width: 1.8mm; }
   .kp-no { font-size: 11pt; font-weight: 700; line-height: 1.1; }
+  .kp-data td.kp-no { font-size: 12pt; line-height: 1.1; }
   .kp-nama { font-weight: 700; text-transform: uppercase; }
-  .kp-nama-panjang { font-size: 6.2pt; line-height: 1.1; }   /* nama > 28 karakter: sedikit lebih kecil supaya tidak makan 4 baris */
-  .kp-kanan { width: 22mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
-  .kp-foto { box-sizing: border-box; width: 19mm; height: 24mm; border: 0.4mm solid #0f5c66; padding: 0.7mm; background: #fff; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
+  .kp-data td.kp-nama-panjang { font-size: 7.2pt; line-height: 1.1; }   /* nama > 28 karakter: sedikit lebih kecil supaya tidak makan 4 baris */
+  .kp-kanan { width: 23mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
+  .kp-foto { box-sizing: border-box; width: 22mm; height: 28mm; border: 0.4mm solid #0f5c66; padding: 0.7mm; background: #fff; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
   .kp-foto img { outline: 0.15mm solid #94a3b8; }   /* bingkai sederhana: garis tebal hijau-tosca di luar, pinggir putih tipis, garis abu halus di sekeliling foto */
-  .kp-ttd { display: flex; align-items: center; gap: 1.5mm; margin-top: 1mm; font-size: 6.2pt; line-height: 1.2; }   /* di bawah baris Waktu */
+  .kp-ttd { display: flex; align-items: center; gap: 1.5mm; margin-top: auto; padding-top: 0.5mm; flex: none; font-size: 6.2pt; line-height: 1.2; }   /* menempel di dasar kolom data, di atas catatan */
   .kp-ttd-ruang { width: 10mm; height: 10mm; flex: none; display: flex; align-items: center; justify-content: center; }
   .kp-ttd-teks { min-width: 0; }
-  .kp-ttd b { text-decoration: underline; display: block; }
-  .kp-catatan { margin-top: auto; border-top: 0.2mm solid #999; padding-top: 0.8mm; font-size: 5.5pt; line-height: 1.2; text-align: center; color: #333; flex: none; }
+  .kp-ttd b { display: table; border-bottom: 0.2mm solid #000; padding-bottom: 0.4mm; }
+  .kp-catatan { margin-top: auto; border-top: 0.2mm solid #999; padding-top: 0.8mm; font-size: 6.4pt; line-height: 1.2; text-align: center; color: #333; flex: none; }
 `;
 const AUJ_KARTU_CSS_CETAK = `
-  @page { size: 215mm 330mm; margin: 10mm; }
+  @page { size: 330mm 215mm; margin: 5mm; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; }
 ` + AUJ_KARTU_CSS;
@@ -1134,10 +1141,22 @@ function aujHtmlFotoSiswa(ps) {
 // Rules Firebase (tambahkan, samakan syarat tulis/baca dengan node `siswa`):
 //   "siswa_foto": { "$siswaKey": { ".read": <sama dengan baca siswa>, ".write": <hanya Admin>,
 //                   ".validate": "newData.child('base64').isString() && newData.child('base64').val().length < 60000" } }
+// Rentang tanggal pelaksanaan di kartu: dari SEMUA sesi kelas itu pada asesmen yang sama (bukan hanya sesi yang sedang dibuka).
+function aujKartuPelaksanaan(rec) {
+  const tgl = allAdmUjian.filter(r => r.nama === rec.nama && r.kelas === rec.kelas).concat(rec)
+    .map(r => String(r.tanggal || '')).filter(t => /^\d{4}-\d{2}-\d{2}$/.test(t)).sort();
+  if (!tgl.length) return '-';
+  const bln = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const [y1, m1, d1] = tgl[0].split('-').map(Number), [y2, m2, d2] = tgl[tgl.length - 1].split('-').map(Number);
+  const akhir = `${d2} ${bln[m2 - 1]} ${y2}`;
+  if (tgl[0] === tgl[tgl.length - 1]) return akhir;
+  if (y1 !== y2) return `${d1} ${bln[m1 - 1]} ${y1} \u2013 ${akhir}`;
+  return (m1 !== m2 ? `${d1} ${bln[m1 - 1]}` : String(d1)) + ` \u2013 ${akhir}`;
+}
 function aujKartuHtml(rec, p, kursiTeks, qr) {
   const logo = new URL('logo/logo-lembaga.png', location.href).href;
   const baris = (label, isi, kls) => `<tr><td>${label}</td><td>:</td><td${kls ? ` class="${kls}"` : ''}>${isi}</td></tr>`;
-  return `<div class="kp-kartu">
+  return `<div class="kp-kartu"><div class="kp-bingkai">
     <div class="kp-kepala">
       <img class="kp-logo" src="${escapeHtml(logo)}" alt="" onerror="this.style.display='none'">
       <div class="kp-judul">
@@ -1152,7 +1171,7 @@ function aujKartuHtml(rec, p, kursiTeks, qr) {
         ${baris('Nama', escapeHtml(p.nama), p.nama.length > 28 ? 'kp-nama kp-nama-panjang' : 'kp-nama')}
         ${baris('Kelas / Ruang', escapeHtml(p.kelas || '-') + ' / ' + escapeHtml(rec.ruang || '-'))}
         ${baris('Kursi', escapeHtml(kursiTeks || '-'))}
-        ${baris('Waktu', escapeHtml(aujWaktu(rec)))}
+        ${baris('Pelaksanaan', escapeHtml(aujKartuPelaksanaan(rec)))}
       </table>
         <div class="kp-ttd">
           <div class="kp-ttd-ruang">${qr === 'cetak' ? '<span class="kp-qr-tujuan"></span>' : (qr === 'pratinjau' ? '<span style="display:inline-block;width:10mm;height:10mm;border:0.3mm dashed #999;font-size:5pt;line-height:10mm;color:#999;text-align:center;">QR</span>' : '')}</div>
@@ -1164,7 +1183,7 @@ function aujKartuHtml(rec, p, kursiTeks, qr) {
       </div>
     </div>
     <div class="kp-catatan">Kartu wajib dibawa setiap hari ASAS/ASAT. Hadir 15 menit sebelum ujian dimulai.</div>
-  </div>`;
+  </div></div>`;
 }
 function aujHtmlKartu(rec) {
   const ps = aujPeserta(rec.kelas, rec), peta = aujPetaKursi(rec);
@@ -1173,13 +1192,13 @@ function aujHtmlKartu(rec) {
   const halaman = Math.ceil(ps.length / AUJ_KARTU_PER_HALAMAN);
   const judul = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🎫 Kartu Peserta \u2014 ${escapeHtml(rec.kelas || '')} \u00b7 ${escapeHtml(rec.ruang || '')}</h4>
-      <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>🖨\uFE0F Cetak Kartu (F4)</button>
-      <button class="btn btn-soft" onclick="aujCetakKartuGabungan()" title="Kartu semua kelas pada asesmen ini dalam satu cetakan (simpan sebagai satu PDF); tiap kelas mulai di halaman baru">🖨\uFE0F Cetak Kartu Semua Kelas (1 PDF)</button>
+      <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>📄 Unduh PDF Kartu (F4)</button>
+      <button class="btn btn-soft" onclick="aujCetakKartuGabungan()" title="Kartu semua kelas pada asesmen ini dalam satu file PDF; kelas disambung tanpa ganti halaman">📄 Unduh PDF Semua Kelas</button>
     </div>`;
   if (!ps.length) return judul + `<p style="font-size:13px;color:#dc2626;">Belum ada siswa di ${escapeHtml(rec.kelas || 'kelas ini')} pada Data Siswa${aujCanEdit() ? '' : ' (atau bukan kelas yang Anda ampu)'}.</p>`;
   const contoh = ps.slice(0, 2).map(p => aujKartuHtml(rec, p, peta[p.key], aujKartuPakaiQr() ? 'pratinjau' : '')).join('');
   return judul + `
-    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 (215 \u00d7 330 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_W} \u00d7 ${AUJ_KARTU_H} mm</strong>, pas untuk isi eblek / card case ukuran A1 (kartu 8,5 \u00d7 5,3 cm). Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas". Untuk semua kelas sekaligus pakai tombol "Cetak Kartu Semua Kelas".</p>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 mendatar (330 \u00d7 215 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_CETAK_W} \u00d7 ${AUJ_KARTU_CETAK_H} mm</strong>, untuk eblek / card case berukuran dalam 11 \u00d7 8 cm. Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas". Untuk semua kelas sekaligus pakai tombol "Unduh PDF Semua Kelas".</p>
     <p style="font-size:13px;font-weight:600;margin-bottom:6px;">Akan tercetak ${ps.length} kartu = ${halaman} halaman F4.</p>
     ${tanpaKursi ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:6px;margin-bottom:8px;">\u26A0\uFE0F ${tanpaKursi} dari ${ps.length} peserta belum punya kursi di denah \u2014 kolom Kursi tertulis "-". Atur di tab Denah lalu simpan.</p>` : ''}
     ${aujHtmlFotoSiswa(ps)}
@@ -1187,16 +1206,40 @@ function aujHtmlKartu(rec) {
     <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">Pratinjau (2 kartu pertama):</p>
     <style>${AUJ_KARTU_CSS}</style>
     <div style="display:flex;flex-wrap:wrap;gap:10px;overflow-x:auto;">${contoh}</div>
-    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Di dialog cetak pilih ukuran kertas F4 / Folio (215 \u00d7 330 mm), margin bawaan, dan skala 100%. Kalau printer tidak punya F4, pilih "Simpan sebagai PDF" \u2014 ukuran halamannya otomatis mengikuti F4.</p>`;
+    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Tombol di atas langsung mengunduh file PDF berukuran F4 (butuh internet untuk memuat pembuat PDF). Saat mencetak file itu, pilih kertas F4 / Folio (kartu: mendatar; label meja: tegak) dan skala 100% (ukuran asli).</p>`;
 }
 // QR pengesahan Kepala di kartu: hanya bila ttd-digital.js termuat dan yang mencetak Admin/Kepsek (sama dengan dokumen lain).
 function aujKartuPakaiQr() { return !!(window.TTD && TTD.penanda && aujBolehTtdKepala()); }
+// Foto dimuat di latar belakang. Bila belum lengkap saat tombol unduh ditekan: tunggu, lalu lanjutkan otomatis (maksimal AUJ_FOTO_BATAS).
+// Mengembalikan true bila PDF boleh langsung dibuat sekarang.
+const AUJ_FOTO_BATAS = 30000;
+let aujFotoMenunggu = false, aujFotoLewati = false;
+function aujFotoSiap(ps, lanjut) {
+  const belum = () => ps.filter(p => !(p.key in aujFotoCache)).length;
+  if (aujFotoLewati || !belum()) return true;
+  if (!db || !isReallyOnline()) { toast('📡 Sedang offline: foto yang belum dimuat tidak ikut di PDF.', true, 5000); return true; }
+  if (aujFotoMenunggu) { toast('Foto masih dimuat, mohon tunggu...', false, 2000); return false; }
+  aujFotoMenunggu = true;
+  const sesi = aujAktifKey, mulai = Date.now();
+  toast(`⏳ Memuat ${belum()} foto siswa, PDF dibuat otomatis setelah selesai…`, false, 5000);
+  const cek = () => {
+    if (aujAktifKey !== sesi) { aujFotoMenunggu = false; return toast('Sesi berganti, unduhan kartu dibatalkan.', true); }
+    const sisa = belum();
+    if (sisa && Date.now() - mulai < AUJ_FOTO_BATAS) { aujFotoMuat(ps); return setTimeout(cek, 300); }   // aujFotoMuat diabaikan selama pemuatan lain masih berjalan
+    aujFotoMenunggu = false;
+    if (sisa && !confirm(sisa + ' foto belum selesai dimuat (koneksi lambat).\n\nOK = buat PDF sekarang tanpa foto tersebut.\nBatal = jangan buat PDF, coba lagi nanti.')) return;
+    aujFotoLewati = true;
+    try { lanjut(); } finally { aujFotoLewati = false; }
+  };
+  aujFotoMuat(ps); setTimeout(cek, 300);
+  return false;
+}
 function aujCetakKartu() {
   const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
   const ps = aujPeserta(rec.kelas, rec);
   if (!ps.length) return toast('Belum ada siswa di kelas ini.', true);
   if (aujCanEdit() && JSON.stringify(aujKursi) !== JSON.stringify(rec.kursi || {})) toast('\u26A0\uFE0F Ada perubahan denah yang belum disimpan \u2014 kursi pada kartu mengikuti denah tersimpan.', false, 4500);
-  if (ps.some(p => !(p.key in aujFotoCache))) { aujFotoMuat(ps); toast('ℹ️ Foto siswa masih dimuat. Tunggu sebentar lalu klik Cetak lagi bila ingin foto ikut tercetak.', false, 4000); }
+  if (!aujFotoSiap(ps, aujCetakKartu)) return;
   const pakaiQr = aujKartuPakaiQr(), peta = aujPetaKursi(rec), kartu = ps.map(p => aujKartuHtml(rec, p, peta[p.key], pakaiQr ? 'cetak' : ''));
   let isi = '';
   for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) isi += `<div class="kp-halaman">${kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN).join('')}</div>`;
@@ -1204,7 +1247,87 @@ function aujCetakKartu() {
     const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, rec.kelas, rec.ruang, 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
-  aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_CETAK);
+  aujUnduhKartuPdf(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`);
+}
+
+// ---------- Unduh kartu langsung sebagai PDF (tanpa popup dan tanpa dialog cetak) ----------
+// Tiap .kp-halaman digambar di bingkai tersembunyi lalu dimasukkan ke satu halaman F4. Pustaka dimuat dari CDN saat pertama dipakai.
+const AUJ_PDF_PUSTAKA = [
+  ['html2canvas', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'],
+  ['jspdf', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js']
+];
+let aujPdfSedang = false;
+function aujBatasWaktu(janji, ms, pesan) {
+  return new Promise((ok, gagal) => {
+    const t = setTimeout(() => gagal(new Error(pesan)), ms);
+    Promise.resolve(janji).then(x => { clearTimeout(t); ok(x); }, e => { clearTimeout(t); gagal(e); });
+  });
+}
+function aujMuatPustaka(nama, url) {
+  if (window[nama]) return Promise.resolve();
+  return aujBatasWaktu(new Promise((ok, gagal) => {
+    const s = document.createElement('script'); s.src = url;
+    s.onload = () => ok();
+    s.onerror = () => { s.remove(); gagal(new Error('Pembuat PDF tidak bisa dimuat. Periksa koneksi internet.')); };
+    document.head.appendChild(s);
+  }), 20000, 'Pembuat PDF terlalu lama dimuat. Periksa koneksi internet.');
+}
+async function aujUnduhKartuPdf(bodyHtml, judul, css, tata) {
+  tata = tata || AUJ_PDF_KARTU;
+  if (aujPdfSedang) return toast('PDF masih dibuat, mohon tunggu...', false, 2000);
+  aujPdfSedang = true;
+  let bingkai = null;
+  try {
+    toast('⏳ Menyiapkan PDF…', false, 3000);
+    await Promise.all(AUJ_PDF_PUSTAKA.map(p => aujMuatPustaka(p[0], p[1])));
+    let html = aujSusunTeks(bodyHtml);
+    const nama = aujSusunTeks(judul).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim() + '.pdf';
+    if (/\[\[TTD:/.test(html)) {
+      try {
+        if (!(window.TTD && TTD.isiHtml)) throw new Error('TTD tidak tersedia');
+        html = await aujBatasWaktu(TTD.isiHtml(html), 15000, 'QR terlalu lama');
+      } catch (e) {
+        console.warn('QR kartu gagal:', e);
+        html = html.replace(/\[\[TTD:[^\]]*\]\]/g, '');
+        toast('⚠️ QR Kepala gagal dibuat, PDF dibuat tanpa QR.', true, 7000);
+      }
+    }
+    bingkai = document.createElement('iframe');
+    bingkai.setAttribute('aria-hidden', 'true');
+    bingkai.style.cssText = 'position:fixed;left:-10000px;top:0;width:330mm;height:330mm;border:0;';
+    document.body.appendChild(bingkai);
+    const d = bingkai.contentDocument;
+    d.open();
+    d.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><style>${css || AUJ_KARTU_CSS_CETAK} body { width: ${tata.lebarIsi}mm; background: #fff; }</style></head><body>${html}</body></html>`);
+    d.close();
+    // Foto dijadikan latar (cover) karena pembuat PDF tidak mengenal object-fit.
+    d.querySelectorAll('.kp-foto img').forEach(im => {
+      const k = d.createElement('div');
+      k.style.cssText = 'width:100%;height:100%;background:center/cover no-repeat;';
+      k.style.backgroundImage = 'url("' + im.getAttribute('src') + '")';
+      im.replaceWith(k);
+    });
+    // Tunggu logo/QR selesai dimuat (maksimal 8 detik per gambar).
+    await Promise.all(Array.from(d.images).map(im => im.complete ? null : aujBatasWaktu(new Promise(ok => { im.onload = im.onerror = ok; }), 8000, '').catch(() => {})));
+    const halaman = Array.from(d.querySelectorAll('.kp-halaman'));
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: tata.format, orientation: tata.arah, compress: true });
+    for (let i = 0; i < halaman.length; i++) {
+      if (halaman.length > 1) toast(`⏳ Membuat PDF: halaman ${i + 1} dari ${halaman.length}…`, false, 2000);
+      const el = halaman[i], kotak = el.getBoundingClientRect();
+      const kanvas = await window.html2canvas(el, { scale: 3 * tata.lebar / tata.lebarIsi, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      if (i) pdf.addPage(tata.format, tata.arah);
+      pdf.addImage(kanvas.toDataURL('image/jpeg', 0.92), 'JPEG', tata.x, tata.y, tata.lebar, tata.lebar * kotak.height / kotak.width);
+      kanvas.width = kanvas.height = 0;   // lepaskan memori (penting di HP)
+    }
+    pdf.save(nama);
+    toast('✅ PDF diunduh: ' + nama, false, 5000);
+  } catch (e) {
+    console.error(e);
+    toast('Gagal membuat PDF: ' + (e && e.message ? e.message : e), true, 7000);
+  } finally {
+    if (bingkai) bingkai.remove();
+    aujPdfSedang = false;
+  }
 }
 
 // Nama resmi asesmen untuk judul dokumen cetak. ASAS = Asesmen Sumatif Akhir Semester, dipakai pada semester Gasal (Ganjil);
@@ -1220,8 +1343,8 @@ function aujJudulAsesmen(nama) {
 function aujKodeAsesmen(nama) { const j = aujJudulAsesmen(nama), m = /^(ASAS|ASAT)\b/.exec(j); return m ? m[1] : j; }
 
 // ---- Kartu Peserta GABUNGAN: semua kelas pada asesmen yang sama dalam satu cetakan (satu PDF, banyak lembar F4) ----
-// Satu kelas = satu record sesi (kartu memuat ruang, waktu, dan kursi dari record itu): sesi kelas yang sedang dibuka bila ada, selain itu sesi paling awal.
-// Tiap kelas mulai di halaman F4 baru supaya mudah digunting dan dibagikan per kelas.
+// Satu kelas = satu record sesi (kartu memuat ruang dan kursi dari record itu; tanggal pelaksanaan dari semua sesi kelas itu): sesi kelas yang sedang dibuka bila ada, selain itu sesi paling awal.
+// Kelas disambung tanpa ganti halaman; saat menggunting, pilah kartu per kelas.
 function aujKartuGrupGabungan(rec) {
   const sesi = allAdmUjian.filter(r => r.nama === rec.nama && r.kelas);
   if (!sesi.some(r => r.key === rec.key) && rec.kelas) sesi.push(rec);
@@ -1233,12 +1356,13 @@ function aujKartuGrupGabungan(rec) {
     .map(k => ({ kelas: k, rec: per[k], ps: aujPeserta(k, per[k]) })).filter(g => g.ps.length);
 }
 function aujKartuGabunganIsi(grup, pakaiQr) {
-  let isi = '', total = 0, halaman = 0, tanpaKursi = 0;
-  grup.forEach(g => {
-    const peta = aujPetaKursi(g.rec), kartu = g.ps.map(p => aujKartuHtml(g.rec, p, peta[p.key], pakaiQr ? 'cetak' : ''));
+  let isi = '', total = 0, halaman = 0, tanpaKursi = 0, kartu = [];
+  grup.forEach(g => {   // kelas disambung tanpa ganti halaman (hemat kertas)
+    const peta = aujPetaKursi(g.rec);
+    kartu = kartu.concat(g.ps.map(p => aujKartuHtml(g.rec, p, peta[p.key], pakaiQr ? 'cetak' : '')));
     total += g.ps.length; tanpaKursi += g.ps.filter(p => !peta[p.key]).length;
-    for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) { isi += `<div class="kp-halaman">${kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN).join('')}</div>`; halaman++; }
   });
+  for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) { isi += `<div class="kp-halaman">${kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN).join('')}</div>`; halaman++; }
   return { isi, total, halaman, tanpaKursi };
 }
 function aujCetakKartuGabungan() {
@@ -1247,15 +1371,15 @@ function aujCetakKartuGabungan() {
   if (!grup.length) return toast('Belum ada siswa pada kelas-kelas di asesmen ini.', true);
   if (aujCanEdit() && JSON.stringify(aujKursi) !== JSON.stringify(rec.kursi || {})) toast('\u26A0\uFE0F Ada perubahan denah yang belum disimpan \u2014 kursi pada kartu mengikuti denah tersimpan.', false, 4500);
   const semua = grup.reduce((a, g) => a.concat(g.ps), []);
-  if (semua.some(p => !(p.key in aujFotoCache))) { aujFotoMuat(semua); toast('ℹ️ Foto siswa masih dimuat. Tunggu sebentar lalu klik Cetak lagi bila ingin foto ikut tercetak.', false, 4000); }
+  if (!aujFotoSiap(semua, aujCetakKartuGabungan)) return;
   const pakaiQr = aujKartuPakaiQr(), h = aujKartuGabunganIsi(grup, pakaiQr);
-  if (!confirm('Cetak kartu ' + h.total + ' peserta dari ' + grup.length + ' kelas (' + grup.map(g => g.kelas).join(', ') + ') = ' + h.halaman + ' halaman F4?\n\nTiap kelas mulai di halaman baru.' + (h.tanpaKursi ? '\n\n\u26A0\uFE0F ' + h.tanpaKursi + ' peserta belum punya kursi di denah (kolom Kursi tertulis "-").' : '') + '\n\nUntuk satu PDF: di dialog cetak pilih "Simpan sebagai PDF".')) return;
+  if (!confirm('Cetak kartu ' + h.total + ' peserta dari ' + grup.length + ' kelas (' + grup.map(g => g.kelas).join(', ') + ') = ' + h.halaman + ' halaman F4?\n\nKelas disambung tanpa ganti halaman.' + (h.tanpaKursi ? '\n\n\u26A0\uFE0F ' + h.tanpaKursi + ' peserta belum punya kursi di denah (kolom Kursi tertulis "-").' : '') + '\n\nHasilnya satu file PDF yang otomatis terunduh.')) return;
   let isi = h.isi;
   if (pakaiQr) {
     const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, 'Semua kelas', 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
-  aujCetakHtml(isi, `Kartu Peserta ${rec.nama || 'ASAS/ASAT'} - Semua Kelas`, AUJ_KARTU_CSS_CETAK);
+  aujUnduhKartuPdf(isi, `Kartu Peserta ${rec.nama || 'ASAS/ASAT'} - Semua Kelas`);
 }
 
 // ---- Cek Kesiapan: satu panel yang menunjukkan kekurangan sebelum berkas dicetak massal ----
@@ -1342,7 +1466,7 @@ function aujHtmlKartuPengganti(ps) {
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
       <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujKartuPilihSemua(true)">Pilih semua</button>
       <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujKartuPilihSemua(false)">Kosongkan</button>
-      <button id="aujKgCetak" class="btn btn-primary" style="font-size:12px;padding:3px 12px;" onclick="aujCetakKartuTerpilih()" ${n ? '' : 'disabled'}>🖨️ Cetak Kartu Terpilih</button></div>
+      <button id="aujKgCetak" class="btn btn-primary" style="font-size:12px;padding:3px 12px;" onclick="aujCetakKartuTerpilih()" ${n ? '' : 'disabled'}>📄 Unduh PDF Kartu Terpilih</button></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 10px;max-height:240px;overflow:auto;">
       ${ps.map(p => `<label style="font-size:13px;display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" ${aujKartuPilih[p.key] ? 'checked' : ''} onchange="aujKartuToggle('${escapeHtml(p.key)}',this.checked)"> ${escapeHtml(String(p.nomor))}. ${escapeHtml(p.nama)}</label>`).join('')}</div>
   </details>`;
@@ -1352,7 +1476,7 @@ function aujCetakKartuTerpilih() {
   const ps = aujPeserta(rec.kelas, rec).filter(p => aujKartuPilih[p.key]);
   if (!ps.length) return toast('Centang siswa yang kartunya akan dicetak.', true);
   if (aujCanEdit() && JSON.stringify(aujKursi) !== JSON.stringify(rec.kursi || {})) toast('\u26A0\uFE0F Ada perubahan denah yang belum disimpan \u2014 kursi pada kartu mengikuti denah tersimpan.', false, 4500);
-  if (ps.some(p => !(p.key in aujFotoCache))) { aujFotoMuat(ps); toast('ℹ️ Foto siswa masih dimuat. Tunggu sebentar lalu klik Cetak lagi bila ingin foto ikut tercetak.', false, 4000); }
+  if (!aujFotoSiap(ps, aujCetakKartuTerpilih)) return;
   const pakaiQr = aujKartuPakaiQr(), peta = aujPetaKursi(rec), kartu = ps.map(p => aujKartuHtml(rec, p, peta[p.key], pakaiQr ? 'cetak' : ''));
   let isi = '';
   for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) isi += `<div class="kp-halaman">${kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN).join('')}</div>`;
@@ -1360,7 +1484,7 @@ function aujCetakKartuTerpilih() {
     const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, rec.kelas, rec.ruang, 'Kartu pengganti', 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
-  aujCetakHtml(isi, `Kartu Pengganti ASAS/ASAT - ${rec.kelas || ''} (${ps.length} siswa)`, AUJ_KARTU_CSS_CETAK);
+  aujUnduhKartuPdf(isi, `Kartu Pengganti ASAS/ASAT - ${rec.kelas || ''} (${ps.length} siswa)`);
 }
 
 // =====================================================
@@ -1506,27 +1630,54 @@ function aujCetakBAHtml(rec, bl) {
   </div>`;
 }
 
-// Label Meja: stiker/kertas nomor peserta untuk DITEMPEL di bangku, satu label per siswa, berurutan sesuai denah TERSIMPAN.
-const AUJ_CSS_LABEL = AUJ_CSS + `
-  .lbgrid { display: flex; flex-wrap: wrap; margin-top: 3mm; }
-  .lb { box-sizing: border-box; width: 33.333%; height: 31mm; border: 0.4mm dashed #777; padding: 2mm 2.5mm; text-align: center; break-inside: avoid; page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
-  .lb .kl { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4pt; line-height: 1.1; }
-  .lb .no { font-size: 22pt; font-weight: 700; line-height: 1.05; }
-  .lb .nm { font-size: 9pt; font-weight: 700; line-height: 1.15; margin-top: 1mm; }
-  .lb .kt { font-size: 7.5pt; margin-top: 1mm; color: #222; }
-  .lb .ps { font-size: 7.5pt; color: #444; }
+// Label Meja: nomor peserta untuk DITEMPEL di bangku, diunduh sebagai PDF F4 dengan bingkai seperti Kartu Peserta.
+// 3 kolom x 9 baris = 27 label per halaman, ukuran 63 x 32 mm. Disambung tanpa ganti halaman antar kelas/ruang.
+const AUJ_LABEL_PER_HALAMAN = 27;
+const AUJ_CSS_LABEL = `
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; }
+  .lm-halaman { display: grid; grid-template-columns: repeat(3, 63mm); grid-auto-rows: 32mm; gap: 2mm 3mm; justify-content: center; align-content: start; }
+  .lb { box-sizing: border-box; width: 63mm; height: 32mm; border: 0.3mm dashed #555; padding: 0.8mm; display: flex; flex-direction: column; overflow: hidden; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; text-align: center; }
+  .lb-bingkai { box-sizing: border-box; flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; border: 1mm double #0f5c66; border-radius: 1.5mm; padding: 0.5mm 1.5mm; overflow: hidden; }
+  .lb .kl { font-size: 8pt; font-weight: 700; text-transform: uppercase; line-height: 1.2; white-space: nowrap; overflow: hidden; }
+  .lb .no { font-size: 21pt; font-weight: 700; line-height: 1.15; }
+  .lb .nm { font-size: 8pt; font-weight: 700; line-height: 1.15; text-transform: uppercase; }
+  .lb .ps { font-size: 7pt; line-height: 1.2; margin-top: 0.8mm; color: #333; }
 `;
-function aujCetakLabelHtml(rec) {
-  const grup = aujGrupRuang(rec), gab = grup.length > 1 && grup.some(r => r.kursi && Object.keys(r.kursi).length);
-  const kursi = gab ? aujKursiGabungan(grup) : (rec.kursi || {}), ps = gab ? aujPesertaGabungan(grup) : aujPeserta(rec.kelas, rec), { B, K, P } = aujDimensi(rec), byKey = {};
+// Satu label per siswa yang sudah punya kursi, urut baris terdepan -> kolom -> kiri/kanan.
+function aujLabelDariKursi(rec, kursi, ps) {
+  const byKey = {}, out = [];
   ps.forEach(p => { byKey[p.key] = p; });
-  const isi = [];
-  for (let r = 1; r <= B; r++) for (let c = 1; c <= K; c++) for (let s = 1; s <= P; s++) {
-    const p = byKey[kursi[aujKunciKursi(r, c, s)]]; if (!p) continue;
-    isi.push(`<div class="lb"><div class="kl">${escapeHtml(p.kelas || '')}</div><div class="no">${escapeHtml(String(p.nomor))}</div><div class="nm">${escapeHtml(p.nama)}</div><div class="kt">${escapeHtml(rec.ruang || '-')}</div><div class="ps">Baris ${r} / Kolom ${c}${P === 2 ? (s === 2 ? ' (kanan)' : ' (kiri)') : ''}</div></div>`);
+  Object.keys(kursi || {}).forEach(k => {
+    const m = /^(\d+)_(\d+)(_2)?$/.exec(k), p = m && byKey[kursi[k]]; if (!p) return;
+    const r = +m[1], c = +m[2], posisi = `Baris ${r} / Kolom ${c}` + (rec.denahPerBangku === 2 ? (m[3] ? ' (kanan)' : ' (kiri)') : '');
+    out.push({ urut: r * 1000 + c * 10 + (m[3] ? 1 : 0), ruang: rec.ruang || '', key: p.key,
+      html: `<div class="lb"><div class="lb-bingkai"><div class="kl">${escapeHtml(p.kelas || '-')} &middot; ${escapeHtml(rec.ruang || '-')}</div><div class="no">${escapeHtml(String(p.nomor))}</div><div class="nm">${escapeHtml(p.nama)}</div><div class="ps">${posisi}</div></div></div>` });
+  });
+  return out.sort((a, b) => a.urut - b.urut);
+}
+// semua = false: ruang sesi yang dibuka (termasuk kelas gabungan); semua = true: semua kelas pada asesmen yang sama, urut per ruang lalu kursi.
+function aujUnduhLabelPdf(semua) {
+  const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
+  let label = [], tanpa = 0;
+  if (semua) {
+    aujKartuGrupGabungan(rec).forEach(g => {
+      const l = aujLabelDariKursi(g.rec, g.rec.kursi, g.ps);
+      tanpa += g.ps.length - l.length; label = label.concat(l);
+    });
+    label.sort((a, b) => (aujKunciRuang(a.ruang) - aujKunciRuang(b.ruang)) || a.ruang.localeCompare(b.ruang, 'id', { numeric: true }) || a.urut - b.urut);
+  } else {
+    aujPeringatDraft(['denah'], rec);
+    const grup = aujGrupRuang(rec), gab = grup.length > 1 && grup.some(r => r.kursi && Object.keys(r.kursi).length);
+    const ps = gab ? aujPesertaGabungan(grup) : aujPeserta(rec.kelas, rec);
+    label = aujLabelDariKursi(rec, gab ? aujKursiGabungan(grup) : rec.kursi, ps);
+    tanpa = ps.length - label.length;
   }
-  if (!isi.length) return '<p style="text-align:center;padding:20mm 0;">Belum ada kursi pada denah yang tersimpan. Susun dan simpan denah dulu, lalu cetak label.</p>';
-  return `${aujKopHtml()}<h1>LABEL NOMOR MEJA ${escapeHtml(rec.nama || 'ASAS/ASAT')}</h1><div class="sub">${escapeHtml(rec.ruang || '-')}${gab ? ' (' + escapeHtml(grup.map(r => r.kelas).join(' + ')) + ')' : ' · ' + escapeHtml(rec.kelas || '')} — ${isi.length} label, urut dari baris terdepan. Gunting mengikuti garis putus-putus lalu tempel di meja sesuai Baris/Kolom.</div><div class="lbgrid">${isi.join('')}</div>`;
+  if (!label.length) return toast('Belum ada kursi pada denah yang tersimpan. Susun dan simpan denah dulu.', true, 5000);
+  if (tanpa > 0 && !confirm(tanpa + ' siswa belum punya kursi di denah, jadi labelnya TIDAK ikut dibuat.\n\nTetap unduh ' + label.length + ' label?')) return;
+  let isi = '';
+  for (let i = 0; i < label.length; i += AUJ_LABEL_PER_HALAMAN) isi += `<div class="kp-halaman lm-halaman">${label.slice(i, i + AUJ_LABEL_PER_HALAMAN).map(x => x.html).join('')}</div>`;
+  aujUnduhKartuPdf(isi, `Label Meja ASAS/ASAT - ${semua ? 'Semua Ruang' : (rec.ruang || rec.kelas || '')}`, AUJ_CSS_LABEL, AUJ_PDF_LABEL);
 }
 
 // Nomor Ruang untuk ditempel di PINTU: satu lembar F4 per ruang (semua ruang pada asesmen yang sama), memuat nama ruang besar,
@@ -1784,10 +1935,10 @@ function aujCetakPengawasHariRentang() {
   const x = aujAmbilRentang(); if (!x) return;
   aujCetakHtml(aujCetakPengawasHariHtml(x.daftar), `Daftar Hadir Pengawas - ${aujTglIndo(x.dari)} s.d. ${aujTglIndo(x.sampai)}`, AUJ_CSS_REKAP);
 }
-const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml, label: aujCetakLabelHtml,
+const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml, 
   hadir0: r => aujCetakHadirHtml(r, true), ba0: r => aujCetakBAHtml(r, true), pintu: aujCetakPintuHtml, pintuNama: aujCetakPintuNamaHtml,
   sampul: aujCetakSampulHtml, rekap: r => aujCetakRekapHtml(r, false), rekapSemua: r => aujCetakRekapHtml(r, true) };
-const AUJ_JUDUL = { hadir: 'Daftar Hadir ASAS/ASAT', tatib: 'Tata Tertib ASAS/ASAT', denah: 'Denah Ruang ASAS/ASAT', ba: 'Berita Acara ASAS/ASAT', label: 'Label Meja ASAS/ASAT', hadir0: 'Daftar Hadir Kosongan ASAS/ASAT', ba0: 'Berita Acara Kosongan ASAS/ASAT', pintu: 'Nomor Ruang ASAS/ASAT', pintuNama: 'Daftar Peserta per Ruang ASAS/ASAT', sampul: 'Sampul Amplop ASAS/ASAT', rekap: 'Rekap Kehadiran ASAS/ASAT', rekapSemua: 'Rekap Kehadiran Semua Kelas ASAS/ASAT' };
+const AUJ_JUDUL = { hadir: 'Daftar Hadir ASAS/ASAT', tatib: 'Tata Tertib ASAS/ASAT', denah: 'Denah Ruang ASAS/ASAT', ba: 'Berita Acara ASAS/ASAT', hadir0: 'Daftar Hadir Kosongan ASAS/ASAT', ba0: 'Berita Acara Kosongan ASAS/ASAT', pintu: 'Nomor Ruang ASAS/ASAT', pintuNama: 'Daftar Peserta per Ruang ASAS/ASAT', sampul: 'Sampul Amplop ASAS/ASAT', rekap: 'Rekap Kehadiran ASAS/ASAT', rekapSemua: 'Rekap Kehadiran Semua Kelas ASAS/ASAT' };
 // Cetak selalu memakai data TERSIMPAN. Fungsi ini mendeteksi isian/draft di layar yang belum disimpan.
 function aujDraftBeda(jenis, rec) {
   const j = JSON.stringify, v = x => (x == null ? '' : String(x)).trim();
@@ -1824,8 +1975,8 @@ function aujKonfirmasiBA(rec) {
 function aujCetakSatu(jenis) {
   const rec = aujRec(); if (!rec || !AUJ_CETAK[jenis]) return toast('Pilih sesi ASAS/ASAT dulu.', true);
   if (jenis === 'ba' && !aujKonfirmasiBA(rec)) return;
-  aujPeringatDraft([{ label: 'denah', rekap: 'hadir', rekapSemua: 'hadir' }[jenis] || jenis], rec);
-  aujCetakHtml(AUJ_CETAK[jenis](rec), `${AUJ_JUDUL[jenis]} - ${rec.kelas || ''} ${rec.ruang || ''}`, { label: AUJ_CSS_LABEL, pintu: AUJ_CSS_PINTU, rekap: AUJ_CSS_REKAP, rekapSemua: AUJ_CSS_REKAP }[jenis]);
+  aujPeringatDraft([{ rekap: 'hadir', rekapSemua: 'hadir' }[jenis] || jenis], rec);
+  aujCetakHtml(AUJ_CETAK[jenis](rec), `${AUJ_JUDUL[jenis]} - ${rec.kelas || ''} ${rec.ruang || ''}`, { pintu: AUJ_CSS_PINTU, rekap: AUJ_CSS_REKAP, rekapSemua: AUJ_CSS_REKAP }[jenis]);
 }
 function aujCetakSemua() {
   const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
@@ -1834,10 +1985,13 @@ function aujCetakSemua() {
   const sertakanSk = aujSkMuatKey === aujSkKunci() && !!aujSk && confirm('Sertakan SK Panitia + Lampiran I dan II di awal paket ini?\n\nOK = ikut dicetak, Batal = hanya berkas ruang.');
   aujCetakHtml((sertakanSk ? aujCetakSkHtml(Object.assign(aujSkDefault(), aujSk)) : '') + ['hadir', 'tatib', 'denah', 'ba'].map(j => AUJ_CETAK[j](rec)).join(''), `Berkas Administrasi ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`);
 }
+// Teks umum "ASAS/ASAT" di berkas cetak diganti sesuai asesmen aktif (ASAS pada Gasal, ASAT pada Genap); istilah "Ganjil" dicetak "Gasal".
+function aujSusunTeks(t) {
+  const kodeA = aujKodeAsesmen((aujRec() || {}).nama);
+  return String(t == null ? '' : t).replace(/ASAS\/ASAT/g, kodeA).replace(/\bGanjil\b/g, 'Gasal').replace(/\bGANJIL\b/g, 'GASAL');
+}
 function aujCetakHtml(bodyHtml, judul, cssKhusus) {
-  // Teks umum "ASAS/ASAT" di berkas cetak diganti sesuai asesmen aktif (ASAS pada Gasal, ASAT pada Genap); istilah "Ganjil" dicetak "Gasal".
-  const kodeA = aujKodeAsesmen((aujRec() || {}).nama), susun = t => String(t == null ? '' : t).replace(/ASAS\/ASAT/g, kodeA).replace(/\bGanjil\b/g, 'Gasal').replace(/\bGANJIL\b/g, 'GASAL');
-  bodyHtml = susun(bodyHtml); judul = susun(judul);
+  bodyHtml = aujSusunTeks(bodyHtml); judul = aujSusunTeks(judul);
   const w = window.open('', '_blank', 'width=900,height=700');   // dibuka dulu (sinkron) agar tidak diblokir popup
   if (!w) return toast('Popup diblokir browser. Izinkan popup untuk situs ini lalu coba lagi.', true);
   const tulis = (html) => {
