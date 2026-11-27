@@ -973,10 +973,6 @@ const AUJ_KARTU_SKALA = AUJ_KARTU_CETAK_W / 85;
 const AUJ_KARTU_W = 85, AUJ_KARTU_H = AUJ_KARTU_CETAK_H / AUJ_KARTU_SKALA, AUJ_KARTU_JARAK_X = 2 / AUJ_KARTU_SKALA, AUJ_KARTU_JARAK_Y = 4 / AUJ_KARTU_SKALA;
 const AUJ_KARTU_KOLOM = 3, AUJ_KARTU_BARIS = 2;
 const AUJ_KARTU_PER_HALAMAN = AUJ_KARTU_KOLOM * AUJ_KARTU_BARIS;
-const AUJ_KARTU_LEBAR_ISI = AUJ_KARTU_KOLOM * AUJ_KARTU_W + (AUJ_KARTU_KOLOM - 1) * AUJ_KARTU_JARAK_X;   // lebar satu halaman sebelum diperbesar
-// Tata letak halaman PDF (mm). lebarIsi = lebar rancangan, lebar = lebar di kertas.
-const AUJ_PDF_KARTU = { format: [330, 215], arah: 'landscape', x: (330 - AUJ_KARTU_LEBAR_ISI * AUJ_KARTU_SKALA) / 2, y: 10, lebar: AUJ_KARTU_LEBAR_ISI * AUJ_KARTU_SKALA, lebarIsi: AUJ_KARTU_LEBAR_ISI };
-const AUJ_PDF_LABEL = { format: [215, 330], arah: 'portrait', x: 10, y: 10, lebar: 195, lebarIsi: 195 };
 // Aturan kartu (dipakai di pratinjau layar DAN di jendela cetak). Semua kelas berawalan kp- agar tidak bentrok.
 const AUJ_KARTU_CSS = `
   .kp-halaman { display: grid; grid-template-columns: repeat(${AUJ_KARTU_KOLOM}, ${AUJ_KARTU_W}mm); grid-auto-rows: ${AUJ_KARTU_H}mm; gap: ${AUJ_KARTU_JARAK_Y}mm ${AUJ_KARTU_JARAK_X}mm; justify-content: center; align-content: start; page-break-after: always; break-after: page; }
@@ -1014,7 +1010,7 @@ const AUJ_KARTU_CSS_CETAK = `
   html, body { margin: 0; padding: 0; }
 ` + AUJ_KARTU_CSS;
 // Cetak langsung lewat dialog cetak browser (1 kelas / kartu pengganti): kartu dirancang 85 mm lalu diperbesar ke ukuran eblek (105 mm) dengan zoom.
-// Hasilnya sama dengan PDF, tetapi digambar oleh browser sendiri (bukan html2canvas) sehingga tulisan tidak terpotong atau bertimpa.
+// Digambar langsung oleh browser sehingga tulisan tidak terpotong atau bertimpa.
 const AUJ_KARTU_CSS_LANGSUNG = AUJ_KARTU_CSS_CETAK + `
   .kp-halaman { zoom: ${AUJ_KARTU_SKALA}; }
 `;
@@ -1198,6 +1194,9 @@ function aujHtmlKartu(rec) {
   const judul = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🎫 Kartu Peserta \u2014 ${escapeHtml(rec.kelas || '')} \u00b7 ${escapeHtml(rec.ruang || '')}</h4>
       <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>🖨️ Cetak Kartu (F4)</button>
+      <button class="btn btn-soft" onclick="aujCetakBelakang()" ${ps.length ? '' : 'disabled'} title="Jadwal ujian kelas ini (tanggal, waktu, mata pelajaran) untuk dicetak di sisi belakang kartu">🖨️ Cetak Belakang (Jadwal)</button>
+      <button class="btn btn-soft" onclick="aujCetakBelakangGabungan()" title="Belakang kartu semua kelas, urutan dan posisinya sama dengan Cetak Semua Kelas">🖨️ Cetak Belakang Semua Kelas</button>
+      <label style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:4px;" title="Hanya untuk Cetak Belakang Semua Kelas: urutan tiap baris dibalik kiri-kanan agar pas dengan sisi depan pada cetak bolak-balik otomatis (balik di sisi pendek)"><input type="checkbox" ${aujBelakangCermin ? 'checked' : ''} onchange="aujBelakangCermin = this.checked"> Cermin kiri-kanan</label>
       <button class="btn btn-soft" onclick="aujCetakKartuGabungan()" title="Kartu semua kelas pada asesmen ini dalam satu cetakan; kelas disambung tanpa ganti halaman (di dialog cetak bisa disimpan sebagai PDF)">🖨️ Cetak Semua Kelas</button>
     </div>`;
   if (!ps.length) return judul + `<p style="font-size:13px;color:#dc2626;">Belum ada siswa di ${escapeHtml(rec.kelas || 'kelas ini')} pada Data Siswa${aujCanEdit() ? '' : ' (atau bukan kelas yang Anda ampu)'}.</p>`;
@@ -1211,7 +1210,7 @@ function aujHtmlKartu(rec) {
     <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">Pratinjau (2 kartu pertama):</p>
     <style>${AUJ_KARTU_CSS}</style>
     <div style="display:flex;flex-wrap:wrap;gap:10px;overflow-x:auto;">${contoh}</div>
-    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Tombol "Cetak Kartu (F4)" dan "Cetak Semua Kelas" membuka dialog cetak (izinkan popup bila diminta): pilih kertas F4 / Folio mendatar dan skala 100% (ukuran asli), lalu cetak atau simpan sebagai PDF.</p>`;
+    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Tombol "Cetak Kartu (F4)" dan "Cetak Semua Kelas" membuka dialog cetak (izinkan popup bila diminta): pilih kertas F4 / Folio mendatar dan skala 100% (ukuran asli), lalu cetak atau simpan sebagai PDF. "Cetak Belakang (Jadwal)" mencetak jadwal ujian kelas ini di sisi belakang; isinya sama untuk semua kartu kelas itu, jadi cukup cetak bolak-balik (duplex) atau lembar terpisah. "Cetak Belakang Semua Kelas" memakai urutan yang sama dengan "Cetak Semua Kelas"; centang "Cermin kiri-kanan" bila dicetak bolak-balik otomatis (balik di sisi pendek).</p>`;
 }
 // QR pengesahan Kepala di kartu: hanya bila ttd-digital.js termuat dan yang mencetak Admin/Kepsek (sama dengan dokumen lain).
 function aujKartuPakaiQr() { return !!(window.TTD && TTD.penanda && aujBolehTtdKepala()); }
@@ -1255,84 +1254,97 @@ function aujCetakKartu() {
   aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_LANGSUNG);   // dialog cetak seperti semula
 }
 
-// ---------- Unduh kartu langsung sebagai PDF (tanpa popup dan tanpa dialog cetak) ----------
-// Tiap .kp-halaman digambar di bingkai tersembunyi lalu dimasukkan ke satu halaman F4. Pustaka dimuat dari CDN saat pertama dipakai.
-const AUJ_PDF_PUSTAKA = [
-  ['html2canvas', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'],
-  ['jspdf', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js']
-];
-let aujPdfSedang = false;
-function aujBatasWaktu(janji, ms, pesan) {
-  return new Promise((ok, gagal) => {
-    const t = setTimeout(() => gagal(new Error(pesan)), ms);
-    Promise.resolve(janji).then(x => { clearTimeout(t); ok(x); }, e => { clearTimeout(t); gagal(e); });
+// ---------- Belakang Kartu Peserta: jadwal ujian kelas itu (tanggal, waktu, mata pelajaran) ----------
+// Isinya sama untuk semua kartu satu kelas, jadi urutan cetak bolak-balik (duplex) tidak perlu dicerminkan. Jumlah halaman = jumlah halaman depan.
+// Ukuran huruf mengecil otomatis (7,5 -> 5 pt rancangan) agar muat; bila sesinya lebih dari AUJ_BELAKANG_MAKS, tabel dibagi dua kolom.
+const AUJ_BELAKANG_MAKS = 18;
+const AUJ_BELAKANG_SKRIP = `<script>(function(){Array.prototype.forEach.call(document.querySelectorAll('.kb-kartu'),function(k){var b=k.querySelector('.kb-isi'),fs=7.5;if(!b)return;k.style.setProperty('--fs',fs+'pt');while(b.scrollHeight>b.clientHeight+0.5&&fs>5){fs-=0.25;k.style.setProperty('--fs',fs+'pt');}});})();<\/script>`;
+let aujBelakangCermin = false;   // pilihan "cermin kiri-kanan" untuk Cetak Belakang Semua Kelas (diingat selama halaman terbuka)
+const AUJ_KARTU_CSS_BELAKANG = AUJ_KARTU_CSS_LANGSUNG + `
+  .kb-kartu { --fs: 7pt; }
+  .kb-kepala { box-sizing: border-box; display: flex; align-items: center; gap: 2mm; border-bottom: 0.4mm solid #000; padding-bottom: 0.8mm; height: 8.5mm; flex: none; }
+  .kb-jenis { font-size: 8.6pt; font-weight: 700; letter-spacing: 0.3pt; line-height: 1.15; }
+  .kb-isi { flex: 1; min-height: 0; overflow: hidden; padding-top: 1mm; }
+  .kb-dua { display: flex; gap: 1.2mm; align-items: flex-start; }
+  .kb-dua table.kb { flex: 1; min-width: 0; }
+  table.kb { width: 100%; border-collapse: collapse; }
+  table.kb th, table.kb td { border: 0.25mm solid #666; padding: 0.2mm 0.8mm; font-size: var(--fs); line-height: 1.15; text-align: left; vertical-align: middle; }
+  table.kb th { background: #e5eef0; text-align: center; font-weight: 700; }
+  table.kb td.kb-w { white-space: nowrap; width: 1%; }
+`;
+// Sesi satu kelas (dan ruang yang sama bila ada) pada asesmen ini; sesi kembar (beda ruang, jam & mapel sama) digabung.
+function aujJadwalKelas(rec) {
+  const sama = x => x.nama === rec.nama && x.kelas === rec.kelas;
+  let d = allAdmUjian.filter(x => sama(x) && aujNormNama(x.ruang) === aujNormNama(rec.ruang));
+  if (!d.length) d = allAdmUjian.filter(sama);
+  const lihat = {}, hasil = [];
+  aujUrutJadwal(d).forEach(r => {
+    const k = [r.tanggal || '', r.jamMulai || '', r.jamSelesai || '', aujNormNama(r.mapel || r.nama)].join('|');
+    if (!lihat[k]) { lihat[k] = 1; hasil.push(r); }
   });
+  return hasil;
 }
-function aujMuatPustaka(nama, url) {
-  if (window[nama]) return Promise.resolve();
-  return aujBatasWaktu(new Promise((ok, gagal) => {
-    const s = document.createElement('script'); s.src = url;
-    s.onload = () => ok();
-    s.onerror = () => { s.remove(); gagal(new Error('Pembuat PDF tidak bisa dimuat. Periksa koneksi internet.')); };
-    document.head.appendChild(s);
-  }), 20000, 'Pembuat PDF terlalu lama dimuat. Periksa koneksi internet.');
+function aujBelakangKartuHtml(rec, jadwal) {
+  const logo = new URL('logo/logo-lembaga.png', location.href).href;
+  const singkat = /ASAT/i.test(rec.nama || '') ? 'ASAT' : (/ASAS/i.test(rec.nama || '') ? 'ASAS' : (rec.nama || 'UJIAN'));
+  const tgl = t => { const q = aujBagianTgl(t); return q ? `${q.hari.slice(0, 3)}, ${q.d} ${q.bulan.slice(0, 3)}` : (t || '-'); };
+  const baris = r => `<tr><td class="kb-w">${escapeHtml(tgl(r.tanggal))}</td><td class="kb-w">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + '–' + escapeHtml(r.jamSelesai) : '-'}</td><td>${escapeHtml(r.mapel || r.nama || '-')}</td></tr>`;
+  const tabel = rows => `<table class="kb"><thead><tr><th>Tanggal</th><th>Waktu</th><th>Mata Pelajaran</th></tr></thead><tbody>${rows.map(baris).join('')}</tbody></table>`;
+  const tengah = Math.ceil(jadwal.length / 2);
+  const isi = !jadwal.length ? '<div style="font-size:7pt;color:#666;text-align:center;padding-top:6mm;">Jadwal belum diisi</div>' : jadwal.length > AUJ_BELAKANG_MAKS ? `<div class="kb-dua">${tabel(jadwal.slice(0, tengah))}${tabel(jadwal.slice(tengah))}</div>` : tabel(jadwal);
+  return `<div class="kp-kartu kb-kartu"><div class="kp-bingkai">
+    <div class="kb-kepala">
+      <img class="kp-logo" src="${escapeHtml(logo)}" alt="" onerror="this.style.display='none'">
+      <div class="kp-judul"><div class="kb-jenis">JADWAL ${escapeHtml(singkat)}</div><div class="kp-ujian">${escapeHtml(rec.kelas || '')} &middot; ${escapeHtml(rec.ruang || '')} &middot; TA ${escapeHtml(currentTahunAjaran || '')}</div></div>
+    </div>
+    <div class="kb-isi">${isi}</div>
+  </div></div>`;
 }
-async function aujUnduhKartuPdf(bodyHtml, judul, css, tata) {
-  tata = tata || AUJ_PDF_KARTU;
-  if (aujPdfSedang) return toast('PDF masih dibuat, mohon tunggu...', false, 2000);
-  aujPdfSedang = true;
-  let bingkai = null;
-  try {
-    toast('⏳ Menyiapkan PDF…', false, 3000);
-    await Promise.all(AUJ_PDF_PUSTAKA.map(p => aujMuatPustaka(p[0], p[1])));
-    let html = aujSusunTeks(bodyHtml);
-    const nama = aujSusunTeks(judul).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim() + '.pdf';
-    if (/\[\[TTD:/.test(html)) {
-      try {
-        if (!(window.TTD && TTD.isiHtml)) throw new Error('TTD tidak tersedia');
-        html = await aujBatasWaktu(TTD.isiHtml(html), 15000, 'QR terlalu lama');
-      } catch (e) {
-        console.warn('QR kartu gagal:', e);
-        html = html.replace(/\[\[TTD:[^\]]*\]\]/g, '');
-        toast('⚠️ QR Kepala gagal dibuat, PDF dibuat tanpa QR.', true, 7000);
+// Belakang kartu SEMUA kelas: satu kartu belakang per siswa, urutan dan posisinya sama persis dengan "Cetak Semua Kelas" (sisi depan),
+// sehingga kelas yang disambung dalam satu halaman tetap berpasangan. "Cermin kiri-kanan" membalik urutan tiap baris untuk cetak bolak-balik
+// otomatis (balik di sisi pendek); tanpa cermin, posisi kartu persis sama dengan sisi depan.
+function aujCetakBelakangGabungan() {
+  const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
+  const grup = aujKartuGrupGabungan(rec);
+  if (!grup.length) return toast('Belum ada siswa pada kelas-kelas di asesmen ini.', true);
+  const tanpa = [], kartu = [];
+  grup.forEach(g => {
+    const jd = aujJadwalKelas(g.rec); if (!jd.length) tanpa.push(g.kelas);
+    const h = aujBelakangKartuHtml(g.rec, jd);
+    for (let i = 0; i < g.ps.length; i++) kartu.push(h);
+  });
+  const halaman = Math.ceil(kartu.length / AUJ_KARTU_PER_HALAMAN);
+  if (!confirm('Cetak belakang kartu ' + kartu.length + ' peserta dari ' + grup.length + ' kelas (' + grup.map(g => g.kelas).join(', ') + ') = ' + halaman + ' halaman F4?\n\nUrutan dan posisi sama dengan "Cetak Semua Kelas" (sisi depan).'
+    + (aujBelakangCermin ? '\n\nSusunan DICERMINKAN kiri-kanan untuk cetak bolak-balik otomatis (balik di sisi pendek).' : '')
+    + (tanpa.length ? '\n\n\u26A0\uFE0F Belum ada jadwal untuk ' + tanpa.join(', ') + ' (belakang kartunya tertulis "Jadwal belum diisi").' : '')
+    + '\n\nDialog cetak akan terbuka; pilih kertas F4 mendatar dan skala 100%.')) return;
+  let isi = '';
+  for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) {
+    const sel = kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN);
+    let html = '';
+    if (aujBelakangCermin) {
+      for (let j = 0; j < sel.length; j += AUJ_KARTU_KOLOM) {
+        const b = sel.slice(j, j + AUJ_KARTU_KOLOM);
+        while (b.length < AUJ_KARTU_KOLOM) b.push('<div></div>');   // kolom kosong di baris terakhir tetap menempati posisinya
+        html += b.reverse().join('');
       }
-    }
-    bingkai = document.createElement('iframe');
-    bingkai.setAttribute('aria-hidden', 'true');
-    bingkai.style.cssText = 'position:fixed;left:-10000px;top:0;width:330mm;height:330mm;border:0;';
-    document.body.appendChild(bingkai);
-    const d = bingkai.contentDocument;
-    d.open();
-    d.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><style>${css || AUJ_KARTU_CSS_CETAK} body { width: ${tata.lebarIsi}mm; background: #fff; }</style></head><body>${html}</body></html>`);
-    d.close();
-    // Foto dijadikan latar (cover) karena pembuat PDF tidak mengenal object-fit.
-    d.querySelectorAll('.kp-foto img').forEach(im => {
-      const k = d.createElement('div');
-      k.style.cssText = 'width:100%;height:100%;background:center/cover no-repeat;';
-      k.style.backgroundImage = 'url("' + im.getAttribute('src') + '")';
-      im.replaceWith(k);
-    });
-    // Tunggu logo/QR selesai dimuat (maksimal 8 detik per gambar).
-    await Promise.all(Array.from(d.images).map(im => im.complete ? null : aujBatasWaktu(new Promise(ok => { im.onload = im.onerror = ok; }), 8000, '').catch(() => {})));
-    const halaman = Array.from(d.querySelectorAll('.kp-halaman'));
-    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: tata.format, orientation: tata.arah, compress: true });
-    for (let i = 0; i < halaman.length; i++) {
-      if (halaman.length > 1) toast(`⏳ Membuat PDF: halaman ${i + 1} dari ${halaman.length}…`, false, 2000);
-      const el = halaman[i], kotak = el.getBoundingClientRect();
-      const kanvas = await window.html2canvas(el, { scale: 3 * tata.lebar / tata.lebarIsi, backgroundColor: '#ffffff', useCORS: true, logging: false });
-      if (i) pdf.addPage(tata.format, tata.arah);
-      pdf.addImage(kanvas.toDataURL('image/jpeg', 0.92), 'JPEG', tata.x, tata.y, tata.lebar, tata.lebar * kotak.height / kotak.width);
-      kanvas.width = kanvas.height = 0;   // lepaskan memori (penting di HP)
-    }
-    pdf.save(nama);
-    toast('✅ PDF diunduh: ' + nama, false, 5000);
-  } catch (e) {
-    console.error(e);
-    toast('Gagal membuat PDF: ' + (e && e.message ? e.message : e), true, 7000);
-  } finally {
-    if (bingkai) bingkai.remove();
-    aujPdfSedang = false;
+    } else html = sel.join('');
+    isi += `<div class="kp-halaman">${html}</div>`;
   }
+  isi += AUJ_BELAKANG_SKRIP;
+  aujCetakHtml(isi, `Belakang Kartu Peserta ${rec.nama || 'ASAS/ASAT'} - Semua Kelas`, AUJ_KARTU_CSS_BELAKANG);
+}
+function aujCetakBelakang() {
+  const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
+  const ps = aujPeserta(rec.kelas, rec);
+  if (!ps.length) return toast('Belum ada siswa di kelas ini.', true);
+  const jadwal = aujJadwalKelas(rec);
+  if (!jadwal.length) return toast('Belum ada jadwal untuk ' + (rec.kelas || 'kelas ini') + '.', true);
+  const halaman = Math.ceil(ps.length / AUJ_KARTU_PER_HALAMAN), kartu = aujBelakangKartuHtml(rec, jadwal);
+  let isi = '';
+  for (let i = 0; i < halaman; i++) isi += `<div class="kp-halaman">${kartu.repeat(AUJ_KARTU_PER_HALAMAN)}</div>`;
+  isi += AUJ_BELAKANG_SKRIP;
+  aujCetakHtml(isi, `Belakang Kartu Peserta - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_BELAKANG);
 }
 
 // Nama resmi asesmen untuk judul dokumen cetak. ASAS = Asesmen Sumatif Akhir Semester, dipakai pada semester Gasal (Ganjil);
