@@ -634,8 +634,8 @@ function aujHtmlDenah(rec) {
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🗺️ Denah Lokasi & Tempat Duduk</h4>
       <button class="btn btn-primary" onclick="aujCetakSatu('denah')">🖨️ Cetak Denah</button>
-      <button class="btn btn-soft" onclick="aujUnduhLabelPdf(false)" title="Label nomor peserta untuk ditempel di bangku ruang ini, berurutan sesuai denah tersimpan">🏷️ Unduh PDF Label Meja</button>
-      <button class="btn btn-soft" onclick="aujUnduhLabelPdf(true)" title="Label meja semua ruang pada asesmen ini dalam satu file PDF, disambung tanpa ganti halaman">🏷️ Label Meja Semua Ruang</button>
+      <button class="btn btn-soft" onclick="aujUnduhLabelPdf(false)" title="Label nomor peserta untuk ditempel di bangku ruang ini, berurutan sesuai denah tersimpan">🖨️ Cetak Label Meja</button>
+      <button class="btn btn-soft" onclick="aujUnduhLabelPdf(true)" title="Label meja semua ruang pada asesmen ini dalam satu cetakan, disambung tanpa ganti halaman">🖨️ Label Meja Semua Ruang</button>
       <button class="btn btn-soft" onclick="aujCetakSatu('pintu')" title="Lembar besar nama ruang + kelas + rentang nomor peserta untuk ditempel di pintu, satu lembar per ruang">🚪 Cetak Nomor Ruang (Pintu)</button>
       <button class="btn btn-soft" onclick="aujCetakSatu('pintuNama')" title="Daftar nama dan nomor peserta per ruang (satu halaman per ruang), untuk ditempel di dekat pintu">📋 Daftar Peserta per Ruang</button>
     </div>
@@ -992,11 +992,11 @@ const AUJ_KARTU_CSS = `
   .kp-isi { display: flex; gap: 2mm; flex: 1; padding-top: 1.2mm; min-height: 0; }
   .kp-data { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .kp-data table { border-collapse: collapse; width: 100%; }
-  .kp-data td { font-size: 8.4pt; line-height: 1.2; padding: 0.25mm 0; vertical-align: top; border: none; }
+  .kp-data td { font-size: 8.4pt; line-height: 1.2; padding: 0.15mm 0; vertical-align: top; border: none; }
   .kp-data td:first-child { width: 19.5mm; white-space: nowrap; }
   .kp-data td:nth-child(2) { width: 1.8mm; }
   .kp-no { font-size: 11pt; font-weight: 700; line-height: 1.1; }
-  .kp-data td.kp-no { font-size: 12pt; line-height: 1.1; }
+  .kp-data td.kp-no { font-size: 9.5pt; line-height: 1.1; }   /* nomor peserta: tebal tapi tidak mengalahkan nama (8,4pt kapital tebal) */
   .kp-nama { font-weight: 700; text-transform: uppercase; }
   .kp-data td.kp-nama-panjang { font-size: 7.2pt; line-height: 1.1; }   /* nama > 28 karakter: sedikit lebih kecil supaya tidak makan 4 baris */
   .kp-kanan { width: 23mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
@@ -1198,12 +1198,12 @@ function aujHtmlKartu(rec) {
   const judul = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🎫 Kartu Peserta \u2014 ${escapeHtml(rec.kelas || '')} \u00b7 ${escapeHtml(rec.ruang || '')}</h4>
       <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>🖨️ Cetak Kartu (F4)</button>
-      <button class="btn btn-soft" onclick="aujCetakKartuGabungan()" title="Kartu semua kelas pada asesmen ini dalam satu file PDF; kelas disambung tanpa ganti halaman">📄 Unduh PDF Semua Kelas</button>
+      <button class="btn btn-soft" onclick="aujCetakKartuGabungan()" title="Kartu semua kelas pada asesmen ini dalam satu cetakan; kelas disambung tanpa ganti halaman (di dialog cetak bisa disimpan sebagai PDF)">🖨️ Cetak Semua Kelas</button>
     </div>`;
   if (!ps.length) return judul + `<p style="font-size:13px;color:#dc2626;">Belum ada siswa di ${escapeHtml(rec.kelas || 'kelas ini')} pada Data Siswa${aujCanEdit() ? '' : ' (atau bukan kelas yang Anda ampu)'}.</p>`;
   const contoh = ps.slice(0, 2).map(p => aujKartuHtml(rec, p, peta[p.key], aujKartuPakaiQr() ? 'pratinjau' : '')).join('');
   return judul + `
-    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 mendatar (330 \u00d7 215 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_CETAK_W} \u00d7 ${AUJ_KARTU_CETAK_H} mm</strong>, untuk eblek / card case berukuran dalam 11 \u00d7 8 cm. Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas". Untuk semua kelas sekaligus pakai tombol "Unduh PDF Semua Kelas".</p>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 mendatar (330 \u00d7 215 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_CETAK_W} \u00d7 ${AUJ_KARTU_CETAK_H} mm</strong>, untuk eblek / card case berukuran dalam 11 \u00d7 8 cm. Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas". Untuk semua kelas sekaligus pakai tombol "Cetak Semua Kelas".</p>
     <p style="font-size:13px;font-weight:600;margin-bottom:6px;">Akan tercetak ${ps.length} kartu = ${halaman} halaman F4.</p>
     ${tanpaKursi ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:6px;margin-bottom:8px;">\u26A0\uFE0F ${tanpaKursi} dari ${ps.length} peserta belum punya kursi di denah \u2014 kolom Kursi tertulis "-". Atur di tab Denah lalu simpan.</p>` : ''}
     ${aujHtmlFotoSiswa(ps)}
@@ -1211,7 +1211,7 @@ function aujHtmlKartu(rec) {
     <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">Pratinjau (2 kartu pertama):</p>
     <style>${AUJ_KARTU_CSS}</style>
     <div style="display:flex;flex-wrap:wrap;gap:10px;overflow-x:auto;">${contoh}</div>
-    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Tombol "Cetak Kartu (F4)" membuka dialog cetak (izinkan popup bila diminta): pilih kertas F4 / Folio mendatar dan skala 100% (ukuran asli), lalu cetak atau simpan sebagai PDF. Tombol "Unduh PDF Semua Kelas" langsung mengunduh file PDF (butuh internet untuk memuat pembuat PDF).</p>`;
+    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Tombol "Cetak Kartu (F4)" dan "Cetak Semua Kelas" membuka dialog cetak (izinkan popup bila diminta): pilih kertas F4 / Folio mendatar dan skala 100% (ukuran asli), lalu cetak atau simpan sebagai PDF.</p>`;
 }
 // QR pengesahan Kepala di kartu: hanya bila ttd-digital.js termuat dan yang mencetak Admin/Kepsek (sama dengan dokumen lain).
 function aujKartuPakaiQr() { return !!(window.TTD && TTD.penanda && aujBolehTtdKepala()); }
@@ -1252,7 +1252,7 @@ function aujCetakKartu() {
     const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, rec.kelas, rec.ruang, 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
-  aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_LANGSUNG);   // dialog cetak seperti semula; PDF hanya untuk Semua Kelas
+  aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_LANGSUNG);   // dialog cetak seperti semula
 }
 
 // ---------- Unduh kartu langsung sebagai PDF (tanpa popup dan tanpa dialog cetak) ----------
@@ -1378,13 +1378,13 @@ function aujCetakKartuGabungan() {
   const semua = grup.reduce((a, g) => a.concat(g.ps), []);
   if (!aujFotoSiap(semua, aujCetakKartuGabungan)) return;
   const pakaiQr = aujKartuPakaiQr(), h = aujKartuGabunganIsi(grup, pakaiQr);
-  if (!confirm('Cetak kartu ' + h.total + ' peserta dari ' + grup.length + ' kelas (' + grup.map(g => g.kelas).join(', ') + ') = ' + h.halaman + ' halaman F4?\n\nKelas disambung tanpa ganti halaman.' + (h.tanpaKursi ? '\n\n\u26A0\uFE0F ' + h.tanpaKursi + ' peserta belum punya kursi di denah (kolom Kursi tertulis "-").' : '') + '\n\nHasilnya satu file PDF yang otomatis terunduh.')) return;
+  if (!confirm('Cetak kartu ' + h.total + ' peserta dari ' + grup.length + ' kelas (' + grup.map(g => g.kelas).join(', ') + ') = ' + h.halaman + ' halaman F4?\n\nKelas disambung tanpa ganti halaman.' + (h.tanpaKursi ? '\n\n\u26A0\uFE0F ' + h.tanpaKursi + ' peserta belum punya kursi di denah (kolom Kursi tertulis "-").' : '') + '\n\nDialog cetak akan terbuka; pilih kertas F4 mendatar dan skala 100%.')) return;
   let isi = h.isi;
   if (pakaiQr) {
     const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, 'Semua kelas', 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
-  aujUnduhKartuPdf(isi, `Kartu Peserta ${rec.nama || 'ASAS/ASAT'} - Semua Kelas`);
+  aujCetakHtml(isi, `Kartu Peserta ${rec.nama || 'ASAS/ASAT'} - Semua Kelas`, AUJ_KARTU_CSS_LANGSUNG);
 }
 
 // ---- Cek Kesiapan: satu panel yang menunjukkan kekurangan sebelum berkas dicetak massal ----
@@ -1635,7 +1635,7 @@ function aujCetakBAHtml(rec, bl) {
   </div>`;
 }
 
-// Label Meja: nomor peserta untuk DITEMPEL di bangku, diunduh sebagai PDF F4 dengan bingkai seperti Kartu Peserta.
+// Label Meja: nomor peserta untuk DITEMPEL di bangku, dicetak lewat dialog cetak browser (F4 tegak) dengan bingkai seperti Kartu Peserta.
 // 3 kolom x 9 baris = 27 label per halaman, ukuran 63 x 32 mm. Disambung tanpa ganti halaman antar kelas/ruang.
 const AUJ_LABEL_PER_HALAMAN = 27;
 const AUJ_CSS_LABEL = `
@@ -1649,6 +1649,12 @@ const AUJ_CSS_LABEL = `
   .lb .nm { font-size: 8pt; font-weight: 700; line-height: 1.15; text-transform: uppercase; }
   .lb .ps { font-size: 7pt; line-height: 1.2; margin-top: 0.8mm; color: #333; }
 `;
+// Untuk dialog cetak: kertas F4 tegak (215 x 330 mm), margin 10 mm -> area 195 x 310 mm; satu .lm-halaman = 3 x 9 label (195 x 304 mm).
+const AUJ_CSS_LABEL_CETAK = `
+  @page { size: 215mm 330mm; margin: 10mm; }
+  .lm-halaman { page-break-after: always; break-after: page; }
+  .lm-halaman:last-child { page-break-after: auto; break-after: auto; }
+` + AUJ_CSS_LABEL;
 // Satu label per siswa yang sudah punya kursi, urut baris terdepan -> kolom -> kiri/kanan.
 function aujLabelDariKursi(rec, kursi, ps) {
   const byKey = {}, out = [];
@@ -1679,10 +1685,10 @@ function aujUnduhLabelPdf(semua) {
     tanpa = ps.length - label.length;
   }
   if (!label.length) return toast('Belum ada kursi pada denah yang tersimpan. Susun dan simpan denah dulu.', true, 5000);
-  if (tanpa > 0 && !confirm(tanpa + ' siswa belum punya kursi di denah, jadi labelnya TIDAK ikut dibuat.\n\nTetap unduh ' + label.length + ' label?')) return;
+  if (tanpa > 0 && !confirm(tanpa + ' siswa belum punya kursi di denah, jadi labelnya TIDAK ikut dibuat.\n\nTetap cetak ' + label.length + ' label?')) return;
   let isi = '';
   for (let i = 0; i < label.length; i += AUJ_LABEL_PER_HALAMAN) isi += `<div class="kp-halaman lm-halaman">${label.slice(i, i + AUJ_LABEL_PER_HALAMAN).map(x => x.html).join('')}</div>`;
-  aujUnduhKartuPdf(isi, `Label Meja ASAS/ASAT - ${semua ? 'Semua Ruang' : (rec.ruang || rec.kelas || '')}`, AUJ_CSS_LABEL, AUJ_PDF_LABEL);
+  aujCetakHtml(isi, `Label Meja ASAS/ASAT - ${semua ? 'Semua Ruang' : (rec.ruang || rec.kelas || '')}`, AUJ_CSS_LABEL_CETAK);
 }
 
 // Nomor Ruang untuk ditempel di PINTU: satu lembar F4 per ruang (semua ruang pada asesmen yang sama), memuat nama ruang besar,
