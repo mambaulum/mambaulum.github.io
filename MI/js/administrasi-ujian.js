@@ -966,7 +966,7 @@ function aujSimpanBA() {
 // (dekat meja pengawas / papan tulis), sesuai gambar denah.
 // UKURAN KARTU untuk eblek dengan ukuran DALAM 11 x 8 cm: kartu jadi 105 x 77 mm, mendatar. Gunting mengikuti garis putus-putus.
 // Kertas F4 MENDATAR (330 x 215 mm): 3 kolom x 2 baris = 6 kartu per halaman.
-// Isi kartu dirancang pada lebar 85 mm lalu diperbesar ke 105 mm saat PDF dibuat (huruf, foto, dan QR ikut membesar).
+// Isi kartu dirancang pada lebar 85 mm lalu diperbesar ke 105 mm saat PDF dibuat atau saat dicetak langsung (zoom); huruf, foto, dan QR ikut membesar.
 // Ganti eblek: ubah AUJ_KARTU_CETAK_W / AUJ_KARTU_CETAK_H (pastikan 3 x 2 kartu masih muat di 330 x 215 mm).
 const AUJ_KARTU_CETAK_W = 105, AUJ_KARTU_CETAK_H = 77;
 const AUJ_KARTU_SKALA = AUJ_KARTU_CETAK_W / 85;
@@ -1013,6 +1013,11 @@ const AUJ_KARTU_CSS_CETAK = `
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; }
 ` + AUJ_KARTU_CSS;
+// Cetak langsung lewat dialog cetak browser (1 kelas / kartu pengganti): kartu dirancang 85 mm lalu diperbesar ke ukuran eblek (105 mm) dengan zoom.
+// Hasilnya sama dengan PDF, tetapi digambar oleh browser sendiri (bukan html2canvas) sehingga tulisan tidak terpotong atau bertimpa.
+const AUJ_KARTU_CSS_LANGSUNG = AUJ_KARTU_CSS_CETAK + `
+  .kp-halaman { zoom: ${AUJ_KARTU_SKALA}; }
+`;
 
 // { siswaKey: 'Baris 2 / Kolom 3' } dari denah tersimpan; siswa tanpa kursi tidak ada di peta.
 function aujPetaKursi(rec) {
@@ -1192,7 +1197,7 @@ function aujHtmlKartu(rec) {
   const halaman = Math.ceil(ps.length / AUJ_KARTU_PER_HALAMAN);
   const judul = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🎫 Kartu Peserta \u2014 ${escapeHtml(rec.kelas || '')} \u00b7 ${escapeHtml(rec.ruang || '')}</h4>
-      <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>📄 Unduh PDF Kartu (F4)</button>
+      <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>🖨️ Cetak Kartu (F4)</button>
       <button class="btn btn-soft" onclick="aujCetakKartuGabungan()" title="Kartu semua kelas pada asesmen ini dalam satu file PDF; kelas disambung tanpa ganti halaman">📄 Unduh PDF Semua Kelas</button>
     </div>`;
   if (!ps.length) return judul + `<p style="font-size:13px;color:#dc2626;">Belum ada siswa di ${escapeHtml(rec.kelas || 'kelas ini')} pada Data Siswa${aujCanEdit() ? '' : ' (atau bukan kelas yang Anda ampu)'}.</p>`;
@@ -1206,7 +1211,7 @@ function aujHtmlKartu(rec) {
     <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">Pratinjau (2 kartu pertama):</p>
     <style>${AUJ_KARTU_CSS}</style>
     <div style="display:flex;flex-wrap:wrap;gap:10px;overflow-x:auto;">${contoh}</div>
-    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Tombol di atas langsung mengunduh file PDF berukuran F4 (butuh internet untuk memuat pembuat PDF). Saat mencetak file itu, pilih kertas F4 / Folio (kartu: mendatar; label meja: tegak) dan skala 100% (ukuran asli).</p>`;
+    <p style="font-size:11px;color:#6b7280;margin-top:8px;">Tombol "Cetak Kartu (F4)" membuka dialog cetak (izinkan popup bila diminta): pilih kertas F4 / Folio mendatar dan skala 100% (ukuran asli), lalu cetak atau simpan sebagai PDF. Tombol "Unduh PDF Semua Kelas" langsung mengunduh file PDF (butuh internet untuk memuat pembuat PDF).</p>`;
 }
 // QR pengesahan Kepala di kartu: hanya bila ttd-digital.js termuat dan yang mencetak Admin/Kepsek (sama dengan dokumen lain).
 function aujKartuPakaiQr() { return !!(window.TTD && TTD.penanda && aujBolehTtdKepala()); }
@@ -1247,7 +1252,7 @@ function aujCetakKartu() {
     const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, rec.kelas, rec.ruang, 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
-  aujUnduhKartuPdf(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`);
+  aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_LANGSUNG);   // dialog cetak seperti semula; PDF hanya untuk Semua Kelas
 }
 
 // ---------- Unduh kartu langsung sebagai PDF (tanpa popup dan tanpa dialog cetak) ----------
@@ -1466,7 +1471,7 @@ function aujHtmlKartuPengganti(ps) {
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
       <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujKartuPilihSemua(true)">Pilih semua</button>
       <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujKartuPilihSemua(false)">Kosongkan</button>
-      <button id="aujKgCetak" class="btn btn-primary" style="font-size:12px;padding:3px 12px;" onclick="aujCetakKartuTerpilih()" ${n ? '' : 'disabled'}>📄 Unduh PDF Kartu Terpilih</button></div>
+      <button id="aujKgCetak" class="btn btn-primary" style="font-size:12px;padding:3px 12px;" onclick="aujCetakKartuTerpilih()" ${n ? '' : 'disabled'}>🖨️ Cetak Kartu Terpilih</button></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 10px;max-height:240px;overflow:auto;">
       ${ps.map(p => `<label style="font-size:13px;display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" ${aujKartuPilih[p.key] ? 'checked' : ''} onchange="aujKartuToggle('${escapeHtml(p.key)}',this.checked)"> ${escapeHtml(String(p.nomor))}. ${escapeHtml(p.nama)}</label>`).join('')}</div>
   </details>`;
@@ -1484,7 +1489,7 @@ function aujCetakKartuTerpilih() {
     const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, rec.kelas, rec.ruang, 'Kartu pengganti', 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
-  aujUnduhKartuPdf(isi, `Kartu Pengganti ASAS/ASAT - ${rec.kelas || ''} (${ps.length} siswa)`);
+  aujCetakHtml(isi, `Kartu Pengganti ASAS/ASAT - ${rec.kelas || ''} (${ps.length} siswa)`, AUJ_KARTU_CSS_LANGSUNG);
 }
 
 // =====================================================
