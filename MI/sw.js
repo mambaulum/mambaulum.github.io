@@ -41,14 +41,11 @@
 
    CARA UPDATE VERSI:
    Setiap kali file app shell diubah dan di-deploy ulang, naikkan APP_VERSION
-   DAN angka ?v= file terkait di index.html serta PRECACHE_URLS di bawah
-   (css/styles.css, js/app.js, js/portal-ortu.js, js/infaq.js, js/sikap-buku.js, js/materi-tugas.js, js/kelola-absen-guru.js, js/jadwal.js, js/laporan-rekap.js, js/honor-guru.js, js/event-ujian.js, js/pengingat-absen-guru.js, js/v4-tahfidz-pramuka-ekskul.js, js/v4-pengaturan-notif-rapor.js, js/rekap-nilai.js, js/kalender-akademik.js, js/saran-kritik.js, js/ortu-akun-admin.js, js/amalan-kegiatan.js, js/kas.js, js/administrasi-ujian.js,
-   js/bacaan-shalat.js, js/menu-hub.js, js/rapat.js, js/modul-ajar.js, js/buku-tamu.js, js/fitur-pelengkap.js,
-   js/tunggakan-infaq.js, js/auto-logout.js, js/login-kode.js, js/tahfidz-grafik.js, js/monitor-petugas.js,
-   js/kredensial.js, js/peran-ganda.js, js/ttd-digital.js, js/data-pkg-mi.js, js/pkg.js, js/perangkat-*.js).
+   DAN angka ?v= pada file yang berubah, di dua tempat: tag <script>/<link> di
+   index.html serta PRECACHE_URLS di bawah. Angka ?v= di kedua tempat harus sama.
 ============================================================ */
 
-const APP_VERSION = 'v8.604';
+const APP_VERSION = 'v8.607';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -81,7 +78,7 @@ const PRECACHE_URLS = [
   './js/logo-fallback.js',
   './js/offline-db.js',
   './js/kas.js?v=10',
-  './js/administrasi-ujian.js?v=52',
+  './js/administrasi-ujian.js?v=55',
   './js/app.js?v=176',
   './js/mode-ortu.js?v=7',                   // Mode Wali Murid: sembunyikan login guru, kotak "Pasang aplikasi" (dimuat SESUDAH portal-ortu.js)
   './js/portal-ortu.js?v=52',                // Portal Orang Tua: login, PIN, dashboard (dipecah dari app.js; dimuat SESUDAH app.js)
