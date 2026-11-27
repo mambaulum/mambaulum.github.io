@@ -21,7 +21,8 @@
   10. Cetakan tambahan (26 Nov 2026): Daftar Hadir & Berita Acara KOSONGAN (satu ruang, satu tanggal, atau rentang tanggal), Nomor Ruang untuk pintu,
       Daftar Peserta per Ruang, Sampul Amplop naskah/LJK, Rekap Kehadiran per kelas, Rekap Berita Acara semua ruang per tanggal,
       Daftar Hadir Pengawas per hari (F4 mendatar), Kartu Peserta GABUNGAN semua kelas (1 PDF),
-      Kartu Pengganti per siswa, dan tab Cek Kesiapan (sesi belum lengkap, bentrok, denah/kursi, foto). Kartu Peserta: font & pas foto diperbesar + catatan bawah.
+      Kartu Pengganti per siswa, dan tab Cek Kesiapan (sesi belum lengkap, bentrok, denah/kursi, foto). Foto siswa: tepi putih dipangkas otomatis; kartu berbingkai foto.
+      Judul cetak memakai nama resmi: ASAS (Asesmen Sumatif Akhir Semester) Gasal / ASAT (Asesmen Sumatif Akhir Tahun) Genap; "Ganjil" tercetak "Gasal". Kartu Peserta: font & pas foto diperbesar + catatan bawah.
    Setiap tab punya tombol cetak, plus "Cetak Semua Berkas" (satu paket F4, halaman terpisah).
    Kartu Peserta dicetak TERPISAH dari paket itu karena kertasnya F4 (215 x 330 mm), sedangkan satu
    pekerjaan cetak hanya bisa memakai satu ukuran kertas.
@@ -981,7 +982,7 @@ const AUJ_KARTU_CSS = `
   .kp-judul { min-width: 0; flex: 1; }
   .kp-madrasah { font-size: 7.5pt; font-weight: 700; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kp-jenis { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.3pt; line-height: 1.15; }
-  .kp-ujian { font-size: 5.8pt; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kp-ujian { font-size: 5.8pt; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kp-isi { display: flex; gap: 2mm; flex: 1; padding-top: 1.2mm; min-height: 0; }
   .kp-data { flex: 1; min-width: 0; }
   .kp-data table { border-collapse: collapse; width: 100%; }
@@ -992,7 +993,8 @@ const AUJ_KARTU_CSS = `
   .kp-nama { font-weight: 700; text-transform: uppercase; }
   .kp-nama-panjang { font-size: 6.2pt; line-height: 1.1; }   /* nama > 28 karakter: sedikit lebih kecil supaya tidak makan 4 baris */
   .kp-kanan { width: 22mm; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
-  .kp-foto { width: 19mm; height: 24mm; border: 0.3mm solid #555; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
+  .kp-foto { box-sizing: border-box; width: 19mm; height: 24mm; border: 0.4mm solid #0f5c66; padding: 0.7mm; background: #fff; font-size: 5.5pt; color: #666; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; flex: none; }
+  .kp-foto img { outline: 0.15mm solid #94a3b8; }   /* bingkai sederhana: garis tebal hijau-tosca di luar, pinggir putih tipis, garis abu halus di sekeliling foto */
   .kp-ttd { display: flex; align-items: center; gap: 1.5mm; margin-top: 1mm; font-size: 6.2pt; line-height: 1.2; }   /* di bawah baris Waktu */
   .kp-ttd-ruang { width: 10mm; height: 10mm; flex: none; display: flex; align-items: center; justify-content: center; }
   .kp-ttd-teks { min-width: 0; }
@@ -1026,8 +1028,44 @@ function aujFotoMuat(ps) {
   const perlu = ps.filter(p => !(p.key in aujFotoCache)); if (!perlu.length) return;
   aujFotoMuatSedang = true;
   Promise.all(perlu.map(p => db.ref('siswa_foto/' + p.key).once('value').then(sn => {
-    const v = sn.val(); aujFotoCache[p.key] = (v && typeof v.base64 === 'string' && /^data:image\//.test(v.base64)) ? v.base64 : '';
+    const v = sn.val(), b64 = (v && typeof v.base64 === 'string' && /^data:image\//.test(v.base64)) ? v.base64 : '';
+    if (!b64) { aujFotoCache[p.key] = ''; return; }
+    return aujFotoPangkas(b64).then(x => { aujFotoCache[p.key] = x; });
   }).catch(() => { aujFotoCache[p.key] = ''; }))).then(() => { aujFotoMuatSedang = false; if (aujTabAktif === 'kartu' || aujTabAktif === 'siap') aujRenderTab(); });
+}
+// Foto dari studio/aplikasi pas foto sering punya bingkai putih tipis di tepinya, sehingga di kotak foto kartu tampak ada strip putih.
+// Tepi yang hampir putih (>= 90% piksel di baris/kolom itu) dipangkas, hanya bila lebarnya < 12% dan disusul area berwarna.
+// Foto berlatar putih utuh TIDAK dipangkas (tidak ada batas berwarna dalam 12% dari tepi).
+function aujFotoHitungPangkas(im) {
+  const nw = im.naturalWidth, nh = im.naturalHeight, tanpa = { sx: 0, sy: 0, sw: nw, sh: nh, ubah: false };
+  if (!nw || !nh) return tanpa;
+  const sk = Math.min(1, 300 / Math.max(nw, nh)), w = Math.max(1, Math.round(nw * sk)), h = Math.max(1, Math.round(nh * sk));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const cx = c.getContext('2d'); cx.drawImage(im, 0, 0, w, h);
+  let d; try { d = cx.getImageData(0, 0, w, h).data; } catch (e) { return tanpa; }
+  const putih = (x, y) => { const i = (y * w + x) * 4; return d[i] >= 225 && d[i + 1] >= 225 && d[i + 2] >= 225; };
+  const kol = x => { let n = 0; for (let y = 0; y < h; y++) if (putih(x, y)) n++; return n / h >= 0.9; };
+  const bar = y => { let n = 0; for (let x = 0; x < w; x++) if (putih(x, y)) n++; return n / w >= 0.9; };
+  const cari = (jml, cek) => { const batas = Math.floor(jml * 0.12); let n = 0; while (n < batas && cek(n)) n++; return (n > 0 && n < batas) ? n + 1 : 0; };   // +1: buang piksel tepi yang tercampur warna
+  const l = cari(w, n => kol(n)), r = cari(w, n => kol(w - 1 - n)), t = cari(h, n => bar(n)), b = cari(h, n => bar(h - 1 - n));
+  const fx = nw / w, fy = nh / h;
+  return { sx: Math.round(l * fx), sy: Math.round(t * fy), sw: Math.round(nw - (l + r) * fx), sh: Math.round(nh - (t + b) * fy), ubah: !!(l || r || t || b) };
+}
+function aujFotoGambarKeData(im, mutu, pangkas) {
+  const W = 240, H = 300, p = pangkas || aujFotoHitungPangkas(im), c = document.createElement('canvas'); c.width = W; c.height = H;
+  const r = Math.max(W / p.sw, H / p.sh), dw = p.sw * r, dh = p.sh * r, cx = c.getContext('2d');
+  cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
+  cx.drawImage(im, p.sx, p.sy, p.sw, p.sh, (W - dw) / 2, (H - dh) / 4, dw, dh);   // potong rata tengah; sedikit condong ke atas supaya wajah tidak terpotong
+  return c.toDataURL('image/jpeg', mutu || 0.82);
+}
+// Foto yang SUDAH tersimpan (dengan bingkai putih) dipangkas saat dimuat, jadi tidak perlu diunggah ulang.
+function aujFotoPangkas(src) {
+  return new Promise(ok => {
+    const im = new Image();
+    im.onload = () => { try { const p = aujFotoHitungPangkas(im); ok(p.ubah ? aujFotoGambarKeData(im, 0.88, p) : src); } catch (e) { ok(src); } };
+    im.onerror = () => ok(src);
+    im.src = src;
+  });
 }
 function aujFotoOlah(file) {
   return new Promise((ok, gagal) => {
@@ -1038,11 +1076,7 @@ function aujFotoOlah(file) {
       im.onerror = () => gagal(new Error('Gagal membaca gambar.'));
       im.onload = () => {
         try {
-          const W = 240, H = 300, c = document.createElement('canvas'); c.width = W; c.height = H;
-          const r = Math.max(W / im.naturalWidth, H / im.naturalHeight), w = im.naturalWidth * r, h = im.naturalHeight * r, cx = c.getContext('2d');
-          cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
-          cx.drawImage(im, (W - w) / 2, (H - h) / 4, w, h);   // potong rata tengah; sedikit condong ke atas supaya wajah tidak terpotong
-          ok(c.toDataURL('image/jpeg', 0.82));
+          ok(aujFotoGambarKeData(im, 0.82));
         } catch (err) { gagal(err); }
       };
       im.src = e.target.result;
@@ -1108,8 +1142,8 @@ function aujKartuHtml(rec, p, kursiTeks, qr) {
       <img class="kp-logo" src="${escapeHtml(logo)}" alt="" onerror="this.style.display='none'">
       <div class="kp-judul">
         <div class="kp-madrasah">${escapeHtml(MADRASAH.nama || '')}</div>
-        <div class="kp-jenis">KARTU PESERTA ASAS/ASAT</div>
-        <div class="kp-ujian">${escapeHtml(rec.nama || '-')} &middot; TA ${escapeHtml(currentTahunAjaran || '')}</div>
+        <div class="kp-jenis">KARTU PESERTA</div>
+        <div class="kp-ujian">${escapeHtml(aujJudulAsesmen(rec.nama))} &middot; TA ${escapeHtml(currentTahunAjaran || '')}</div>
       </div>
     </div>
     <div class="kp-isi">
@@ -1172,6 +1206,18 @@ function aujCetakKartu() {
   }
   aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_CETAK);
 }
+
+// Nama resmi asesmen untuk judul dokumen cetak. ASAS = Asesmen Sumatif Akhir Semester, dipakai pada semester Gasal (Ganjil);
+// ASAT = Asesmen Sumatif Akhir Tahun, hanya berlaku pada semester Genap. Data tersimpan (rec.nama, mis. "ASAS Ganjil") tidak diubah.
+function aujJudulAsesmen(nama) {
+  const n = String(nama || '').trim(), sem = String(typeof currentSemesterAktif !== 'undefined' ? currentSemesterAktif || '' : '');
+  const genapAktif = /genap/i.test(sem) || /^\s*2\s*$/.test(sem);
+  if (/ASAT/i.test(n)) return 'ASAT (Asesmen Sumatif Akhir Tahun) Genap';
+  if (/ASAS/i.test(n)) return 'ASAS (Asesmen Sumatif Akhir Semester) ' + ((/genap/i.test(n) || (!/ganjil|gasal/i.test(n) && genapAktif)) ? 'Genap' : 'Gasal');
+  if (n) return n;   // nama lain (mis. "Ujian Madrasah") dipakai apa adanya
+  return genapAktif ? 'ASAT (Asesmen Sumatif Akhir Tahun) Genap' : 'ASAS (Asesmen Sumatif Akhir Semester) Gasal';
+}
+function aujKodeAsesmen(nama) { const j = aujJudulAsesmen(nama), m = /^(ASAS|ASAT)\b/.exec(j); return m ? m[1] : j; }
 
 // ---- Kartu Peserta GABUNGAN: semua kelas pada asesmen yang sama dalam satu cetakan (satu PDF, banyak lembar F4) ----
 // Satu kelas = satu record sesi (kartu memuat ruang, waktu, dan kursi dari record itu): sesi kelas yang sedang dibuka bila ada, selain itu sesi paling awal.
@@ -1395,7 +1441,7 @@ function aujCetakHadirHtml(rec, kosong) {
   if (!pw.length) pw.push(['', 'p1'], ['', 'p2']);
   const bPw = pw.map((x, i) => `<tr><td style="text-align:center;width:34px;">${i + 1}</td><td>${escapeHtml(x[0])}</td><td style="width:34%;height:30px;"></td><td style="width:16%;text-align:center;">${!kosong && x[0] && aujPwHadirEfektif(rec)[x[1]] ? 'Hadir' : ''}</td></tr>`).join('');
   return `<div class="halaman">${aujKopHtml()}
-    <h1>Daftar Hadir Peserta dan Pengawas Asesmen Sumatif Akhir Semester (ASAS/ASAT)</h1>
+    <h1>Daftar Hadir Peserta dan Pengawas ${escapeHtml(aujJudulAsesmen(rec.nama))}</h1>
     <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}</div>
     ${aujInfoHtml(rec)}
     <h2>A. Daftar Hadir Pengawas</h2>
@@ -1409,7 +1455,7 @@ function aujCetakHadirHtml(rec, kosong) {
 function aujCetakTatibHtml(rec) {
   const daftar = jenis => `<ol class="tatib">${aujBarisTeks(aujTatibTeks(rec, jenis)).map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ol>`;
   return `<div class="halaman">${aujKopHtml()}
-    <h1>Tata Tertib Peserta dan Pengawas Asesmen Sumatif Akhir Semester (ASAS/ASAT)</h1>
+    <h1>Tata Tertib Peserta dan Pengawas ${escapeHtml(aujJudulAsesmen(rec.nama))}</h1>
     <div class="sub">${escapeHtml(rec.nama || '')} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
     <div><h2>A. Tata Tertib Peserta ASAS/ASAT</h2>${daftar('peserta')}</div>
     <div><h2>B. Tata Tertib Pengawas ASAS/ASAT</h2>${daftar('pengawas')}</div>
@@ -1420,7 +1466,7 @@ function aujCetakDenahHtml(rec) {
   const grup = aujGrupRuang(rec), gab = grup.length > 1 && grup.some(r => r.kursi && Object.keys(r.kursi).length);
   const kursiCetak = gab ? aujKursiGabungan(grup) : (rec.kursi || {}), psCetak = gab ? aujPesertaGabungan(grup) : aujPeserta(rec.kelas, rec);
   return `<div class="halaman">${aujKopHtml()}
-    <h1>Denah Lokasi dan Denah Tempat Duduk Ruang Asesmen Sumatif Akhir Semester (ASAS/ASAT)</h1>
+    <h1>Denah Lokasi dan Denah Tempat Duduk Ruang ${escapeHtml(aujJudulAsesmen(rec.nama))}</h1>
     <div class="sub">${escapeHtml(rec.nama || '')} — ${escapeHtml(gab ? grup.map(r => r.kelas).join(' + ') : (rec.kelas || ''))} — ${escapeHtml(rec.ruang || '')}</div>
     <div class="blok"><h2>A. Denah Lokasi</h2>${aujLokasiHtml(rec).replace(/<p style="font-size:11px;color:#dc2626[^>]*>[^<]*<\/p>/, '')}</div>
     <div class="blok"><h2>B. Denah Tempat Duduk — ${escapeHtml(rec.ruang || '')}</h2>${aujGridHtml(rec, kursiCetak, psCetak, false)}${gab ? '<div style="margin-top:6px;">' + aujLegendaKelas(grup) + '</div>' : ''}</div>
@@ -1441,7 +1487,7 @@ function aujCetakBAHtml(rec, bl) {
       : `<span>${kosong ? '' : '– (nihil)'}</span>`);
   const tempat = aujTempat();
   return `<div class="halaman">${aujKopHtml()}
-    <h1>Berita Acara Pelaksanaan Asesmen Sumatif Akhir Semester (ASAS/ASAT)</h1>
+    <h1>Berita Acara Pelaksanaan ${escapeHtml(aujJudulAsesmen(rec.nama))}</h1>
     <div class="sub">${escapeHtml(rec.nama || '')}<br>Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}</div>
     <p style="text-align:justify;line-height:1.5;">Pada hari ini <strong>${escapeHtml(p.hari)}</strong> tanggal <strong>${escapeHtml(String(p.d))}</strong> bulan <strong>${escapeHtml(p.bulan)}</strong> tahun <strong>${escapeHtml(String(p.y))}</strong>, telah dilaksanakan <strong>${escapeHtml(rec.nama || '')}</strong>${rec.mapel ? ' mata pelajaran <strong>' + escapeHtml(rec.mapel) + '</strong>' : ''} untuk <strong>${escapeHtml(rec.kelas || '')}</strong> di ${escapeHtml(MADRASAH.nama || 'madrasah')}, ruang <strong>${escapeHtml(rec.ruang || '')}</strong>, mulai pukul <strong>${escapeHtml(mulai || '.....')}</strong> sampai dengan pukul <strong>${escapeHtml(selesai || '.....')}</strong> WIB, dengan keterangan sebagai berikut:</p>
     <table class="info" style="margin-left:6px;">
@@ -1535,7 +1581,7 @@ function aujCetakPintuNamaHtml(rec) {
     });
     return `<div class="halaman" style="text-align:center;">
       <div style="font-size:12pt;font-weight:700;text-transform:uppercase;">${escapeHtml(MADRASAH.nama || '')}</div>
-      <div style="font-size:11pt;margin-top:1mm;">${escapeHtml(rec.nama || 'ASAS/ASAT')} · TA ${escapeHtml(currentTahunAjaran || '')}</div>
+      <div style="font-size:11pt;margin-top:1mm;">${escapeHtml(aujJudulAsesmen(rec.nama))} · TA ${escapeHtml(currentTahunAjaran || '')}</div>
       <div style="font-size:36pt;font-weight:700;text-transform:uppercase;line-height:1.1;margin:4mm 0 2mm;">${escapeHtml(nm)}</div>
       <div style="font-size:11pt;margin-bottom:3mm;">Daftar Peserta · ${baris.length} siswa</div>
       <table class="data" style="text-align:left;"><thead><tr><th>No. Peserta</th><th>Nama</th><th>Kelas</th><th>Kursi</th></tr></thead><tbody>${baris.join('') || '<tr><td colspan="4" style="text-align:center;">Belum ada data siswa.</td></tr>'}</tbody></table>
@@ -1555,7 +1601,7 @@ function aujCetakPintuHtml(rec) {
     }).join('');
     return `<div class="pt"><img src="${escapeHtml(logo)}" alt="" onerror="this.style.display='none'">
       <div class="mad">${escapeHtml(MADRASAH.nama || '')}</div>
-      <div class="ases">${escapeHtml(rec.nama || 'ASAS/ASAT')} · TA ${escapeHtml(currentTahunAjaran || '')}</div>
+      <div class="ases">${escapeHtml(aujJudulAsesmen(rec.nama))} · TA ${escapeHtml(currentTahunAjaran || '')}</div>
       <div class="garis"></div>
       <div class="ruang" style="font-size:${ukuran}pt;">${escapeHtml(nm)}</div>
       <div class="kls">${kelasHtml}</div>
@@ -1600,7 +1646,7 @@ function aujCetakSampulHtml(rec) {
   const kol = (judul, nama) => `<td><div>${judul}</div><div class="ruang"></div><div style="font-weight:700;text-decoration:underline;">${escapeHtml(nama || '(............................)')}</div></td>`;
   return `<div class="halaman">${aujKopHtml()}
     <h1>Sampul Naskah Soal dan Lembar Jawaban</h1>
-    <div class="sub">${escapeHtml(rec.nama || 'ASAS/ASAT')} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
+    <div class="sub">${escapeHtml(aujJudulAsesmen(rec.nama))} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
     <div style="text-align:center;font-size:34pt;font-weight:700;text-transform:uppercase;line-height:1.1;margin:8px 0 2px;">${escapeHtml(rec.ruang || '-')}</div>
     <div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;">${escapeHtml(rec.kelas || '')}${rec.mapel ? ' · ' + escapeHtml(rec.mapel) : ''}</div>
     ${aujInfoHtml(rec)}
@@ -1789,6 +1835,9 @@ function aujCetakSemua() {
   aujCetakHtml((sertakanSk ? aujCetakSkHtml(Object.assign(aujSkDefault(), aujSk)) : '') + ['hadir', 'tatib', 'denah', 'ba'].map(j => AUJ_CETAK[j](rec)).join(''), `Berkas Administrasi ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`);
 }
 function aujCetakHtml(bodyHtml, judul, cssKhusus) {
+  // Teks umum "ASAS/ASAT" di berkas cetak diganti sesuai asesmen aktif (ASAS pada Gasal, ASAT pada Genap); istilah "Ganjil" dicetak "Gasal".
+  const kodeA = aujKodeAsesmen((aujRec() || {}).nama), susun = t => String(t == null ? '' : t).replace(/ASAS\/ASAT/g, kodeA).replace(/\bGanjil\b/g, 'Gasal').replace(/\bGANJIL\b/g, 'GASAL');
+  bodyHtml = susun(bodyHtml); judul = susun(judul);
   const w = window.open('', '_blank', 'width=900,height=700');   // dibuka dulu (sinkron) agar tidak diblokir popup
   if (!w) return toast('Popup diblokir browser. Izinkan popup untuk situs ini lalu coba lagi.', true);
   const tulis = (html) => {
@@ -2920,7 +2969,7 @@ function aujCetakJadwalHtml(daftar) {
     return `<tr><td style="white-space:nowrap;width:78px;">${escapeHtml(aujTglPendek(r.tanggal))}</td><td style="white-space:nowrap;width:78px;">${r.jamMulai && r.jamSelesai ? escapeHtml(r.jamMulai) + ' - ' + escapeHtml(r.jamSelesai) : '-'}</td>
       <td>${escapeHtml(r.mapel || r.nama || '-')}</td><td>${escapeHtml(r._kelas.join(' + ') || '-')}</td><td>${pw}</td></tr>`;
   }).join('')).join('');
-  const judul = aujJdwNama ? 'Jadwal ' + aujJdwNama : 'Jadwal Asesmen Sumatif Akhir Semester (ASAS/ASAT)';
+  const judul = 'Jadwal ' + aujJudulAsesmen(aujJdwNama);
   const tempat = aujTempat();
   return `<div class="halaman">${aujKopHtml()}
     <h1>${escapeHtml(judul)}</h1>
@@ -2970,7 +3019,7 @@ function aujCetakJadwalRingkasHtml(daftar) {
     }).join('');
     return `<tr>${kolTgl}<td class="jam">${p[1] && p[2] ? escapeHtml(p[1]) + '–' + escapeHtml(p[2]) : '-'}</td>${sel}</tr>`;
   }).join('');
-  const judul = aujJdwNama ? 'Jadwal ' + aujJdwNama : 'Jadwal Asesmen Sumatif Akhir Semester (ASAS/ASAT)', tempat = aujTempat();
+  const judul = 'Jadwal ' + aujJudulAsesmen(aujJdwNama), tempat = aujTempat();
   return `<div class="halaman">${aujKopHtml()}
     <h1>${escapeHtml(judul)}</h1>
     <div class="sub">Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}${aujJdwKelas ? ' — ' + escapeHtml(aujJdwKelas) : ''}</div>

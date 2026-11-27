@@ -420,11 +420,15 @@
     const g = rombelKelas(kelas) % d.length; // geser urutan menurut rombel agar 1A dan 1B tidak sama persis
     return g ? d.slice(g).concat(d.slice(0, g)) : d;
   }
+  // Soal bank yang memuat penanda gambar otomatis ([[g:...]]) di soal atau di salah satu opsi.
+  const adaGbr = x => /\[\[g:/.test(x[2]) || (x[0] === 'pg' && Array.isArray(x[3]) && x[3].some(o => /\[\[g:/.test(o)));
+  // Bila pilihan "Utamakan soal bergambar" dicentang: soal bergambar didahulukan, urutan relatif lainnya tetap.
+  const dahuluGbr = d => S.gbrDulu ? d.filter(adaGbr).concat(d.filter(x => !adaGbr(x))) : d;
   function isiDariBank(slots, bank, kelas) {
     const pakai = new Set(slots.filter(s => s.q).map(s => s.q)); let n = 0;
     slots.forEach(s => {
       if (s.q || s.st) return;
-      const it = urutKelas(((bank || {})[s.k] || []).filter(x => x[0] === s.b), kelas).find(x => !pakai.has(x[2])); if (!it) return;
+      const it = dahuluGbr(urutKelas(((bank || {})[s.k] || []).filter(x => x[0] === s.b), kelas)).find(x => !pakai.has(x[2])); if (!it) return;
       pakai.add(it[2]); s.q = it[2]; s.src = 'bank'; s.ok = false;
       if (s.b === 'pg') { const urut = acak(it[3].length, s.key + '|' + it[2]); s.o = urut.map(i => it[3][i]); s.kp = urut.indexOf(0); }
       else s.kt = it[3];
@@ -449,7 +453,8 @@
   // ---------- Status ----------
   const S = { rec: null, ta: '', fase: '', sem: 'ganjil', slots: { ganjil: [], genap: [] }, judul: { ganjil: '', genap: '' },
               skor: { pg: '1', is: '2', ur: '5' }, cfg: { ganjil: null, genap: null }, nip: '', yatim: { ganjil: 0, genap: 0 },
-              loading: false, err: null, busy: false, dirty: false, ro: false, epoch: 0 };
+              loading: false, err: null, busy: false, dirty: false, ro: false, epoch: 0, gbrDulu: false };
+  try { S.gbrDulu = localStorage.getItem('simamba_gbrdulu') === '1'; } catch (e) {}
   const MUT = ['simpan', 'ganti', 'bank', 'skor100', 'gbr'];
   // Mode baca-saja untuk Admin/Kepsek yang membuka perangkat milik guru lain (simpan memang hanya untuk pemilik).
   function kunciRo(el, mut) {
@@ -726,7 +731,7 @@ body{font-size:11pt;line-height:1.25}
     if (!sl.length) return h + `<div style="padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:13px;color:#92400e;">Belum ada slot soal untuk semester ${SEM_LABEL[s]}. Buka 📋 Kisi-kisi, isi jumlah soal tiap TP (atau Bagi otomatis), tekan Simpan, lalu buka menu ini lagi.</div>`;
     const fld = (k, label) => `<label style="font-size:12px;">${label}<br><input class="field" type="number" min="0" max="99" inputmode="numeric" style="width:90px;" data-skor="${k}" value="${esc(S.skor[k])}"></label>`;
     h += `<div style="padding:8px 10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;">Soal dari bank adalah <b>draf</b>. Periksa kebenaran isi, kunci, dan kesesuaiannya dengan buku ajar madrasah sebelum dipakai, lalu centang "Sudah saya periksa".</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">${btn('bank', '⚡ Isi dari bank soal', 'btn-success')}${fld('pg', 'Skor per soal PG')}${fld('is', 'Skor per soal isian')}${fld('ur', 'Skor per soal uraian')}${btn('skor100', '🎯 Atur skor = 100', 'btn-soft')}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">${btn('bank', '⚡ Isi dari bank soal', 'btn-success')}<label style=\"font-size:12px;display:flex;align-items:center;gap:6px;\"><input type=\"checkbox\" data-f=\"gbrdulu\" ${S.gbrDulu ? 'checked' : ''}> Utamakan soal bergambar</label>${fld('pg', 'Skor per soal PG')}${fld('is', 'Skor per soal isian')}${fld('ur', 'Skor per soal uraian')}${btn('skor100', '🎯 Atur skor = 100', 'btn-soft')}</div>
       <div id="soalSum" style="margin:10px 0;font-size:13px;">${ringkasHtml()}</div>`;
     h += sl.map((x, i) => kartuHtml(x, i)).join('');
     return h + `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
@@ -758,11 +763,13 @@ body{font-size:11pt;line-height:1.25}
     });
     el.querySelectorAll('[data-skor]').forEach(i => { S.skor[i.getAttribute('data-skor')] = i.value; });
     const n = el.querySelector('[data-f="nip"]'); if (n) S.nip = n.value;
+    const gd = el.querySelector('[data-f="gbrdulu"]'); if (gd) S.gbrDulu = gd.checked;
   }
   function ketik(e) {
     const t = e.target; if (!t || !t.getAttribute) return;
     const i = t.getAttribute('data-i'), k = t.getAttribute('data-k'), sk = t.getAttribute('data-skor'), f = t.getAttribute('data-f');
     if (f === 'nip') { S.nip = t.value; return; }
+    if (f === 'gbrdulu') { S.gbrDulu = t.checked; try { localStorage.setItem('simamba_gbrdulu', t.checked ? '1' : '0'); } catch (e) {} return; }
     if (sk) S.skor[sk] = t.value;
     else if (i !== null) {
       const x = S.slots[S.sem][+i]; if (!x) return;
@@ -786,7 +793,7 @@ body{font-size:11pt;line-height:1.25}
     if (x.st) return say('Soal bank hanya tersedia untuk PG biasa. Ketik soal sendiri.', true);
     const pakai = new Set(sl.filter((y, j) => j !== i && y.q).map(y => y.q));
     const urut = bank.filter(b => b[0] === x.b), sekarang = urut.findIndex(b => b[2] === x.q);
-    const kandidat = urut.slice(sekarang + 1).concat(urut.slice(0, Math.max(0, sekarang))).find(b => !pakai.has(b[2]) && b[2] !== x.q);
+    const kandidat = dahuluGbr(urut.slice(sekarang + 1).concat(urut.slice(0, Math.max(0, sekarang)))).find(b => !pakai.has(b[2]) && b[2] !== x.q);
     if (!kandidat) return say('Tidak ada soal lain di bank untuk TP dan bentuk soal ini. Ketik soal sendiri.', true);
     x.q = kandidat[2]; x.src = 'bank'; x.ok = false;
     if (x.b === 'pg') { const u = acak(kandidat[3].length, x.key + '|' + kandidat[2]); x.o = u.map(n => kandidat[3][n]); x.kp = u.indexOf(0); } else x.kt = kandidat[3];
