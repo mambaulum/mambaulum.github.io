@@ -19,7 +19,9 @@
       Pengawas (daftar guru), tanggal libur tambahan, catatan & waktu Berita Acara, keterangan lokasi Denah. Semuanya tetap
       menyediakan "Lainnya (ketik sendiri)" / bisa diubah. Pembantunya ada di bagian "ISIAN PILIHAN" paling bawah file ini.
   10. Cetakan tambahan (26 Nov 2026): Daftar Hadir & Berita Acara KOSONGAN (satu ruang, satu tanggal, atau rentang tanggal), Nomor Ruang untuk pintu,
-      Daftar Peserta per Ruang, Sampul Amplop naskah/LJK, dan Rekap Kehadiran per kelas (F4 mendatar). Kartu Peserta: font & pas foto diperbesar + catatan bawah.
+      Daftar Peserta per Ruang, Sampul Amplop naskah/LJK, Rekap Kehadiran per kelas, Rekap Berita Acara semua ruang per tanggal,
+      Daftar Hadir Pengawas per hari (F4 mendatar), Kartu Peserta GABUNGAN semua kelas (1 PDF),
+      Kartu Pengganti per siswa, dan tab Cek Kesiapan (sesi belum lengkap, bentrok, denah/kursi, foto). Kartu Peserta: font & pas foto diperbesar + catatan bawah.
    Setiap tab punya tombol cetak, plus "Cetak Semua Berkas" (satu paket F4, halaman terpisah).
    Kartu Peserta dicetak TERPISAH dari paket itu karena kertasnya F4 (215 x 330 mm), sedangkan satu
    pekerjaan cetak hanya bisa memakai satu ukuran kertas.
@@ -53,7 +55,8 @@ const AUJ_TABS = [
   { id: 'tatib', label: '📜 Tata Tertib' },
   { id: 'denah', label: '🗺️ Denah' },
   { id: 'kartu', label: '🎫 Kartu Peserta' },
-  { id: 'ba', label: '📄 Berita Acara' }
+  { id: 'ba', label: '📄 Berita Acara' },
+  { id: 'siap', label: '✔️ Cek Kesiapan' }
 ];
 
 // Teks bawaan tata tertib -- satu butir per baris. Admin bisa mengubahnya per sesi (tab Tata Tertib).
@@ -235,6 +238,7 @@ function aujRenderSemua() {
   const opsi = sesi.map(x => `<option value="${escapeHtml(x.key)}" ${x.key === aujAktifKey && !aujBaru ? 'selected' : ''}>${escapeHtml(aujTglIndo(x.tanggal))} — ${escapeHtml(x.nama || '-')} — ${escapeHtml(x.kelas || '-')}${x.ruang ? ' (' + escapeHtml(x.ruang) + ')' : ''}</option>`).join('');
   const ada = sesi.length > 0;
   const nBentrok = aujCariBentrok(allAdmUjian).pasangan.length;   // lencana ⚠️ di tab Jadwal Ujian
+  let nSiap = 0; try { nSiap = aujTemuanSiap().kritis.length; } catch (e) { nSiap = 0; }   // lencana ⚠️ di tab Cek Kesiapan
   root.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;">
       <div style="flex:1;min-width:220px;"><label class="label">Sesi ASAS/ASAT / Ruang</label>
@@ -243,7 +247,7 @@ function aujRenderSemua() {
       ${ada && !aujBaru ? '<button class="btn btn-soft" onclick="aujCetakSemua()">🖨️ Cetak Semua Berkas</button>' : ''}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
-      ${AUJ_TABS.map(t => `<button class="btn ${t.id === aujTabAktif ? 'btn-primary' : 'btn-soft'}" style="padding:6px 12px;font-size:13px;" onclick="aujPilihTab('${t.id}')">${t.label}${t.id === 'jadwal' && nBentrok ? ` ⚠️${nBentrok}` : ''}</button>`).join('')}
+      ${AUJ_TABS.map(t => `<button class="btn ${t.id === aujTabAktif ? 'btn-primary' : 'btn-soft'}" style="padding:6px 12px;font-size:13px;" onclick="aujPilihTab('${t.id}')">${t.label}${t.id === 'jadwal' && nBentrok ? ` ⚠️${nBentrok}` : ''}${t.id === 'siap' && nSiap ? ` ⚠️${nSiap}` : ''}</button>`).join('')}
     </div>
     <div id="aujTabBody"></div>`;
   aujRenderTab();
@@ -277,6 +281,7 @@ function aujRenderTab() {
   if (aujTabAktif === 'denah') aujTangkapDraftDenah();
   if (aujTabAktif === 'sk') { body.innerHTML = aujHtmlSk(); return; }   // SK Panitia: juga tidak butuh sesi terpilih
   if (aujTabAktif === 'jadwal') { body.innerHTML = aujHtmlJadwal(); aujIsiOpsiLibur(); return; }   // tab ini tidak butuh sesi terpilih
+  if (aujTabAktif === 'siap') { body.innerHTML = aujHtmlSiap(); return; }   // Cek Kesiapan: memeriksa semua sesi, tidak butuh sesi terpilih
   const rec = aujRec();
   if (aujTabAktif !== 'sesi' && !rec) {
     if (aujBaru) { body.innerHTML = '<p style="color:#6b7280;font-size:13px;">Simpan sesi baru dulu di tab <strong>Data Sesi</strong>, baru tab ini bisa diisi.</p>'; return; }
@@ -1022,7 +1027,7 @@ function aujFotoMuat(ps) {
   aujFotoMuatSedang = true;
   Promise.all(perlu.map(p => db.ref('siswa_foto/' + p.key).once('value').then(sn => {
     const v = sn.val(); aujFotoCache[p.key] = (v && typeof v.base64 === 'string' && /^data:image\//.test(v.base64)) ? v.base64 : '';
-  }).catch(() => { aujFotoCache[p.key] = ''; }))).then(() => { aujFotoMuatSedang = false; if (aujTabAktif === 'kartu') aujRenderTab(); });
+  }).catch(() => { aujFotoCache[p.key] = ''; }))).then(() => { aujFotoMuatSedang = false; if (aujTabAktif === 'kartu' || aujTabAktif === 'siap') aujRenderTab(); });
 }
 function aujFotoOlah(file) {
   return new Promise((ok, gagal) => {
@@ -1135,14 +1140,16 @@ function aujHtmlKartu(rec) {
   const judul = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">🎫 Kartu Peserta \u2014 ${escapeHtml(rec.kelas || '')} \u00b7 ${escapeHtml(rec.ruang || '')}</h4>
       <button class="btn btn-primary" onclick="aujCetakKartu()" ${ps.length ? '' : 'disabled'}>🖨\uFE0F Cetak Kartu (F4)</button>
+      <button class="btn btn-soft" onclick="aujCetakKartuGabungan()" title="Kartu semua kelas pada asesmen ini dalam satu cetakan (simpan sebagai satu PDF); tiap kelas mulai di halaman baru">🖨\uFE0F Cetak Kartu Semua Kelas (1 PDF)</button>
     </div>`;
   if (!ps.length) return judul + `<p style="font-size:13px;color:#dc2626;">Belum ada siswa di ${escapeHtml(rec.kelas || 'kelas ini')} pada Data Siswa${aujCanEdit() ? '' : ' (atau bukan kelas yang Anda ampu)'}.</p>`;
   const contoh = ps.slice(0, 2).map(p => aujKartuHtml(rec, p, peta[p.key], aujKartuPakaiQr() ? 'pratinjau' : '')).join('');
   return judul + `
-    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 (215 \u00d7 330 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_W} \u00d7 ${AUJ_KARTU_H} mm</strong>, pas untuk isi eblek / card case ukuran A1 (kartu 8,5 \u00d7 5,3 cm). Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas".</p>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Kertas <strong>F4 (215 \u00d7 330 mm)</strong>, ${AUJ_KARTU_PER_HALAMAN} kartu per halaman (${AUJ_KARTU_KOLOM} kolom \u00d7 ${AUJ_KARTU_BARIS} baris). Ukuran tiap kartu <strong>${AUJ_KARTU_W} \u00d7 ${AUJ_KARTU_H} mm</strong>, pas untuk isi eblek / card case ukuran A1 (kartu 8,5 \u00d7 5,3 cm). Gunting mengikuti garis putus-putus. Nomor peserta sama dengan nomor urut di Daftar Hadir dan Denah. Kursi mengikuti denah yang sudah disimpan. Kartu dicetak terpisah dan tidak ikut "Cetak Semua Berkas". Untuk semua kelas sekaligus pakai tombol "Cetak Kartu Semua Kelas".</p>
     <p style="font-size:13px;font-weight:600;margin-bottom:6px;">Akan tercetak ${ps.length} kartu = ${halaman} halaman F4.</p>
     ${tanpaKursi ? `<p style="font-size:12px;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:6px;margin-bottom:8px;">\u26A0\uFE0F ${tanpaKursi} dari ${ps.length} peserta belum punya kursi di denah \u2014 kolom Kursi tertulis "-". Atur di tab Denah lalu simpan.</p>` : ''}
     ${aujHtmlFotoSiswa(ps)}
+    ${aujHtmlKartuPengganti(ps)}
     <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">Pratinjau (2 kartu pertama):</p>
     <style>${AUJ_KARTU_CSS}</style>
     <div style="display:flex;flex-wrap:wrap;gap:10px;overflow-x:auto;">${contoh}</div>
@@ -1164,6 +1171,150 @@ function aujCetakKartu() {
     isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
   }
   aujCetakHtml(isi, `Kartu Peserta ASAS/ASAT - ${rec.kelas || ''} ${rec.ruang || ''}`, AUJ_KARTU_CSS_CETAK);
+}
+
+// ---- Kartu Peserta GABUNGAN: semua kelas pada asesmen yang sama dalam satu cetakan (satu PDF, banyak lembar F4) ----
+// Satu kelas = satu record sesi (kartu memuat ruang, waktu, dan kursi dari record itu): sesi kelas yang sedang dibuka bila ada, selain itu sesi paling awal.
+// Tiap kelas mulai di halaman F4 baru supaya mudah digunting dan dibagikan per kelas.
+function aujKartuGrupGabungan(rec) {
+  const sesi = allAdmUjian.filter(r => r.nama === rec.nama && r.kelas);
+  if (!sesi.some(r => r.key === rec.key) && rec.kelas) sesi.push(rec);
+  const per = {};
+  sesi.slice().sort((a, b) => String(a.tanggal || '').localeCompare(String(b.tanggal || '')) || String(a.jamMulai || '').localeCompare(String(b.jamMulai || '')))
+    .forEach(r => { if (!per[r.kelas]) per[r.kelas] = r; });
+  if (rec.kelas) per[rec.kelas] = rec;
+  return Object.keys(per).sort((a, b) => a.localeCompare(b, 'id', { numeric: true }))
+    .map(k => ({ kelas: k, rec: per[k], ps: aujPeserta(k, per[k]) })).filter(g => g.ps.length);
+}
+function aujKartuGabunganIsi(grup, pakaiQr) {
+  let isi = '', total = 0, halaman = 0, tanpaKursi = 0;
+  grup.forEach(g => {
+    const peta = aujPetaKursi(g.rec), kartu = g.ps.map(p => aujKartuHtml(g.rec, p, peta[p.key], pakaiQr ? 'cetak' : ''));
+    total += g.ps.length; tanpaKursi += g.ps.filter(p => !peta[p.key]).length;
+    for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) { isi += `<div class="kp-halaman">${kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN).join('')}</div>`; halaman++; }
+  });
+  return { isi, total, halaman, tanpaKursi };
+}
+function aujCetakKartuGabungan() {
+  const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
+  const grup = aujKartuGrupGabungan(rec);
+  if (!grup.length) return toast('Belum ada siswa pada kelas-kelas di asesmen ini.', true);
+  if (aujCanEdit() && JSON.stringify(aujKursi) !== JSON.stringify(rec.kursi || {})) toast('\u26A0\uFE0F Ada perubahan denah yang belum disimpan \u2014 kursi pada kartu mengikuti denah tersimpan.', false, 4500);
+  const semua = grup.reduce((a, g) => a.concat(g.ps), []);
+  if (semua.some(p => !(p.key in aujFotoCache))) { aujFotoMuat(semua); toast('ℹ️ Foto siswa masih dimuat. Tunggu sebentar lalu klik Cetak lagi bila ingin foto ikut tercetak.', false, 4000); }
+  const pakaiQr = aujKartuPakaiQr(), h = aujKartuGabunganIsi(grup, pakaiQr);
+  if (!confirm('Cetak kartu ' + h.total + ' peserta dari ' + grup.length + ' kelas (' + grup.map(g => g.kelas).join(', ') + ') = ' + h.halaman + ' halaman F4?\n\nTiap kelas mulai di halaman baru.' + (h.tanpaKursi ? '\n\n\u26A0\uFE0F ' + h.tanpaKursi + ' peserta belum punya kursi di denah (kolom Kursi tertulis "-").' : '') + '\n\nUntuk satu PDF: di dialog cetak pilih "Simpan sebagai PDF".')) return;
+  let isi = h.isi;
+  if (pakaiQr) {
+    const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, 'Semua kelas', 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
+    isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
+  }
+  aujCetakHtml(isi, `Kartu Peserta ${rec.nama || 'ASAS/ASAT'} - Semua Kelas`, AUJ_KARTU_CSS_CETAK);
+}
+
+// ---- Cek Kesiapan: satu panel yang menunjukkan kekurangan sebelum berkas dicetak massal ----
+// Tingkat: kritis (merah) = berkas pasti salah/kosong; peringatan (kuning) = sebaiknya dilengkapi; info (biru) = opsional (foto).
+function aujTemuanSiap() {
+  const kritis = [], peringatan = [], info = [];
+  const daftar = (allAdmUjian || []).filter(r => r && r.key);
+  const urut = daftar.slice().sort((a, b) => String(a.tanggal || '').localeCompare(String(b.tanggal || '')) || String(a.jamMulai || '').localeCompare(String(b.jamMulai || '')));
+  const labelSesi = r => `${aujAdaTanggal(r.tanggal) ? aujTglIndo(r.tanggal) : 'tanpa tanggal'} · ${aujLabelSesi(r)}`;
+  urut.forEach(r => {
+    const wajib = [];
+    if (!aujAdaTanggal(r.tanggal)) wajib.push('tanggal');
+    if (!r.ruang) wajib.push('ruang');
+    if (aujMenit(r.jamMulai) == null || aujMenit(r.jamSelesai) == null) wajib.push('jam mulai/selesai');
+    if (!r.pengawas1 && !r.pengawas2) wajib.push('pengawas');
+    if (wajib.length) kritis.push({ teks: `${labelSesi(r)} — belum diisi: ${wajib.join(', ')}.`, key: r.key, tab: 'sesi' });
+    if (!r.mapel) peringatan.push({ teks: `${labelSesi(r)} — mata pelajaran belum diisi.`, key: r.key, tab: 'sesi' });
+    const takTerhubung = [r.pengawas1, r.pengawas2].filter(Boolean).filter(n => !aujGuruDari(n));
+    if (takTerhubung.length) peringatan.push({ teks: `${labelSesi(r)} — pengawas belum cocok dengan Data Guru: ${takTerhubung.join(', ')} (check-in honor dan cek bentrok bisa tidak jalan).`, key: r.key, tab: 'sesi' });
+    if (r.kelas && !aujPeserta(r.kelas, r).length) kritis.push({ teks: `${labelSesi(r)} — tidak ada siswa di ${r.kelas}.`, key: r.key, tab: 'sesi' });
+  });
+  aujCariBentrok(daftar).pasangan.forEach(p => kritis.push({ teks: `Pengawas ${p.nama} bentrok: ${labelSesi(p.a)}  ⇄  ${labelSesi(p.b)}.`, key: p.a.key, tab: 'sesi' }));
+  let memuatFoto = false, jmlKelas = 0, jmlSiswa = 0;
+  [...new Set(daftar.map(r => r.nama).filter(Boolean))].forEach(nama => {
+    aujKartuGrupGabungan(daftar.find(r => r.nama === nama)).forEach(g => {
+      const peta = aujPetaKursi(g.rec), tanpa = g.ps.filter(p => !peta[p.key]).length;
+      jmlKelas++; jmlSiswa += g.ps.length;
+      if (tanpa === g.ps.length) kritis.push({ teks: `${nama} · ${g.kelas} (${g.rec.ruang || 'tanpa ruang'}) — denah belum disimpan, ${tanpa} siswa belum punya kursi.`, key: g.rec.key, tab: 'denah' });
+      else if (tanpa) peringatan.push({ teks: `${nama} · ${g.kelas} (${g.rec.ruang || 'tanpa ruang'}) — ${tanpa} dari ${g.ps.length} siswa belum punya kursi di denah.`, key: g.rec.key, tab: 'denah' });
+      if (g.ps.some(p => !(p.key in aujFotoCache))) memuatFoto = true;
+      else {
+        const tf = g.ps.filter(p => !aujFotoSiswa(p.key)).length;
+        if (tf) info.push({ teks: `${g.kelas} — ${tf} dari ${g.ps.length} siswa belum ada pas foto (kotak foto di kartu akan kosong).`, key: g.rec.key, tab: 'kartu' });
+      }
+    });
+  });
+  return { kritis, peringatan, info, memuatFoto, jmlSesi: daftar.length, jmlKelas, jmlSiswa };
+}
+function aujHtmlSiap() {
+  const t = aujTemuanSiap();
+  if (t.memuatFoto) {   // kelas yang fotonya belum dicek dimuat di latar belakang, panel digambar ulang bila selesai
+    const semua = []; [...new Set((allAdmUjian || []).map(r => r.nama).filter(Boolean))].forEach(nama => aujKartuGrupGabungan(allAdmUjian.find(r => r.nama === nama)).forEach(g => g.ps.forEach(p => semua.push(p))));
+    aujFotoMuat(semua);
+  }
+  if (!t.jmlSesi) return '<p style="font-size:13px;color:#6b7280;">Belum ada sesi ASAS/ASAT untuk diperiksa. Buat sesi di tab Data Sesi atau Jadwal Ujian dulu.</p>';
+  const blok = (judul, warna, latar, arr) => arr.length ? `<div style="border:1px solid ${warna};background:${latar};border-radius:10px;padding:8px 12px;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:700;color:${warna};margin-bottom:4px;">${judul} (${arr.length})</div>
+      ${arr.map(x => `<div style="display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:4px 0;border-top:1px solid rgba(0,0,0,.06);font-size:12.5px;">
+        <span style="flex:1;min-width:0;">${escapeHtml(x.teks)}</span>
+        ${x.key ? `<button class="btn btn-soft" style="font-size:11px;padding:3px 9px;flex:none;" onclick="aujBukaSesiTab('${escapeHtml(x.key)}','${x.tab}')">Buka</button>` : ''}</div>`).join('')}</div>` : '';
+  const aman = !t.kritis.length && !t.peringatan.length;
+  const ringkas = aman
+    ? `<div style="border:1px solid #16a34a;background:#f0fdf4;color:#166534;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:600;">✅ Tidak ada kekurangan penting yang ditemukan. Berkas siap dicetak.</div>`
+    : `<div style="border:1px solid ${t.kritis.length ? '#dc2626' : '#d97706'};background:${t.kritis.length ? '#fef2f2' : '#fffbeb'};border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:600;">${t.kritis.length ? '⛔ ' + t.kritis.length + ' hal harus diperbaiki sebelum cetak massal' : '⚠️ Tidak ada yang kritis'}${t.peringatan.length ? ' · ' + t.peringatan.length + ' peringatan' : ''}.</div>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <h4 style="font-weight:700;">✔️ Cek Kesiapan</h4>
+      <button class="btn btn-soft" onclick="aujRenderTab()">🔄 Periksa ulang</button></div>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">Memeriksa ${t.jmlSesi} sesi dan ${t.jmlSiswa} siswa di ${t.jmlKelas} kelas. Yang diperiksa adalah data yang sudah <strong>tersimpan</strong>.${t.memuatFoto ? ' Foto siswa sedang dimuat…' : ''}</p>
+    ${ringkas}
+    ${blok('⛔ Harus diperbaiki', '#dc2626', '#fef2f2', t.kritis)}
+    ${blok('⚠️ Peringatan', '#d97706', '#fffbeb', t.peringatan)}
+    ${blok('ℹ️ Info', '#2563eb', '#eff6ff', t.info)}`;
+}
+function aujBukaSesiTab(key, tab) { aujPilihSesi(key); if (aujAktifKey === key) aujPilihTab(tab); }
+
+// ---- Kartu pengganti: cetak kartu hanya untuk siswa yang dicentang (kartu hilang/rusak) dalam satu lembar F4 ----
+let aujKartuPilih = {}, aujKartuGantiBuka = false;
+function aujKartuGantiSegar() {
+  const rec = aujRec(), ps = rec ? aujPeserta(rec.kelas, rec) : [], n = ps.filter(p => aujKartuPilih[p.key]).length;
+  const a = aujEl('aujKgJml'); if (a) a.textContent = n;
+  const b = aujEl('aujKgCetak'); if (b) b.disabled = !n;
+}
+function aujKartuToggle(key, on) { if (on) aujKartuPilih[key] = 1; else delete aujKartuPilih[key]; aujKartuGantiSegar(); }
+function aujKartuPilihSemua(on) {
+  const rec = aujRec(); if (!rec) return;
+  aujPeserta(rec.kelas, rec).forEach(p => { if (on) aujKartuPilih[p.key] = 1; else delete aujKartuPilih[p.key]; });
+  aujRenderTab();
+}
+function aujHtmlKartuPengganti(ps) {
+  const n = ps.filter(p => aujKartuPilih[p.key]).length;
+  return `<details ${aujKartuGantiBuka ? 'open' : ''} ontoggle="aujKartuGantiBuka=this.open" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;margin-bottom:10px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;">🪪 Kartu Pengganti (per siswa) — <span id="aujKgJml">${n}</span> dipilih</summary>
+    <p style="font-size:12px;color:#6b7280;margin:6px 0;">Centang siswa yang kartunya hilang atau rusak, lalu cetak. Kartu terpilih tercetak dalam satu lembar F4 dengan nomor peserta, ruang, dan kursi yang sama seperti kartu asli. Nomor peserta mengikuti daftar siswa sesi ini.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+      <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujKartuPilihSemua(true)">Pilih semua</button>
+      <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujKartuPilihSemua(false)">Kosongkan</button>
+      <button id="aujKgCetak" class="btn btn-primary" style="font-size:12px;padding:3px 12px;" onclick="aujCetakKartuTerpilih()" ${n ? '' : 'disabled'}>🖨️ Cetak Kartu Terpilih</button></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 10px;max-height:240px;overflow:auto;">
+      ${ps.map(p => `<label style="font-size:13px;display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" ${aujKartuPilih[p.key] ? 'checked' : ''} onchange="aujKartuToggle('${escapeHtml(p.key)}',this.checked)"> ${escapeHtml(String(p.nomor))}. ${escapeHtml(p.nama)}</label>`).join('')}</div>
+  </details>`;
+}
+function aujCetakKartuTerpilih() {
+  const rec = aujRec(); if (!rec) return toast('Pilih sesi ASAS/ASAT dulu.', true);
+  const ps = aujPeserta(rec.kelas, rec).filter(p => aujKartuPilih[p.key]);
+  if (!ps.length) return toast('Centang siswa yang kartunya akan dicetak.', true);
+  if (aujCanEdit() && JSON.stringify(aujKursi) !== JSON.stringify(rec.kursi || {})) toast('\u26A0\uFE0F Ada perubahan denah yang belum disimpan \u2014 kursi pada kartu mengikuti denah tersimpan.', false, 4500);
+  if (ps.some(p => !(p.key in aujFotoCache))) { aujFotoMuat(ps); toast('ℹ️ Foto siswa masih dimuat. Tunggu sebentar lalu klik Cetak lagi bila ingin foto ikut tercetak.', false, 4000); }
+  const pakaiQr = aujKartuPakaiQr(), peta = aujPetaKursi(rec), kartu = ps.map(p => aujKartuHtml(rec, p, peta[p.key], pakaiQr ? 'cetak' : ''));
+  let isi = '';
+  for (let i = 0; i < kartu.length; i += AUJ_KARTU_PER_HALAMAN) isi += `<div class="kp-halaman">${kartu.slice(i, i + AUJ_KARTU_PER_HALAMAN).join('')}</div>`;
+  if (pakaiQr) {
+    const meta = { jenis: 'Kartu Peserta ' + (rec.nama || 'ASAS/ASAT'), ket: [rec.nama, rec.kelas, rec.ruang, 'Kartu pengganti', 'TA ' + currentTahunAjaran].filter(Boolean).join(' | ') };
+    isi += `<div id="kpQrSumber" style="display:none">${TTD.penanda('kepala', meta, { mm: 10, hanyaPimpinan: true })}</div><script>(function(){var s=document.getElementById('kpQrSumber');if(!s)return;var h=s.innerHTML;Array.prototype.forEach.call(document.querySelectorAll('.kp-qr-tujuan'),function(e){e.innerHTML=h;});})();<\/script>`;
+  }
+  aujCetakHtml(isi, `Kartu Pengganti ASAS/ASAT - ${rec.kelas || ''} (${ps.length} siswa)`, AUJ_KARTU_CSS_CETAK);
 }
 
 // =====================================================
@@ -1434,7 +1585,9 @@ function aujBarKosongan(rec) {
     <input id="aujKosDari" class="field" type="date" value="${escapeHtml(dari)}" style="width:auto;padding:3px 6px;font-size:12px;"> s.d.
     <input id="aujKosSampai" class="field" type="date" value="${escapeHtml(sampai)}" style="width:auto;padding:3px 6px;font-size:12px;">
     <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakKosonganRentang()" title="Daftar Hadir + Berita Acara kosong semua ruang pada rentang tanggal ini">🖨️ Hadir + BA Kosongan</button>
-    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakSampulRentang()" title="Sampul amplop naskah dan lembar jawaban, satu lembar per sesi pada rentang tanggal ini">✉️ Sampul Amplop</button></div>`;
+    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakSampulRentang()" title="Sampul amplop naskah dan lembar jawaban, satu lembar per sesi pada rentang tanggal ini">✉️ Sampul Amplop</button>
+    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakRekapBARentang()" title="Rekap Berita Acara semua ruang, satu halaman mendatar per tanggal">📋 Rekap BA</button>
+    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakPengawasHariRentang()" title="Daftar hadir pengawas per hari (tanda tangan), satu halaman per tanggal">✍️ Hadir Pengawas</button></div>`;
 }
 // ---- Sampul amplop naskah & lembar jawaban (satu lembar per sesi/ruang) ----
 function aujSesiRentang(dari, sampai, rec) {
@@ -1518,6 +1671,72 @@ function aujCetakRekapHtml(rec, semua) {
     return d.length ? aujRekapKelasHtml(k, d) : '';
   }).join('');
   return hasil || '<p style="text-align:center;padding:20mm 0;">Belum ada sesi bertanggal untuk direkap.</p>';
+}
+// ---- Rekap Berita Acara semua ruang (satu halaman F4 mendatar per tanggal) & Daftar Hadir Pengawas per hari ----
+// Keduanya memakai rentang tanggal di baris "Cetak banyak hari" (bawaan: seluruh masa asesmen yang sama).
+function aujAmbilRentang() {
+  const rec = aujRec(); if (!rec) { toast('Pilih sesi ASAS/ASAT dulu.', true); return null; }
+  const dari = aujVal('aujKosDari'), sampai = aujVal('aujKosSampai');
+  if (!aujAdaTanggal(dari) || !aujAdaTanggal(sampai)) { toast('Isi tanggal Dari dan Sampai dulu.', true); return null; }
+  if (dari > sampai) { toast('Tanggal Dari tidak boleh sesudah tanggal Sampai.', true); return null; }
+  const daftar = aujSesiRentang(dari, sampai, rec);
+  if (!daftar.length) { toast('Tidak ada sesi pada rentang tanggal itu.', true); return null; }
+  return { rec, daftar, dari, sampai };
+}
+function aujPerTanggal(daftar) {
+  const g = {}; daftar.forEach(r => (g[r.tanggal] = g[r.tanggal] || []).push(r));
+  return Object.keys(g).sort().map(t => ({ tanggal: t, sesi: g[t] }));
+}
+function aujCetakRekapBAHtml(daftar) {
+  return aujPerTanggal(daftar).map(h => {
+    const tot = { p: 0, h: 0, s: 0, i: 0, a: 0, belum: 0 };
+    const baris = h.sesi.map((r, n) => {
+      const rk = aujRekapHadir(r), terisi = !(rk.belum === rk.total && rk.total > 0);
+      tot.p += rk.total; tot.belum += terisi ? rk.belum : rk.total;
+      if (terisi) { tot.h += rk.h; tot.s += rk.s; tot.i += rk.i; tot.a += rk.a; }
+      const v = x => terisi ? x : '–', ada = x => (x === 0 || x) ? escapeHtml(String(x)) : '–';
+      return `<tr><td>${n + 1}</td><td>${escapeHtml(aujWaktu(r))}</td><td>${escapeHtml(r.ruang || '-')}</td><td>${escapeHtml(r.kelas || '-')}</td><td class="nm">${escapeHtml(r.mapel || '-')}</td>
+        <td>${rk.total}</td><td>${v(rk.h)}</td><td>${v(rk.s)}</td><td>${v(rk.i)}</td><td>${v(rk.a)}</td><td>${ada(r.baNaskah)}</td><td>${ada(r.baLjk)}</td>
+        <td class="nm" style="white-space:normal;">${escapeHtml([r.pengawas1, r.pengawas2].filter(Boolean).join(', ') || '-')}</td>
+        <td class="nm" style="white-space:normal;">${escapeHtml(r.baCatatan || '')}</td></tr>`;
+    }).join('');
+    const ket = tot.belum ? `<p class="muted" style="margin-top:4px;">Tanda – = belum diisi di Berita Acara/Daftar Hadir. Siswa belum terisi statusnya: ${tot.belum} dari ${tot.p}.</p>` : '';
+    return `<div class="halaman">${aujKopHtml()}
+      <h1>Rekap Berita Acara ${escapeHtml(h.sesi[0].nama || 'ASAS/ASAT')}</h1>
+      <div class="sub">${escapeHtml(aujTglIndo(h.tanggal, true))} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
+      <table class="rk"><thead><tr><th style="width:24px;">No</th><th>Waktu</th><th>Ruang</th><th>Kelas</th><th>Mapel</th><th>Peserta</th><th>Hadir</th><th>S</th><th>I</th><th>A</th><th>Naskah</th><th>LJK</th><th>Pengawas</th><th style="width:22%;">Catatan</th></tr></thead>
+      <tbody>${baris}<tr style="font-weight:700;"><td colspan="5" style="text-align:right;">Jumlah</td><td>${tot.p}</td><td>${tot.h}</td><td>${tot.s}</td><td>${tot.i}</td><td>${tot.a}</td><td colspan="4"></td></tr></tbody></table>
+      ${ket}
+      <table class="ttd"><tr>${aujTtdPanitiaHtml()}<td><div>Mengetahui,</div><div>Kepala Madrasah</div><div class="ruang"></div><div style="font-weight:700;text-decoration:underline;">${escapeHtml(MADRASAH.kepala_sekolah || '(............................)')}</div></td></tr></table>
+    </div>`;
+  }).join('');
+}
+function aujCetakRekapBARentang() {
+  const x = aujAmbilRentang(); if (!x) return;
+  aujCetakHtml(aujCetakRekapBAHtml(x.daftar), `Rekap Berita Acara - ${aujTglIndo(x.dari)} s.d. ${aujTglIndo(x.sampai)}`, AUJ_CSS_REKAP);
+}
+function aujCetakPengawasHariHtml(daftar) {
+  const halaman = aujPerTanggal(daftar).map(h => {
+    const baris = [];
+    h.sesi.forEach(r => {
+      const hadir = aujPwHadirEfektif(r);
+      [[r.pengawas1, 'p1'], [r.pengawas2, 'p2']].filter(x => x[0]).forEach(x => baris.push(
+        `<tr><td style="text-align:center;width:30px;">${baris.length + 1}</td><td>${escapeHtml(x[0])}</td><td style="text-align:center;white-space:nowrap;">${escapeHtml(aujWaktu(r))}</td><td style="text-align:center;">${escapeHtml(r.ruang || '-')}</td><td style="text-align:center;">${escapeHtml(r.kelas || '-')}</td><td>${escapeHtml(r.mapel || '-')}</td><td style="width:30%;height:32px;"></td><td style="width:11%;text-align:center;">${hadir[x[1]] ? 'Hadir' : ''}</td></tr>`));
+    });
+    if (!baris.length) return '';
+    return `<div class="halaman">${aujKopHtml()}
+      <h1>Daftar Hadir Pengawas ${escapeHtml(h.sesi[0].nama || 'ASAS/ASAT')}</h1>
+      <div class="sub">${escapeHtml(aujTglIndo(h.tanggal, true))} — Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}</div>
+      <table class="data"><thead><tr><th>No</th><th>Nama Pengawas</th><th>Waktu</th><th>Ruang</th><th>Kelas</th><th>Mata Pelajaran</th><th>Tanda Tangan</th><th>Ket.</th></tr></thead><tbody>${baris.join('')}</tbody></table>
+      <p class="muted" style="margin-top:4px;">Kolom Ket. terisi "Hadir" bila pengawas sudah check-in atau ditandai hadir di tab Daftar Hadir.</p>
+      <table class="ttd"><tr><td style="width:50%;"></td>${aujTtdPanitiaHtml()}</tr></table>
+    </div>`;
+  }).join('');
+  return halaman || '<p style="text-align:center;padding:20mm 0;">Belum ada pengawas pada sesi di rentang tanggal itu.</p>';
+}
+function aujCetakPengawasHariRentang() {
+  const x = aujAmbilRentang(); if (!x) return;
+  aujCetakHtml(aujCetakPengawasHariHtml(x.daftar), `Daftar Hadir Pengawas - ${aujTglIndo(x.dari)} s.d. ${aujTglIndo(x.sampai)}`, AUJ_CSS_REKAP);
 }
 const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml, label: aujCetakLabelHtml,
   hadir0: r => aujCetakHadirHtml(r, true), ba0: r => aujCetakBAHtml(r, true), pintu: aujCetakPintuHtml, pintuNama: aujCetakPintuNamaHtml,
