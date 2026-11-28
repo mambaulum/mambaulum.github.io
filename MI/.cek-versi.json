@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.612",
-  "disimpan": "2026-11-28T02:14:09.319Z",
+  "appVersion": "v8.613",
+  "disimpan": "2026-11-28T02:25:15.433Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -59,8 +59,8 @@
       "hash": "c4d5ab6f1cbe4f127d17f1c9600a737816470fd0"
     },
     "js/ba-per-ruang.js": {
-      "v": "v=1",
-      "hash": "af318403f82e39c766cd924543be9c3d795f13a5"
+      "v": "v=2",
+      "hash": "5e88bdbcedde88a3a747e92ecfd64c204ac4d92c"
     },
     "js/app.js": {
       "v": "v=176",
