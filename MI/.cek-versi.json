@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.613",
-  "disimpan": "2026-11-28T02:25:15.433Z",
+  "appVersion": "v8.614",
+  "disimpan": "2026-11-28T03:15:02.403Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -55,8 +55,8 @@
       "hash": "3f0afd882d3dd7aaaa3eac8049d2e28e63a7e4de"
     },
     "js/administrasi-ujian.js": {
-      "v": "v=59",
-      "hash": "c4d5ab6f1cbe4f127d17f1c9600a737816470fd0"
+      "v": "v=60",
+      "hash": "ec21349ce7b85bca91976b3229ee990b8f79c65d"
     },
     "js/ba-per-ruang.js": {
       "v": "v=2",
@@ -103,16 +103,16 @@
       "hash": "f9c46bde31fa3ad9d85d371013bebe9b12ec7a1f"
     },
     "js/honor-guru.js": {
-      "v": "v=28",
-      "hash": "46f98ef98e951a24cb6237e253f05b970674e44d"
+      "v": "v=29",
+      "hash": "715c63a7b1db277e4ffd8376ac97ce968819ca41"
     },
     "js/honor-kebersihan.js": {
       "v": "v=3",
       "hash": "830f74012e65391fb5dfe4ed4377815b35ba30f2"
     },
     "js/event-ujian.js": {
-      "v": "v=5",
-      "hash": "bf6c7a6b60810f1af8e099d9e5584a74f78e577e"
+      "v": "v=6",
+      "hash": "45ae84e2eb2a6b16775879458d41f94321479204"
     },
     "js/pengingat-absen-guru.js": {
       "v": "v=4",
