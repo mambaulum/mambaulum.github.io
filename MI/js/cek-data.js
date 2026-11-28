@@ -10,7 +10,7 @@
    v4: tampilan dibagi tab bergaya hub-tabs (Guru & Jadwal | Honor | Diagnosa Nilai) dengan penanda jumlah temuan; logika analisis & perbaikan tidak berubah.
    Perbaikan hanya menulis field guruKey (node jadwal, journal, event_attendance, ujian_attendance, ekskul_pic_honor_v4).
    Data guru TIDAK dihapus; hapus manual setelah yakin. Setiap perbaikan: unduh cadangan JSON dulu, minta konfirmasi, catat ke log.
-   v5: bagian Honor memeriksa honor ujian/lembur/rapat yang jamnya bertumpuk (honorCariBentrok di honor-guru.js) dan kecocokan jadwal ujian - Daftar Hadir - check-in - susulan (window.cekDataHonorUjian, administrasi-ujian.js). Hanya membaca.
+   v5: bagian Honor memeriksa honor ujian/lembur/rapat yang jamnya bertumpuk, termasuk dengan jam mengajar (honorCariBentrok di honor-guru.js) dan kecocokan jadwal ujian - Daftar Hadir - check-in - susulan (window.cekDataHonorUjian, administrasi-ujian.js). Hanya membaca.
    Dimuat SESUDAH app.js dan jadwal.js. Halaman: page-cek-data (navigateTo memanggil setupCekDataPage).
    ============================================================ */
 (function () {
@@ -326,7 +326,7 @@
     if (!B) out += bagian('Honor bertumpuk jam', true, '<p class="text-muted">Pemeriksaan jam bertumpuk tidak tersedia (honor-guru.js belum termuat).</p>');
     else if (!B.total) out += bagian('Honor bertumpuk jam', true, '<p class="text-muted">Tidak ada guru dengan honor ujian/lembur/rapat yang jamnya bertumpuk di bulan ini.</p>');
     else out += bagian('Honor bertumpuk jam (' + B.total + ' pasangan)', false,
-      '<p class="text-muted" style="font-size:12px;">Dua kegiatan ber-honor milik satu guru pada hari yang sama jamnya beririsan, sehingga bisa terbayar dua kali. Rekap Honor hanya menandai (⚠️) dan tidak mengubah angka: putuskan mana yang berhak, lalu hapus check-in yang tidak berhak di halaman Honor Ujian atau Lembur &amp; Rapat.</p>' +
+      '<p class="text-muted" style="font-size:12px;">Dua kegiatan ber-honor (atau kegiatan ber-honor dengan jam mengajar) milik satu guru pada hari yang sama jamnya beririsan, sehingga bisa terbayar dua kali. Rekap Honor hanya menandai (⚠️) dan tidak mengubah angka: putuskan mana yang berhak, lalu hapus check-in yang tidak berhak di halaman Honor Ujian atau Lembur &amp; Rapat.</p>' +
       tabel(['Guru', 'Tanggal', 'Kegiatan 1', 'Kegiatan 2', 'Honor'], B.daftar.slice(0, 30).map(function (p) { return [esc(p.nama), esc(p.tanggal), esc(p.a.label + ' ' + p.a.jamMulai + '–' + p.a.jamSelesai), esc(p.b.label + ' ' + p.b.jamMulai + '–' + p.b.jamSelesai), rp(p.a.honor) + ' + ' + rp(p.b.honor)]; })) +
       (B.total > 30 ? '<p class="text-muted">…dan ' + (B.total - 30) + ' lainnya.</p>' : ''));
     // 10. Honor pengawas ujian: jadwal - Daftar Hadir - check-in - susulan (seluruh tahun ajaran aktif; dari administrasi-ujian.js)
@@ -438,7 +438,7 @@
         } catch (e) { return 0; }
       } };
     var h = cekHonorAnalisis(o);
-    try { h.bentrok = (typeof honorCariBentrok === 'function') ? honorCariBentrok(o.ujian, o.event) : null; } catch (e) { h.bentrok = null; console.warn('[Cek Data] cek bentrok honor gagal:', e); }
+    try { h.bentrok = (typeof honorCariBentrok === 'function') ? honorCariBentrok(o.ujian, o.event, o.jurnal) : null; } catch (e) { h.bentrok = null; console.warn('[Cek Data] cek bentrok honor gagal:', e); }
     h._sumber = [{ path: 'journal', arr: o.jurnal }, { path: 'event_attendance', arr: o.event.filter(function (e) { return e.guruKey !== 'kepsek'; }) },
       { path: 'ujian_attendance', arr: o.ujian }, { path: 'ekskul_pic_honor_v4', arr: o.ekskul }];
     return h;

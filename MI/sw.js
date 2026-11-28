@@ -45,7 +45,7 @@
    index.html serta PRECACHE_URLS di bawah. Angka ?v= di kedua tempat harus sama.
 ============================================================ */
 
-const APP_VERSION = 'v8.615';
+const APP_VERSION = 'v8.616';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -88,9 +88,9 @@ const PRECACHE_URLS = [
   './js/materi-tugas.js?v=1',               // Materi Belajar & Tugas (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/kelola-absen-guru.js?v=7',          // Kelola Absen Guru + Koreksi Honor Sholat (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/jadwal.js?v=8',                     // Jadwal Pelajaran (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/cek-data.js?v=6',                  // Cek Data Admin (dimuat SESUDAH app.js & jadwal.js)
+  './js/cek-data.js?v=7',                  // Cek Data Admin (dimuat SESUDAH app.js & jadwal.js)
   './js/laporan-rekap.js?v=4',              // Rekap Absensi/Jurnal PDF + Laporan bulanan PDF (dipecah dari app.js; dimuat SESUDAH app.js)
-  './js/honor-guru.js?v=29',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/honor-guru.js?v=30',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-kebersihan.js?v=3',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
   './js/versi-app.js?v=2',                   // Penampil versi + Cek pembaruan (footer menu samping; berdiri sendiri)
   './js/event-ujian.js?v=7',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)

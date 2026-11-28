@@ -690,6 +690,7 @@
     // Selama belum termuat (atau gagal), jurnal mengajar TIDAK ikut dibandingkan (tidak ada tuduhan palsu). `ulang` dipanggil sekali setelah termuat.
     let _honorJamMap = null, _honorJamMuat = false;
     function honorJamMap(ulang) {
+      try { if (typeof jamSettings !== 'undefined' && jamSettings && Object.keys(jamSettings).length) return jamSettings; } catch (e) {}   // sama dengan yang dipakai Setting Jam (app.js), sudah tersinkron
       if (_honorJamMap) return _honorJamMap;
       if (!_honorJamMuat && typeof db !== 'undefined' && db) {
         _honorJamMuat = true;
