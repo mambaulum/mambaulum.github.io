@@ -15,6 +15,7 @@
     const CHECKIN_SESUDAH_MENIT = 0;    // dan sampai N menit setelah jam selesai
     // Catatan: ini memakai jam perangkat, jadi hanya pagar untuk pemakaian normal. Pagar sungguhan harus
     // di Firebase Rules (validasi waktu & honor) -- lihat catatan audit.
+    const UJIAN_HONOR_MAKS = 1000000;   // batas wajar honor per sesi (sama dengan Rules); ubah di dua tempat bila kebijakan berubah
     function cekJendelaCheckin(item) {
       if (!item) return { ok: true };
       if (item.tanggal && item.tanggal !== tglLokal()) return { ok: false, pesan: 'Check-in hanya bisa pada hari pelaksanaan (' + item.tanggal + ').' };
@@ -268,9 +269,17 @@
       const editKey = document.getElementById('ujianEditKey').value;
       if (!nama || !tanggal || !jamMulai || !jamSelesai) return toast('Lengkapi semua data!', true);
       if (honor <= 0) return toast('Honor harus lebih dari 0!', true);
+      if (honor > UJIAN_HONOR_MAKS) return toast('Honor melebihi batas wajar Rp ' + UJIAN_HONOR_MAKS.toLocaleString('id-ID') + '. Periksa angkanya (salah nol?).', true);
       if (jamMulai >= jamSelesai) return toast('Jam selesai harus setelah jam mulai!', true);
+      const mulaiMs = Date.parse(`${tanggal}T${jamMulai}:00+07:00`), selesaiMs = Date.parse(`${tanggal}T${jamSelesai}:00+07:00`);   // WIB; dipakai Rules untuk jendela check-in (juga sesi terbuka)
+      if (isNaN(mulaiMs) || isNaN(selesaiMs) || selesaiMs <= mulaiMs) return toast('Tanggal/jam tidak valid.', true);
+      if (editKey) {   // sesi yang sudah dipakai check-in/susulan: honor, tanggal, jam dikunci supaya rekap & catatan tidak berselisih
+        const lama = allUjian.find(e => e.key === editKey);
+        const dipakai = (allUjianAttendance || []).some(a => a.ujianKey === editKey) || (typeof allUjianSusulan !== 'undefined' && allUjianSusulan || []).some(z => z.ujianKey === editKey);
+        if (lama && dipakai && (Number(lama.honor) !== honor || lama.tanggal !== tanggal || lama.jamMulai !== jamMulai || lama.jamSelesai !== jamSelesai)) return toast('⛔ Sesi ini sudah punya check-in/susulan. Honor, tanggal, dan jam tidak bisa diubah; hapus check-in-nya dulu bila memang salah.', true, 7000);
+      }
       if (editKey && editKey.indexOf('adm_') === 0) return toast('Sesi ini dibuat dari Jadwal Ujian. Ubah pengawas/jam lewat menu Administrasi Ujian.', true);
-      const data = { nama, jenis, tanggal, jamMulai, jamSelesai, honor, terbuka: true, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };   // sesi manual = terbuka untuk semua guru yang login (Koreksi / Pembuat Soal)
+      const data = { nama, jenis, tanggal, jamMulai, jamSelesai, honor, mulaiMs, selesaiMs, terbuka: true, tahunAjaran: currentTahunAjaran, updatedAt: new Date().toISOString() };   // sesi manual = terbuka untuk semua guru yang login (Koreksi / Pembuat Soal)
       const ref = editKey ? db.ref('ujian/' + editKey) : db.ref('ujian').push();
       if (!editKey) { data.createdBy = currentUser.name; data.guruKey = currentUser.key || null; data.createdAt = new Date().toISOString(); }
       const btnSubmitUjian = document.getElementById('btnSubmitUjian');
@@ -293,7 +302,8 @@
     }
     function deleteUjian(key) {
       if (!isAdmin()) return toast('Hanya Admin!', true);
-      if (!confirm('Hapus sesi ujian ini? Catatan check-in yang sudah ada tidak akan terhapus.')) return;
+      if ((allUjianAttendance || []).some(a => a.ujianKey === key) || (typeof allUjianSusulan !== 'undefined' && allUjianSusulan || []).some(z => z.ujianKey === key)) return toast('⛔ Sesi ini sudah punya check-in/susulan, jadi tidak bisa dihapus (honornya sudah terhitung). Hapus dulu check-in-nya bila memang salah.', true, 7000);
+      if (!confirm('Hapus sesi ujian ini?')) return;
       db.ref('ujian/' + key).remove(err => {
         if (err) return toast('Gagal: ' + err.message, true);
         { const ek = document.getElementById('ujianEditKey'); if (ek && ek.value === key) ek.value = ''; }
@@ -668,19 +678,29 @@
       if (masuk === null) return;
       const catatan = masuk.trim();
       if (!setuju && catatan.length < 3) return toast('Isi alasan penolakan.', true);
-      const base = 'ujian_susulan/' + key + '/', up = {};
-      up[base + 'status'] = setuju ? 'disetujui' : 'ditolak';
-      up[base + 'diputuskanOleh'] = currentUser.name; up[base + 'diputuskanAt'] = firebase.database.ServerValue.TIMESTAMP;
-      if (catatan) up[base + 'catatanAdmin'] = catatan.slice(0, 200);
-      if (setuju) up['ujian_attendance/' + key] = { ujianKey: s.ujianKey, ujianNama: s.ujianNama, jenis: s.jenis, guru: s.guru, guruKey: s.guruKey, tanggal: s.tanggal,
-        waktu: firebase.database.ServerValue.TIMESTAMP, honor: s.honor, tahunAjaran: s.tahunAjaran, hasFoto: false, susulan: true, disetujuiOleh: currentUser.name };
+      const tulis = honorFinal => {
+        const base = 'ujian_susulan/' + key + '/', up = {};
+        up[base + 'status'] = setuju ? 'disetujui' : 'ditolak';
+        up[base + 'diputuskanOleh'] = currentUser.name; up[base + 'diputuskanAt'] = firebase.database.ServerValue.TIMESTAMP;
+        if (catatan) up[base + 'catatanAdmin'] = catatan.slice(0, 200);
+        if (setuju) up['ujian_attendance/' + key] = { ujianKey: s.ujianKey, ujianNama: s.ujianNama, jenis: s.jenis, guru: s.guru, guruKey: s.guruKey, tanggal: s.tanggal,
+          waktu: firebase.database.ServerValue.TIMESTAMP, honor: honorFinal, tahunAjaran: s.tahunAjaran, hasFoto: false, susulan: true, disetujuiOleh: currentUser.name };
+        db.ref().update(up, err => {   // satu tulisan atomik: status + check-in resmi masuk bersamaan
+          clearBusy('ujPutus');
+          if (err) return toast('Gagal: ' + (err.message || err), true);
+          s.status = setuju ? 'disetujui' : 'ditolak'; if (catatan) s.catatanAdmin = catatan;
+          if (setuju) allUjianAttendance.push({ ujianKey: s.ujianKey, ujianNama: s.ujianNama, jenis: s.jenis, guru: s.guru, guruKey: s.guruKey, tanggal: s.tanggal, waktu: Date.now(), honor: honorFinal, tahunAjaran: s.tahunAjaran, susulan: true, key });
+          toast(setuju ? '✅ Susulan disetujui; honor ikut terhitung.' : '❌ Pengajuan ditolak.'); addLog(setuju ? 'setujui_susulan_ujian' : 'tolak_susulan_ujian', s.guru + ' — ' + s.ujianNama);
+          renderUjianSusulan(); if (typeof renderUjianList === 'function') renderUjianList();
+        });
+      };
       setBusy('ujPutus');
-      db.ref().update(up, err => {   // satu tulisan atomik: status + check-in resmi masuk bersamaan
-        clearBusy('ujPutus');
-        if (err) return toast('Gagal: ' + (err.message || err), true);
-        s.status = setuju ? 'disetujui' : 'ditolak'; if (catatan) s.catatanAdmin = catatan;
-        if (setuju) allUjianAttendance.push({ ujianKey: s.ujianKey, ujianNama: s.ujianNama, jenis: s.jenis, guru: s.guru, guruKey: s.guruKey, tanggal: s.tanggal, waktu: Date.now(), honor: s.honor, tahunAjaran: s.tahunAjaran, susulan: true, key });
-        toast(setuju ? '✅ Susulan disetujui; honor ikut terhitung.' : '❌ Pengajuan ditolak.'); addLog(setuju ? 'setujui_susulan_ujian' : 'tolak_susulan_ujian', s.guru + ' — ' + s.ujianNama);
-        renderUjianSusulan(); if (typeof renderUjianList === 'function') renderUjianList();
-      });
+      if (!setuju) return tulis(null);
+      // Setujui: baca ulang dari SERVER (cache lokal bisa basi). Jangan menimpa check-in yang baru masuk; nominal diambil dari sesi saat ini.
+      Promise.all([db.ref('ujian_attendance/' + key).once('value'), db.ref('ujian/' + s.ujianKey).once('value')]).then(r => {
+        if (r[0].exists()) { clearBusy('ujPutus'); toast('Guru ini ternyata sudah punya check-in untuk sesi tersebut; pengajuan tidak disetujui otomatis.', true, 6000); reloadDataset(['ujianAttendance'], () => { renderUjianSusulan(); renderUjianList(); }); return; }
+        const sesi = r[1].val();
+        if (!sesi) { clearBusy('ujPutus'); return toast('Sesi ujian sudah tidak ada; pengajuan tidak bisa disetujui.', true); }
+        tulis(sesi.honor);
+      }).catch(e => { clearBusy('ujPutus'); toast('Gagal membaca data server: ' + ((e && e.message) || e), true); });
     }

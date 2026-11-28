@@ -686,7 +686,22 @@
     // ujian / events = rekaman check-in yang SUDAH disaring bulan & tahun ajaran (sama seperti yang dijumlahkan rekap). Dinas Luar Kepala ('kepsek') dilewati.
     // Hasil: { total, perGuru: { guruKey: [pasangan] }, daftar: [ { gk, nama, tanggal, a, b } ] }, a/b = { label, jamMulai, jamSelesai, honor }.
     function honorJamKeMenit(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; }
-    function honorCariBentrok(ujian, events) {
+    // Jam pelajaran ke-N -> jam dinding, dibaca dari node `jam_settings/<jam>` ({mulai, selesai, label, isEkstra}); dimuat sekali lalu disimpan.
+    // Selama belum termuat (atau gagal), jurnal mengajar TIDAK ikut dibandingkan (tidak ada tuduhan palsu). `ulang` dipanggil sekali setelah termuat.
+    let _honorJamMap = null, _honorJamMuat = false;
+    function honorJamMap(ulang) {
+      if (_honorJamMap) return _honorJamMap;
+      if (!_honorJamMuat && typeof db !== 'undefined' && db) {
+        _honorJamMuat = true;
+        db.ref('jam_settings').once('value').then(snap => {
+          const m = {}; snap.forEach(c => { const v = c.val(); if (v && v.mulai && v.selesai) m[String(c.key)] = v; });
+          _honorJamMap = m; _honorJamMuat = false; if (typeof ulang === 'function') ulang();
+        }).catch(() => { _honorJamMuat = false; });
+      }
+      return null;
+    }
+    // jurnal (opsional) = jurnal mengajar yang SUDAH disaring periode (status 'ditolak' sudah dibuang). Hanya pasangan yang melibatkan Ujian / Lembur-Rapat yang ditandai.
+    function honorCariBentrok(ujian, events, jurnal, ulang) {
       const resolveGk = honorBuatResolver(), iv = [];
       const sesiU = Object.create(null), sesiE = Object.create(null);
       (typeof allUjian !== 'undefined' ? allUjian : []).forEach(s => { if (s && s.key) sesiU[s.key] = s; });
@@ -698,12 +713,19 @@
         iv.push({ gk: resolveGk(a.guruKey, a.guru), nama: a.guru || '', tanggal: tgl, m1, m2, label: jenis + ' "' + (s.nama || '-') + '"', jamMulai: s.jamMulai, jamSelesai: s.jamSelesai, honor: a.honor || 0 });
       };
       (ujian || []).forEach(a => tambah(a, sesiU[a.ujianKey], 'Ujian'));
+      const jamMap = (jurnal && jurnal.length) ? honorJamMap(ulang) : null;
+      if (jamMap) (jurnal || []).forEach(j => {
+        const w = jamMap[String(j.jam_ke)]; if (!w || w.isEkstra || (typeof isJamEkstra === 'function' && isJamEkstra(j.jam_ke))) return;
+        const m1 = honorJamKeMenit(w.mulai), m2 = honorJamKeMenit(w.selesai); if (m1 == null || m2 == null || !j.tanggal) return;
+        iv.push({ gk: resolveGk(j.guruKey, j.guru), nama: j.guru || '', tanggal: j.tanggal, m1, m2, jurnal: true, label: 'Mengajar jam ke-' + j.jam_ke + (j.kelas ? ' ' + j.kelas : ''), jamMulai: w.mulai, jamSelesai: w.selesai, honor: 0 });
+      });
       (events || []).forEach(a => { if (a.guruKey === 'kepsek') return; tambah(a, sesiE[a.eventKey], 'Lembur/Rapat'); });
       const grup = Object.create(null), perGuru = {}, daftar = [];
       iv.forEach(i => { (grup[i.gk + '|' + i.tanggal] = grup[i.gk + '|' + i.tanggal] || []).push(i); });
       Object.keys(grup).forEach(k => {
         const g = grup[k];
         for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+          if (g[i].jurnal && g[j].jurnal) continue;   // dua jam mengajar bukan urusan honor kegiatan
           if (!(g[i].m1 < g[j].m2 && g[j].m1 < g[i].m2)) continue;
           const p = { gk: g[i].gk, nama: g[i].nama || g[j].nama, tanggal: g[i].tanggal,
             a: { label: g[i].label, jamMulai: g[i].jamMulai, jamSelesai: g[i].jamSelesai, honor: g[i].honor }, b: { label: g[j].label, jamMulai: g[j].jamMulai, jamSelesai: g[j].jamSelesai, honor: g[j].honor } };
@@ -712,6 +734,28 @@
       });
       daftar.sort((p, q) => String(p.tanggal).localeCompare(q.tanggal) || String(p.nama).localeCompare(q.nama));
       return { total: daftar.length, perGuru, daftar };
+    }
+    // Anomali check-in ujian (PENANDA saja, angka tidak diubah; nominal di catatan = snapshot saat check-in dan tetap dipakai):
+    //  - yatim: sesinya sudah tidak ada di daftar ujian (mis. dihapus) tetapi honornya masih terhitung;
+    //  - selisih: nominal di catatan tidak sama dengan nominal sesi sekarang.
+    function honorUjianAnomali(ujian) {
+      const sesi = Object.create(null); (typeof allUjian !== 'undefined' ? allUjian : []).forEach(s => { if (s && s.key) sesi[s.key] = s; });
+      const yatim = [], selisih = [];
+      if (!Object.keys(sesi).length) return { yatim, selisih };   // data sesi belum termuat: jangan menuduh
+      (ujian || []).forEach(a => {
+        const s = sesi[a.ujianKey];
+        if (!s) yatim.push(a); else if ((a.honor || 0) !== (s.honor || 0)) selisih.push(a);
+      });
+      return { yatim, selisih };
+    }
+    function honorUjianAnomaliHtml(ujian) {
+      const r = honorUjianAnomali(ujian); if (!r.yatim.length && !r.selisih.length) return '';
+      const rp = x => 'Rp ' + (x || 0).toLocaleString('id-ID');
+      const item = (a, s) => '<li>' + escapeHtml(a.guru || '-') + ' — ' + escapeHtml(a.ujianNama || a.ujianKey || '-') + ' (' + escapeHtml(a.tanggal || '') + ') ' + rp(a.honor) + (s || '') + '</li>';
+      return '<div style="margin-bottom:10px;padding:10px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;font-size:13px;color:#991b1b;">' +
+        '<strong>⚠️ Honor Ujian perlu diperiksa</strong> — angka di bawah belum dikoreksi.' +
+        (r.yatim.length ? '<div style="margin-top:6px;">' + r.yatim.length + ' check-in memakai sesi yang sudah tidak ada (honor tetap terhitung):</div><ul style="margin:4px 0 0 18px;">' + r.yatim.slice(0, 10).map(a => item(a)).join('') + '</ul>' : '') +
+        (r.selisih.length ? '<div style="margin-top:6px;">' + r.selisih.length + ' check-in nominalnya beda dengan sesi sekarang:</div><ul style="margin:4px 0 0 18px;">' + r.selisih.slice(0, 10).map(a => item(a, ' ≠ sesi')).join('') + '</ul>' : '') + '</div>';
     }
     function honorBentrokBannerHtml(b) {
       if (!b || !b.total) return '';
@@ -833,7 +877,7 @@
       // guruKey kalau ada, kalau
       // tidak coba cari guruKey lewat nama via allGuru (guru itu sendiri PASTI unik by key),
       // baru fallback ke nama mentah kalau memang tidak ketemu guru manapun dgn nama itu.
-      const bentrokJam = honorCariBentrok(filteredUjian, filteredEvents);   // penanda saja; tidak mengubah angka honor
+      const bentrokJam = honorCariBentrok(filteredUjian, filteredEvents, filteredJournals, () => renderHonor());   // penanda saja; tidak mengubah angka honor
       const grup = honorKelompokkan({ journals: filteredJournals, events: filteredEvents, ujian: filteredUjian, ekskulPic: filteredEkskulPic, religiPerGuru: hs.hasil.perGuru });   // religi: { gk: { nama, dluha, dzuhur } } sudah lolos check-in/jam/kelengkapan
       const { groupedJurnal, groupedReligi, groupedEvents, groupedUjian, groupedEkskulPic, dlKepala } = grup;
       const rates = v4GetHonorRates(), HONOR_KEPSEK = rates.kepsek, HONOR_KETUA_YAYASAN = rates.yayasan;   // diatur Admin di Tarif Honor Terpusat
@@ -868,7 +912,7 @@
       let totalPanjar = 0; tableData.forEach(it => { totalPanjar += panjarDari(it); });
       let htmlKas = '', htmlRincian = '';
       const panjarBanner = panjarOk ? '' : `<div style="margin-bottom:10px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:13px;color:#92400e;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><span>${panjarPesan} Kolom Panjar dan Sisa Dibayar belum dapat dihitung (tanda ⚠️ ?).</span><button class="btn btn-soft" onclick="honorPanjarInvalidate();renderHonor()">🔄 Muat ulang panjar</button></div>`;
-      let html = panjarBanner + honorBentrokBannerHtml(bentrokJam) + `<div style="overflow-x:auto;"><table class="honor-rekap-tbl"><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
+      let html = panjarBanner + honorUjianAnomaliHtml(filteredUjian) + honorBentrokBannerHtml(bentrokJam) + `<div style="overflow-x:auto;"><table class="honor-rekap-tbl"><thead><tr><th>No</th><th>Nama Guru</th><th>Reguler</th><th>Non-Reguler</th><th>Ekstra</th><th>☀️ Dhuha</th><th>🕌 Dzuhur</th><th>⏰ Lembur/Rapat</th><th>📝 Ujian</th><th>💰 Tunjangan</th><th>🛵 Transport</th><th>Total Honor</th><th>💵 Panjar</th><th>Sisa Dibayar</th></tr></thead><tbody>`;
       let no = start + 1;
       for (const item of pageItems) {
         const isBonus = item.isBonus || false, bgStyle = isBonus ? 'style="background:#fef3c7;font-weight:600;"' : '';
@@ -1305,7 +1349,7 @@
             <div style="font-weight:800;font-size:16px;">🧾 SLIP HONOR</div>
             <div class="text-muted" style="font-size:12px;">${escapeHtml(namaSaya)} • ${namaBulan} ${year}</div>
           </div>
-          <table style="width:100%;font-size:13px;border-collapse:collapse;"><tr><th style="text-align:left;">Rincian</th><th style="text-align:center;">Jumlah</th><th style="text-align:right;">Honor</th></tr>${rows}</table>${honorBentrokSlipHtml(honorCariBentrok(fUjian, fEvents))}
+          <table style="width:100%;font-size:13px;border-collapse:collapse;"><tr><th style="text-align:left;">Rincian</th><th style="text-align:center;">Jumlah</th><th style="text-align:right;">Honor</th></tr>${rows}</table>${honorBentrokSlipHtml(honorCariBentrok(fUjian, fEvents, fJournals))}
           ${mewakiliHtml}${ditolakHtml}
           <div style="border-top:2px dashed #94a3b8;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:800;font-size:15px;">
             <span>TOTAL</span><span style="color:#059669;">Rp ${total.toLocaleString()}</span>

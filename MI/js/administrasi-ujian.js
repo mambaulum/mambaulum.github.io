@@ -2134,13 +2134,17 @@ function aujLipatRuang(daftar) {
     const p1 = a.find(x => x.pengawas1), p1id = p1 ? aujIdPengawas(p1.pengawas1) : '';
     const p2 = a.find(x => x.pengawas2 && aujIdPengawas(x.pengawas2) !== p1id);
     delete o._anggota;
-    return Object.assign(o, { kelas: kelas.join(' + '), mapel: mapel.join(' / ') || o.mapel,
+    // pengawasSemua: SEMUA pengawas dari semua kelas satu ruang (tiap orang sekali). Honor membayar semuanya (aujKunciPengawasRuang), jadi beban & jadwal juga harus menghitung semuanya.
+    const semua = [], idLihat = new Set(), taruh = n => { const id = aujIdPengawas(n); if (!id || idLihat.has(id)) return; idLihat.add(id); semua.push(n); };
+    if (p1) taruh(p1.pengawas1);
+    a.forEach(x => { taruh(x.pengawas1); taruh(x.pengawas2); });
+    return Object.assign(o, { kelas: kelas.join(' + '), mapel: mapel.join(' / ') || o.mapel, pengawasSemua: semua,
       pengawas1: p1 ? p1.pengawas1 : null, pengawas1Key: p1 ? p1.pengawas1Key : null, pengawas2: p2 ? p2.pengawas2 : null, pengawas2Key: p2 ? p2.pengawas2Key : null });
   });
 }
 function aujPengawasDari(rec) {
   const out = [];
-  [rec.pengawas1, rec.pengawas2].forEach(n => { const k = aujIdPengawas(n); if (k && !out.some(o => o.k === k)) out.push({ k, nama: String(n).trim() }); });
+  (rec.pengawasSemua || [rec.pengawas1, rec.pengawas2]).forEach(n => { const k = aujIdPengawas(n); if (k && !out.some(o => o.k === k)) out.push({ k, nama: String(n).trim() }); });
   return out;
 }
 // Hasil: perKey = { keySesi: [{ nama, lawan }] }, pasangan = [{ nama, a, b }] (tiap bentrok tercatat satu kali).
@@ -2900,7 +2904,7 @@ function aujHitungBentrokMassal(h) {
   baru.forEach(b => { b.bentrok = bt.perKey[b.key] || []; });
   h.nBentrok = bt.pasangan.filter(p => String(p.a.key).indexOf('__baru') === 0 || String(p.b.key).indexOf('__baru') === 0).length;
   const tb = aujCekTumpangBaru(baru); baru.forEach((b, i) => { b.tumpang = tb.perBaris[i]; }); h.nTumpang = tb.jumlah; h.contohTumpang = tb.contoh;   // kelas/ruang bertabrakan
-  const rekap = {}; aujLipatRuang(baru).forEach(b => [b.pengawas1, b.pengawas2].forEach(n => { if (n) rekap[n] = (rekap[n] || 0) + 1; }));   // kelas satu ruang dihitung sekali (sama seperti honor & Rekap Beban)
+  const rekap = {}; aujLipatRuang(baru).forEach(b => (b.pengawasSemua || [b.pengawas1, b.pengawas2]).forEach(n => { if (n) rekap[n] = (rekap[n] || 0) + 1; }));   // kelas satu ruang dihitung sekali (sama seperti honor & Rekap Beban)
   h.rekap = Object.keys(rekap).map(n => ({ nama: n, n: rekap[n] })).sort((a, b) => b.n - a.n || a.nama.localeCompare(b.nama));
   const nmAsesmen = aujNormNama((baru[0] || {}).nama), tglBaru = new Set(baru.map(b => b.tanggal));
   h.cekSesi = aujCekLanjutSesi(allAdmUjian.filter(x => aujNormNama(x.nama) === nmAsesmen).concat(baru), tglBaru);
@@ -3873,10 +3877,10 @@ function aujRekapBeban(daftar, pool) {
   const ambil = (k, nama) => (per[k] = per[k] || { k, nama, sesi: 0, p1: 0, p2: 0, menit: 0, tanpaJam: 0, tgl: new Set() });
   pool.forEach(g => ambil(g.key, g.name));
   daftar.forEach(r => {
-    const id1 = aujIdPengawas(r.pengawas1);
-    [['p1', r.pengawas1], ['p2', r.pengawas2]].forEach(x => {
+    const id1 = aujIdPengawas(r.pengawas1), lihatK = new Set();
+    (r.pengawasSemua ? r.pengawasSemua.map((n, i) => [i === 0 ? 'p1' : 'p2', n]) : [['p1', r.pengawas1], ['p2', r.pengawas2]]).forEach(x => {
       if (!x[1]) return;
-      const k = aujIdPengawas(x[1]); if (!k || (x[0] === 'p2' && k === id1)) return;   // orang yang sama di dua slot dihitung sekali
+      const k = aujIdPengawas(x[1]); if (!k || (x[0] === 'p2' && k === id1) || lihatK.has(k)) return; lihatK.add(k);   // orang yang sama di dua slot dihitung sekali
       const g = aujGuruDari(x[1]), o = ambil(k, g ? g.name : String(x[1]).trim());
       o.sesi++; o[x[0]]++;
       const d = aujDurMenit(r); if (d == null) o.tanpaJam++; else o.menit += d;
