@@ -201,6 +201,33 @@
       `Hadir + Berita Acara per Ruang${kosong ? ' Kosongan' : ''} - ${hari ? aujTglIndo(rec.tanggal) : (rec.ruang || '') + ' ' + (rec.tanggal || '')}`);
   };
 
+  // ---------------- CETAK BANYAK HARI (rentang tanggal) PER RUANG ----------------
+  // Memakai kolom Dari / Sampai di baris "Cetak banyak hari". Urut: tanggal, jam, ruang.
+  window.aujCetakPaketRuangRentang = function (kosong) {
+    const x = aujAmbilRentang(); if (!x) return;
+    const sudah = new Set(), grups = [];
+    x.daftar.forEach(r => {
+      if (sudah.has(r.key)) return;
+      const g = aujGrupRuang(r); g.forEach(q => sudah.add(q.key)); grups.push(g);
+    });
+    const hari = new Set(x.daftar.map(r => r.tanggal)).size;
+    if (!confirm('Cetak Daftar Hadir + Berita Acara per ruang' + (kosong ? ' KOSONGAN' : '') + ' untuk ' + grups.length + ' ruang/jam pada ' + hari + ' hari (' + aujTglIndo(x.dari) + ' s.d. ' + aujTglIndo(x.sampai) + ')?\n\nMinimal ' + (grups.length * 2) + ' lembar F4 (ruang gabungan bisa lebih). Pastikan kertas cukup.')) return;
+    if (!kosong && !konfirmasiBelum(grups)) return;
+    aujCetakHtml(grups.map(g => hadirRuangHtml(g, !!kosong) + baRuangHtml(g, !!kosong)).join(''),
+      `Hadir + Berita Acara per Ruang${kosong ? ' Kosongan' : ''} - ${aujTglIndo(x.dari)} s.d. ${aujTglIndo(x.sampai)}`);
+  };
+
+  if (typeof aujBarKosongan === 'function' && typeof aujAmbilRentang === 'function') {
+    const aujBarKosonganAsli = aujBarKosongan;
+    window.aujBarKosongan = aujBarKosongan = function (rec) {
+      const html = aujBarKosonganAsli(rec), akhir = html.lastIndexOf('</div>');
+      const tmb = `
+    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakPaketRuangRentang(true)" title="Daftar Hadir + Berita Acara kosongan, satu paket per RUANG (kelas satu ruang digabung), pada rentang tanggal ini">🗂️ Hadir + BA Kosongan per Ruang</button>
+    <button class="btn btn-soft" style="font-size:12px;padding:3px 10px;" onclick="aujCetakPaketRuangRentang(false)" title="Daftar Hadir + Berita Acara per RUANG dengan data yang sudah terisi, pada rentang tanggal ini">🗂️ Hadir + BA per Ruang (terisi)</button>`;
+      return akhir < 0 ? html + tmb : html.slice(0, akhir) + tmb + html.slice(akhir);
+    };
+  }
+
   if (typeof aujHtmlHadir === 'function') {
     const aujHtmlHadirAsli = aujHtmlHadir;
     window.aujHtmlHadir = aujHtmlHadir = function (rec) {
