@@ -926,7 +926,7 @@ function aujHtmlBA(rec) {
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h4 style="font-weight:700;">📄 Berita Acara Pelaksanaan ASAS/ASAT</h4>
       <button class="btn btn-primary" onclick="aujCetakSatu('ba')">🖨️ Cetak Berita Acara</button>
-      <button class="btn btn-soft" onclick="aujCetakSatu('ba0')" title="Berita acara dengan angka dan catatan dikosongkan, untuk diisi tangan pengawas">📝 Berita Acara Kosongan</button>
+      <button class="btn btn-soft" onclick="aujCetakSatu('ba0')" title="Berita acara polos: angka, catatan, tanggal, dan mata pelajaran dikosongkan untuk diisi tangan pengawas (data sesi tidak berubah)">📝 Berita Acara Kosongan</button>
       <button class="btn btn-soft" onclick="aujCetakSatu('sampul')" title="Sampul amplop naskah soal dan lembar jawaban untuk ruang/sesi ini">✉️ Sampul Amplop</button>
       <button class="btn btn-soft" onclick="aujCetakKosonganHari()" title="Daftar Hadir + Berita Acara kosong untuk semua ruang pada tanggal sesi ini">📚 Kosongan Semua Ruang (tanggal ini)</button>
     </div>
@@ -1638,9 +1638,13 @@ function aujCetakDenahHtml(rec) {
   </div>`;
 }
 // ---- 4. Berita Acara ----
+// bl = true  : kosongan per sesi (hasil dikosongkan, jadwal tetap) - dipakai paket "Kosongan Semua Ruang/Rentang" agar tiap lembar jelas sesinya.
+// bl = 'polos': kosongan polos (tombol "Berita Acara Kosongan") - tanggal dan mata pelajaran juga dikosongkan untuk ditulis tangan.
+// Yang diubah hanya SALINAN data untuk dicetak (Object.assign({}, rec, ...)); data sesi yang tersimpan tidak disentuh.
 function aujCetakBAHtml(rec, bl) {
-  if (bl) rec = Object.assign({}, rec, { hadirPeserta: {}, baNaskah: '', baLjk: '', baCatatan: '', baMulai: '', baSelesai: '' });   // kosongan: hasil dikosongkan, jadwal tetap
-  const rk = aujRekapHadir(rec), p = aujBagianTgl(rec.tanggal) || { hari: '...', d: '...', bulan: '...', y: '...' };
+  const polos = bl === 'polos';
+  if (bl) rec = Object.assign({}, rec, { hadirPeserta: {}, baNaskah: '', baLjk: '', baCatatan: '', baMulai: '', baSelesai: '' }, polos ? { tanggal: '', mapel: '' } : {});   // kosongan: hasil dikosongkan, jadwal tetap (polos: tanggal & mapel ikut)
+  const rk = aujRekapHadir(rec), p = aujBagianTgl(rec.tanggal) || (polos ? { hari: '..............', d: '........', bulan: '................', y: '..........' } : { hari: '...', d: '...', bulan: '...', y: '...' });
   const kosong = !!bl || (rk.belum === rk.total && rk.total > 0);
   const orang = n => kosong ? '.......... orang' : `${n} orang`;
   const titik = v => (v == null || v === '') ? '..........' : escapeHtml(String(v));
@@ -1654,7 +1658,7 @@ function aujCetakBAHtml(rec, bl) {
   return `<div class="halaman">${aujKopHtml()}
     <h1>Berita Acara Pelaksanaan ${escapeHtml(aujJudulAsesmen(rec.nama))}</h1>
     <div class="sub">${escapeHtml(rec.nama || '')}<br>Tahun Pelajaran ${escapeHtml(currentTahunAjaran || '')}${currentSemesterAktif ? ' — Semester ' + escapeHtml(currentSemesterAktif) : ''}</div>
-    <p style="text-align:justify;line-height:1.5;">Pada hari ini <strong>${escapeHtml(p.hari)}</strong> tanggal <strong>${escapeHtml(String(p.d))}</strong> bulan <strong>${escapeHtml(p.bulan)}</strong> tahun <strong>${escapeHtml(String(p.y))}</strong>, telah dilaksanakan <strong>${escapeHtml(rec.nama || '')}</strong>${rec.mapel ? ' mata pelajaran <strong>' + escapeHtml(rec.mapel) + '</strong>' : ''} untuk <strong>${escapeHtml(rec.kelas || '')}</strong> di ${escapeHtml(MADRASAH.nama || 'madrasah')}, ruang <strong>${escapeHtml(rec.ruang || '')}</strong>, mulai pukul <strong>${escapeHtml(mulai || '.....')}</strong> sampai dengan pukul <strong>${escapeHtml(selesai || '.....')}</strong> WIB, dengan keterangan sebagai berikut:</p>
+    <p style="text-align:justify;line-height:1.5;">Pada hari ini <strong>${escapeHtml(p.hari)}</strong> tanggal <strong>${escapeHtml(String(p.d))}</strong> bulan <strong>${escapeHtml(p.bulan)}</strong> tahun <strong>${escapeHtml(String(p.y))}</strong>, telah dilaksanakan <strong>${escapeHtml(rec.nama || '')}</strong>${rec.mapel ? ' mata pelajaran <strong>' + escapeHtml(rec.mapel) + '</strong>' : (polos ? ' mata pelajaran <strong>..............................</strong>' : '')} untuk <strong>${escapeHtml(rec.kelas || '')}</strong> di ${escapeHtml(MADRASAH.nama || 'madrasah')}, ruang <strong>${escapeHtml(rec.ruang || '')}</strong>, mulai pukul <strong>${escapeHtml(mulai || '.....')}</strong> sampai dengan pukul <strong>${escapeHtml(selesai || '.....')}</strong> WIB, dengan keterangan sebagai berikut:</p>
     <table class="info" style="margin-left:6px;">
       <tr><td style="width:24px;">1.</td><td style="width:250px;">Jumlah peserta seharusnya</td><td>: ${bl ? rk.total + ' orang' : orang(rk.total)}</td></tr>
       <tr><td>2.</td><td>Jumlah peserta hadir</td><td>: ${orang(rk.h)}</td></tr>
@@ -1666,7 +1670,7 @@ function aujCetakBAHtml(rec, bl) {
     <div class="blok" style="margin-top:10px;padding-left:6px;"><div>Catatan selama pelaksanaan ASAS/ASAT:</div>
       <div style="border:1px solid #000;min-height:${bl ? 110 : 80}px;padding:6px 8px;margin-top:3px;white-space:pre-wrap;font-size:11.5pt;">${escapeHtml(rec.baCatatan || '')}</div></div>
     <p style="margin-top:12px;">Demikian berita acara ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.</p>
-    <div style="text-align:right;margin-top:6px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${escapeHtml(aujTglIndo(rec.tanggal))}</div>
+    <div style="text-align:right;margin-top:6px;">${tempat ? escapeHtml(tempat) + ', ' : ''}${polos ? '.............................' : escapeHtml(aujTglIndo(rec.tanggal))}</div>
     <table class="ttd"><tr>${aujTtdPengawasHtml(rec.pengawas1, 1, '50%')}${aujTtdPengawasHtml(rec.pengawas2, 2, '50%')}</tr></table>
   </div>`;
 }
@@ -1961,12 +1965,23 @@ function aujCetakRekapBARentang() {
 }
 function aujCetakPengawasHariHtml(daftar) {
   const halaman = aujPerTanggal(daftar).map(h => {
-    const baris = [];
+    // Satu baris per pengawas + ruang + jam: kelas yang digabung dalam satu ruang (mis. Kelas 4, 5, 6) cukup satu tanda tangan.
+    const grup = [], idx = {};
     h.sesi.forEach(r => {
-      const hadir = aujPwHadirEfektif(r);
-      [[r.pengawas1, 'p1'], [r.pengawas2, 'p2']].filter(x => x[0]).forEach(x => baris.push(
-        `<tr><td style="text-align:center;width:30px;">${baris.length + 1}</td><td>${escapeHtml(x[0])}</td><td style="text-align:center;white-space:nowrap;">${escapeHtml(aujWaktu(r))}</td><td style="text-align:center;">${escapeHtml(r.ruang || '-')}</td><td style="text-align:center;">${escapeHtml(r.kelas || '-')}</td><td>${escapeHtml(r.mapel || '-')}</td><td style="width:30%;height:32px;"></td><td style="width:11%;text-align:center;">${hadir[x[1]] ? 'Hadir' : ''}</td></tr>`));
+      const hadir = aujPwHadirEfektif(r), w = aujWaktu(r);
+      [[r.pengawas1, 'p1'], [r.pengawas2, 'p2']].filter(x => x[0]).forEach(x => {
+        const k = [w, aujNormNama(r.ruang), aujNormNama(x[0])].join('|');
+        let g = idx[k];
+        if (!g) { g = idx[k] = { nama: x[0], waktu: w, ruang: r.ruang || '-', kelas: [], mapel: [], hadir: false }; grup.push(g); }
+        const kl = r.kelas || '-', mp = r.mapel || '-';
+        if (g.kelas.indexOf(kl) < 0) g.kelas.push(kl);
+        if (g.mapel.indexOf(mp) < 0) g.mapel.push(mp);
+        if (hadir[x[1]]) g.hadir = true;
+      });
     });
+    const ringkasKelas = ks => ks.every(k => /^Kelas \d+$/.test(k)) ? 'Kelas ' + ks.map(k => k.slice(6)).join(', ') : ks.join(', ');
+    const nw = 'text-align:center;white-space:nowrap;';   // Waktu, Ruang, Kelas tidak boleh pecah baris agar lebar kolom sama di semua halaman
+    const baris = grup.map((g, i) => `<tr><td style="text-align:center;width:30px;">${i + 1}</td><td style="white-space:nowrap;">${escapeHtml(g.nama)}</td><td style="${nw}">${escapeHtml(g.waktu)}</td><td style="${nw}">${escapeHtml(g.ruang)}</td><td style="${nw}">${escapeHtml(ringkasKelas(g.kelas))}</td><td>${escapeHtml(g.mapel.join(' / '))}</td><td style="width:24%;height:24px;"></td><td style="width:8%;text-align:center;">${g.hadir ? 'Hadir' : ''}</td></tr>`);
     if (!baris.length) return '';
     return `<div class="halaman">${aujKopHtml()}
       <h1>Daftar Hadir Pengawas ${escapeHtml(h.sesi[0].nama || 'ASAS/ASAT')}</h1>
@@ -1983,7 +1998,7 @@ function aujCetakPengawasHariRentang() {
   aujCetakHtml(aujCetakPengawasHariHtml(x.daftar), `Daftar Hadir Pengawas - ${aujTglIndo(x.dari)} s.d. ${aujTglIndo(x.sampai)}`, AUJ_CSS_REKAP);
 }
 const AUJ_CETAK = { hadir: aujCetakHadirHtml, tatib: aujCetakTatibHtml, denah: aujCetakDenahHtml, ba: aujCetakBAHtml, 
-  hadir0: r => aujCetakHadirHtml(r, true), ba0: r => aujCetakBAHtml(r, true), pintu: aujCetakPintuHtml, pintuNama: aujCetakPintuNamaHtml,
+  hadir0: r => aujCetakHadirHtml(r, true), ba0: r => aujCetakBAHtml(r, 'polos'), pintu: aujCetakPintuHtml, pintuNama: aujCetakPintuNamaHtml,
   sampul: aujCetakSampulHtml, rekap: r => aujCetakRekapHtml(r, false), rekapSemua: r => aujCetakRekapHtml(r, true) };
 const AUJ_JUDUL = { hadir: 'Daftar Hadir ASAS/ASAT', tatib: 'Tata Tertib ASAS/ASAT', denah: 'Denah Ruang ASAS/ASAT', ba: 'Berita Acara ASAS/ASAT', hadir0: 'Daftar Hadir Kosongan ASAS/ASAT', ba0: 'Berita Acara Kosongan ASAS/ASAT', pintu: 'Nomor Ruang ASAS/ASAT', pintuNama: 'Daftar Peserta per Ruang ASAS/ASAT', sampul: 'Sampul Amplop ASAS/ASAT', rekap: 'Rekap Kehadiran ASAS/ASAT', rekapSemua: 'Rekap Kehadiran Semua Kelas ASAS/ASAT' };
 // Cetak selalu memakai data TERSIMPAN. Fungsi ini mendeteksi isian/draft di layar yang belum disimpan.
