@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.614",
-  "disimpan": "2026-11-28T03:15:02.403Z",
+  "appVersion": "v8.615",
+  "disimpan": "2026-11-28T03:23:57.665Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -111,8 +111,8 @@
       "hash": "830f74012e65391fb5dfe4ed4377815b35ba30f2"
     },
     "js/event-ujian.js": {
-      "v": "v=6",
-      "hash": "45ae84e2eb2a6b16775879458d41f94321479204"
+      "v": "v=7",
+      "hash": "0ba0aff7ac4f0852dff9ba04cb8e2fd89aa54df6"
     },
     "js/pengingat-absen-guru.js": {
       "v": "v=4",
