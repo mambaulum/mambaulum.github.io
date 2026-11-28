@@ -45,7 +45,7 @@
    index.html serta PRECACHE_URLS di bawah. Angka ?v= di kedua tempat harus sama.
 ============================================================ */
 
-const APP_VERSION = 'v8.614';
+const APP_VERSION = 'v8.615';
 const SHELL_CACHE = `si-mamba-shell-${APP_VERSION}`;
 const RUNTIME_CACHE = `si-mamba-runtime-${APP_VERSION}`;
 const ALL_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
@@ -93,7 +93,7 @@ const PRECACHE_URLS = [
   './js/honor-guru.js?v=29',                 // Honor Guru: honor sholat, tarif, Halaman Honor, panjar, slip, PDF Rekap Honor (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/honor-kebersihan.js?v=3',            // Honor Petugas Kebersihan (input manual; dimuat SESUDAH honor-guru.js)
   './js/versi-app.js?v=2',                   // Penampil versi + Cek pembaruan (footer menu samping; berdiri sendiri)
-  './js/event-ujian.js?v=6',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
+  './js/event-ujian.js?v=7',                // Event & Ujian: form admin, daftar, check-in kamera (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/pengingat-absen-guru.js?v=4',       // Absen Guru Admin + pengingat belum absen (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-tahfidz-pramuka-ekskul.js?v=7',  // V4: panel siswa, Tahfidz, Pramuka, Ekskul (dipecah dari app.js; dimuat SESUDAH app.js)
   './js/v4-pengaturan-notif-rapor.js?v=19',  // V4: tarif honor, pengaturan Absen QR, notifikasi, persetujuan, Rapor (dipecah dari app.js; dimuat SESUDAH app.js)

@@ -15,6 +15,7 @@
     const CHECKIN_SESUDAH_MENIT = 0;    // dan sampai N menit setelah jam selesai
     // Catatan: ini memakai jam perangkat, jadi hanya pagar untuk pemakaian normal. Pagar sungguhan harus
     // di Firebase Rules (validasi waktu & honor) -- lihat catatan audit.
+    const UJ_SUSULAN_HARI = 14;   // batas pengajuan susulan sesudah sesi selesai (sama dengan Rules: 1209600000 ms)
     const UJIAN_HONOR_MAKS = 1000000;   // batas wajar honor per sesi (sama dengan Rules); ubah di dua tempat bila kebijakan berubah
     function cekJendelaCheckin(item) {
       if (!item) return { ok: true };
@@ -635,7 +636,7 @@
         if (html) html = `<p style="font-size:12px;color:#92400e;margin-bottom:8px;">${menunggu.length} pengajuan menunggu keputusan Anda.</p>` + html;
       } else if (currentUser.key && !isKepsek()) {
         const me = currentUser.key;
-        const kandidat = (allUjian || []).filter(u => u.pengawas && u.pengawas[me] === true && u.selesaiMs && Date.now() > u.selesaiMs
+        const kandidat = (allUjian || []).filter(u => u.pengawas && u.pengawas[me] === true && u.selesaiMs && Date.now() > u.selesaiMs && Date.now() <= u.selesaiMs + UJ_SUSULAN_HARI * 86400000
           && !(allUjianAttendance || []).some(a => a.ujianKey === u.key && a.guruKey === me)
           && !ujAntreSaya().some(x => x.ujianKey === u.key)
           && !allUjianSusulan.some(s => s.ujianKey === u.key && s.guruKey === me)).sort((a, b) => b.selesaiMs - a.selesaiMs).slice(0, 15);
@@ -651,6 +652,7 @@
       const u = allUjian.find(e => e.key === ujianKey);
       if (!u || !currentUser || !currentUser.key || !u.pengawas || u.pengawas[currentUser.key] !== true) return toast('⛔ Anda tidak tercantum sebagai pengawas sesi ini.', true);
       if ((allUjianAttendance || []).some(a => a.ujianKey === ujianKey && a.guruKey === currentUser.key)) return toast('Anda sudah check-in sesi ini.', true);
+      if (u.selesaiMs && Date.now() > u.selesaiMs + UJ_SUSULAN_HARI * 86400000) return toast('Batas pengajuan susulan (' + UJ_SUSULAN_HARI + ' hari sesudah sesi) sudah lewat. Hubungi Admin.', true);
       if (isBusy('ujSusulan')) return toast('Sedang menyimpan...', false, 1500);
       if (!isReallyOnline()) return toast('📡 Sedang offline. Pengajuan butuh koneksi internet.', true);
       const masuk = prompt(`Susulan check-in: ${u.nama} (${u.tanggal})\n\nTulis alasan lupa check-in (minimal 5 huruf):`, '');
