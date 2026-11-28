@@ -1,6 +1,6 @@
 {
-  "appVersion": "v8.611",
-  "disimpan": "2026-11-28T01:16:51.651Z",
+  "appVersion": "v8.612",
+  "disimpan": "2026-11-28T02:14:09.319Z",
   "assets": {
     "css/styles.css": {
       "v": "v=23",
@@ -57,6 +57,10 @@
     "js/administrasi-ujian.js": {
       "v": "v=59",
       "hash": "c4d5ab6f1cbe4f127d17f1c9600a737816470fd0"
+    },
+    "js/ba-per-ruang.js": {
+      "v": "v=1",
+      "hash": "af318403f82e39c766cd924543be9c3d795f13a5"
     },
     "js/app.js": {
       "v": "v=176",
